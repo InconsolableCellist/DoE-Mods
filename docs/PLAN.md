@@ -477,12 +477,44 @@ tracking. Two known issues from that first look:
          write it to ours. Worth knowing before anyone reaches for it.
 - [ ] **Replace the character-menu pedestal model.** The home world has your character on a
       pedestal for trying on cosmetics; showing the custom avatar there instead would make the
-      swap feel like part of the game rather than a thing bolted on. Likely target is
-      `AvatarHologram : Idler` (dump.cs:25323) — GAME-INTERNALS already flags it as
-      non-networked and therefore a safe local test surface, which makes it low-risk to try.
+      swap feel like part of the game rather than a thing bolted on. Target confirmed:
+      `AvatarHologram : Idler` (dump.cs:25323), held by `AvatarCustomizer.hologram`
+      (dump.cs:50737 — the wardrobe menu), `PlayerRoomManager.NameDef.avatarHologram`
+      (dump.cs:37730 — the home-room pedestal), `MainMenu.hologram` and `UIEndMission`.
+      **Not** `Vendor : Idler`, which turns out to be an NPC shopkeeper that walks between
+      locations. `AvatarHologram` clones a real `SkinnedMeshRenderer` with its own
+      `boneLUT`/`remappedBones` via `CloneAvatarMesh()` / `RecreateAvatarMesh()` /
+      `FinishCharacter(...)`, so the hook is either intercepting those or replacing `avatarMesh`
+      after it builds. `AvatarHologram.Find(AvatarPlayer)` and `Find(PlayerHologram)` are public
+      statics, which makes it easy to locate at runtime.
       Fitting real armour meshes to an arbitrary VRChat body is not realistic; roughly parenting
       the cosmetic to the matching humanoid bone is, and is probably good enough to browse with.
-- [ ] **Hand poses on grip/trigger — the cheap precursor to finger tracking.** Right now the
+- [x] **Hand poses on grip/trigger (v0.9.0, built but untested)** — `Avatars/HandPoser.cs`.
+      The game's own posing can't be reused: `HandPose` stores baked `Transform[] bones`
+      captured from *its* rig, and those rotations are meaningless on a VRChat skeleton with
+      different bone axes. So we curl procedurally, rotating each joint about the axis that
+      actually bends it — derived from the avatar's own geometry as
+      `cross(proximal→middle, middle→distal)`, with the palm's lateral axis as a fallback for a
+      dead-straight finger. Tunable: `HandCurlDegrees` (70), `ThumbCurlDegrees` (40),
+      `HandCurlSmoothing`, `HandPosesEnabled`. Negate the degrees if a rig bends backwards.
+      Input, best first: `XRInput.GetFingerCurls(Handedness, bool)` for real per-finger curl;
+      otherwise `left/rightHandTrigger` (grip) and `left/rightIndexTrigger`, with trigger
+      driving the index and grip the rest, matching what the vanilla game does.
+- [ ] **Hand poses: reuse the game's own pose selection** if the procedural curl looks wrong.
+      `VRControllerHands.GetHandPoseType(float hold, float trigger, bool thumbCapTouch,
+      PropRoot, bool isLeft, out float weight)` (dump.cs:17054) is the game's own decision
+      function, and `LeftHandPoseOverride`/`RightHandPoseOverride` are settable — so the *pose
+      choice* can be read or forced even though the pose *data* isn't portable.
+- [ ] **Death and ragdoll handling.** Not on `AvatarPlayer`:
+      `CharacterPrefab.SetRagdollEnabled(bool enablePhysics, bool enableColliders)`
+      (dump.cs:28207) plus `isRagdolled` and `AddRagdollVelocity` act on the prefab's own
+      `rigidbodies` / `colliders` / `joints` arrays, and dissolve is a global event —
+      `GameEvents.InitiatePlayerDissolve` → `CharacterPrefab.OnInitiatePlayerDissolve(float)` →
+      `DissolveHandler`, a shader swap over the character's renderers. `GameEvents` also exposes
+      `OnLocalPlayerDied` / `OnRemotePlayerDied` / `OnPlayerSpawned` / `OnPlayerRespawned`,
+      which are the clean hooks for swap lifecycle. First version stays simple: on death, show
+      the vanilla mesh and hide the custom one — the vanilla ragdoll already has physics bodies
+      and ours does not. Right now the
       custom avatar's fingers never move: gripping a weapon closes the vanilla hand while the
       custom paw stays open, which reads as broken even though nothing is. The game already
       solves this for its own rig with `AvatarHand` and `PropPose` (dump.cs, `AvatarHand`), so
@@ -496,6 +528,13 @@ tracking. Two known issues from that first look:
       without articulated fingers they cannot sign ASL in game at all — this decides whether
       they can communicate, so it does not get dropped if time runs short.
       The exact VRChat gesture set will be supplied when we start; don't guess at it.
+      **Feasibility confirmed 2026-08-31:** `SteamVR_Action_Skeleton` (dump.cs:614311) is in the
+      build with `thumbCurl`…`pinkyCurl` and `fingerCurls[]`, and `OpenVRInput` (dump.cs:19384)
+      already overrides `XRInput.GetFingerCurls` using it — so genuine per-finger articulation
+      is reachable on Index with no new dependency. Oculus is the open question: `OVRInput`
+      appears only for buttons, axes and haptics, with no `OVRHand`/`OVRSkeleton`, so Quest
+      controllers will likely need VRChat's gesture set rather than real curl data. `HandPoser`
+      already prefers real curls and falls back, so the Quest path is where that work goes.
       Groundwork already in place: the exporter records the full humanoid bone map including
       every finger bone, and the game's own rig has 3-joint fingers, so the bones exist on both
       sides. Needs: reading controller finger/gesture input, a pose blend layer applied after
