@@ -53,6 +53,7 @@ namespace DoEFriendsMod.Avatars
         private float _settledLogAt;   // unscaled time at which to re-log placement; 0 = done
         private float _nextLeashLogAt;
         private float _lastSolverDrift;
+        private int _leashTrips;
         public string AvatarName { get; private set; }
 
         public AvatarSwapper()
@@ -654,6 +655,24 @@ namespace DoEFriendsMod.Avatars
                 if (distance <= limit) return;
 
                 _model.transform.position = new Vector3(head.position.x, _model.transform.position.y, head.position.z);
+                _leashTrips++;
+
+                // Repeated tripping means the solver is throwing the avatar away faster than we
+                // can drag it back, and the result on screen is a body strobing between your
+                // feet and the far side of the map — which reads as "the avatar didn't appear"
+                // rather than as a setting being wrong. Shut the cause off and say so.
+                if (_leashTrips >= 5 && ModConfig.SwapLocomotionWeight.Value > 0f)
+                {
+                    ModConfig.SwapLocomotionWeight.Value = 0f;
+                    ModConfig.SwapFollowVanillaRoot.Value = true;
+                    _leashTrips = 0;
+                    Core.Log.Error("*** Procedural locomotion is throwing the avatar across the map " +
+                                   "(5 leash trips). Turned SwapLocomotionWeight back to 0 and " +
+                                   "SwapFollowVanillaRoot back to true for this session. Your avatar " +
+                                   "should reappear where it belongs; legs will hold their rest pose.");
+                    return;
+                }
+
                 if (Time.unscaledTime >= _nextLeashLogAt)
                 {
                     _nextLeashLogAt = Time.unscaledTime + 2f;
@@ -690,6 +709,7 @@ namespace DoEFriendsMod.Avatars
             _shrinkBones.Clear();
             _keepBones.Clear();
             _headChopSpec = null;
+            _leashTrips = 0;
             _manifest = null;
             _model = null;
             _fullBody = null;

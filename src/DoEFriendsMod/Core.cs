@@ -6,7 +6,7 @@ using DoEFriendsMod.Gate;
 using DoEFriendsMod.Net;
 using DoEFriendsMod.Recon;
 
-[assembly: MelonInfo(typeof(Core), "DoEFriendsMod", "0.9.0", "dan")]
+[assembly: MelonInfo(typeof(Core), "DoEFriendsMod", "0.9.1", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace DoEFriendsMod
@@ -25,7 +25,7 @@ namespace DoEFriendsMod
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.9.0";
+        public const string Version = "0.9.1";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;

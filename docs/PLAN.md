@@ -460,7 +460,18 @@ tracking. Two known issues from that first look:
       one, and without it the final segment of a tail stays rigid.
 - [ ] **Legs don't move when you walk.** With `SwapLocomotionWeight = 0` the legs just hold
       their rest pose. Three routes, cheapest first:
-      1. **Turn VRIK's procedural locomotion back on.** It is precisely the feature for this —
+      **Route 1 was tested on 2026-08-31 and failed.** With `SwapLocomotionWeight = 1` and
+      `SwapFollowVanillaRoot = false` on a bare scene root — no parenting involved — VRIK threw
+      the avatar **97 m within 50 ms of the swap**, and kept doing it (11 leash trips). So the
+      earlier 100 m runaway was *not* only the parenting: VRIK's procedural locomotion genuinely
+      misbehaves in this setup. The displacement magnitude is suspiciously close to twice the
+      distance from the world origin each time, which smells like a position applied with the
+      wrong sign somewhere inside the solve, but that is a guess and not worth chasing.
+      **Go to route 2.** v0.9.1 auto-recovers: five leash trips turns locomotion back off and
+      says so, because the on-screen symptom is a body strobing between your feet and the far
+      side of the map, which reads as "the avatar didn't appear" rather than as a bad setting.
+
+      1. ~~**Turn VRIK's procedural locomotion back on.**~~ *(tried, see above)* It is precisely the feature for this —
          stepping legs from 3-point tracking. It was disabled because of the 100 m runaway, but
          that was diagnosed as the *parenting*, which is now fixed, and locomotion has never
          been retested against a bare scene root. It needs `SwapFollowVanillaRoot = false` as
