@@ -56,6 +56,15 @@ namespace DoEFriendsMod.Avatars
         private int _leashTrips;
         public string AvatarName { get; private set; }
 
+        /// <summary>
+        /// True for your own avatar. Head chopping and hiding the first-person arms are
+        /// first-person comforts — doing either to a peer's avatar would leave them headless
+        /// on your screen and take away your own arms for someone else's body.
+        /// </summary>
+        public bool IsSelf { get; private set; }
+
+        public int ActorNumber { get; private set; } = -1;
+
         public AvatarSwapper()
         {
             ModGate.ActiveChanged += active => { if (!active) Revert("gate closed"); };
@@ -83,9 +92,13 @@ namespace DoEFriendsMod.Avatars
             Apply(local, manifest);
         }
 
-        public void Apply(AvatarPlayer player, AvatarManifest manifest)
+        public void Apply(AvatarPlayer player, AvatarManifest manifest) => Apply(player, manifest, true);
+
+        public void Apply(AvatarPlayer player, AvatarManifest manifest, bool isSelf)
         {
-            ReconLog.Section($"Avatar swap — {manifest.name} onto {SafeName(player)}");
+            IsSelf = isSelf;
+            try { ActorNumber = player.ActorNumber; } catch { ActorNumber = -1; }
+            ReconLog.Section($"Avatar swap ({(isSelf ? "self" : "remote")}) — {manifest.name} onto {SafeName(player)}");
 
             var fullBody = SafeFullBody(player);
             if (!Interop.Alive(fullBody))
@@ -170,15 +183,20 @@ namespace DoEFriendsMod.Avatars
                 _model.SetActive(true);
 
                 CacheVanillaMesh(fullBody);
-                CacheFpsArms(player);
+                if (isSelf) CacheFpsArms(player);
 
                 _springs = new SpringBones();
                 var springSummary = _springs.Build(_model, manifest);
                 _springs.Reset();
 
-                _hands = new HandPoser();
-                Core.Log.Msg($"    hand poses: {_hands.Build(_model, manifest)}");
-                HandPoser.LogInputBackend();
+                // Finger poses come from OUR controllers, so they only make sense on our own
+                // avatar. A peer's fingers will need the pose sent over the wire.
+                if (isSelf)
+                {
+                    _hands = new HandPoser();
+                    Core.Log.Msg($"    hand poses: {_hands.Build(_model, manifest)}");
+                    HandPoser.LogInputBackend();
+                }
 
                 Core.Log.Msg($"*** Avatar swapped: {manifest.name} on {SafeName(player)} " +
                              $"(scale x{manifest.rig.suggestedScale:0.###})");
@@ -494,9 +512,9 @@ namespace DoEFriendsMod.Avatars
             FollowVanillaRoot();
             UpdateHandOffsets();
             ApplyVanillaMeshVisibility();
-            ApplyFpsArmVisibility();
+            if (IsSelf) ApplyFpsArmVisibility();
             ApplyLocomotionWeight();
-            ApplyHeadChop();
+            if (IsSelf) ApplyHeadChop();
             Leash();
 
             if (_settledLogAt > 0f && Time.unscaledTime >= _settledLogAt)

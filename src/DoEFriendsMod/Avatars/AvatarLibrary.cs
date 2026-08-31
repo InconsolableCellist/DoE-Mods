@@ -39,6 +39,31 @@ namespace DoEFriendsMod.Avatars
             return best;
         }
 
+        /// <summary>Names in a stable order, for cycling through with a hotkey.</summary>
+        public List<string> SortedNames()
+        {
+            var names = new List<string>();
+            foreach (var kv in _byName) names.Add(kv.Value.name);
+            names.Sort(StringComparer.OrdinalIgnoreCase);
+            return names;
+        }
+
+        /// <summary>Pick the next installed avatar and remember it. Returns the new name.</summary>
+        public string CycleSelection()
+        {
+            var names = SortedNames();
+            if (names.Count == 0) return null;
+
+            var current = ModConfig.PreviewAvatarName.Value ?? "";
+            var index = names.FindIndex(n => string.Equals(n, current, StringComparison.OrdinalIgnoreCase));
+            var next = names[(index + 1) % names.Count];
+
+            ModConfig.PreviewAvatarName.Value = next;
+            try { MelonLoader.MelonPreferences.Save(); }
+            catch (Exception e) { Core.Log.Warning($"Could not save avatar choice: {e.Message}"); }
+            return next;
+        }
+
         public void Rescan()
         {
             _byName.Clear();
@@ -104,6 +129,26 @@ namespace DoEFriendsMod.Avatars
             }
 
             Core.Log.Msg($"Avatar library: {_byName.Count} usable of {files.Length} manifest(s) in {AvatarsDir}");
+
+            // With more than one avatar installed and no choice recorded, everyone falls back
+            // to the same alphabetically-first entry — which is how two people ended up wearing
+            // the same model. Say so loudly rather than picking silently.
+            if (_byName.Count > 1 && string.IsNullOrWhiteSpace(ModConfig.PreviewAvatarName.Value))
+            {
+                Core.Log.Warning($"*** {_byName.Count} avatars installed but PreviewAvatarName is empty, " +
+                                 $"so `{First()?.name}` is being used by default. Press F2 to cycle, " +
+                                 "or set PreviewAvatarName in MelonPreferences.cfg. Installed:");
+                foreach (var kv in _byName) Core.Log.Warning($"      {kv.Value.name}");
+            }
+            else if (!string.IsNullOrWhiteSpace(ModConfig.PreviewAvatarName.Value))
+            {
+                var chosen = Get(ModConfig.PreviewAvatarName.Value);
+                if (chosen == null)
+                    Core.Log.Warning($"*** PreviewAvatarName is `{ModConfig.PreviewAvatarName.Value}` " +
+                                     "but no avatar of that name is installed — falling back to the first.");
+                else
+                    Core.Log.Msg($"Selected avatar: {chosen.name}");
+            }
         }
 
         private static string Sha256(string path, out string error)

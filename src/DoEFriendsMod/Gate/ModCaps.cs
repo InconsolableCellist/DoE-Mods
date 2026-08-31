@@ -18,10 +18,10 @@ namespace DoEFriendsMod.Gate
     public static class ModCapsInfo
     {
         /// <summary>
-        /// What this build actually implements — not what it aspires to. Phase 1 ships the
-        /// gate and nothing else, so we advertise nothing.
+        /// What this build actually implements — not what it aspires to. Custom avatars now
+        /// sync between peers, so that capability is real and worth advertising.
         /// </summary>
-        public static ModCaps Local => ModCaps.None;
+        public static ModCaps Local => ModCaps.Avatars;
 
         public static string Describe(ModCaps caps) => caps == ModCaps.None ? "none" : caps.ToString();
     }

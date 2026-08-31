@@ -243,9 +243,20 @@ roughly 26 MB down to 6 MB without touching the silhouette. Geometry needs no wo
       match its manifest** — refused with a log line, never best-effort loaded. Two friends
       silently running different bytes under one avatar name is precisely what the Phase 1
       gate exists to prevent, and it would be undone here if a truncated copy got through.
-      Still to do: the peer-sync half (name+sha in the avatar-manifest event on code 141;
-      mismatch → that peer keeps their vanilla avatar). Later option: LAN/HTTP auto-fetch from
-      the wearer, size-capped.
+      **Peer sync built 2026-08-31 (v0.10.0)**: `Avatars/AvatarSync.cs` on event 141, reliable
+      (a dropped avatar message means someone looks wrong for the whole session, unlike the
+      face stream where a loss costs one stale frame). Only the avatar NAME plus a 16-char hash
+      prefix crosses the wire — never the model. A peer missing the file gets a log line naming
+      it and the folder to put it in; a peer with a *different build* of the same name is
+      refused outright, since silently using our copy would mean the two of you are looking at
+      different models.
+      `Avatars/AvatarSwapManager.cs` keeps one swapper per player. Avatar messages routinely
+      arrive before the sender's `AvatarPlayer` has spawned, so they're held and retried each
+      frame rather than dropped.
+      Self-only behaviours are now gated on an `IsSelf` flag — head chop, hiding the
+      first-person arms, and finger posing from *our* controllers. Applying any of those to a
+      peer would leave them headless on our screen and take our own arms away for someone
+      else's body. Later option: LAN/HTTP auto-fetch from the wearer, size-capped.
 
 **Preview spawner (v0.3.0).** Before any of 2b, `Avatars/AvatarPreview` loads a bundle and
 stands the avatar in front of you (F6), with no IK, no networking and no swapping. It exists
@@ -553,6 +564,12 @@ tracking. Two known issues from that first look:
       far cheaper than the face stream).
 - [ ] Optional polish backlog: eye-glance reuse of `Glancer`, per-avatar shader keyword QA,
       victory-move/emote handling.
+
+**Avatar selection was a real trap.** With two avatars installed and `PreviewAvatarName`
+empty, both clients fell back to `library.First()` — alphabetically first — so two people wore
+the same model and each thought the mod had picked wrong. Now: a loud startup warning listing
+every installed avatar when the choice is ambiguous, a confirmation line when it isn't, and
+**F2** cycles the selection and saves it.
 
 **Exit criteria:** two modded friends in a private lobby see each other's VRC models with
 correct head/hand tracking, feet grounded, weapons still holster on the (invisible)

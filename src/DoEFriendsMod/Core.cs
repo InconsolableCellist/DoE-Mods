@@ -6,7 +6,7 @@ using DoEFriendsMod.Gate;
 using DoEFriendsMod.Net;
 using DoEFriendsMod.Recon;
 
-[assembly: MelonInfo(typeof(Core), "DoEFriendsMod", "0.9.2", "dan")]
+[assembly: MelonInfo(typeof(Core), "DoEFriendsMod", "0.10.0", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace DoEFriendsMod
@@ -25,7 +25,7 @@ namespace DoEFriendsMod
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.9.2";
+        public const string Version = "0.10.0";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -36,7 +36,8 @@ namespace DoEFriendsMod
         private ModHandshake _handshake;
         private AvatarLibrary _avatarLibrary;
         private AvatarPreview _preview;
-        private AvatarSwapper _swapper;
+        private AvatarSwapManager _swaps;
+        private AvatarSync _avatarSync;
         private bool _envDumped;
         private float _hotkeyCooldown;
 
@@ -67,7 +68,8 @@ namespace DoEFriendsMod
             _avatarLibrary = new AvatarLibrary();
             _avatarLibrary.Rescan();
             _preview = new AvatarPreview(_avatarLibrary);
-            _swapper = new AvatarSwapper();
+            _swaps = new AvatarSwapManager(_avatarLibrary);
+            _avatarSync = new AvatarSync(_swaps, _avatarLibrary, _roster);
         }
 
         public override void OnSceneWasInitialized(int buildIndex, string sceneName)
@@ -107,7 +109,7 @@ namespace DoEFriendsMod
             var dt = UnityEngine.Time.deltaTime;
             _preview?.LateUpdate(dt);
             // After the game's own IK has solved this frame; ours runs on top of the pose it left.
-            _swapper?.LateUpdate(dt);
+            _swaps?.Tick(dt);
         }
 
         private void OnGateChanged(bool active)
@@ -156,12 +158,23 @@ namespace DoEFriendsMod
                 else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F4))
                 {
                     _hotkeyCooldown = 0.5f;
-                    _swapper.Toggle(_avatarLibrary);
+                    _swaps.ToggleSelf();
+                    // Tell peers either way — taking the avatar off has to reach them too, or
+                    // they keep seeing a model you're no longer wearing.
+                    _avatarSync.Broadcast("F4");
                 }
                 else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F5))
                 {
                     _hotkeyCooldown = 0.5f;
                     _avatarLibrary.Rescan();
+                }
+                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F2))
+                {
+                    _hotkeyCooldown = 0.5f;
+                    var next = _avatarLibrary.CycleSelection();
+                    LoggerInstance.Msg(next == null
+                        ? "No avatars installed to choose from."
+                        : $"*** Avatar selected: {next} — press F4 twice to put it on.");
                 }
                 else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F3))
                 {
@@ -191,7 +204,7 @@ namespace DoEFriendsMod
         public override void OnApplicationQuit()
         {
             _preview?.Despawn("application quitting");
-            _swapper?.Revert("application quitting");
+            _swaps?.RevertAll("application quitting");
             ModGate.ForceInert("application quitting");
             ReconLog.Close();
         }
