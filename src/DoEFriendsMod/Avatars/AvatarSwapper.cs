@@ -45,7 +45,7 @@ namespace DoEFriendsMod.Avatars
         public static string DescribeSettings() =>
             $"UseVrik={ModConfig.SwapUseVrik.Value}, HideVanillaMesh={ModConfig.SwapHideVanillaMesh.Value}, " +
             $"LocomotionWeight={ModConfig.SwapLocomotionWeight.Value}, HideHead={ModConfig.SelfHideHead.Value}, " +
-            $"HideFpsArms={ModConfig.SwapHideFpsArms.Value}, " +
+            $"HideFpsArms={ModConfig.SwapHideFpsArms.Value}, FollowVanillaRoot={ModConfig.SwapFollowVanillaRoot.Value}, " +
             $"wrist L=({ModConfig.SwapHandOffsetLeftX.Value},{ModConfig.SwapHandOffsetLeftY.Value},{ModConfig.SwapHandOffsetLeftZ.Value}) " +
             $"R=({ModConfig.SwapHandOffsetRightX.Value},{ModConfig.SwapHandOffsetRightY.Value},{ModConfig.SwapHandOffsetRightZ.Value})";
 
@@ -430,6 +430,25 @@ namespace DoEFriendsMod.Avatars
             catch { }
         }
 
+        /// <summary>
+        /// Locomotion weight, re-applied each frame so F3 can turn it on and off against a live
+        /// avatar. It only does anything useful when SwapFollowVanillaRoot is off — procedural
+        /// locomotion moves the root to place the feet, and pinning the root every frame leaves
+        /// it nothing to move.
+        /// </summary>
+        private void ApplyLocomotionWeight()
+        {
+            if (_vrik == null) return;
+            try
+            {
+                var want = Mathf.Clamp01(ModConfig.SwapLocomotionWeight.Value);
+                var solver = _vrik.solver;
+                if (solver?.locomotion == null) return;
+                if (!Mathf.Approximately(solver.locomotion.weight, want)) solver.locomotion.weight = want;
+            }
+            catch { }
+        }
+
         public static Transform RootOf(Transform t)
         {
             if (!Interop.Alive(t)) return null;
@@ -470,6 +489,7 @@ namespace DoEFriendsMod.Avatars
             UpdateHandOffsets();
             ApplyVanillaMeshVisibility();
             ApplyFpsArmVisibility();
+            ApplyLocomotionWeight();
             ApplyHeadChop();
             Leash();
 
@@ -494,6 +514,7 @@ namespace DoEFriendsMod.Avatars
         private void FollowVanillaRoot()
         {
             if (!Interop.Alive(_fullBody) || !Interop.Alive(_model)) return;
+            if (!ModConfig.SwapFollowVanillaRoot.Value) return;
             try
             {
                 var target = _fullBody.transform.position;

@@ -458,6 +458,30 @@ tracking. Two known issues from that first look:
       also retired the "is a collider holding it out?" theory.
       `endpointPosition` **is** emulated — PhysBone appends a virtual bone past the last real
       one, and without it the final segment of a tail stays rigid.
+- [ ] **Legs don't move when you walk.** With `SwapLocomotionWeight = 0` the legs just hold
+      their rest pose. Three routes, cheapest first:
+      1. **Turn VRIK's procedural locomotion back on.** It is precisely the feature for this —
+         stepping legs from 3-point tracking. It was disabled because of the 100 m runaway, but
+         that was diagnosed as the *parenting*, which is now fixed, and locomotion has never
+         been retested against a bare scene root. It needs `SwapFollowVanillaRoot = false` as
+         well: locomotion moves the root to place the feet, and pinning the root every frame
+         leaves it nothing to move. Both are live-tunable as of v0.8.0, so this is a two-value
+         experiment, with the 5 m leash as a backstop.
+      2. **Retarget the vanilla legs by delta.** Capture both rigs' bone rotations at swap time,
+         then each frame apply the game bone's rotation *change since capture* to ours. Robust
+         to the two rigs having different rest poses, since only deltas are copied. Gives
+         exactly the vanilla walk cycle.
+      3. Unity's own humanoid retargeting is **not available**: `HumanPoseHandler` exists
+         (dump.cs:849386) but only `GetHumanPose` survived IL2CPP stripping — there is **no
+         `SetHumanPose`** in this build, so we can read the game rig's humanoid pose and cannot
+         write it to ours. Worth knowing before anyone reaches for it.
+- [ ] **Replace the character-menu pedestal model.** The home world has your character on a
+      pedestal for trying on cosmetics; showing the custom avatar there instead would make the
+      swap feel like part of the game rather than a thing bolted on. Likely target is
+      `AvatarHologram : Idler` (dump.cs:25323) — GAME-INTERNALS already flags it as
+      non-networked and therefore a safe local test surface, which makes it low-risk to try.
+      Fitting real armour meshes to an arbitrary VRChat body is not realistic; roughly parenting
+      the cosmetic to the matching humanoid bone is, and is probably good enough to browse with.
 - [ ] **Hand poses on grip/trigger — the cheap precursor to finger tracking.** Right now the
       custom avatar's fingers never move: gripping a weapon closes the vanilla hand while the
       custom paw stays open, which reads as broken even though nothing is. The game already

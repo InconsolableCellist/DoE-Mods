@@ -58,6 +58,9 @@ namespace DoEFriendsMod
         // character body — hiding the body does nothing to them.
         public static MelonPreferences_Entry<bool> SwapHideFpsArms;
         public static MelonPreferences_Entry<string> SwapFpsArmPrefixes;
+        /// <summary>Pin the avatar to the game's own body position every frame. Turn OFF to let
+        /// VRIK's procedural locomotion own the root, which is what makes legs step.</summary>
+        public static MelonPreferences_Entry<bool> SwapFollowVanillaRoot;
 
         public static void Load()
         {
@@ -126,6 +129,7 @@ namespace DoEFriendsMod
             // Only the arm meshes. The weapon-stat and kill-counter panels are parented into
             // the same rig's forearm bones, and hiding those would take away real UI.
             SwapFpsArmPrefixes = Category.CreateEntry("SwapFpsArmPrefixes", "FPS_Arm");
+            SwapFollowVanillaRoot = Category.CreateEntry("SwapFollowVanillaRoot", true);
         }
     }
 }
