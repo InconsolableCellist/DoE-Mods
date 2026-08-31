@@ -231,6 +231,12 @@ roughly 26 MB down to 6 MB without touching the silhouette. Geometry needs no wo
       → `StandaloneWindows64`, chunk-based compression (LZ4 — fast partial loads),
       output `bundles/<name>.avatar` + a `manifest.json`
       (`name, sha256, rigType, viseme/facial blendshape map, eye bones, jaw?, scale hints`).
+- [x] **Install/uninstall guide** — [INSTALL.md](../INSTALL.md), written to be handed to a
+      friend with no context. Removal gets equal weight to installation and is stated plainly
+      (delete one DLL to disable the mod; delete four things to remove everything; nothing
+      lives outside the game folder). Also documents the "everyone needs the *same file*, not
+      the same version" constraint that falls out of the gate's SHA comparison, and how to read
+      the gate's refusal messages.
 - [x] Distribution v1 **(mod side built 2026-08-31, v0.3.0)**: everyone drops the same
       `.avatar` + `.manifest.json` pair into `<game>/UserData/DoEFriendsMod/Avatars/`.
       `Avatars/AvatarLibrary` scans that folder and **refuses any bundle whose SHA-256 doesn't
@@ -263,8 +269,30 @@ Bundle loading goes through MelonLoader's `Il2CppAssetBundle`, not Unity's `Asse
 Strategy: **parallel-rig puppet**, not mesh-graft. Don't fight `AvatarFactory`'s merged
 mesh — hide it and run our own model beside the game's skeleton:
 
-> **Revised 2026-08-31 after the first recon session.** The model is not under
-> `AvatarPlayer`. A player is two scene-root objects: `Player_<nick>` (logic, PhotonView,
+> **Revised twice on 2026-08-31.** First: the model is not under `AvatarPlayer`. Second, after
+> the swap threw the avatar 109 m across the map — **do not parent our model under
+> `Model_<nick>` either.** VRIK's procedural locomotion moves the character root to follow the
+> head target, and the game moves `Model_<nick>` to follow the player; two systems driving one
+> position compound every frame, and the result runs away in XZ with Y pinned at floor level.
+> Making it a scene root under a holder of our own **did not fix it** — still ~105 m, and the
+> third run landed at x = −52.85 from x = 52.17, near enough a sign flip to name the cause:
+> VRIK owns `references.root`, which is the *model* transform, and having a solver drive a
+> child's world position mixes spaces. The F6 preview never had the bug because its model is a
+> plain scene root with nothing above it.
+>
+> Final arrangement: the model is instantiated as a **bare scene root** (`DontDestroyOnLoad`,
+> no holder), and **we** position it every `LateUpdate` by copying `Model_<nick>`'s position and
+> rotation. That object is the game's own answer to "where are this player's feet and which way
+> are they facing" — authoritative, computed for us every frame, and nothing has to converge on
+> anything. `locomotion.weight` therefore defaults to **0**: procedural locomotion exists to
+> move a root nobody else drives, and leaving it on meant two systems fighting over one
+> transform. `SwapLocomotionWeight` can turn it back on once the basics are right.
+>
+> Two lessons worth keeping: **don't let a solver own a transform you also want to control**,
+> and a guard has to watch the transform that actually moves — the leash silently did nothing
+> for a whole debugging round because it watched the holder while VRIK moved the child.
+>
+> The model is not under `AvatarPlayer`. A player is two scene-root objects: `Player_<nick>` (logic, PhotonView,
 > IK targets, holsters — *no renderers at all*) and `Model_<nick>` (`CharacterPrefab` + the
 > whole visual rig). Reach the model via `AvatarPlayer.FullBody` / `.RemoteRig`. The game's
 > own rig is **humanoid** (`RemoteAnimator.isHuman == true`, avatar `Player_01Avatar`), which
@@ -302,8 +330,8 @@ is **inactive**, because VRIK's `Awake` initiates its solver and must not run be
 `references` is populated.
 
 - [ ] `AvatarSwapper` component per `AvatarPlayer`:
-      1. Load bundle → instantiate model under a neutral child of **`Model_<nick>`**
-         (`AvatarPlayer.FullBody.transform`), not the `AvatarPlayer` root.
+      1. Load bundle → instantiate the model as a **bare scene root**, positioned each frame
+         from `AvatarPlayer.FullBody.transform` (see the note above). No holder, no parenting.
       2. Add our own **VRIK** (the game ships FinalIK — use the game's own
          `Il2CppRootMotion.FinalIK.VRIK` type, no need to bundle it; confirmed live on
          `Model_<nick>` itself, with `GrounderIK` on a separate `Player Grounder` object).
@@ -335,6 +363,45 @@ is **inactive**, because VRIK's `Awake` initiates its solver and must not run be
       avatars have wildly varying arm proportions so it needs per-avatar calibration, and the
       weapon-stat UI is easy to break. Zero impact on what friends see, which is the Phase 2
       exit criterion.
+**Body placement works (v0.5.5).** The avatar stands in the right place with head and hands
+tracking. Two known issues from that first look:
+
+- **Wrist orientation.** The custom hand sits roughly 90° off the arm — the game's IK targets
+  are authored for its own rig's wrist convention and a VRChat rig rarely agrees. v0.6.0 calls
+  FinalIK's `VRIK.GuessHandOrientations()`, which derives `wristToPalmAxis` and
+  `palmToThumbAxis` from the avatar's own hand and finger bones, and additionally routes each
+  arm at a *child* of the game's hand target whose local rotation comes from config
+  (`SwapHandOffset{Left,Right}{X,Y,Z}`, applied every frame so F3 dials it in live).
+- **Wrist offsets measured (v0.6.1).** `GuessHandOrientations` reported sensible axes
+  (`wristToPalm (0,1,0)`, `palmToThumb (∓1,0,0)`) but did not fully resolve it; the working
+  values on a real VRChat rig were **X = −90, Z = 180 on both wrists**, now the shipped
+  defaults. Still per-avatar, but a far better starting point than zero.
+- **"Solver threw the avatar 100 m away" was a false alarm.** MelonLoader's `OnLateUpdate` runs
+  after every MonoBehaviour `LateUpdate`, so VRIK had already moved its root by the time the
+  diagnostic sampled it — and `FollowVanillaRoot()` then put it back before the frame rendered.
+  The avatar was always in the right place. Fixed by correcting the root *before* measuring;
+  the per-frame displacement is now logged as information, since a large steady value would
+  mean something in the solver still wants the root.
+- **Hiding the body did not hide the arms (v0.7.2).** `SwapHideVanillaMesh` worked correctly
+  all along — it hides `Model_<nick>/character_mesh`, the *third-person* body. What you look at
+  in VR is `VR Controller/FPS-Arms-Model`, a second complete rig on the SteamVR object. Phase 0
+  recorded this ("self view is two meshes, not one") and the swapper only ever handled one of
+  them. Now hides renderers matching `SwapFpsArmPrefixes` (default `FPS_Arm`) under that model,
+  and deliberately not the rest: the weapon-stat and kill-counter panels are parented into the
+  same rig's forearm bones, so a blanket hide would take away real UI. Original enabled states
+  are restored on revert — several of those renderers are already off because they belong to
+  cosmetics that aren't equipped.
+- **Head clipping fixed (v0.7.0)** with the same trick VRChat's Head Chop uses: scale the head
+  bone to ~0 so its geometry collapses out of view. The head is part of one merged
+  SkinnedMeshRenderer, so there is no renderer or layer to switch off — per-bone scale is the
+  only lever that reaches it. Scale is 0.0001 rather than 0, because a zero-scale bone gives
+  Unity a degenerate matrix to skin through.
+  Config: `SelfHideHead`, `SelfHeadBoneScale`, `SelfHeadShrinkBones` (default `Head`),
+  `SelfHeadKeepBones`. The keep list scales a bone back up by the inverse to cancel its
+  parent's shrink — that's the route to keeping a snout visible, and it needs the snout
+  geometry weighted to its own bone. **This must stay local-only once avatars are networked**,
+  or peers will see you headless.
+
 - [ ] Weapon/holster compatibility: `AvatarHolster` offsets attach to game skeleton bones —
       keep the vanilla skeleton alive (bones still animate via the game's own VRIK even
       with renderer hidden), so holsters, grab poses, and hit detection stay untouched.
@@ -391,6 +458,25 @@ is **inactive**, because VRIK's `Awake` initiates its solver and must not run be
       also retired the "is a collider holding it out?" theory.
       `endpointPosition` **is** emulated — PhysBone appends a virtual bone past the last real
       one, and without it the final segment of a tail stays rigid.
+- [ ] **Hand poses on grip/trigger — the cheap precursor to finger tracking.** Right now the
+      custom avatar's fingers never move: gripping a weapon closes the vanilla hand while the
+      custom paw stays open, which reads as broken even though nothing is. The game already
+      solves this for its own rig with `AvatarHand` and `PropPose` (dump.cs, `AvatarHand`), so
+      the grip state is available; we need to map it onto our avatar's finger bones (the
+      exporter already records all of them in the humanoid bone map) and blend a closed pose in
+      after VRIK in LateUpdate. Much smaller than full finger tracking, and it removes the most
+      distracting artefact of actually playing.
+- [ ] **Finger tracking / ASL — a requirement, not polish.** Support the same finger
+      articulation VRChat does: real per-finger tracking on Valve Index controllers, and
+      VRChat's gesture set on Quest controllers. Several people in the group are deaf, and
+      without articulated fingers they cannot sign ASL in game at all — this decides whether
+      they can communicate, so it does not get dropped if time runs short.
+      The exact VRChat gesture set will be supplied when we start; don't guess at it.
+      Groundwork already in place: the exporter records the full humanoid bone map including
+      every finger bone, and the game's own rig has 3-joint fingers, so the bones exist on both
+      sides. Needs: reading controller finger/gesture input, a pose blend layer applied after
+      VRIK in LateUpdate, and a network channel so peers see it (a hand-pose stream is small —
+      far cheaper than the face stream).
 - [ ] Optional polish backlog: eye-glance reuse of `Glancer`, per-avatar shader keyword QA,
       victory-move/emote handling.
 

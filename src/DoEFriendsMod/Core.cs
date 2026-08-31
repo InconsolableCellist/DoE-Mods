@@ -6,7 +6,7 @@ using DoEFriendsMod.Gate;
 using DoEFriendsMod.Net;
 using DoEFriendsMod.Recon;
 
-[assembly: MelonInfo(typeof(Core), "DoEFriendsMod", "0.5.3", "dan")]
+[assembly: MelonInfo(typeof(Core), "DoEFriendsMod", "0.7.2", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace DoEFriendsMod
@@ -25,7 +25,7 @@ namespace DoEFriendsMod
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.5.3";
+        public const string Version = "0.7.2";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -50,6 +50,7 @@ namespace DoEFriendsMod
             LoggerInstance.Msg("This build makes no gameplay changes and sends no network traffic.");
 
             SelfCheck.LogSelfHash(LoggerInstance);
+            LoggerInstance.Msg($"Swap settings: {AvatarSwapper.DescribeSettings()}");
 
             // One read-only prefix on Photon's inbound dispatch, shared by every listener.
             PhotonHook.Install(HarmonyInstance);
@@ -168,9 +169,16 @@ namespace DoEFriendsMod
                     // per frame, so edit-save-F3 retunes a spawned avatar with no respawn.
                     _hotkeyCooldown = 0.5f;
                     MelonPreferences.Load();
+                    // Print everything that matters, not just the springs. A setting left over
+                    // from an earlier debugging session is invisible otherwise, and the symptom
+                    // it causes looks like a bug in the code rather than a value in a file.
                     LoggerInstance.Msg($"Preferences reloaded — springs: stiffness x{ModConfig.SpringStiffnessScale.Value}, " +
                                        $"gravity x{ModConfig.SpringGravityScale.Value}, drag {ModConfig.SpringDragBase.Value}, " +
                                        $"colliders {ModConfig.SpringCollidersEnabled.Value}");
+                    LoggerInstance.Msg($"Preferences reloaded — swap: {AvatarSwapper.DescribeSettings()}");
+                    if (!ModConfig.SwapUseVrik.Value)
+                        LoggerInstance.Warning("*** SwapUseVrik is FALSE — swapped avatars will T-pose. " +
+                                               "That is a diagnostic setting; set it back to true.");
                 }
             }
             catch (Exception e)

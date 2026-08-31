@@ -4,7 +4,7 @@
     <TargetFramework>net6.0</TargetFramework>
     <AssemblyName>DoEFriendsMod</AssemblyName>
     <RootNamespace>DoEFriendsMod</RootNamespace>
-    <Version>0.5.3</Version>
+    <Version>0.7.2</Version>
     <!-- Nothing here is NuGet-sourced; MelonLoader ships every reference we need. -->
     <EnableDefaultItems>true</EnableDefaultItems>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>

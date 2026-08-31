@@ -24,15 +24,34 @@ namespace DoEFriendsMod.Avatars
     {
         private AvatarPlayer _player;
         private AvatarBundle _bundle;
-        private GameObject _root;        // our neutral child under Model_<nick>
-        private GameObject _model;       // the instantiated avatar
+        private GameObject _model;       // the instantiated avatar, a scene root
+        private CharacterPrefab _fullBody;  // the game's Model_<nick>, which we follow
+        private GameObject _leftHandTarget;
+        private GameObject _rightHandTarget;
+        private AvatarManifest _manifest;
+        private readonly List<Transform> _shrinkBones = new List<Transform>();
+        private readonly List<Transform> _keepBones = new List<Transform>();
+        private string _headChopSpec;   // what the lists were built from, so config edits rebuild them
         private VRIK _vrik;
         private SpringBones _springs;
         private SkinnedMeshRenderer _hiddenVanillaMesh;
+        private bool _vanillaMeshWasEnabled = true;
+        private readonly List<(Renderer renderer, bool wasEnabled)> _fpsArmRenderers =
+            new List<(Renderer, bool)>();
 
         public bool IsActive => Interop.Alive(_model);
 
+        /// <summary>One line covering every setting that changes how the swap looks.</summary>
+        public static string DescribeSettings() =>
+            $"UseVrik={ModConfig.SwapUseVrik.Value}, HideVanillaMesh={ModConfig.SwapHideVanillaMesh.Value}, " +
+            $"LocomotionWeight={ModConfig.SwapLocomotionWeight.Value}, HideHead={ModConfig.SelfHideHead.Value}, " +
+            $"HideFpsArms={ModConfig.SwapHideFpsArms.Value}, " +
+            $"wrist L=({ModConfig.SwapHandOffsetLeftX.Value},{ModConfig.SwapHandOffsetLeftY.Value},{ModConfig.SwapHandOffsetLeftZ.Value}) " +
+            $"R=({ModConfig.SwapHandOffsetRightX.Value},{ModConfig.SwapHandOffsetRightY.Value},{ModConfig.SwapHandOffsetRightZ.Value})";
+
         private float _settledLogAt;   // unscaled time at which to re-log placement; 0 = done
+        private float _nextLeashLogAt;
+        private float _lastSolverDrift;
         public string AvatarName { get; private set; }
 
         public AvatarSwapper()
@@ -78,26 +97,30 @@ namespace DoEFriendsMod.Avatars
             if (_bundle == null) { Core.Log.Error($"Swap failed to load `{manifest.name}`: {error}"); return; }
 
             _player = player;
+            _fullBody = fullBody;
+            _manifest = manifest;
             AvatarName = manifest.name;
 
             try
             {
-                // A neutral child of Model_<nick>: our model inherits the game's root motion
-                // (that object is at floor level and follows the player) without us having to
-                // reproduce it, and reverting is a single Destroy.
-                _root = new GameObject($"DFM_Avatar_{manifest.name}");
-                _root.transform.SetParent(fullBody.transform, false);
-                _root.transform.localPosition = Vector3.zero;
-                _root.transform.localRotation = Quaternion.identity;
-                _root.transform.localScale = Vector3.one;
-
+                // The model is instantiated as a SCENE ROOT with no holder above it.
+                //
+                // Two bugs got us here. Parenting under Model_<nick> let VRIK's procedural
+                // locomotion and the game's own root motion both drive one position, which
+                // compounded. Moving it under a holder of our own kept the runaway: VRIK owns
+                // `references.root`, which is the MODEL transform, and driving a child's world
+                // position from a solver produced a near sign-flip in X — the model landed at
+                // x = -52.85 from x = 52.17. The F6 preview never had this problem because its
+                // model is a plain scene root. So is this one now.
                 _model = UnityEngine.Object.Instantiate(_bundle.Prefab);
+                _model.name = $"DFM_Avatar_{manifest.name}";
+                UnityEngine.Object.DontDestroyOnLoad(_model);
+
                 // Configure while inactive: VRIK's Awake initiates its solver, and it must not
                 // run before `references` is populated.
                 _model.SetActive(false);
-                _model.transform.SetParent(_root.transform, false);
-                _model.transform.localPosition = Vector3.zero;
-                _model.transform.localRotation = Quaternion.identity;
+                _model.transform.position = fullBody.transform.position;
+                _model.transform.rotation = fullBody.transform.rotation;
                 _model.transform.localScale = Vector3.one * manifest.rig.suggestedScale;
 
                 var refs = BuildReferences(_model, manifest, out var missing);
@@ -114,17 +137,38 @@ namespace DoEFriendsMod.Avatars
                     _vrik = AddVrik(_model);
                     if (_vrik == null) { Revert("VRIK could not be added"); return; }
                     _vrik.references = refs;
+
+                    // FinalIK's own routine for working out which way this particular rig's
+                    // wrists face — it derives wristToPalmAxis and palmToThumbAxis from the
+                    // hand and finger bones. Without it VRIK assumes an orientation convention
+                    // the avatar may not use, which is how you get a paw stuck out sideways
+                    // from the wrist. Must run after `references` is assigned.
+                    try
+                    {
+                        _vrik.GuessHandOrientations();
+                        Core.Log.Msg($"    hand axes guessed: L wristToPalm {_vrik.solver.leftArm.wristToPalmAxis} " +
+                                     $"palmToThumb {_vrik.solver.leftArm.palmToThumbAxis}");
+                        Core.Log.Msg($"                       R wristToPalm {_vrik.solver.rightArm.wristToPalmAxis} " +
+                                     $"palmToThumb {_vrik.solver.rightArm.palmToThumbAxis}");
+                    }
+                    catch (Exception e) { Core.Log.Warning($"GuessHandOrientations failed: {e.Message}"); }
+
                     WireSolver(_vrik, player, manifest);
                 }
                 else
                 {
-                    Core.Log.Msg("    SwapUseVrik=false — model attached with NO IK (diagnostic mode).");
+                    // Loud, because this is a diagnostic toggle people leave switched on by
+                    // accident and the symptom — a T-posing avatar — looks exactly like a bug
+                    // in the swap rather than a setting.
+                    Core.Log.Warning("*** SwapUseVrik=false — NO IK. Your avatar WILL T-pose and will not " +
+                                     "follow your head or hands. Set SwapUseVrik=true in MelonPreferences.cfg " +
+                                     "and press F3.");
                 }
 
                 _model.SetActive(true);
 
-                if (ModConfig.SwapHideVanillaMesh.Value) HideVanillaMesh(fullBody);
-                else Core.Log.Msg("    SwapHideVanillaMesh=false — vanilla mesh left visible as a reference.");
+                CacheVanillaMesh(fullBody);
+                CacheFpsArms(player);
 
                 _springs = new SpringBones();
                 var springSummary = _springs.Build(_model, manifest);
@@ -135,7 +179,7 @@ namespace DoEFriendsMod.Avatars
                 Core.Log.Msg($"    dynamics: {springSummary}");
                 LogPlacement(player);
                 _settledLogAt = Time.unscaledTime + 1f;
-                ReconLog.KeyValue("model root", Interop.ScenePath(_root.transform));
+                ReconLog.KeyValue("model root", Interop.ScenePath(_model.transform));
                 ReconLog.KeyValue("dynamics", springSummary);
             }
             catch (Exception e)
@@ -236,7 +280,7 @@ namespace DoEFriendsMod.Avatars
         /// targets, which already sync for remote players, so a peer's custom avatar gets
         /// correct tracking for free. Legs are procedural — there are no foot trackers.
         /// </summary>
-        private static void WireSolver(VRIK vrik, AvatarPlayer player, AvatarManifest manifest)
+        private void WireSolver(VRIK vrik, AvatarPlayer player, AvatarManifest manifest)
         {
             var solver = vrik.solver;
             if (solver == null) { Core.Log.Error("VRIK has no solver."); return; }
@@ -245,38 +289,189 @@ namespace DoEFriendsMod.Avatars
             solver.spine.positionWeight = 1f;   // NB: the head's weights are named plainly on
             solver.spine.rotationWeight = 1f;   // Spine — there is no headPositionWeight.
 
-            solver.leftArm.target = player.IKTargetLeftHand;
+            // Aim the arms at child transforms of the game's hand targets rather than at the
+            // targets themselves. The game's IK targets are authored for ITS rig's wrist
+            // orientation; a VRChat rig's wrists rarely agree. A child with a tunable local
+            // rotation absorbs the difference, and because it's re-applied every frame from
+            // config, the offset can be dialled in with F3 without respawning the avatar.
+            solver.leftArm.target = HandTarget(ref _leftHandTarget, "DFM_HandTarget_L", player.IKTargetLeftHand);
             solver.leftArm.positionWeight = 1f;
             solver.leftArm.rotationWeight = 1f;
 
-            solver.rightArm.target = player.IKTargetRightHand;
+            solver.rightArm.target = HandTarget(ref _rightHandTarget, "DFM_HandTarget_R", player.IKTargetRightHand);
             solver.rightArm.positionWeight = 1f;
             solver.rightArm.rotationWeight = 1f;
 
-            solver.locomotion.weight = 1f;
+            // Procedural locomotion exists to move a root nobody else is driving. We drive it
+            // from the game's own body position every frame, so leaving this on means two
+            // things fighting for one transform — which is exactly how the avatar ended up
+            // 100 m away. Configurable so it can be tried again once the basics are right.
+            solver.locomotion.weight = Mathf.Clamp01(ModConfig.SwapLocomotionWeight.Value);
             solver.plantFeet = true;
-            solver.scale = Mathf.Max(0.01f, manifest.rig.suggestedScale);
+            // Deliberately not touching solver.scale: the model's own transform scale already
+            // sizes the avatar, and FinalIK's solver scale has separate meaning for step
+            // lengths. Setting both is a good way to get one applied twice.
 
             Core.Log.Msg($"    VRIK targets: head `{Interop.ScenePath(player.IKTargetHead)}`, " +
                          $"hands `{Interop.Name(player.IKTargetLeftHand)}` / `{Interop.Name(player.IKTargetRightHand)}`");
         }
 
-        private void HideVanillaMesh(CharacterPrefab fullBody)
+        private static Transform HandTarget(ref GameObject holder, string name, Transform parent)
+        {
+            if (!Interop.Alive(parent)) return null;
+            holder = new GameObject(name);
+            holder.transform.SetParent(parent, false);
+            holder.transform.localPosition = Vector3.zero;
+            holder.transform.localRotation = Quaternion.identity;
+            return holder.transform;
+        }
+
+        /// <summary>Re-apply the configured wrist offsets, so F3 retunes a live avatar.</summary>
+        private void UpdateHandOffsets()
+        {
+            try
+            {
+                if (Interop.Alive(_leftHandTarget))
+                    _leftHandTarget.transform.localRotation = Quaternion.Euler(
+                        ModConfig.SwapHandOffsetLeftX.Value,
+                        ModConfig.SwapHandOffsetLeftY.Value,
+                        ModConfig.SwapHandOffsetLeftZ.Value);
+
+                if (Interop.Alive(_rightHandTarget))
+                    _rightHandTarget.transform.localRotation = Quaternion.Euler(
+                        ModConfig.SwapHandOffsetRightX.Value,
+                        ModConfig.SwapHandOffsetRightY.Value,
+                        ModConfig.SwapHandOffsetRightZ.Value);
+            }
+            catch { }
+        }
+
+        private void CacheVanillaMesh(CharacterPrefab fullBody)
         {
             try
             {
                 var mesh = fullBody.characterMesh;
-                if (!Interop.Alive(mesh)) { Core.Log.Warning("No characterMesh to hide."); return; }
+                if (!Interop.Alive(mesh)) { Core.Log.Warning("No characterMesh found to hide."); return; }
                 _hiddenVanillaMesh = mesh;
-                mesh.enabled = false;
-                Core.Log.Msg($"    hid vanilla mesh `{Interop.ScenePath(mesh.transform)}`");
+                _vanillaMeshWasEnabled = mesh.enabled;
+                Core.Log.Msg($"    vanilla mesh `{Interop.ScenePath(mesh.transform)}` " +
+                             $"— SwapHideVanillaMesh = {ModConfig.SwapHideVanillaMesh.Value}" +
+                             (ModConfig.SwapHideVanillaMesh.Value ? "" : " (your old body stays visible)"));
             }
-            catch (Exception e) { Core.Log.Warning($"Could not hide vanilla mesh: {e.Message}"); }
+            catch (Exception e) { Core.Log.Warning($"Could not read vanilla mesh: {e.Message}"); }
+        }
+
+        /// <summary>
+        /// Find the first-person arms. Phase 0 established that self view is TWO meshes:
+        /// `Model_&lt;nick&gt;/character_mesh` is the third-person body, and
+        /// `VR Controller/FPS-Arms-Model` is a second, complete rig that draws the arms you
+        /// actually look at in VR. Hiding the body leaves the arms untouched — which is why a
+        /// working SwapHideVanillaMesh still left a vanilla gloved hand in view.
+        ///
+        /// Only the arm meshes are hidden. The weapon-stat and kill-counter panels are parented
+        /// into this same rig's forearm bones, so a blanket hide would remove real UI.
+        /// </summary>
+        private void CacheFpsArms(AvatarPlayer player)
+        {
+            _fpsArmRenderers.Clear();
+            try
+            {
+                var rigRoot = Avatars.AvatarSwapper.RootOf(player.Head);
+                if (!Interop.Alive(rigRoot)) { Core.Log.Warning("    FPS arms: no VR rig root found."); return; }
+
+                var armsModel = rigRoot.Find("FPS-Arms-Model");
+                if (!Interop.Alive(armsModel))
+                {
+                    Core.Log.Warning($"    FPS arms: no `FPS-Arms-Model` under `{Interop.Name(rigRoot)}`.");
+                    return;
+                }
+
+                var prefixes = (ModConfig.SwapFpsArmPrefixes.Value ?? "").Split(',');
+                var renderers = armsModel.GetComponentsInChildren<Renderer>(true);
+                for (var i = 0; i < renderers.Length; i++)
+                {
+                    var r = renderers[i];
+                    if (!Interop.Alive(r)) continue;
+                    var name = Interop.Name(r);
+                    var matches = false;
+                    foreach (var raw in prefixes)
+                    {
+                        var prefix = raw.Trim();
+                        if (prefix.Length == 0) continue;
+                        if (name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) { matches = true; break; }
+                    }
+                    if (matches) _fpsArmRenderers.Add((r, r.enabled));
+                }
+
+                Core.Log.Msg($"    FPS arms: {_fpsArmRenderers.Count} renderer(s) matched " +
+                             $"`{ModConfig.SwapFpsArmPrefixes.Value}` under `{Interop.ScenePath(armsModel)}` " +
+                             $"— SwapHideFpsArms = {ModConfig.SwapHideFpsArms.Value}");
+                foreach (var (r, wasOn) in _fpsArmRenderers)
+                    Core.Log.Msg($"      {(wasOn ? "on " : "off")} `{Interop.Name(r)}`");
+            }
+            catch (Exception e) { Core.Log.Warning($"    FPS arms lookup failed: {e.GetType().Name}: {e.Message}"); }
+        }
+
+        private void ApplyFpsArmVisibility()
+        {
+            if (_fpsArmRenderers.Count == 0) return;
+            try
+            {
+                var hide = ModConfig.SwapHideFpsArms.Value;
+                foreach (var (r, wasEnabled) in _fpsArmRenderers)
+                {
+                    if (!Interop.Alive(r)) continue;
+                    // Restoring to `wasEnabled` rather than to true matters: several of these
+                    // are off already because they belong to cosmetics you don't have equipped.
+                    var target = hide ? false : wasEnabled;
+                    if (r.enabled != target) r.enabled = target;
+                }
+            }
+            catch { }
+        }
+
+        public static Transform RootOf(Transform t)
+        {
+            if (!Interop.Alive(t)) return null;
+            var guard = 0;
+            while (Interop.Alive(t.parent) && guard++ < 64) t = t.parent;
+            return t;
+        }
+
+        /// <summary>
+        /// Re-applied every frame rather than set once at swap time. Two reasons: toggling
+        /// SwapHideVanillaMesh and pressing F3 mid-swap now actually does something, and if the
+        /// game's own LOD or material handling ever re-enables the renderer, this quietly wins.
+        /// </summary>
+        private void ApplyVanillaMeshVisibility()
+        {
+            if (!Interop.Alive(_hiddenVanillaMesh)) return;
+            try
+            {
+                var shouldBeVisible = !ModConfig.SwapHideVanillaMesh.Value;
+                if (_hiddenVanillaMesh.enabled == shouldBeVisible) return;
+                _hiddenVanillaMesh.enabled = shouldBeVisible;
+                Core.Log.Msg($"    vanilla mesh {(shouldBeVisible ? "shown" : "hidden")}.");
+            }
+            catch { }
         }
 
         public void LateUpdate(float deltaTime)
         {
             if (!IsActive) return;
+
+            // Order matters. MelonLoader's OnLateUpdate runs after every MonoBehaviour
+            // LateUpdate, so VRIK has already solved and moved its root by the time we get
+            // here. Correcting first means the diagnostics below measure the state that
+            // actually renders — reading before the correction produced a "the solver threw
+            // the avatar 100 m away" error every single time while the avatar sat, correctly,
+            // on the player.
+            FollowVanillaRoot();
+            UpdateHandOffsets();
+            ApplyVanillaMeshVisibility();
+            ApplyFpsArmVisibility();
+            ApplyHeadChop();
+            Leash();
 
             if (_settledLogAt > 0f && Time.unscaledTime >= _settledLogAt)
             {
@@ -289,23 +484,182 @@ namespace DoEFriendsMod.Avatars
             catch (Exception e) { Core.Log.Warning($"Swap springs failed, disabling: {e.Message}"); _springs = null; }
         }
 
+        /// <summary>
+        /// Keep our model standing exactly where the game already decided the player's body
+        /// goes. `Model_&lt;nick&gt;` is the game's own answer to "where are this player's feet,
+        /// and which way are they facing" — it is authoritative, it is computed for us every
+        /// frame, and copying it means nothing has to converge on anything. VRIK is then left
+        /// solving only what it is good at: spine and arms, relative to a root it doesn't own.
+        /// </summary>
+        private void FollowVanillaRoot()
+        {
+            if (!Interop.Alive(_fullBody) || !Interop.Alive(_model)) return;
+            try
+            {
+                var target = _fullBody.transform.position;
+                // How far VRIK moved the root before we took it back. Locomotion is off, so
+                // this should be small; a large steady value means something inside the solver
+                // still wants to own the root and is worth knowing about.
+                _lastSolverDrift = Vector3.Distance(_model.transform.position, target);
+                _model.transform.SetPositionAndRotation(target, _fullBody.transform.rotation);
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// First-person head handling, the same trick VRChat's Head Chop uses: shrink the head
+        /// bone to nothing so its geometry collapses out of view, instead of trying to hide it.
+        /// The head is part of one merged SkinnedMeshRenderer, so there is no renderer or layer
+        /// to switch off — per-bone scale is the only lever that reaches it.
+        ///
+        /// Local and cosmetic by construction: bone scale on OUR model, which no peer ever
+        /// sees. When avatars are networked this must stay a local-only step, or everyone will
+        /// watch you walk around headless.
+        /// </summary>
+        private void ApplyHeadChop()
+        {
+            try
+            {
+                // Rebuild only when the spec changes, so F3 retunes without doing a transform
+                // search every frame.
+                var spec = $"{ModConfig.SelfHeadShrinkBones.Value}|{ModConfig.SelfHeadKeepBones.Value}";
+                if (spec != _headChopSpec) { _headChopSpec = spec; RebuildHeadChopLists(); }
+
+                if (!ModConfig.SelfHideHead.Value)
+                {
+                    foreach (var t in _shrinkBones) if (Interop.Alive(t)) t.localScale = Vector3.one;
+                    foreach (var t in _keepBones) if (Interop.Alive(t)) t.localScale = Vector3.one;
+                    return;
+                }
+
+                var scale = Mathf.Clamp(ModConfig.SelfHeadBoneScale.Value, 0.00001f, 1f);
+                foreach (var t in _shrinkBones)
+                    if (Interop.Alive(t)) t.localScale = Vector3.one * scale;
+
+                // Cancel the parent's shrink so this bone renders at its normal size — scale
+                // compounds down the hierarchy, so the inverse restores it exactly.
+                var inverse = 1f / scale;
+                foreach (var t in _keepBones)
+                    if (Interop.Alive(t)) t.localScale = Vector3.one * inverse;
+            }
+            catch { /* never throw in LateUpdate */ }
+        }
+
+        private void RebuildHeadChopLists()
+        {
+            _shrinkBones.Clear();
+            _keepBones.Clear();
+            if (!Interop.Alive(_model)) return;
+
+            Resolve(ModConfig.SelfHeadShrinkBones.Value, _shrinkBones);
+            Resolve(ModConfig.SelfHeadKeepBones.Value, _keepBones);
+
+            Core.Log.Msg($"    head chop: shrinking {_shrinkBones.Count} bone(s), keeping {_keepBones.Count}");
+
+            void Resolve(string spec, List<Transform> into)
+            {
+                if (string.IsNullOrWhiteSpace(spec)) return;
+                foreach (var raw in spec.Split(','))
+                {
+                    var token = raw.Trim();
+                    if (token.Length == 0) continue;
+
+                    var t = ResolveBone(token);
+                    if (Interop.Alive(t)) into.Add(t);
+                    else Core.Log.Warning($"    head chop: no bone matching `{token}` on this avatar.");
+                }
+            }
+        }
+
+        /// <summary>A humanoid bone name from the manifest map, a transform path, or a plain name.</summary>
+        private Transform ResolveBone(string token)
+        {
+            var map = _manifest?.rig?.humanoidBones;
+            if (map != null && map.TryGetValue(token, out var path) && !string.IsNullOrEmpty(path))
+            {
+                var byMap = _model.transform.Find(path);
+                if (Interop.Alive(byMap)) return byMap;
+            }
+
+            var byPath = _model.transform.Find(token);
+            if (Interop.Alive(byPath)) return byPath;
+
+            try
+            {
+                var all = _model.GetComponentsInChildren<Transform>(true);
+                for (var i = 0; i < all.Length; i++)
+                    if (Interop.Alive(all[i]) && string.Equals(all[i].name, token, StringComparison.OrdinalIgnoreCase))
+                        return all[i];
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Belt and braces against runaway root motion. The parenting fix should make this
+        /// dead code, but a solver that walks the avatar off the map is bad enough — and quiet
+        /// enough — that it's worth a hard backstop rather than trusting one fix.
+        /// </summary>
+        private void Leash()
+        {
+            if (!Interop.Alive(_player)) return;
+            try
+            {
+                var head = _player.IKTargetHead;
+                if (!Interop.Alive(head)) return;
+
+                var pos = _model.transform.position;
+                if (float.IsNaN(pos.x) || float.IsNaN(pos.y) || float.IsNaN(pos.z))
+                {
+                    _model.transform.position = head.position;
+                    Core.Log.Error("*** Avatar root went NaN — snapped back to the head target.");
+                    return;
+                }
+
+                var limit = Mathf.Max(2f, ModConfig.SwapLeashMetres.Value);
+                var distance = Vector3.Distance(head.position, pos);
+                if (distance <= limit) return;
+
+                _model.transform.position = new Vector3(head.position.x, _model.transform.position.y, head.position.z);
+                if (Time.unscaledTime >= _nextLeashLogAt)
+                {
+                    _nextLeashLogAt = Time.unscaledTime + 2f;
+                    Core.Log.Warning($"Avatar drifted {distance:0.#} m from you (limit {limit:0.#}) — snapped back. " +
+                                     "If this repeats, the IK solver is fighting something for control of the root.");
+                }
+            }
+            catch { /* never let the leash throw in LateUpdate */ }
+        }
+
         public void Revert(string why)
         {
             // Un-hide first: if anything below throws, the player still has a body.
             if (Interop.Alive(_hiddenVanillaMesh))
             {
-                try { _hiddenVanillaMesh.enabled = true; } catch { }
+                try { _hiddenVanillaMesh.enabled = _vanillaMeshWasEnabled; } catch { }
             }
+            foreach (var (r, wasEnabled) in _fpsArmRenderers)
+                if (Interop.Alive(r)) { try { r.enabled = wasEnabled; } catch { } }
+            _fpsArmRenderers.Clear();
             _hiddenVanillaMesh = null;
 
-            if (Interop.Alive(_root))
+            if (Interop.Alive(_model))
             {
-                try { UnityEngine.Object.Destroy(_root); } catch { }
+                try { UnityEngine.Object.Destroy(_model); } catch { }
                 Core.Log.Msg($"Avatar swap reverted ({why}).");
             }
 
-            _root = null;
+            foreach (var holder in new[] { _leftHandTarget, _rightHandTarget })
+                if (Interop.Alive(holder)) { try { UnityEngine.Object.Destroy(holder); } catch { } }
+            _leftHandTarget = null;
+            _rightHandTarget = null;
+
+            _shrinkBones.Clear();
+            _keepBones.Clear();
+            _headChopSpec = null;
+            _manifest = null;
             _model = null;
+            _fullBody = null;
             _vrik = null;
             _springs = null;
             _player = null;
@@ -328,9 +682,6 @@ namespace DoEFriendsMod.Avatars
 
             ReconLog.Try("transforms", () =>
             {
-                ReconLog.KeyValue("_root", $"{Interop.ScenePath(_root.transform)} @ {Interop.Vec(_root.transform.position)} " +
-                                          $"lossyScale {Interop.Vec(_root.transform.lossyScale)} " +
-                                          $"active {_root.activeInHierarchy} layer {_root.layer}");
                 ReconLog.KeyValue("_model", $"@ {Interop.Vec(_model.transform.position)} " +
                                             $"lossyScale {Interop.Vec(_model.transform.lossyScale)} " +
                                             $"active {_model.activeInHierarchy} layer {_model.layer}");
@@ -408,6 +759,7 @@ namespace DoEFriendsMod.Avatars
             {
                 var pos = _model.transform.position;
                 var scale = _model.transform.lossyScale;
+                Core.Log.Msg($"    solver drift per frame (corrected): {_lastSolverDrift:0.##} m");
                 Core.Log.Msg($"    settled (1s after swap): model @ {Interop.Vec(pos)} " +
                              $"lossyScale {Interop.Vec(scale)} active {_model.activeInHierarchy}" +
                              (_vrik != null ? $" VRIK.enabled {_vrik.enabled}" : ""));
