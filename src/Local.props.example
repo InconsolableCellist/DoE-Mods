@@ -1,0 +1,6 @@
+<!-- Copy to src/Local.props and edit if the game lives somewhere else on your machine. -->
+<Project>
+  <PropertyGroup>
+    <GameDir>D:\SteamLibrary\steamapps\common\Dungeons of Eternity</GameDir>
+  </PropertyGroup>
+</Project>

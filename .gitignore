@@ -1,0 +1,45 @@
+# Il2CppDumper output for the current game build: ~190 MB, including a 32 MB dump.cs,
+# an 87 MB script.json and a 47 MB il2cpp.h. It has to be regenerated after every game
+# update anyway, so there is no point keeping it in history.
+# Regenerate with: tools/run_dumper.bat
+dump/
+
+# Third-party tools, ~220 MB of downloaded binaries (AssetRipper, Cpp2IL, Il2CppDumper,
+# MelonLoader, UnityExplorer). Download them again from their own release pages;
+# the versions we use are listed in README.md.
+tools/
+
+# .NET build output
+bin/
+obj/
+*.user
+*.suo
+*.userprefs
+.vs/
+.idea/
+
+# Per-machine GameDir override. Local.props.example is committed as the template.
+src/Local.props
+
+# Exported avatar bundles. These are built from third-party VRChat avatars and are large,
+# so they stay out of the repo. Build them with the exporter in unity/AvatarExport.
+DoEExport/
+*.avatar
+*.manifest.json
+
+# Unity editor noise, in case a Unity project ever lands in here
+Library/
+Temp/
+Obj/
+Build/
+Builds/
+Logs/
+UserSettings/
+Assets/DoEExport_Temp/
+Assets/DoEExport_Temp.meta
+*.unitypackage
+
+# OS junk
+Thumbs.db
+desktop.ini
+.DS_Store

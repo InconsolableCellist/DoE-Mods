@@ -1,0 +1,37 @@
+<Project>
+
+  <!--
+    Shared build settings for everything under src/.
+
+    GameDir resolution order (first non-empty wins):
+      1. -p:GameDir=... on the command line
+      2. the DOE_GAME_DIR environment variable
+      3. src/Local.props (git-ignored, per-machine override; see Local.props.example)
+      4. the default Steam path
+    Nothing anywhere in this repo hardcodes a per-machine path in a .csproj.
+  -->
+
+  <Import Project="$(MSBuildThisFileDirectory)Local.props"
+          Condition="Exists('$(MSBuildThisFileDirectory)Local.props')" />
+
+  <PropertyGroup>
+    <GameDir Condition="'$(GameDir)' == ''">$(DOE_GAME_DIR)</GameDir>
+    <GameDir Condition="'$(GameDir)' == ''">C:\Games\Steam\steamapps\common\Dungeons of Eternity</GameDir>
+
+    <MelonNet6Dir>$(GameDir)\MelonLoader\net6</MelonNet6Dir>
+    <Il2CppAssembliesDir>$(GameDir)\MelonLoader\Il2CppAssemblies</Il2CppAssembliesDir>
+    <GameModsDir>$(GameDir)\Mods</GameModsDir>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <!-- Il2CppInterop proxies trip a pile of analyzer noise; keep the build readable. -->
+    <NoWarn>$(NoWarn);CS0649;CS0169;CS0108;CS0114</NoWarn>
+    <DebugType>portable</DebugType>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+</Project>
