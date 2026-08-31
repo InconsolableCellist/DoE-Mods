@@ -70,6 +70,7 @@ Everything fires automatically — **you do not need to press anything in the he
 
 Desktop hotkeys (game window focused — these do work in VR if you click the window first):
 
+- **F2** — cycle which avatar you wear (saved to config)
 - **F3** — reload MelonPreferences.cfg (spring constants apply live, no respawn)
 - **F4** — swap your own avatar on/off (Phase 2b)
 - **F5** — rescan `UserData/DoEFriendsMod/Avatars/`

@@ -129,6 +129,7 @@ headset.
 
 | Key | What it does |
 |---|---|
+| **F2** | choose which avatar to wear, if you have more than one |
 | **F4** | put your avatar on / take it off |
 | **F6** | spawn a copy of the avatar in front of you, to look at |
 | **F3** | re-read the settings file, so you can adjust things without restarting |
@@ -168,6 +169,14 @@ make sure everyone has the same file.
 **`REFUSED `avatar`: bundle SHA-256 does not match its manifest`**
 The `.avatar` file is damaged or paired with the wrong `.manifest.json`. Copy both again from
 the same source.
+
+**You and a friend are wearing the same avatar**
+Neither of you has chosen one, so both picked the same file by default. Press **F2** until the
+console names the one you want, then F4 twice.
+
+**Your friend looks like a normal character, not their avatar**
+You don't have their avatar file. The console names it — copy that `.avatar` and
+`.manifest.json` pair into your own Avatars folder and press F5. Both of you need both files.
 
 **`No avatars found`**
 The files aren't in `UserData\DoEFriendsMod\Avatars\`, or only one of the pair is there.
