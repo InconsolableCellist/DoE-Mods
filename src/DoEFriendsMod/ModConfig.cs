@@ -29,6 +29,7 @@ namespace DoEFriendsMod
         public static MelonPreferences_Entry<float> SpringDragBase;
         public static MelonPreferences_Entry<float> SpringDragFromSpring;
         public static MelonPreferences_Entry<bool> SpringCollidersEnabled;
+        public static MelonPreferences_Entry<float> SpringMaxAngleFallback;
 
         /// <summary>Set false to swap the model in WITHOUT VRIK — bisects "is it IK or placement?".</summary>
         public static MelonPreferences_Entry<bool> SwapUseVrik;
@@ -69,6 +70,10 @@ namespace DoEFriendsMod
         public static MelonPreferences_Entry<float> HandCurlSmoothing;
         public static MelonPreferences_Entry<bool> HandPoseDebug;
 
+        /// <summary>"VanillaRig" copies the game's own animated pose; "VRIK" solves our own.</summary>
+        public static MelonPreferences_Entry<string> SwapPoseSource;
+        public static MelonPreferences_Entry<float> RetargetHipsFollow;
+
         public static void Load()
         {
             Category = MelonPreferences.CreateCategory("DoEFriendsMod");
@@ -103,6 +108,9 @@ namespace DoEFriendsMod
             SpringDragFromSpring = Category.CreateEntry("SpringDragFromSpring", 0.35f);
             // Turn off to find out whether a collider is what's holding a chain out straight.
             SpringCollidersEnabled = Category.CreateEntry("SpringCollidersEnabled", true);
+            // Cone limit for chains whose PhysBone set none. 0 disables; 75 stops a tail
+            // folding back through the body without looking stiff.
+            SpringMaxAngleFallback = Category.CreateEntry("SpringMaxAngleFallback", 75f);
             SwapUseVrik = Category.CreateEntry("SwapUseVrik", true);
             SwapHideVanillaMesh = Category.CreateEntry("SwapHideVanillaMesh", true);
             SwapLeashMetres = Category.CreateEntry("SwapLeashMetres", 5.0f);
@@ -148,6 +156,12 @@ namespace DoEFriendsMod
             // Prints the raw grip/trigger/curl values twice a second, so "nothing moves" can be
             // told apart from "the input is zero".
             HandPoseDebug = Category.CreateEntry("HandPoseDebug", false);
+
+            // The game already solves a correct pose for every player, including legs. Copying
+            // it beats re-deriving it: no targets to get wrong, nothing to run away, and remote
+            // players animate properly. Set to "VRIK" to go back to solving our own.
+            SwapPoseSource = Category.CreateEntry("SwapPoseSource", "VanillaRig");
+            RetargetHipsFollow = Category.CreateEntry("RetargetHipsFollow", 1.0f);
         }
     }
 }

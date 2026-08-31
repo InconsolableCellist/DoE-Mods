@@ -121,7 +121,40 @@ namespace DoEFriendsMod.Avatars
 
                 hand.Fingers[f] = joints;
             }
+
+            // A near-straight finger makes cross(v1,v2) degenerate, and the fallback can land
+            // pointing the opposite way to its neighbours — which is how one pinky ended up
+            // bending backwards while every other finger was fine. Force agreement: any finger
+            // whose axis opposes the majority gets flipped.
+            HarmoniseAxes(hand);
             return hand;
+        }
+
+        /// <summary>Flip any finger whose bend axis disagrees with the rest of the hand.</summary>
+        private static void HarmoniseAxes(Hand hand)
+        {
+            // Compare in the hand's own space, since each joint stores its axis locally.
+            var reference = Vector3.zero;
+            var samples = 0;
+            for (var f = 1; f < FingerCount; f++)   // skip the thumb: it genuinely differs
+            {
+                var joints = hand.Fingers[f];
+                if (joints == null || joints.Count == 0) continue;
+                reference += joints[0].Bone.TransformDirection(joints[0].BendAxisLocal);
+                samples++;
+            }
+            if (samples < 2 || reference.sqrMagnitude < 1e-8f) return;
+            reference.Normalize();
+
+            for (var f = 1; f < FingerCount; f++)
+            {
+                var joints = hand.Fingers[f];
+                if (joints == null || joints.Count == 0) continue;
+                var world = joints[0].Bone.TransformDirection(joints[0].BendAxisLocal);
+                if (Vector3.Dot(world, reference) >= 0f) continue;
+                foreach (var j in joints) j.BendAxisLocal = -j.BendAxisLocal;
+                Core.Log.Msg($"    hand poses: flipped a mirrored bend axis on finger {f}");
+            }
         }
 
         private static Vector3 BendAxis(List<Transform> chain, Transform modelRoot, bool isLeft)

@@ -35,6 +35,7 @@ namespace DoEFriendsMod.Avatars
         private VRIK _vrik;
         private SpringBones _springs;
         private HandPoser _hands;
+        private PoseRetargeter _retarget;
         private SkinnedMeshRenderer _hiddenVanillaMesh;
         private bool _vanillaMeshWasEnabled = true;
         private readonly List<(Renderer renderer, bool wasEnabled)> _fpsArmRenderers =
@@ -47,6 +48,7 @@ namespace DoEFriendsMod.Avatars
             $"UseVrik={ModConfig.SwapUseVrik.Value}, HideVanillaMesh={ModConfig.SwapHideVanillaMesh.Value}, " +
             $"LocomotionWeight={ModConfig.SwapLocomotionWeight.Value}, HideHead={ModConfig.SelfHideHead.Value}, " +
             $"HideFpsArms={ModConfig.SwapHideFpsArms.Value}, FollowVanillaRoot={ModConfig.SwapFollowVanillaRoot.Value}, " +
+            $"PoseSource={ModConfig.SwapPoseSource.Value}, " +
             $"wrist L=({ModConfig.SwapHandOffsetLeftX.Value},{ModConfig.SwapHandOffsetLeftY.Value},{ModConfig.SwapHandOffsetLeftZ.Value}) " +
             $"R=({ModConfig.SwapHandOffsetRightX.Value},{ModConfig.SwapHandOffsetRightY.Value},{ModConfig.SwapHandOffsetRightZ.Value})";
 
@@ -147,7 +149,23 @@ namespace DoEFriendsMod.Avatars
                     return;
                 }
 
-                if (ModConfig.SwapUseVrik.Value)
+                var useRetarget = string.Equals(ModConfig.SwapPoseSource.Value, "VanillaRig",
+                                                StringComparison.OrdinalIgnoreCase);
+
+                if (useRetarget)
+                {
+                    _retarget = new PoseRetargeter();
+                    var result = _retarget.Build(player, _model, manifest);
+                    Core.Log.Msg($"    pose source: VanillaRig — {result}");
+                    if (_retarget.LinkCount == 0)
+                    {
+                        Core.Log.Warning("    retargeting found no usable bones; falling back to VRIK.");
+                        _retarget = null;
+                        useRetarget = false;
+                    }
+                }
+
+                if (!useRetarget && ModConfig.SwapUseVrik.Value)
                 {
                     _vrik = AddVrik(_model);
                     if (_vrik == null) { Revert("VRIK could not be added"); return; }
@@ -170,7 +188,7 @@ namespace DoEFriendsMod.Avatars
 
                     WireSolver(_vrik, player, manifest);
                 }
-                else
+                else if (!useRetarget)
                 {
                     // Loud, because this is a diagnostic toggle people leave switched on by
                     // accident and the symptom — a T-posing avatar — looks exactly like a bug
@@ -179,6 +197,12 @@ namespace DoEFriendsMod.Avatars
                                      "follow your head or hands. Set SwapUseVrik=true in MelonPreferences.cfg " +
                                      "and press F3.");
                 }
+
+                // Stops clothing and accessory meshes blinking out. A SkinnedMeshRenderer
+                // culls against bounds derived from its bind pose unless told otherwise, and an
+                // avatar posed far from bind — arms up, or simply a rig whose bind pose sits
+                // elsewhere — gets culled while plainly on screen.
+                FixRendererBounds(_model);
 
                 _model.SetActive(true);
 
@@ -338,6 +362,24 @@ namespace DoEFriendsMod.Avatars
 
             Core.Log.Msg($"    VRIK targets: head `{Interop.ScenePath(player.IKTargetHead)}`, " +
                          $"hands `{Interop.Name(player.IKTargetLeftHand)}` / `{Interop.Name(player.IKTargetRightHand)}`");
+        }
+
+        private static void FixRendererBounds(GameObject model)
+        {
+            try
+            {
+                var smrs = model.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+                var changed = 0;
+                for (var i = 0; i < smrs.Length; i++)
+                {
+                    var smr = smrs[i];
+                    if (!Interop.Alive(smr) || smr.updateWhenOffscreen) continue;
+                    smr.updateWhenOffscreen = true;
+                    changed++;
+                }
+                if (changed > 0) Core.Log.Msg($"    set updateWhenOffscreen on {changed} skinned mesh(es)");
+            }
+            catch (Exception e) { Core.Log.Warning($"Could not fix renderer bounds: {e.Message}"); }
         }
 
         private static Transform HandTarget(ref GameObject holder, string name, Transform parent)
@@ -523,7 +565,15 @@ namespace DoEFriendsMod.Avatars
                 LogSettledPlacement();
             }
 
-            // Fingers before springs: VRIK doesn't touch either, but keeping the order fixed
+            // Pose first: retargeting writes whole-bone rotations, so fingers and spring chains
+            // must run after it or they'd be overwritten the moment they moved.
+            if (_retarget != null)
+            {
+                try { _retarget.Apply(); }
+                catch (Exception e) { Core.Log.Warning($"Retarget failed, disabling: {e.Message}"); _retarget = null; }
+            }
+
+            // Fingers before springs: neither pose source touches them, but keeping the order fixed
             // means a future pose source can't start fighting the spring chains by accident.
             if (_hands != null)
             {
@@ -735,6 +785,7 @@ namespace DoEFriendsMod.Avatars
             _vrik = null;
             _springs = null;
             _hands = null;
+            _retarget = null;
             _player = null;
             _settledLogAt = 0f;
             AvatarName = null;

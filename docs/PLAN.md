@@ -571,6 +571,44 @@ the same model and each thought the mod had picked wrong. Now: a loud startup wa
 every installed avatar when the choice is ambiguous, a confirmation line when it isn't, and
 **F2** cycles the selection and saves it.
 
+**First two-player session, 2026-08-31 — it works.** Both players saw each other's custom
+avatars. Eight issues found, and the diagnosis of the worst one changed the architecture:
+
+**Remote arms and weapons didn't track (and the head dragged the whole torso).** The remote
+`AvatarPlayer` dump explains it: on a remote client `AvatarPlayer.LeftHand` points at
+`Model_<nick>/…/hand_l` — the vanilla rig's **already-solved** hand bone — not at a controller.
+The game computes a complete, correct pose for every player, local and remote, including legs;
+that is simply what a vanilla character looks like. We were ignoring it and asking VRIK to
+re-derive the same thing from targets that behave differently on remote clients.
+
+So `Avatars/PoseRetargeter.cs` copies the vanilla pose instead, and `SwapPoseSource` now
+defaults to `VanillaRig` (set it to `VRIK` to go back). Retargeting is by **delta** — each frame
+we apply the source bone's rotation *change since capture* to the target bone — which makes it
+immune to the two skeletons disagreeing on rest pose and bone axes, as a UE4-style rig and a
+VRChat rig always will. Hips translation is copied too, for crouching.
+
+This should fix remote arms (#5), head-drags-torso (#2) and missing leg locomotion (#7) in one
+change, and it retires the whole class of VRIK problems — the runaways, the 73 m/frame root
+drift, procedural locomotion. Fingers stay with `HandPoser`; it runs after the retarget.
+
+Other fixes in v0.11.0:
+- **Clothing meshes blinking out (#6):** `updateWhenOffscreen` is now set on every skinned mesh.
+  A SkinnedMeshRenderer culls against bounds derived from its **bind pose**, so an avatar posed
+  far from bind gets culled while plainly on screen.
+- **One pinky bending backwards (#4):** a near-straight finger makes `cross(v1,v2)` degenerate
+  and the fallback axis can land mirrored. Fingers on a hand now have to agree — any whose axis
+  opposes the majority is flipped. The thumb is exempt, since it genuinely differs.
+- **Spring chains folding through the body (#1):** PhysBone's `maxAngleX` cone limit is now
+  enforced, with `SpringMaxAngleFallback` (75°) for chains that specify none.
+
+Still open from that session:
+- **#3 remote fingers don't move.** Finger poses are read from *our* controllers, so peers see
+  nothing. Needs a hand-curl stream — small, and the same shape as the planned face stream.
+- **#8 holsters sit loosely on the custom body.** Expected: holsters attach to the vanilla
+  skeleton, which is the right thing for hitboxes but means the visual anchor is the old body's
+  proportions. Re-parenting the holster *visual* to the equivalent custom bone would fix the
+  look without touching hit detection.
+
 **Exit criteria:** two modded friends in a private lobby see each other's VRC models with
 correct head/hand tracking, feet grounded, weapons still holster on the (invisible)
 vanilla skeleton, and vanilla peers still see stock avatars.

@@ -44,6 +44,8 @@ namespace DoEFriendsMod.Avatars
             public float Spring01;
             public float Gravity01;
             public float Immobile01;
+            /// <summary>PhysBone's cone limit in degrees from the rest direction. 0 = none.</summary>
+            public float MaxAngle;
         }
 
         private class Collider
@@ -104,6 +106,9 @@ namespace DoEFriendsMod.Avatars
                     Spring01 = Mathf.Clamp01(info.spring),
                     Gravity01 = Mathf.Clamp01(info.gravity),
                     Immobile01 = Mathf.Clamp01(info.immobile),
+                    // Honour the avatar's own limit when it set one. A chain with no limit can
+                    // fold back through the body, which is the "bone limits not respected" look.
+                    MaxAngle = info.maxAngleX > 0.01f ? info.maxAngleX : ModConfig.SpringMaxAngleFallback.Value,
                 };
 
                 var bones = new List<Transform>();
@@ -167,7 +172,8 @@ namespace DoEFriendsMod.Avatars
             foreach (var chain in _chains)
                 Core.Log.Msg($"  chain `{chain.Name}`: {chain.Nodes.Count} bone(s), " +
                              $"stiffness {chain.Stiffness01:0.##}, spring {chain.Spring01:0.##}, " +
-                             $"gravity {chain.Gravity01:0.##}, immobile {chain.Immobile01:0.##}");
+                             $"gravity {chain.Gravity01:0.##}, immobile {chain.Immobile01:0.##}, " +
+                             $"maxAngle {(chain.MaxAngle > 0.01f ? $"{chain.MaxAngle:0}°" : "none")}");
             foreach (var col in _colliders)
                 Core.Log.Msg($"  collider r={col.Radius:0.###} on `{Interop.ScenePath(col.Transform)}` " +
                              $"offset {col.Offset}");
@@ -232,6 +238,21 @@ namespace DoEFriendsMod.Avatars
 
             // Keep the bone rigid: the tip stays exactly one bone-length from its origin.
             nextTip = bone.position + (nextTip - bone.position).normalized * node.Length;
+
+            // Cone limit: never let the joint swing further from its animated direction than
+            // the PhysBone allowed.
+            if (chain.MaxAngle > 0.01f)
+            {
+                var current = nextTip - bone.position;
+                var angle = Vector3.Angle(restDir, current);
+                if (angle > chain.MaxAngle)
+                {
+                    var clamped = Vector3.RotateTowards(restDir, current,
+                        chain.MaxAngle * Mathf.Deg2Rad, 0f).normalized;
+                    nextTip = bone.position + clamped * node.Length;
+                }
+            }
+
             if (ModConfig.SpringCollidersEnabled.Value)
                 nextTip = PushOutOfColliders(nextTip, bone.position, node.Length);
 
