@@ -62,6 +62,12 @@ namespace DoEFriendsMod
         /// VRIK's procedural locomotion own the root, which is what makes legs step.</summary>
         public static MelonPreferences_Entry<bool> SwapFollowVanillaRoot;
 
+        // Finger curling from the controllers.
+        public static MelonPreferences_Entry<bool> HandPosesEnabled;
+        public static MelonPreferences_Entry<float> HandCurlDegrees;
+        public static MelonPreferences_Entry<float> ThumbCurlDegrees;
+        public static MelonPreferences_Entry<float> HandCurlSmoothing;
+
         public static void Load()
         {
             Category = MelonPreferences.CreateCategory("DoEFriendsMod");
@@ -130,6 +136,14 @@ namespace DoEFriendsMod
             // the same rig's forearm bones, and hiding those would take away real UI.
             SwapFpsArmPrefixes = Category.CreateEntry("SwapFpsArmPrefixes", "FPS_Arm");
             SwapFollowVanillaRoot = Category.CreateEntry("SwapFollowVanillaRoot", true);
+
+            HandPosesEnabled = Category.CreateEntry("HandPosesEnabled", true);
+            // How far a fully closed finger bends, per joint. Negate if the fingers bend
+            // backwards — the bend direction is derived from the avatar's own bone geometry
+            // and a rig can have it mirrored.
+            HandCurlDegrees = Category.CreateEntry("HandCurlDegrees", 70f);
+            ThumbCurlDegrees = Category.CreateEntry("ThumbCurlDegrees", 40f);
+            HandCurlSmoothing = Category.CreateEntry("HandCurlSmoothing", 0.35f);
         }
     }
 }

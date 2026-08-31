@@ -34,6 +34,7 @@ namespace DoEFriendsMod.Avatars
         private string _headChopSpec;   // what the lists were built from, so config edits rebuild them
         private VRIK _vrik;
         private SpringBones _springs;
+        private HandPoser _hands;
         private SkinnedMeshRenderer _hiddenVanillaMesh;
         private bool _vanillaMeshWasEnabled = true;
         private readonly List<(Renderer renderer, bool wasEnabled)> _fpsArmRenderers =
@@ -173,6 +174,9 @@ namespace DoEFriendsMod.Avatars
                 _springs = new SpringBones();
                 var springSummary = _springs.Build(_model, manifest);
                 _springs.Reset();
+
+                _hands = new HandPoser();
+                Core.Log.Msg($"    hand poses: {_hands.Build(_model, manifest)}");
 
                 Core.Log.Msg($"*** Avatar swapped: {manifest.name} on {SafeName(player)} " +
                              $"(scale x{manifest.rig.suggestedScale:0.###})");
@@ -499,6 +503,14 @@ namespace DoEFriendsMod.Avatars
                 LogSettledPlacement();
             }
 
+            // Fingers before springs: VRIK doesn't touch either, but keeping the order fixed
+            // means a future pose source can't start fighting the spring chains by accident.
+            if (_hands != null)
+            {
+                try { _hands.Update(deltaTime); }
+                catch (Exception e) { Core.Log.Warning($"Hand poser failed, disabling: {e.Message}"); _hands = null; }
+            }
+
             if (_springs == null || !ModConfig.SpringsEnabled.Value) return;
             try { _springs.Simulate(deltaTime); }
             catch (Exception e) { Core.Log.Warning($"Swap springs failed, disabling: {e.Message}"); _springs = null; }
@@ -683,6 +695,7 @@ namespace DoEFriendsMod.Avatars
             _fullBody = null;
             _vrik = null;
             _springs = null;
+            _hands = null;
             _player = null;
             _settledLogAt = 0f;
             AvatarName = null;
