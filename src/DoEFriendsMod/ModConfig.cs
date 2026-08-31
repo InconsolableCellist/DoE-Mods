@@ -67,6 +67,7 @@ namespace DoEFriendsMod
         public static MelonPreferences_Entry<float> HandCurlDegrees;
         public static MelonPreferences_Entry<float> ThumbCurlDegrees;
         public static MelonPreferences_Entry<float> HandCurlSmoothing;
+        public static MelonPreferences_Entry<bool> HandPoseDebug;
 
         public static void Load()
         {
@@ -144,6 +145,9 @@ namespace DoEFriendsMod
             HandCurlDegrees = Category.CreateEntry("HandCurlDegrees", 70f);
             ThumbCurlDegrees = Category.CreateEntry("ThumbCurlDegrees", 40f);
             HandCurlSmoothing = Category.CreateEntry("HandCurlSmoothing", 0.35f);
+            // Prints the raw grip/trigger/curl values twice a second, so "nothing moves" can be
+            // told apart from "the input is zero".
+            HandPoseDebug = Category.CreateEntry("HandPoseDebug", false);
         }
     }
 }

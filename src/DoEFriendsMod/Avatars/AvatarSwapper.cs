@@ -178,6 +178,7 @@ namespace DoEFriendsMod.Avatars
 
                 _hands = new HandPoser();
                 Core.Log.Msg($"    hand poses: {_hands.Build(_model, manifest)}");
+                HandPoser.LogInputBackend();
 
                 Core.Log.Msg($"*** Avatar swapped: {manifest.name} on {SafeName(player)} " +
                              $"(scale x{manifest.rig.suggestedScale:0.###})");

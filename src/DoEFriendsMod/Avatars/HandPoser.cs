@@ -42,6 +42,15 @@ namespace DoEFriendsMod.Avatars
             public bool IsLeft;
             public readonly List<Joint>[] Fingers = new List<Joint>[FingerCount];
             public readonly float[] Curl = new float[FingerCount];
+            /// <summary>
+            /// Whether real per-finger data has EVER been seen. A skeletal action that exists
+            /// but always reports zero — which is what non-Index controllers give you through
+            /// SteamVR — is indistinguishable from a permanently open hand, and trusting it
+            /// means the grip axis is never consulted and nothing ever moves.
+            /// </summary>
+            public bool SawRealCurls;
+            public float LastGrip, LastTrigger;
+            public bool HadInput;
         }
 
         private static readonly string[][] BoneNames =
@@ -140,6 +149,8 @@ namespace DoEFriendsMod.Avatars
         }
 
         /// <summary>Read the controllers and apply. Call from LateUpdate, after VRIK.</summary>
+        private float _nextDebugAt;
+
         public void Update(float deltaTime)
         {
             if (_left == null && _right == null) return;
@@ -147,6 +158,15 @@ namespace DoEFriendsMod.Avatars
 
             ReadCurls(_left);
             ReadCurls(_right);
+
+            if (ModConfig.HandPoseDebug.Value && Time.unscaledTime >= _nextDebugAt)
+            {
+                _nextDebugAt = Time.unscaledTime + 0.5f;
+                Core.Log.Msg($"hands: L grip {_left?.LastGrip:0.00} trig {_left?.LastTrigger:0.00} " +
+                             $"curls [{Join(_left)}] perFinger={_left?.SawRealCurls} input={_left?.HadInput} | " +
+                             $"R grip {_right?.LastGrip:0.00} trig {_right?.LastTrigger:0.00} " +
+                             $"curls [{Join(_right)}] perFinger={_right?.SawRealCurls}");
+            }
 
             var smoothing = 1f - Mathf.Exp(-Mathf.Max(0.01f, ModConfig.HandCurlSmoothing.Value) * deltaTime * 60f);
             Apply(_left, smoothing);
@@ -158,35 +178,47 @@ namespace DoEFriendsMod.Avatars
             if (hand == null) return;
             var target = new float[FingerCount];
 
-            var gotPerFinger = false;
             try
             {
                 var input = XRInput.Instance;
-                if (Interop.Alive(input))
-                {
-                    var handedness = hand.IsLeft ? Handedness.Left : Handedness.Right;
-                    var curls = input.GetFingerCurls(handedness, true);
-                    if (curls != null && curls.Length >= FingerCount)
-                    {
-                        for (var i = 0; i < FingerCount; i++) target[i] = Mathf.Clamp01(curls[i]);
-                        gotPerFinger = true;
-                    }
+                if (!Interop.Alive(input)) { hand.HadInput = false; return; }
+                hand.HadInput = true;
 
-                    if (!gotPerFinger)
+                var handedness = hand.IsLeft ? Handedness.Left : Handedness.Right;
+                var grip = Mathf.Clamp01(hand.IsLeft ? input.leftHandTrigger : input.rightHandTrigger);
+                var trigger = Mathf.Clamp01(hand.IsLeft ? input.leftIndexTrigger : input.rightIndexTrigger);
+                hand.LastGrip = grip;
+                hand.LastTrigger = trigger;
+
+                float[] curls = null;
+                try
+                {
+                    var raw = input.GetFingerCurls(handedness, true);
+                    if (raw != null && raw.Length >= FingerCount)
                     {
-                        // Trigger bends the index, grip bends the rest — the same split the
-                        // vanilla game uses to pick a HandPose.Type.
-                        var grip = Mathf.Clamp01(hand.IsLeft ? input.leftHandTrigger : input.rightHandTrigger);
-                        var trigger = Mathf.Clamp01(hand.IsLeft ? input.leftIndexTrigger : input.rightIndexTrigger);
-                        target[0] = grip;              // thumb
-                        target[1] = trigger;           // index
-                        target[2] = grip;
-                        target[3] = grip;
-                        target[4] = grip;
+                        curls = new float[FingerCount];
+                        for (var i = 0; i < FingerCount; i++) curls[i] = Mathf.Clamp01(raw[i]);
+                        for (var i = 0; i < FingerCount; i++) if (curls[i] > 0.05f) { hand.SawRealCurls = true; break; }
                     }
                 }
+                catch { /* backend without skeletal input */ }
+
+                if (hand.SawRealCurls && curls != null)
+                {
+                    for (var i = 0; i < FingerCount; i++) target[i] = curls[i];
+                }
+                else
+                {
+                    // Trigger bends the index, grip bends the rest — the same split the vanilla
+                    // game uses to choose a HandPose.Type.
+                    target[0] = grip;
+                    target[1] = trigger;
+                    target[2] = grip;
+                    target[3] = grip;
+                    target[4] = grip;
+                }
             }
-            catch { /* no input this frame; keep the last pose rather than snapping open */ }
+            catch { hand.HadInput = false; return; }
 
             for (var i = 0; i < FingerCount; i++) hand.Curl[i] = target[i];
         }
@@ -216,6 +248,30 @@ namespace DoEFriendsMod.Avatars
                     catch { }
                 }
             }
+        }
+
+        private static string Join(Hand h)
+        {
+            if (h == null) return "-";
+            var parts = new string[FingerCount];
+            for (var i = 0; i < FingerCount; i++) parts[i] = h.Curl[i].ToString("0.00");
+            return string.Join(" ", parts);
+        }
+
+        /// <summary>Report what input backend we're actually talking to.</summary>
+        public static void LogInputBackend()
+        {
+            try
+            {
+                var input = XRInput.Instance;
+                if (!Interop.Alive(input)) { Core.Log.Warning("    hand input: XRInput.Instance is null — fingers cannot move."); return; }
+                var typeName = HierarchyDump.TypeName(input);
+                var probe = input.GetFingerCurls(Handedness.Right, true);
+                Core.Log.Msg($"    hand input: {typeName}, GetFingerCurls returned " +
+                             (probe == null ? "null" : $"{probe.Length} value(s)") +
+                             $"; grip axis reads {input.rightHandTrigger:0.00}");
+            }
+            catch (Exception e) { Core.Log.Warning($"    hand input probe failed: {e.GetType().Name}: {e.Message}"); }
         }
 
         /// <summary>Put every finger back to the pose it was exported in.</summary>
