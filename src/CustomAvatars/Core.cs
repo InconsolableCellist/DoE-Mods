@@ -6,7 +6,7 @@ using CustomAvatars.Gate;
 using CustomAvatars.Net;
 using CustomAvatars.Recon;
 
-[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.32.1", "dan")]
+[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.33.0", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace CustomAvatars
@@ -25,7 +25,7 @@ namespace CustomAvatars
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.32.1";
+        public const string Version = "0.33.0";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -183,7 +183,7 @@ namespace CustomAvatars
             _swaps?.Tick(dt);
             _handSync?.Tick(UnityEngine.Time.unscaledTime);
             _fbt?.LateTick(UnityEngine.Time.unscaledTime);
-            _holograms?.Tick(UnityEngine.Time.unscaledTime);
+            _holograms?.Tick(UnityEngine.Time.unscaledTime, dt);
 
             _face?.Tick(UnityEngine.Time.unscaledTime);
             _faceSync?.Tick(UnityEngine.Time.unscaledTime);

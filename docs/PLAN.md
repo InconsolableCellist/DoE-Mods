@@ -570,6 +570,21 @@ tracking. Two known issues from that first look:
       `avatarMesh` visibility is re-asserted every frame, because the hologram rebuilds itself
       whenever cosmetics change (`RecreateAvatarMesh`) and would otherwise re-enable it behind
       us. `HologramSwapEnabled` turns it off.
+- [x] **Secondary motion, face and fingers on the mannequin (v0.33.0)** — the pose retargeter
+      only ever wrote the 22 humanoid bones, so everything else on a mannequin stayed in bind
+      pose: a tail that swung correctly on the body in the world stuck straight out on the
+      pedestal, and the face never moved. `HologramSwapper` now builds a `SpringBones`, a
+      `FaceDriver` and a `HandPoser` per mannequin, the same three the in-world avatar uses,
+      and applies them in the same order (pose, fingers, face, chains). Your own pedestal is
+      driven from your live tracking, which makes it the mirror the F6 preview already was; a
+      peer's is driven from the shape values and finger curls their in-world avatar is already
+      being sent, borrowing the same arrays rather than keeping a second copy of the stream.
+      Two things this turned up. `SpringBones` constants are accelerations in metres per
+      second, so they only give the intended swing at the size they were tuned for — a
+      mannequin that is not life-size needs them scaled, which is `SpringBones.ForceScale`.
+      And applying a peer's face in `AvatarSwapper` returned early, quietly taking the spring
+      simulation at the end of the method with it: a peer's tail stopped swinging for exactly
+      as long as they were face-tracking.
 - [ ] **Replace the character-menu pedestal model** in the wardrobe UI (`AvatarCustomizer`),
       `MainMenu` and `UIEndMission` — the same `AvatarHologram` type, so the swapper above
       should already cover them if it finds them; verify which of those screens actually spawn

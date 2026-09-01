@@ -66,6 +66,17 @@ namespace CustomAvatars.Avatars
         public int BoneCount { get; private set; }
         public int ColliderCount => _colliders.Count;
 
+        /// <summary>
+        /// Size of this copy of the avatar relative to the one that stands in the world.
+        ///
+        /// The tuning constants are accelerations in metres per second, so they only produce
+        /// the intended swing on an avatar of the intended size. Drive the same chains on a
+        /// half-size copy — a mannequin on a pedestal — and every bone is half as long while
+        /// gravity is unchanged, which reads as a tail flailing twice as far. Scaling the
+        /// forces with the model keeps the angles the author tuned.
+        /// </summary>
+        public float ForceScale { get; set; } = 1f;
+
         /// <summary>Builds the runtime chains against an instantiated avatar. Returns a summary.</summary>
         public string Build(GameObject root, AvatarManifest manifest)
         {
@@ -239,8 +250,8 @@ namespace CustomAvatars.Avatars
             // dt-squared gravity — so restore outweighed gravity by roughly 150:1 and the
             // chain snapped back to the animated pose no matter what gravity was set to.
             // That is exactly "sticks straight out and won't droop".
-            var stiffnessForce = restDir * (chain.Stiffness01 * ModConfig.SpringStiffnessScale.Value * dt);
-            var gravityForce = Vector3.down * (chain.Gravity01 * ModConfig.SpringGravityScale.Value * dt);
+            var stiffnessForce = restDir * (chain.Stiffness01 * ModConfig.SpringStiffnessScale.Value * dt * ForceScale);
+            var gravityForce = Vector3.down * (chain.Gravity01 * ModConfig.SpringGravityScale.Value * dt * ForceScale);
 
             // Higher VRC `spring` means more bounce, so less damping. `immobile` (ignore the
             // wearer's own motion) also reads as damping here.
@@ -343,11 +354,12 @@ namespace CustomAvatars.Avatars
                 if (!Interop.Alive(col.Transform)) continue;
 
                 var center = col.Transform.TransformPoint(col.Offset);
+                var radius = col.Radius * ForceScale;
                 var delta = tip - center;
                 var distance = delta.magnitude;
-                if (distance >= col.Radius || distance < 1e-6f) continue;
+                if (distance >= radius || distance < 1e-6f) continue;
 
-                tip = center + delta / distance * col.Radius;
+                tip = center + delta / distance * radius;
                 // Re-apply the bone-length constraint: pushing out of a collider must not
                 // stretch the bone, or the chain visibly grows while it's touching something.
                 tip = origin + (tip - origin).normalized * length;

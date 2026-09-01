@@ -778,20 +778,24 @@ namespace CustomAvatars.Avatars
                 // A peer's face comes from their stream. It ages so that when they stop sending
                 // — tracking off, or they took the avatar off — their face relaxes rather than
                 // freezing in whatever expression arrived last.
+                var remote = false;
                 if (!IsSelf && _face.RemoteValues != null)
                 {
                     _face.RemoteAgeSeconds += deltaTime;
-                    if (_face.RemoteAgeSeconds < ModConfig.FaceStaleSeconds.Value)
-                    {
-                        _face.ApplyRemote(deltaTime);
-                        return;
-                    }
-                    _face.RemoteValues = null;
+                    remote = _face.RemoteAgeSeconds < ModConfig.FaceStaleSeconds.Value;
+                    if (remote) _face.ApplyRemote(deltaTime);
+                    else _face.RemoteValues = null;
                 }
 
-                if (tracking) _face.Apply(state, deltaTime);
-                else if (ModConfig.VoiceJawEnabled.Value) _face.ApplyVoiceJaw(ReadVoiceEnergy(), deltaTime);
-                else _face.Relax(deltaTime);
+                // Applying a peer's face used to return from here, which quietly took the
+                // spring chains below with it: a peer's tail stopped swinging for exactly as
+                // long as they were face-tracking, and started again when they stopped.
+                if (!remote)
+                {
+                    if (tracking) _face.Apply(state, deltaTime);
+                    else if (ModConfig.VoiceJawEnabled.Value) _face.ApplyVoiceJaw(ReadVoiceEnergy(), deltaTime);
+                    else _face.Relax(deltaTime);
+                }
             }
 
             if (_springs == null || !ModConfig.SpringsEnabled.Value) return;
