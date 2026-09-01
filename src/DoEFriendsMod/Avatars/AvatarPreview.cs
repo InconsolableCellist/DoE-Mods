@@ -79,6 +79,14 @@ namespace DoEFriendsMod.Avatars
 
             try
             {
+                if (!Interop.Alive(_bundle.Prefab))
+                {
+                    Core.Log.Error("The avatar prefab is no longer loaded — press F5 to rescan, then try again.");
+                    _bundle.Release();
+                    _bundle = null;
+                    return;
+                }
+
                 _instance = UnityEngine.Object.Instantiate(_bundle.Prefab);
                 _instance.name = $"DFM_Preview_{manifest.name}";
             }

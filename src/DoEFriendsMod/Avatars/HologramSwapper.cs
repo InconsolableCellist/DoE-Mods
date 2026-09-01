@@ -135,6 +135,13 @@ namespace DoEFriendsMod.Avatars
                     return;
                 }
 
+                if (!Interop.Alive(bundle.Prefab))
+                {
+                    Core.Log.Warning("Hologram: the avatar prefab is no longer loaded — skipping.");
+                    bundle.Release();
+                    return;
+                }
+
                 entry.Model = UnityEngine.Object.Instantiate(bundle.Prefab);
                 entry.Model.name = $"DFM_Hologram_{avatarName}";
                 entry.Model.SetActive(false);

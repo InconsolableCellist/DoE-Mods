@@ -143,6 +143,14 @@ namespace DoEFriendsMod.Avatars
                 // position from a solver produced a near sign-flip in X — the model landed at
                 // x = -52.85 from x = 52.17. The F6 preview never had this problem because its
                 // model is a plain scene root. So is this one now.
+                if (!Interop.Alive(_bundle.Prefab))
+                {
+                    Core.Log.Error("The avatar prefab is no longer loaded — press F5 to rescan, then try again.");
+                    _bundle.Release();
+                    _bundle = null;
+                    return;
+                }
+
                 _model = UnityEngine.Object.Instantiate(_bundle.Prefab);
                 _model.name = $"DFM_Avatar_{manifest.name}";
                 UnityEngine.Object.DontDestroyOnLoad(_model);

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using DoEFriendsMod.Recon;
 using UnityEngine;
 
 namespace DoEFriendsMod.Avatars
@@ -39,9 +40,21 @@ namespace DoEFriendsMod.Avatars
 
             if (Loaded.TryGetValue(key, out var existing))
             {
-                existing._refCount++;
-                Core.Log.Msg($"Reusing already-loaded bundle `{manifest.name}` (holders: {existing._refCount}).");
-                return existing;
+                // Check the prefab is still there before handing it back. Unity can unload the
+                // asset on a scene change — our reference to it is an interop proxy, which does
+                // not count as a Unity reference keeping it alive — leaving a cache entry whose
+                // prefab is destroyed. Instantiating that throws a bare NullReferenceException
+                // from inside the engine, which says nothing about the real cause.
+                if (Interop.Alive(existing.Prefab))
+                {
+                    existing._refCount++;
+                    Core.Log.Msg($"Reusing already-loaded bundle `{manifest.name}` (holders: {existing._refCount}).");
+                    return existing;
+                }
+
+                Core.Log.Warning($"Cached bundle `{manifest.name}` lost its prefab (unloaded on a scene change) — reloading.");
+                Loaded.Remove(key);
+                existing.UnloadNow();
             }
 
             var self = new AvatarBundle(manifest) { _key = key };
@@ -57,7 +70,7 @@ namespace DoEFriendsMod.Avatars
                 }
 
                 self.Prefab = self.FindPrefab(out error);
-                if (self.Prefab == null) { self.UnloadNow(); return null; }
+                if (!Interop.Alive(self.Prefab)) { self.UnloadNow(); return null; }
 
                 self._refCount = 1;
                 Loaded[key] = self;
