@@ -35,6 +35,9 @@ namespace DoEFriendsMod.Face
         public bool Running => _running;
         public int ListenPort { get; private set; }
 
+        private float _nextNudgeAt;
+        private bool _everReceived;
+
         public void Start()
         {
             if (_running) return;
@@ -64,10 +67,39 @@ namespace DoEFriendsMod.Face
         }
 
         /// <summary>
+        /// Keep asking until something arrives.
+        ///
+        /// `forceRelevant` is fire-and-forget over UDP, so a single request at startup is lost
+        /// if VRCFaceTracking isn't running yet — which is the normal case, since the game takes
+        /// minutes to load and people start VRCFT afterwards. Re-asking every few seconds until
+        /// data appears costs one tiny packet and removes the ordering requirement entirely.
+        /// </summary>
+        public void Tick(float unscaledTime)
+        {
+            if (!_running || !ModConfig.FaceForceRelevant.Value) return;
+
+            if (!_everReceived && State.MessageCount > 0)
+            {
+                _everReceived = true;
+                Core.Log.Msg($"Face OSC: receiving — {State.Count} parameter(s) so far.");
+            }
+
+            if (unscaledTime < _nextNudgeAt) return;
+            // Often while nothing is arriving, rarely once it is — a keepalive in case
+            // VRCFaceTracking restarts or reloads its avatar and forgets.
+            _nextNudgeAt = unscaledTime + (_everReceived ? 30f : 5f);
+            SendForceRelevant(quiet: _everReceived || _nudges++ > 0);
+        }
+
+        private int _nudges;
+
+        /// <summary>
         /// Ask VRCFT to send every parameter rather than only ones a declared avatar uses.
         /// Sent from loopback because VRCFT refuses to bind anything else.
         /// </summary>
-        public void SendForceRelevant()
+        public void SendForceRelevant() => SendForceRelevant(false);
+
+        public void SendForceRelevant(bool quiet)
         {
             var port = Math.Clamp(ModConfig.FaceOscSendPort.Value, 1, 65535);
             try
@@ -75,12 +107,13 @@ namespace DoEFriendsMod.Face
                 using var sender = new UdpClient();
                 var packet = OscParser.BuildBool("/vrcft/settings/forceRelevant", true);
                 sender.Send(packet, packet.Length, new IPEndPoint(IPAddress.Loopback, port));
-                Core.Log.Msg($"Face OSC: asked VRCFaceTracking (127.0.0.1:{port}) to send all parameters.");
+                if (!quiet) Core.Log.Msg($"Face OSC: asked VRCFaceTracking (127.0.0.1:{port}) to send all parameters.");
             }
             catch (Exception e)
             {
-                Core.Log.Warning($"Face OSC: could not reach VRCFaceTracking on 127.0.0.1:{port} — {e.Message}. " +
-                                 "Only the always-on /tracking/eye values will arrive.");
+                if (!quiet)
+                    Core.Log.Warning($"Face OSC: could not reach VRCFaceTracking on 127.0.0.1:{port} — {e.Message}. " +
+                                     "Only the always-on /tracking/eye values will arrive.");
             }
         }
 

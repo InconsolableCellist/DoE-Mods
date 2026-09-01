@@ -6,7 +6,7 @@ using DoEFriendsMod.Gate;
 using DoEFriendsMod.Net;
 using DoEFriendsMod.Recon;
 
-[assembly: MelonInfo(typeof(Core), "DoEFriendsMod", "0.19.1", "dan")]
+[assembly: MelonInfo(typeof(Core), "DoEFriendsMod", "0.20.0", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace DoEFriendsMod
@@ -25,7 +25,7 @@ namespace DoEFriendsMod
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.19.1";
+        public const string Version = "0.20.0";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -136,6 +136,8 @@ namespace DoEFriendsMod
             _swaps?.Tick(dt);
             _handSync?.Tick(UnityEngine.Time.unscaledTime);
             _holograms?.Tick(UnityEngine.Time.unscaledTime);
+
+            _face?.Tick(UnityEngine.Time.unscaledTime);
 
             if (_face != null && ModConfig.FaceOscDebug.Value &&
                 UnityEngine.Time.unscaledTime >= _nextFaceLogAt)

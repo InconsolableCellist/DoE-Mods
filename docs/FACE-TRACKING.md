@@ -169,6 +169,36 @@ What we give up: an author's bespoke corrective shapes and any mapping that isn'
 Worth revisiting for a specific avatar that needs it; not worth paying for by default, when the
 exporter already resolves 75 of 98 UE shapes to a renderer and index directly.
 
+## Does VRCFT need a handshake? No — but the request can be missed
+
+Answering directly, since it decides the setup instructions:
+
+- **No avatar descriptor, no `/avatar/change`, no OSCQuery response is required.** With
+  `/vrcft/settings/forceRelevant` sent once, VRCFT marks every parameter relevant and streams
+  the lot. Nothing is negotiated and nothing has to be kept alive afterwards.
+- **`/tracking/eye/LeftRightPitchYaw` and `/tracking/eye/EyesClosedAmount` need not even that** —
+  they're sent unconditionally.
+- **The catch is ordering, not handshaking.** `forceRelevant` is one fire-and-forget UDP packet.
+  Sent once at melon init, it is simply lost if VRCFaceTracking isn't running yet — which is the
+  normal case, since the game takes minutes to load and people start VRCFT afterwards. v0.20.0
+  re-sends every 5 s until data arrives, then every 30 s as a keepalive in case VRCFT restarts.
+
+### Eye motion: bones or blendshapes?
+
+**Neither is required.** The exporter records `eyeUseBones` when the avatar has humanoid
+`LeftEye`/`RightEye`, and the mod prefers bones because rotation is exact and needs no authored
+shapes. An avatar without eye bones is driven through gaze *blendshapes* instead
+(`EyeLookOutLeft` and friends), which are ordinary targets fed by the same derived mapping from
+the signed `EyeLeftX`/`EyeRightX`/`EyeY` parameters. Both paths work; bones are simply better
+when they exist.
+
+### Seeing your own face
+
+You can't — your head is scaled away in first person, and you couldn't look at it regardless.
+**F6 is the mirror**: the preview avatar's face is driven from the same tracking data, so
+expressions show up on a copy of yourself standing in front of you. That is the only way to
+evaluate face tracking without a second player.
+
 ## Per-avatar mapping (manifest.json)
 
 The Unity exporter auto-detects UE-named blendshapes on the avatar's renderers

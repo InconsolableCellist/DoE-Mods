@@ -30,6 +30,7 @@ namespace DoEFriendsMod.Avatars
         private AvatarBundle _bundle;
         private GameObject _instance;
         private SpringBones _springs;
+        private Face.FaceDriver _face;
 
         public AvatarPreview(AvatarLibrary library)
         {
@@ -96,6 +97,14 @@ namespace DoEFriendsMod.Avatars
             _springs = new SpringBones();
             var springSummary = _springs.Build(_instance, manifest);
             _springs.Reset();
+
+            // The preview is the only way to see your own face. Your head is scaled away in
+            // first person and you couldn't look at it anyway, so driving the preview's face
+            // from the same tracking data turns F6 into a mirror.
+            _face = new Face.FaceDriver();
+            var faceSummary = _face.Build(_instance, manifest);
+            if (_face.TargetCount == 0) _face = null;
+            Core.Log.Msg($"Preview face: {faceSummary}");
             Core.Log.Msg($"Dynamics: {springSummary}");
             ReconLog.KeyValue("dynamics", springSummary);
 
@@ -251,7 +260,20 @@ namespace DoEFriendsMod.Avatars
         /// <summary>Driven from Core.OnLateUpdate — after animation, before the frame renders.</summary>
         public void LateUpdate(float deltaTime)
         {
-            if (!IsSpawned || _springs == null || !ModConfig.SpringsEnabled.Value) return;
+            if (!IsSpawned) return;
+
+            if (_face != null)
+            {
+                var state = Core.Instance?.FaceState;
+                if (state != null)
+                {
+                    var stale = state.SecondsSinceLastMessage;
+                    if (stale >= 0 && stale < ModConfig.FaceStaleSeconds.Value) _face.Apply(state, deltaTime);
+                    else _face.Relax(deltaTime);
+                }
+            }
+
+            if (_springs == null || !ModConfig.SpringsEnabled.Value) return;
             try { _springs.Simulate(deltaTime); }
             catch (Exception e) { Core.Log.Warning($"Spring simulation failed, disabling: {e.Message}"); _springs = null; }
         }
@@ -265,6 +287,7 @@ namespace DoEFriendsMod.Avatars
             }
             _instance = null;
             _springs = null;
+            _face = null;
 
             // Unload the bundle but NOT its loaded objects — the instance is being destroyed
             // separately, and unloading assets out from under a live GameObject is how you get
