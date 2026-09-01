@@ -36,6 +36,7 @@ namespace DoEFriendsMod.Avatars
         private SpringBones _springs;
         private HandPoser _hands;
         private PoseRetargeter _retarget;
+        private ArmIK _armIk;
         private SkinnedMeshRenderer _hiddenVanillaMesh;
         private bool _vanillaMeshWasEnabled = true;
         private readonly List<(Renderer renderer, bool wasEnabled)> _fpsArmRenderers =
@@ -48,7 +49,7 @@ namespace DoEFriendsMod.Avatars
             $"UseVrik={ModConfig.SwapUseVrik.Value}, HideVanillaMesh={ModConfig.SwapHideVanillaMesh.Value}, " +
             $"LocomotionWeight={ModConfig.SwapLocomotionWeight.Value}, HideHead={ModConfig.SelfHideHead.Value}, " +
             $"HideFpsArms={ModConfig.SwapHideFpsArms.Value}, FollowVanillaRoot={ModConfig.SwapFollowVanillaRoot.Value}, " +
-            $"PoseSource={ModConfig.SwapPoseSource.Value}, " +
+            $"PoseSource={ModConfig.SwapPoseSource.Value}, ArmSource={ModConfig.SwapArmSource.Value}, " +
             $"wrist L=({ModConfig.SwapHandOffsetLeftX.Value},{ModConfig.SwapHandOffsetLeftY.Value},{ModConfig.SwapHandOffsetLeftZ.Value}) " +
             $"R=({ModConfig.SwapHandOffsetRightX.Value},{ModConfig.SwapHandOffsetRightY.Value},{ModConfig.SwapHandOffsetRightZ.Value})";
 
@@ -57,6 +58,8 @@ namespace DoEFriendsMod.Avatars
         private float _lastSolverDrift;
         private int _leashTrips;
         private bool _wasAlive = true;
+        private bool _forcedVanillaIk;
+        private bool _vanillaIkWas;
         private bool _hiddenForDeath;
         public string AvatarName { get; private set; }
 
@@ -159,13 +162,28 @@ namespace DoEFriendsMod.Avatars
 
                 if (useRetarget)
                 {
+                    // The vanilla body has to be solving properly for there to be a pose worth
+                    // copying. Report what it's doing before we touch it.
+                    ReportVanillaIk(fullBody);
+                    if (isSelf && ModConfig.SwapForceVanillaIK.Value) ForceVanillaIk(fullBody);
+
                     _retarget = new PoseRetargeter();
                     var result = _retarget.Build(player, _model, manifest);
+
+                    if (string.Equals(ModConfig.SwapArmSource.Value, "IKTargets", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var lt = HandTarget(ref _leftHandTarget, "DFM_HandTarget_L", player.IKTargetLeftHand);
+                        var rt = HandTarget(ref _rightHandTarget, "DFM_HandTarget_R", player.IKTargetRightHand);
+                        _armIk = new ArmIK();
+                        Core.Log.Msg($"    arm source: IKTargets — {_armIk.Build(_model, manifest, lt, rt)}");
+                        if (!_armIk.HasArms) _armIk = null;
+                    }
                     Core.Log.Msg($"    pose source: VanillaRig — {result}");
                     if (_retarget.LinkCount == 0)
                     {
                         Core.Log.Warning("    retargeting found no usable bones; falling back to VRIK.");
                         _retarget = null;
+            _armIk = null;
                         useRetarget = false;
                     }
                 }
@@ -415,6 +433,60 @@ namespace DoEFriendsMod.Avatars
             catch { }
         }
 
+        private static void ReportVanillaIk(CharacterPrefab fullBody)
+        {
+            try
+            {
+                var enabled = "?";
+                try { enabled = fullBody.ikEnabled.ToString(); } catch { }
+
+                var ik = fullBody.ik;
+                if (!Interop.Alive(ik)) { Core.Log.Msg($"    vanilla IK: ikEnabled={enabled}, no VRIK on the body"); return; }
+
+                var solver = ik.solver;
+                Core.Log.Msg($"    vanilla IK: ikEnabled={enabled}, VRIK.enabled={ik.enabled}, LOD={solver.LOD}, " +
+                             $"armWeights L={solver.leftArm.positionWeight:0.##}/{solver.leftArm.rotationWeight:0.##} " +
+                             $"R={solver.rightArm.positionWeight:0.##}/{solver.rightArm.rotationWeight:0.##}, " +
+                             $"headWeight={solver.spine.positionWeight:0.##}");
+            }
+            catch (Exception e) { Core.Log.Warning($"    vanilla IK probe failed: {e.Message}"); }
+        }
+
+        /// <summary>
+        /// Make sure the game's own body is fully solved on this client.
+        ///
+        /// We copy the vanilla pose, so anything the game skips, we inherit. Your own
+        /// third-person body is the obvious candidate for being skipped — normally nobody
+        /// looks at it, since you see the first-person arms instead — and FinalIK's `LOD`
+        /// reduces or stops solving when raised. A body whose arms aren't being solved leaves
+        /// them near the animation's rest pose, which is exactly the A-pose-with-a-little-drift
+        /// that showed up in testing.
+        /// </summary>
+        private void ForceVanillaIk(CharacterPrefab fullBody)
+        {
+            try
+            {
+                try { _vanillaIkWas = fullBody.ikEnabled; fullBody.ikEnabled = true; _forcedVanillaIk = true; }
+                catch { }
+
+                var ik = fullBody.ik;
+                if (!Interop.Alive(ik)) return;
+                if (!ik.enabled) ik.enabled = true;
+
+                var solver = ik.solver;
+                if (solver == null) return;
+                solver.LOD = 0;                     // 0 = solve everything
+                solver.leftArm.positionWeight = 1f;
+                solver.leftArm.rotationWeight = 1f;
+                solver.rightArm.positionWeight = 1f;
+                solver.rightArm.rotationWeight = 1f;
+                solver.spine.positionWeight = 1f;
+                solver.spine.rotationWeight = 1f;
+                Core.Log.Msg("    forced the vanilla body to solve fully (LOD 0, arm and head weights 1)");
+            }
+            catch (Exception e) { Core.Log.Warning($"    could not force vanilla IK: {e.Message}"); }
+        }
+
         private void CacheVanillaMesh(CharacterPrefab fullBody)
         {
             try
@@ -487,7 +559,13 @@ namespace DoEFriendsMod.Avatars
             try
             {
                 var hide = ModConfig.SwapHideFpsArms.Value;
-                foreach (var (r, wasEnabled) in _fpsArmRenderers)
+                if (_forcedVanillaIk && Interop.Alive(_fullBody))
+            {
+                try { _fullBody.ikEnabled = _vanillaIkWas; } catch { }
+            }
+            _forcedVanillaIk = false;
+
+            foreach (var (r, wasEnabled) in _fpsArmRenderers)
                 {
                     if (!Interop.Alive(r)) continue;
                     // Restoring to `wasEnabled` rather than to true matters: several of these
@@ -577,6 +655,14 @@ namespace DoEFriendsMod.Avatars
             {
                 try { _retarget.Apply(); }
                 catch (Exception e) { Core.Log.Warning($"Retarget failed, disabling: {e.Message}"); _retarget = null; }
+            }
+
+            // Arms after the body: the retarget writes the whole skeleton, so solving the arms
+            // to the hand targets has to come afterwards or it would be overwritten.
+            if (_armIk != null)
+            {
+                try { _armIk.Apply(); }
+                catch (Exception e) { Core.Log.Warning($"Arm IK failed, disabling: {e.Message}"); _armIk = null; }
             }
 
             // Fingers before springs: neither pose source touches them, but keeping the order fixed
@@ -837,6 +923,12 @@ namespace DoEFriendsMod.Avatars
             {
                 try { _hiddenVanillaMesh.enabled = _vanillaMeshWasEnabled; } catch { }
             }
+            if (_forcedVanillaIk && Interop.Alive(_fullBody))
+            {
+                try { _fullBody.ikEnabled = _vanillaIkWas; } catch { }
+            }
+            _forcedVanillaIk = false;
+
             foreach (var (r, wasEnabled) in _fpsArmRenderers)
                 if (Interop.Alive(r)) { try { r.enabled = wasEnabled; } catch { } }
             _fpsArmRenderers.Clear();
@@ -866,6 +958,7 @@ namespace DoEFriendsMod.Avatars
             _springs = null;
             _hands = null;
             _retarget = null;
+            _armIk = null;
             _player = null;
             _settledLogAt = 0f;
             AvatarName = null;

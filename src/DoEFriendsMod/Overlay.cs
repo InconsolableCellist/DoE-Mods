@@ -18,24 +18,30 @@ namespace DoEFriendsMod
     {
         public static bool Visible = true;
 
-        private const int Width = 330;
-        private const int Pad = 10;
+        // 16 px clipped the glyphs and 330 px cut the longest line off; measured from a
+        // screenshot rather than guessed a second time.
+        private const int Width = 460;
+        private const int Pad = 12;
+        private const int LineHeight = 19;
+        private const int TitleHeight = 26;
 
         public static void Draw()
         {
             if (!Visible) return;
 
             var lines = BuildLines(out var title);
-            var height = Pad * 2 + 20 + lines.Length * 16;
+            var height = Pad * 2 + TitleHeight + lines.Length * LineHeight;
             var rect = new Rect(Pad, Pad, Width, height);
 
             GUI.Box(rect, title);
 
-            var y = rect.y + 24;
+            var y = rect.y + TitleHeight;
             foreach (var line in lines)
             {
-                GUI.Label(new Rect(rect.x + Pad, y, Width - Pad * 2, 16), line);
-                y += 16;
+                // Give each label more height than the line advance so descenders aren't
+                // clipped by the rect.
+                GUI.Label(new Rect(rect.x + Pad, y, Width - Pad * 2, LineHeight + 4), line);
+                y += LineHeight;
             }
         }
 
@@ -45,7 +51,7 @@ namespace DoEFriendsMod
 
             var gate = ModGate.Active ? "ACTIVE" : "inert";
             var reason = ModGate.Reason ?? "";
-            if (reason.Length > 44) reason = reason.Substring(0, 44) + "…";
+            if (reason.Length > 58) reason = reason.Substring(0, 58) + "…";
 
             var selected = ModConfig.PreviewAvatarName.Value;
             if (string.IsNullOrWhiteSpace(selected)) selected = "(first available)";
@@ -57,12 +63,19 @@ namespace DoEFriendsMod
                 $"Gate: {gate} — {reason}",
                 $"Avatar: {selected}",
                 $"Swapped: {worn}",
+                $"HideVanillaMesh: {ModConfig.SwapHideVanillaMesh.Value}   " +
+                $"HideFpsArms: {ModConfig.SwapHideFpsArms.Value}",
+                $"PoseSource: {ModConfig.SwapPoseSource.Value}   " +
+                $"ForceVanillaIK: {ModConfig.SwapForceVanillaIK.Value}",
+                $"ArmSource: {ModConfig.SwapArmSource.Value}   (F12 switches)",
                 "",
                 "F1  hide this panel        F2  next avatar",
                 "F3  reload settings        F4  wear avatar",
                 "F5  rescan avatars         F6  preview",
                 "F7  dump environment       F8  dump avatars",
                 "F9  dump room + events",
+                "F10 show/hide vanilla body   F11 show/hide FPS arms",
+                "F12 arms: copy vanilla / solve to controllers",
                 "",
                 "Settings: UserData/MelonPreferences.cfg",
                 "then press F3. Window must be focused for keys.",

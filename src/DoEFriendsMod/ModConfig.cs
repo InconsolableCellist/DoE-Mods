@@ -75,6 +75,9 @@ namespace DoEFriendsMod
         public static MelonPreferences_Entry<float> RetargetHipsFollow;
         public static MelonPreferences_Entry<float> HandSyncHz;
         public static MelonPreferences_Entry<bool> HologramSwapEnabled;
+        public static MelonPreferences_Entry<bool> SwapForceVanillaIK;
+        /// <summary>"Retarget" copies the vanilla arms; "IKTargets" solves them to your controllers.</summary>
+        public static MelonPreferences_Entry<string> SwapArmSource;
 
         public static void Load()
         {
@@ -168,6 +171,12 @@ namespace DoEFriendsMod
             HandSyncHz = Category.CreateEntry("HandSyncHz", 12f);
             // Show custom avatars on the equipment-room mannequins as well as on the players.
             HologramSwapEnabled = Category.CreateEntry("HologramSwapEnabled", true);
+            // We copy the vanilla pose, so anything the game declines to solve on your own body
+            // we inherit. Force it to solve fully.
+            SwapForceVanillaIK = Category.CreateEntry("SwapForceVanillaIK", true);
+            // If forcing the vanilla body to solve doesn't fix the arms, this drives them from
+            // the hand targets directly instead — the half the game gets demonstrably right.
+            SwapArmSource = Category.CreateEntry("SwapArmSource", "Retarget");
         }
     }
 }
