@@ -19,12 +19,16 @@ namespace CustomAvatars.Avatars
         private readonly Dictionary<int, AvatarSwapper> _remote = new Dictionary<int, AvatarSwapper>();
 
         /// <summary>Peers who told us their avatar before their AvatarPlayer existed yet.</summary>
-        private readonly Dictionary<int, (string name, string sha)> _pending =
-            new Dictionary<int, (string, string)>();
+        private readonly Dictionary<int, (string name, string sha, float height)> _pending =
+            new Dictionary<int, (string, string, float)>();
 
         public AvatarSwapManager(AvatarLibrary library)
         {
             _library = library;
+            // Our own fit is measured a second after the swap, and again whenever we resize
+            // ourselves — both are moments peers need to hear about, or they keep drawing us
+            // at the size we were when we put the avatar on.
+            _self.HeightScaleChanged += () => SelfHeightChanged?.Invoke();
             ModGate.ActiveChanged += active => { if (!active) RevertRemotes("gate closed"); };
             ModGate.LocalVisualsChanged += allowed => { if (!allowed) RevertAll("local visuals off"); };
         }
@@ -53,6 +57,12 @@ namespace CustomAvatars.Avatars
 
         /// <summary>Raised when the avatar we are wearing changes, including taking it off.</summary>
         public event Action SelfAvatarChanged;
+
+        /// <summary>Raised when our avatar has been resized — a different fit, or a resized us.</summary>
+        public event Action SelfHeightChanged;
+
+        /// <summary>How much our own avatar is scaled, for peers who have to draw it.</summary>
+        public float SelfHeightScale => _self.IsActive ? _self.HeightScale : 1f;
 
         /// <summary>F4. Returns the avatar now worn, or null if it was taken off or refused.</summary>
         public string ToggleSelf()
@@ -127,8 +137,8 @@ namespace CustomAvatars.Avatars
             SelfAvatarChanged?.Invoke();
         }
 
-        /// <summary>A peer told us what they're wearing. Apply it if we have that avatar.</summary>
-        public void SetRemoteAvatar(int actorNumber, string avatarName, string sha)
+        /// <summary>A peer told us what they're wearing, and how big they are wearing it.</summary>
+        public void SetRemoteAvatar(int actorNumber, string avatarName, string sha, float height)
         {
             if (string.IsNullOrEmpty(avatarName))
             {
@@ -157,7 +167,18 @@ namespace CustomAvatars.Avatars
                 return;
             }
 
-            _pending[actorNumber] = (avatarName, sha);
+            // Already wearing that one: this is a resize, not a change of avatar. Rebuilding
+            // the whole model to apply a number would drop their springs, face and hand poses
+            // for a frame, and they resize far more often than they change avatars.
+            if (_remote.TryGetValue(actorNumber, out var current) && current.IsActive &&
+                string.Equals(current.AvatarName, avatarName, StringComparison.Ordinal))
+            {
+                current.ApplyRemoteHeight(height);
+                _pending.Remove(actorNumber);
+                return;
+            }
+
+            _pending[actorNumber] = (avatarName, sha, height);
             TryApplyPending();
         }
 
@@ -197,7 +218,11 @@ namespace CustomAvatars.Avatars
 
                 var swapper = new AvatarSwapper();
                 swapper.Apply(player, manifest, isSelf: false);
-                if (swapper.IsActive) _remote[kv.Key] = swapper;
+                if (swapper.IsActive)
+                {
+                    swapper.ApplyRemoteHeight(kv.Value.height);
+                    _remote[kv.Key] = swapper;
+                }
 
                 (applied ??= new List<int>()).Add(kv.Key);
             }

@@ -46,6 +46,9 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<bool> VoiceJawEnabled;
         public static MelonPreferences_Entry<bool> FbtEnabled;
         public static MelonPreferences_Entry<bool> TrackerSyncEnabled;
+        public static MelonPreferences_Entry<bool> HeightScalingEnabled;
+        public static MelonPreferences_Entry<bool> HeightFromAvatar;
+        public static MelonPreferences_Entry<float> HeightScale;
 
         // ---- [CustomAvatars_Tuning] -----------------------------------------------------
         public static MelonPreferences_Entry<float> SpringStiffnessScale;
@@ -94,6 +97,13 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<float> TrackerRotEpsilonDegrees;
         public static MelonPreferences_Entry<float> FbtRemoteSmoothing;
         public static MelonPreferences_Entry<float> FbtStaleSeconds;
+
+        public static MelonPreferences_Entry<float> HeightEyeHeightOverride;
+        public static MelonPreferences_Entry<float> HeightMinScale;
+        public static MelonPreferences_Entry<float> HeightMaxScale;
+        public static MelonPreferences_Entry<float> HeightMoveSpeedBlend;
+        public static MelonPreferences_Entry<bool> HeightScaleNearClip;
+        public static MelonPreferences_Entry<bool> HeightRestorePropScale;
 
         public static MelonPreferences_Entry<float> HandSyncHz;
         public static MelonPreferences_Entry<float> FaceSyncHz;
@@ -164,6 +174,18 @@ namespace CustomAvatars
                 "Full-body tracking from SteamVR trackers (hip + feet). F10 toggles.");
             TrackerSyncEnabled = Main.CreateEntry("TrackerSyncEnabled", true, description:
                 "Stream your tracker poses to modded peers so they see your legs");
+
+            // Off by default because it changes how the game plays, not how it looks: your
+            // hitbox, your reach and your weapons all come with you. PageUp/PageDown turn it
+            // on and trim it live.
+            HeightScalingEnabled = Main.CreateEntry("HeightScalingEnabled", false, description:
+                "Be the size of your avatar. Small avatars are small players — smaller hitbox, " +
+                "shorter reach, bigger world. PageUp/PageDown adjust, F12 back to vanilla.");
+            // The thing people actually want: wear a 1.2 m character, be 1.2 m tall.
+            HeightFromAvatar = Main.CreateEntry("HeightFromAvatar", true, description:
+                "Take the height from the avatar you're wearing rather than from HeightScale alone");
+            HeightScale = Main.CreateEntry("HeightScale", 1.0f, description:
+                "Multiplier on top of that. 0.5 is half your real height; 1 leaves it alone.");
 
             // ---- tuning -----------------------------------------------------------------
             // Restoring force toward the resting pose.
@@ -259,6 +281,25 @@ namespace CustomAvatars
             // After this long without tracker data a peer's legs go back to the game's own
             // walking animation rather than freezing mid-stride.
             FbtStaleSeconds = Tuning.CreateEntry("FbtStaleSeconds", 1.0f);
+
+            // Measured automatically from where your headset actually is, taking the tallest
+            // plausible reading of the session. Set it if you play seated, or if you want to be
+            // sized against a height you didn't happen to be standing at.
+            HeightEyeHeightOverride = Tuning.CreateEntry("HeightEyeHeightOverride", 0f, description:
+                "Your own eye height in metres. 0 measures it.");
+            // Below a quarter size the dungeon stops being playable — you can't reach chests or
+            // climb anything — and above three you don't fit through doors.
+            HeightMinScale = Tuning.CreateEntry("HeightMinScale", 0.25f);
+            HeightMaxScale = Tuning.CreateEntry("HeightMaxScale", 3f);
+            // 0 keeps the game's own metres per second, so everyone crosses a room together.
+            // 1 makes movement feel right for your size and leaves you behind the party.
+            HeightMoveSpeedBlend = Tuning.CreateEntry("HeightMoveSpeedBlend", 0f, description:
+                "How much stick movement and jumping shrink with you, 0 to 1");
+            // Off only to prove that a clipping problem is something else.
+            HeightScaleNearClip = Tuning.CreateEntry("HeightScaleNearClip", true);
+            // Puts a weapon's own scale back when it leaves your hands, so a small player
+            // doesn't leave small axes lying around a full-size dungeon.
+            HeightRestorePropScale = Tuning.CreateEntry("HeightRestorePropScale", true);
 
             // Ten bytes a message, and only when a finger actually moved.
             HandSyncHz = Tuning.CreateEntry("HandSyncHz", 12f);

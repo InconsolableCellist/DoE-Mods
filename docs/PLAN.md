@@ -752,6 +752,73 @@ vanilla skeleton, and vanilla peers still see stock avatars.
 
 ---
 
+### 2c. Being the size of your avatar (v0.33.0, built, untested in a real run)
+
+Everything above resizes the MODEL to fit the player — a 1.2 m character is stretched to the
+player's 1.75 m and wears their face. This resizes the PLAYER instead, which is the diversity
+VRChat avatars actually carry: some people want to be small, some slightly larger, and the
+gameplay is allowed to adjust around them.
+
+**One transform does all of it.** `VR Controller` is a scene root and the parent of every piece
+of the player the game owns — `Head Collider`, `Body Collider`, `Fist Left/Right`,
+`FPS-Arms-Model`, `Holsters/…` with the weapons parked in them, and
+`OpenVR Rig (SteamVR)(Clone)/[CameraRig]/{Camera, Controller (left|right)}`. A uniform scale
+there is the standard Unity world-scale trick: tracked local offsets are multiplied by it, so
+eye height, stereo separation and reach shrink together and the world reads as bigger rather
+than as a camera that dropped. `Avatars/PlayerScaler.cs` resolves it by walking up from
+`XRRig.Transform` rather than by name.
+
+**Fairness is structural, not a promise.** Unity derives capsule dimensions from `lossyScale`,
+so both hit capsules shrink with the player — and the game resolves hits on you locally, in
+`VRPlayerDamage.ProcessMuscleCollision` / `ProcessPropCollision` / `ProcessProjectileCollision`
+(dump.cs:18796), against those very capsules. Nothing anywhere gets a second opinion, so a
+small player really is a smaller target and a shorter reach, which is the trade the group
+agreed to.
+
+What follows for free: SteamVR trackers (`TrackerReader` maps poses with `rig.TransformPoint`,
+which carries scale), and the avatar itself (the swap's calibration measures where the head
+ended up). What needed handling: the camera near clip, which is in world metres and would let
+your own weapon into your eye; the horizontal recentre on resize, or a player standing off the
+middle of their play space slides sideways when they change size; and the swap's own
+calibration clamp and the FBT T-pose thresholds, which were absolute metres and are now scaled.
+
+Config: `HeightScalingEnabled` (off), `HeightFromAvatar` (on — the height comes from the
+exporter's `rig.headHeight`), `HeightScale` (plain multiplier, what PgUp/PgDn write),
+`HeightEyeHeightOverride`, `HeightMinScale`/`HeightMaxScale` (0.25–3), `HeightMoveSpeedBlend`
+(0 — see below), `HeightScaleNearClip`, `HeightRestorePropScale`. Peers are told the fit as a
+fourth field on the avatar message (`avatar|name|sha|height`), so a friend who resizes
+themselves is redrawn at their size rather than at the size they put the avatar on at.
+
+Open, and answerable only in a real run:
+
+- **Held weapons.** `Prop` has `CanParentToPlayer`, `defaultParent` and a stored `defaultScale`,
+  so a held prop is expected to be parented into the rig and scale with the player. If it is,
+  the danger is the moment it leaves: Unity preserves world scale across a reparent, so a
+  dropped weapon keeps its shrunk `localScale` — in a pooled, networked object a full-size
+  friend can then pick up. `HeightRestorePropScale` remembers the scale a prop had on pickup and
+  puts it back on release; the pickup is logged with its local and world scale, which is what
+  settles whether any of this happens at all.
+- **Melee damage is velocity-based** (`Prop.velocity`, `maxLinearVelocity`, `throwForceMlp`,
+  `OnWhoosh(normalizedSpeed)`). At half scale the same arm motion is half the world velocity,
+  so hits land softer and may fall under a threshold the dump can't show (no method bodies).
+  Swing test needed.
+- **Locomotion.** Stick movement is world metres per second, so a half-size player crosses the
+  dungeon at twice their own pace — fast and floaty. `HeightMoveSpeedBlend` scales
+  `firstPersonMoveSpeed` and `jumpHeight` toward the player's size; it defaults to 0 (leave the
+  game alone) because the alternative is being genuinely slower than the party.
+- **Vanilla peers** see head and hand NetworkTransforms at small-person heights and their local
+  VRIK scrunches a full-size model, so a shrunk player looks permanently crouched to anyone not
+  running the mod. Private-lobby-only means this is a curiosity, not a problem.
+- **World-unit interactions don't scale**: vault and climb heights, teleport and force-grab
+  range, chest and lever heights, ground-cast offsets. Some get easier, some get out of reach.
+  Needs one real dungeon at 0.5 to find out which.
+
+First-run checklist: the rig-resolved line names `VR Controller`; the hitbox lines show both
+capsules shrinking; PgUp/PgDn resize both the view and the avatar; picking up an axe logs its
+scales; dropping it leaves a full-size axe on the floor; FBT still calibrates while small.
+
+---
+
 ## Phase 3 — Face & eye tracking (VRCFaceTracking bridge)
 
 Standard: **Unified Expressions** (the VRCFT blendshape standard) end-to-end — avatars
