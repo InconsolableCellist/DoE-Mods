@@ -63,6 +63,25 @@ namespace CustomAvatars.Avatars
             (HumanBodyBones.RightFoot, new[]{ HumanBodyBones.RightToes }),
         };
 
+        /// <summary>
+        /// What a hand points at, for the same alignment.
+        ///
+        /// Hands are the one bone in the chain with nothing below them that we retarget —
+        /// fingers belong to <see cref="HandPoser"/> — so they were the one bone that never got
+        /// aligned, and kept whatever ninety-degree difference the two rigs happened to have.
+        /// On a player you never saw it, because the arm solver overwrites the wrist with the
+        /// controller's rotation. On a mannequin, which has no controller, it showed up as a
+        /// pair of wrists cocked straight out sideways.
+        ///
+        /// The fingers are still there to point at even though we don't drive them, so the hand
+        /// can be aligned against the knuckle it leads to like every other bone.
+        /// </summary>
+        private static readonly (HumanBodyBones hand, HumanBodyBones[] knuckle)[] HandPointsAt =
+        {
+            (HumanBodyBones.LeftHand, new[]{ HumanBodyBones.LeftMiddleProximal, HumanBodyBones.LeftIndexProximal }),
+            (HumanBodyBones.RightHand, new[]{ HumanBodyBones.RightMiddleProximal, HumanBodyBones.RightIndexProximal }),
+        };
+
         // Parent-first order matters: we assign world rotations, and moving a parent carries its
         // children with it, so the spine has to settle before the arms hanging off it.
         private static readonly HumanBodyBones[] Bones =
@@ -150,7 +169,7 @@ namespace CustomAvatars.Avatars
             }
 
             _links.Sort((a, b) => a.Depth.CompareTo(b.Depth));
-            var aligned = AlignAtCapture();
+            var aligned = AlignAtCapture(source, model, map);
 
             return _links.Count == 0
                 ? "no bones could be paired between the two rigs"
@@ -172,7 +191,7 @@ namespace CustomAvatars.Avatars
         /// about the bone, so this isn't perfect — but a small roll error is a far better
         /// starting point than a limb sticking out sideways.
         /// </summary>
-        private int AlignAtCapture()
+        private int AlignAtCapture(Animator source, GameObject model, Dictionary<string, string> map)
         {
             if (!ModConfig.RetargetAlignAtCapture.Value) return 0;
 
@@ -182,13 +201,21 @@ namespace CustomAvatars.Avatars
             var aligned = 0;
             foreach (var link in _links)
             {
+                Vector3 sourceDir, targetDir;
+
                 var child = FindChild(byBone, link.Bone);
-                if (child == null) continue;
+                if (child != null)
+                {
+                    sourceDir = child.Source.position - link.Source.position;
+                    targetDir = child.Target.position - link.Target.position;
+                }
+                else if (!TryHandDirections(source, model, map, link, out sourceDir, out targetDir))
+                {
+                    continue;
+                }
 
                 try
                 {
-                    var sourceDir = child.Source.position - link.Source.position;
-                    var targetDir = child.Target.position - link.Target.position;
                     if (sourceDir.sqrMagnitude < 1e-8f || targetDir.sqrMagnitude < 1e-8f) continue;
 
                     var correction = Quaternion.FromToRotation(targetDir.normalized, sourceDir.normalized);
@@ -198,6 +225,41 @@ namespace CustomAvatars.Avatars
                 catch { }
             }
             return aligned;
+        }
+
+        /// <summary>
+        /// Aim a hand at its knuckles. Both rigs have finger bones even though neither of us
+        /// retargets them, so they are available to point at; if either rig is missing them the
+        /// hand simply goes unaligned, as it did before.
+        /// </summary>
+        private static bool TryHandDirections(Animator source, GameObject model, Dictionary<string, string> map,
+                                              Link link, out Vector3 sourceDir, out Vector3 targetDir)
+        {
+            sourceDir = targetDir = Vector3.zero;
+
+            foreach (var (hand, knuckles) in HandPointsAt)
+            {
+                if (hand != link.Bone) continue;
+
+                foreach (var knuckle in knuckles)
+                {
+                    try
+                    {
+                        var src = source.GetBoneTransform(knuckle);
+                        if (!Interop.Alive(src)) continue;
+                        if (!map.TryGetValue(knuckle.ToString(), out var path) || string.IsNullOrEmpty(path)) continue;
+                        var dst = model.transform.Find(path);
+                        if (!Interop.Alive(dst)) continue;
+
+                        sourceDir = src.position - link.Source.position;
+                        targetDir = dst.position - link.Target.position;
+                        return true;
+                    }
+                    catch { }
+                }
+                return false;
+            }
+            return false;
         }
 
         private static Link FindChild(Dictionary<HumanBodyBones, Link> byBone, HumanBodyBones parent)

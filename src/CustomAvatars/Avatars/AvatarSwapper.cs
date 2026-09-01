@@ -63,6 +63,12 @@ namespace CustomAvatars.Avatars
         private bool _forcedVanillaIk;
         private bool _vanillaIkWas;
         private bool _ragdolling;
+
+        // Head-anchored placement, for ourselves only. See AlignToHead.
+        private Transform _headBone;
+        private Vector3 _modelBaseScale = Vector3.one;
+        private float _heightScale = 1f;
+        private float _calibrateAt;
         public string AvatarName { get; private set; }
 
         /// <summary>
@@ -165,6 +171,15 @@ namespace CustomAvatars.Avatars
                 _model.transform.position = fullBody.transform.position;
                 _model.transform.rotation = fullBody.transform.rotation;
                 _model.transform.localScale = Vector3.one * manifest.rig.suggestedScale;
+                _modelBaseScale = _model.transform.localScale;
+                _heightScale = 1f;
+                // The head bone is what we anchor ourselves by, so resolve it once here rather
+                // than searching the hierarchy every frame.
+                _headBone = null;
+                if (manifest.rig?.humanoidBones != null &&
+                    manifest.rig.humanoidBones.TryGetValue("Head", out var headPath) &&
+                    !string.IsNullOrEmpty(headPath))
+                    _headBone = _model.transform.Find(headPath);
 
                 var refs = BuildReferences(_model, manifest, out var missing);
                 if (refs == null)
@@ -290,6 +305,11 @@ namespace CustomAvatars.Avatars
                 Core.Log.Msg($"    dynamics: {springSummary}");
                 LogPlacement(player);
                 _settledLogAt = Time.unscaledTime + 1f;
+                // Same moment: by then the pose is real and you are standing where you stand.
+                _calibrateAt = isSelf ? Time.unscaledTime + 1f : 0f;
+                if (isSelf && !Interop.Alive(_headBone))
+                    Core.Log.Warning("    no Head bone in the manifest — cannot anchor the avatar to your head, " +
+                                     "so it will sit wherever the game's body is. Re-export the avatar.");
                 ReconLog.KeyValue("model root", Interop.ScenePath(_model.transform));
                 ReconLog.KeyValue("dynamics", springSummary);
             }
@@ -704,9 +724,14 @@ namespace CustomAvatars.Avatars
                 catch (Exception e) { Core.Log.Warning($"Retarget failed, disabling: {e.Message}"); _retarget = null; }
             }
 
+            // Only once the body is posed do we know where its head actually is.
+            if (IsSelf) { Calibrate(); AlignToHead(); }
+
             // Arms after the body: the retarget writes the whole skeleton, so solving the arms
             // to the hand targets has to come afterwards or it would be overwritten.
-            if (_armIk != null)
+            // Not while ragdolling: a corpse whose wrists still strain toward your controllers
+            // is the single most alive-looking thing a dead body can do.
+            if (_armIk != null && !_ragdolling)
             {
                 try { _armIk.Apply(); }
                 catch (Exception e) { Core.Log.Warning($"Arm IK failed, disabling: {e.Message}"); _armIk = null; }
@@ -836,6 +861,84 @@ namespace CustomAvatars.Avatars
         /// frame, and copying it means nothing has to converge on anything. VRIK is then left
         /// solving only what it is good at: spine and arms, relative to a root it doesn't own.
         /// </summary>
+        /// <summary>
+        /// Put the avatar's head where your head actually is.
+        ///
+        /// The root followed the game's player object, which is the play-space origin, not you.
+        /// Physically take a step in your room and your head moves while that object doesn't, so
+        /// the avatar stayed put: feet a foot behind where you were standing, shoulders with it,
+        /// and the hand targets — which DO follow your controllers — up to a metre from the
+        /// shoulders that were supposed to reach them. The measured numbers were unmistakable
+        /// once we looked: `needed` up to 138 cm for an arm 62 cm long. That is not an arm that
+        /// is too short, it is a body in the wrong place.
+        ///
+        /// Vanilla never had this problem because nobody can see their own body in this game —
+        /// the third-person body is a networking display object, and its IK is switched off
+        /// locally. It has never had to be where you are.
+        ///
+        /// So we anchor the head instead of the feet. Your eyes are at your head, the shoulders
+        /// hang off it in the right place, and the arms have a fighting chance of reaching your
+        /// hands. <see cref="Calibrate"/> makes the feet land on the floor while it does.
+        /// </summary>
+        private void AlignToHead()
+        {
+            // A ragdoll is thrown around by physics and follows its hips; dragging it back under
+            // a head that is no longer attached to it would look exactly as bad as it sounds.
+            if (_ragdolling || !Interop.Alive(_headBone) || !Interop.Alive(_model) || !Interop.Alive(_player)) return;
+
+            try
+            {
+                var head = _player.IKTargetHead;
+                if (!Interop.Alive(head)) return;
+                _model.transform.position += head.position - _headBone.position;
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// Scale the avatar so that, with its head at your head, its feet are on the floor.
+        ///
+        /// The manifest's scale matches the avatar to the GAME character's height, which was the
+        /// right question when the feet were pinned to the ground and nobody cared where the
+        /// head ended up. Anchoring the head asks a different one: how tall is this player. So
+        /// we measure both — how far your head is above the play-space floor, and how far this
+        /// avatar's head is above its own root — and take the ratio.
+        ///
+        /// Measured once, a second after the swap, standing: read continuously it would shrink
+        /// the avatar every time you crouched.
+        /// </summary>
+        private void Calibrate()
+        {
+            if (_calibrateAt <= 0f || Time.unscaledTime < _calibrateAt) return;
+            _calibrateAt = 0f;
+
+            if (!Interop.Alive(_headBone) || !Interop.Alive(_model) || !Interop.Alive(_player)) return;
+
+            try
+            {
+                var head = _player.IKTargetHead;
+                if (!Interop.Alive(head)) return;
+
+                var playerHeight = head.position.y - _player.transform.position.y;
+                var avatarHeight = _headBone.position.y - _model.transform.position.y;
+                if (playerHeight < 0.2f || avatarHeight < 0.05f)
+                {
+                    Core.Log.Warning($"    height calibration skipped: you {playerHeight:0.00} m, " +
+                                     $"avatar {avatarHeight:0.00} m — one of those isn't a person.");
+                    return;
+                }
+
+                var raw = playerHeight / avatarHeight;
+                _heightScale = Mathf.Clamp(raw, 0.5f, 2f);
+                _model.transform.localScale = _modelBaseScale * _heightScale;
+
+                var note = Mathf.Abs(raw - _heightScale) > 0.001f ? $" (clamped from x{raw:0.00})" : "";
+                Core.Log.Msg($"    height: you {playerHeight:0.00} m to the eyes, avatar {avatarHeight:0.00} m — " +
+                             $"scaling avatar x{_heightScale:0.000}{note}");
+            }
+            catch { }
+        }
+
         private void FollowVanillaRoot()
         {
             if (!Interop.Alive(_fullBody) || !Interop.Alive(_model)) return;
@@ -891,7 +994,10 @@ namespace CustomAvatars.Avatars
                 var spec = $"{ModConfig.SelfHeadShrinkBones.Value}|{ModConfig.SelfHeadKeepBones.Value}";
                 if (spec != _headChopSpec) { _headChopSpec = spec; RebuildHeadChopLists(); }
 
-                if (!ModConfig.SelfHideHead.Value)
+                // Dead, and watching your own body from outside it. The head is hidden so it
+                // doesn't fill your view from the inside; out here that reasoning is gone and
+                // all it leaves is a headless corpse.
+                if (!ModConfig.SelfHideHead.Value || _ragdolling)
                 {
                     foreach (var t in _shrinkBones) if (Interop.Alive(t)) t.localScale = Vector3.one;
                     foreach (var t in _keepBones) if (Interop.Alive(t)) t.localScale = Vector3.one;
@@ -1051,6 +1157,10 @@ namespace CustomAvatars.Avatars
             _shrinkBones.Clear();
             _keepBones.Clear();
             _headChopSpec = null;
+            _headBone = null;
+            _modelBaseScale = Vector3.one;
+            _heightScale = 1f;
+            _calibrateAt = 0f;
             _leashTrips = 0;
             _wasAlive = true;
             _ragdolling = false;
