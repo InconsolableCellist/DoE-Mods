@@ -82,6 +82,15 @@ namespace DoEFriendsMod.Avatars
 
         public int LinkCount => _links.Count;
 
+        /// <summary>Where the game rig's hips are right now, for following a travelling ragdoll.</summary>
+        public Vector3? SourceHipsPosition =>
+            Interop.Alive(_sourceHips) ? _sourceHips.position : (Vector3?)null;
+
+        /// <summary>Our hips' offset from our own root, so the two can be lined up.</summary>
+        public Vector3? TargetHipsOffset =>
+            Interop.Alive(_targetHips) && Interop.Alive(_targetHips.root)
+                ? _targetHips.position - _targetHips.root.position : (Vector3?)null;
+
         public string Build(AvatarPlayer player, GameObject model, AvatarManifest manifest)
         {
             Animator source;

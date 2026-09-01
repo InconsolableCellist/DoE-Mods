@@ -50,7 +50,8 @@ namespace DoEFriendsMod.Avatars
         public void Tick(float unscaledTime)
         {
             // Applying the pose has to happen every frame; hunting for holograms does not.
-            foreach (var kv in _entries) ApplyEntry(kv.Value);
+            try { foreach (var kv in _entries) ApplyEntry(kv.Value); }
+            catch (Exception e) { Core.Log.Warning($"Hologram apply failed: {e.GetType().Name}: {e.Message}"); }
 
             if (unscaledTime < _nextScanAt) return;
             _nextScanAt = unscaledTime + 2f;
@@ -184,10 +185,15 @@ namespace DoEFriendsMod.Avatars
 
             // The hologram rebuilds its mesh whenever cosmetics change (RecreateAvatarMesh),
             // which re-enables the renderer behind our back — so re-assert it every frame.
-            if (Interop.Alive(entry.VanillaMesh) && entry.VanillaMesh.enabled)
+            // The read has to be inside the try as well as the write: a destroyed renderer
+            // throws on `.enabled` just as readily as on assignment, and that threw once per
+            // frame for the whole end-of-mission screen.
+            try
             {
-                try { entry.VanillaMesh.enabled = false; } catch { }
+                if (Interop.Alive(entry.VanillaMesh) && entry.VanillaMesh.enabled)
+                    entry.VanillaMesh.enabled = false;
             }
+            catch { }
         }
 
         private void Revert(int id, string why)

@@ -50,7 +50,36 @@ namespace DoEFriendsMod.Avatars
         public string ToggleSelf()
         {
             _self.Toggle(_library);
+            _selfWanted = _self.AvatarName;   // null once taken off, so we don't re-apply it
             return _self.AvatarName;
+        }
+
+        /// <summary>
+        /// Put the avatar back on after the player object underneath it has been replaced.
+        ///
+        /// Changing scene — finishing a mission, returning to the hub — destroys the old
+        /// AvatarPlayer and builds a new one. The swapper was left holding the dead one, which
+        /// is how a death ended with no body at all and F4 refusing to help: the old model was
+        /// gone, the vanilla mesh was still hidden on an object nobody could reach, and every
+        /// fresh attempt threw on the stale reference.
+        /// </summary>
+        private void HealSelf()
+        {
+            if (string.IsNullOrEmpty(_selfWanted) || !ModGate.Active) return;
+
+            AvatarPlayer local = null;
+            try { local = AvatarPlayer.LocalAvatar; } catch { }
+            if (!Interop.Alive(local)) return;
+
+            // Still attached to a live player object: nothing to do.
+            if (_self.IsActive && _self.IsAttachedTo(local)) return;
+
+            var manifest = _library.Get(_selfWanted);
+            if (manifest == null) { _selfWanted = null; return; }
+
+            Core.Log.Msg($"Re-applying `{_selfWanted}` — the player object was replaced.");
+            _self.Revert("player object replaced");
+            _self.Apply(local, manifest, isSelf: true);
         }
 
         /// <summary>A peer told us what they're wearing. Apply it if we have that avatar.</summary>
@@ -91,8 +120,13 @@ namespace DoEFriendsMod.Avatars
         /// Called every frame. A peer's avatar message usually arrives before their
         /// AvatarPlayer has spawned, so the request is held and retried rather than dropped.
         /// </summary>
+        /// <summary>What we were wearing before a scene change invalidated the player object.</summary>
+        private string _selfWanted;
+
         public void Tick(float deltaTime)
         {
+            HealSelf();
+
             _self.LateUpdate(deltaTime);
             foreach (var kv in _remote) kv.Value.LateUpdate(deltaTime);
 

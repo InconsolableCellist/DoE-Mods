@@ -673,6 +673,25 @@ Fixed in v0.12.0:
   same poser fed from the wire instead of from our controllers. Deliberately the same shape the
   face stream will take, so the awkward parts (rate limiting, change gating, per-sender state)
   get worked out carrying ten bytes rather than ninety-eight.
+- **The `Interop.Alive` bug, and everything it caused (v0.18.0).** `Alive()` only checked the
+  managed proxy's pointer, never whether Unity had **destroyed** the native object — a
+  limitation written into its own doc comment on day one and never fixed. A scene change
+  destroys the old `AvatarPlayer` and `CharacterPrefab`; the stale references passed every
+  guard and threw on first member access. That single defect produced three separate symptoms
+  in one death test: a `NullReferenceException` from `HologramSwapper` every frame of the
+  end-of-mission screen, a silent `Swap threw` on every F4 afterwards, and a player left with
+  **no body at all** — old model gone, vanilla mesh still hidden on an object nothing could
+  reach. `Alive()` now checks `m_CachedPtr`, which is Unity's own destroyed-object test, so
+  every existing call site is fixed at once.
+  Also: `AvatarSwapManager.HealSelf()` re-applies the avatar when the player object underneath
+  it is replaced, and `Revert()` restores the vanilla mesh first and defensively — being left
+  bodiless with no way back is much worse than a cosmetic glitch.
+- **Death: ragdoll properly (v0.18.0).** The first attempt hid the custom avatar and showed the
+  vanilla body, on the assumption that a ragdoll needs physics bodies our model doesn't have.
+  That was wrong: the ragdoll drives the vanilla rig's **bones**, and retargeting copies bone
+  rotations, so the custom avatar ragdolls for free. It stays visible now. The one thing it
+  can't inherit is travel — a ragdoll's hips move while `Model_<nick>`'s transform may not — so
+  the root follows the source hips while down.
 - **Death and respawn (v0.12.0).** There was no lifecycle handling at all. Death is a ragdoll —
   the game switches physics on over `CharacterPrefab`'s rigidbodies and dissolves its renderers —
   and our model has neither physics bodies nor dissolve-capable materials, so following it would

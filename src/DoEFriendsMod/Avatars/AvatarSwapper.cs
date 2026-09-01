@@ -60,7 +60,7 @@ namespace DoEFriendsMod.Avatars
         private bool _wasAlive = true;
         private bool _forcedVanillaIk;
         private bool _vanillaIkWas;
-        private bool _hiddenForDeath;
+        private bool _ragdolling;
         public string AvatarName { get; private set; }
 
         /// <summary>
@@ -74,6 +74,10 @@ namespace DoEFriendsMod.Avatars
 
         /// <summary>The finger poser, if this avatar has one. Null while nothing is worn.</summary>
         public HandPoser Hands => _hands;
+
+        /// <summary>True if this swapper is still driving the player object it was built for.</summary>
+        public bool IsAttachedTo(AvatarPlayer player) =>
+            Interop.Alive(_player) && Interop.Alive(player) && _player.Pointer == player.Pointer;
 
         public AvatarSwapper()
         {
@@ -640,7 +644,6 @@ namespace DoEFriendsMod.Avatars
             // the avatar 100 m away" error every single time while the avatar sat, correctly,
             // on the player.
             ApplyAliveState();
-            if (_hiddenForDeath) return;   // vanilla ragdoll owns the body while you're down
 
             FollowVanillaRoot();
             UpdateHandOffsets();
@@ -709,24 +712,21 @@ namespace DoEFriendsMod.Avatars
 
             if (!alive)
             {
-                _hiddenForDeath = true;
-                SetCustomModelVisible(false);
-                // Un-hide the vanilla mesh directly: ApplyVanillaMeshVisibility is skipped while
-                // we're hidden for death, so it can't do it for us.
-                if (Interop.Alive(_hiddenVanillaMesh))
-                {
-                    try { _hiddenVanillaMesh.enabled = true; } catch { }
-                }
-                Core.Log.Msg($"{(IsSelf ? "You" : $"Actor {ActorNumber}")} died — showing the vanilla body for the ragdoll.");
+                // Don't hide it. The game's ragdoll drives the vanilla rig's BONES, and
+                // retargeting copies bone rotations — so the custom avatar ragdolls along with
+                // it for free. What it can't inherit is the root moving, since the ragdoll
+                // travels while `Model_<nick>`'s transform may not, so the root follows the
+                // hips while we're down.
+                _ragdolling = true;
+                Core.Log.Msg($"{(IsSelf ? "You" : $"Actor {ActorNumber}")} died — following the ragdoll.");
             }
             else
             {
-                _hiddenForDeath = false;
-                SetCustomModelVisible(true);
+                _ragdolling = false;
                 // The rig was ragdolled and re-posed while we were away, so the retarget's
                 // captured reference is stale — rebuild it against the pose it came back in.
                 RebuildPoseSource();
-                Core.Log.Msg($"{(IsSelf ? "You" : $"Actor {ActorNumber}")} respawned — custom avatar back on.");
+                Core.Log.Msg($"{(IsSelf ? "You" : $"Actor {ActorNumber}")} respawned — pose reference rebuilt.");
             }
         }
 
@@ -771,6 +771,12 @@ namespace DoEFriendsMod.Avatars
             try
             {
                 var target = _fullBody.transform.position;
+                if (_ragdolling && _retarget != null)
+                {
+                    // A ragdoll's hips travel; the object we normally follow doesn't.
+                    var hips = _retarget.SourceHipsPosition;
+                    if (hips.HasValue) target = hips.Value - (_retarget.TargetHipsOffset ?? Vector3.zero);
+                }
                 // How far VRIK moved the root before we took it back. Locomotion is off, so
                 // this should be small; a large steady value means something inside the solver
                 // still wants to own the root and is worth knowing about.
@@ -926,10 +932,14 @@ namespace DoEFriendsMod.Avatars
         public void Revert(string why)
         {
             // Un-hide first: if anything below throws, the player still has a body.
-            if (Interop.Alive(_hiddenVanillaMesh))
+            // Restore the vanilla body first and defensively. If this is skipped — because the
+            // renderer looked dead, or something above it threw — the player is left with no
+            // body at all and no way to get one back.
+            try
             {
-                try { _hiddenVanillaMesh.enabled = _vanillaMeshWasEnabled; } catch { }
+                if (Interop.Alive(_hiddenVanillaMesh)) _hiddenVanillaMesh.enabled = _vanillaMeshWasEnabled;
             }
+            catch (Exception e) { Core.Log.Warning($"Could not restore the vanilla mesh: {e.Message}"); }
             if (_forcedVanillaIk && Interop.Alive(_fullBody))
             {
                 try { _fullBody.ikEnabled = _vanillaIkWas; } catch { }
@@ -957,7 +967,7 @@ namespace DoEFriendsMod.Avatars
             _headChopSpec = null;
             _leashTrips = 0;
             _wasAlive = true;
-            _hiddenForDeath = false;
+            _ragdolling = false;
             _manifest = null;
             _model = null;
             _fullBody = null;

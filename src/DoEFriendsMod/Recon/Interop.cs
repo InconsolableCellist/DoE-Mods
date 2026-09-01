@@ -20,7 +20,18 @@ namespace DoEFriendsMod.Recon
         public static bool Alive(Il2CppObjectBase o)
         {
             if (ReferenceEquals(o, null)) return false;
-            try { return o.Pointer != IntPtr.Zero; }
+            try
+            {
+                if (o.Pointer == IntPtr.Zero) return false;
+
+                // A UnityEngine.Object can be DESTROYED while its managed proxy still holds a
+                // valid pointer. Unity's own null check is exactly this field, and skipping it
+                // is what made stale AvatarPlayer and CharacterPrefab references survive a
+                // scene change, pass every guard, and then throw on first use.
+                if (o is UnityEngine.Object unityObject) return unityObject.m_CachedPtr != IntPtr.Zero;
+
+                return true;
+            }
             catch { return false; }
         }
 
