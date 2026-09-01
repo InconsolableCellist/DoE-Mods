@@ -8,10 +8,23 @@ namespace CustomAvatars.Gate
     /// The single master switch every feature consults. Nothing in this mod may change the
     /// game or put a byte on the wire unless <see cref="Active"/> is true.
     ///
-    /// Active requires ALL of:
+    /// There are two switches, because there are two different risks.
+    ///
+    /// <see cref="Active"/> governs anything that touches other people: sending, receiving,
+    /// putting an avatar on a peer. It requires ALL of:
     ///   1. we're in a **private** room,
     ///   2. every occupant advertises the identical mod version AND DLL hash,
     ///   3. our own DLL self-checksum succeeded.
+    ///
+    /// <see cref="LocalVisuals"/> governs what THIS machine draws for itself — your own avatar,
+    /// the preview, the mannequins. None of that reaches anybody else, so it is also allowed
+    /// when we are not in a room at all: the menu, and the moments between lobbies. There is
+    /// nobody there to affect. It stays off in a public room or one with a vanilla player, not
+    /// because it would leak anything, but because "friends, in private lobbies" is the rule
+    /// this mod is built around and quietly making an exception is how rules stop meaning
+    /// anything.
+    ///
+    /// Active implies LocalVisuals. Never the reverse.
     ///
     /// Honest threat model: peer checksums are self-reported, so this is **anti-footgun, not
     /// anti-malice**. It stops version-skew bugs and accidental mixed-lobby activation. The
@@ -21,12 +34,23 @@ namespace CustomAvatars.Gate
     public static class ModGate
     {
         private static bool _active;
+        private static bool _localVisuals;
         private static string _reason = "not evaluated";
+        private static string _localReason = "not evaluated";
 
-        /// <summary>Fired on every transition. Features hook this to arm and disarm.</summary>
+        /// <summary>Fired on every transition. Networked features hook this to arm and disarm.</summary>
         public static event Action<bool> ActiveChanged;
 
+        /// <summary>Fired when permission to change what we draw for ourselves changes.</summary>
+        public static event Action<bool> LocalVisualsChanged;
+
         public static bool Active => _active;
+
+        /// <summary>May we change what this machine draws for itself? See the type remarks.</summary>
+        public static bool LocalVisuals => _localVisuals;
+
+        /// <summary>Why local visuals are in their current state.</summary>
+        public static string LocalReason => _localReason;
 
         /// <summary>Why the gate is in its current state — for logs and the debug HUD.</summary>
         public static string Reason => _reason;
@@ -61,6 +85,7 @@ namespace CustomAvatars.Gate
             if (shouldBeActive == _active)
             {
                 _reason = reason;
+                EvaluateLocalVisuals();
                 return;
             }
 
@@ -74,6 +99,49 @@ namespace CustomAvatars.Gate
 
             try { ActiveChanged?.Invoke(_active); }
             catch (Exception e) { Core.Log.Error($"ActiveChanged handler threw: {e}"); }
+
+            EvaluateLocalVisuals();
+        }
+
+        private static void EvaluateLocalVisuals()
+        {
+            var allowed = ComputeLocalVisuals(out var reason);
+            _localReason = reason;
+            if (allowed == _localVisuals) return;
+
+            _localVisuals = allowed;
+            Core.Log.Msg(allowed
+                ? $"*** Local visuals ON — {reason}"
+                : $"*** Local visuals OFF — {reason}");
+
+            try { LocalVisualsChanged?.Invoke(_localVisuals); }
+            catch (Exception e) { Core.Log.Error($"LocalVisualsChanged handler threw: {e}"); }
+        }
+
+        private static bool ComputeLocalVisuals(out string reason)
+        {
+            if (_active) { reason = _reason; return true; }
+
+            if (SelfCheck.ModHash == null)
+            {
+                reason = "local self-checksum unavailable — refusing to activate";
+                return false;
+            }
+
+            // Not in a room means there is nobody else in the world to affect, so wearing your
+            // own avatar in the menu is nobody's business but yours.
+            try
+            {
+                if (!PhotonNetwork.InRoom) { reason = "not in a room — your own avatar only"; return true; }
+            }
+            catch (Exception e)
+            {
+                reason = $"room check threw {e.GetType().Name}";
+                return false;
+            }
+
+            reason = _reason;
+            return false;
         }
 
         private static bool Compute(ModRoster roster, out string reason)
@@ -140,15 +208,26 @@ namespace CustomAvatars.Gate
             return true;
         }
 
-        /// <summary>Force-inert, e.g. on scene teardown or application quit.</summary>
+        /// <summary>Force-inert, e.g. on scene teardown or application quit. Closes both switches.</summary>
         public static void ForceInert(string reason)
         {
-            if (!_active) { _reason = reason; return; }
-            _active = false;
             _reason = reason;
-            Core.Log.Msg($"*** ModGate INERT — {reason}");
-            try { ActiveChanged?.Invoke(false); }
-            catch (Exception e) { Core.Log.Error($"ActiveChanged handler threw: {e}"); }
+            _localReason = reason;
+
+            if (_active)
+            {
+                _active = false;
+                Core.Log.Msg($"*** ModGate INERT — {reason}");
+                try { ActiveChanged?.Invoke(false); }
+                catch (Exception e) { Core.Log.Error($"ActiveChanged handler threw: {e}"); }
+            }
+
+            if (_localVisuals)
+            {
+                _localVisuals = false;
+                try { LocalVisualsChanged?.Invoke(false); }
+                catch (Exception e) { Core.Log.Error($"LocalVisualsChanged handler threw: {e}"); }
+            }
         }
     }
 }

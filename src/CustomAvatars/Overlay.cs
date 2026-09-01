@@ -59,7 +59,7 @@ namespace CustomAvatars
         {
             title = $"CustomAvatars {Core.Version}";
 
-            var gate = ModGate.Active ? "ACTIVE" : "inert";
+            var gate = ModGate.Active ? "ACTIVE" : ModGate.LocalVisuals ? "local only" : "inert";
             var reason = ModGate.Reason ?? "";
             if (reason.Length > 58) reason = reason.Substring(0, 58) + "…";
 

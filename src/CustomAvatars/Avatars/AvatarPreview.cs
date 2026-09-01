@@ -35,7 +35,7 @@ namespace CustomAvatars.Avatars
         public AvatarPreview(AvatarLibrary library)
         {
             _library = library;
-            ModGate.ActiveChanged += active => { if (!active) Despawn("gate closed"); };
+            ModGate.LocalVisualsChanged += allowed => { if (!allowed) Despawn("local visuals off"); };
         }
 
         public bool IsSpawned => Interop.Alive(_instance);
@@ -44,9 +44,9 @@ namespace CustomAvatars.Avatars
         {
             if (IsSpawned) { Despawn("toggled off"); return; }
 
-            if (!ModGate.Active)
+            if (!ModGate.LocalVisuals)
             {
-                Core.Log.Warning($"Preview refused: gate is inert ({ModGate.Reason}). " +
+                Core.Log.Warning($"Preview refused: {ModGate.LocalReason}. " +
                                  "Join a private lobby with everyone on the same build.");
                 return;
             }

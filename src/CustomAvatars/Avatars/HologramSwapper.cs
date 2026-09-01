@@ -42,7 +42,7 @@ namespace CustomAvatars.Avatars
         {
             _library = library;
             _swaps = swaps;
-            ModGate.ActiveChanged += active => { if (!active) RevertAll("gate closed"); };
+            ModGate.LocalVisualsChanged += allowed => { if (!allowed) RevertAll("local visuals off"); };
         }
 
         public int Count => _entries.Count;
@@ -57,7 +57,7 @@ namespace CustomAvatars.Avatars
             _nextScanAt = unscaledTime + 2f;
 
             if (!ModConfig.HologramSwapEnabled.Value) { RevertAll("disabled in settings"); return; }
-            if (!ModGate.Active) return;
+            if (!ModGate.LocalVisuals) return;
 
             try { Scan(); }
             catch (Exception e) { Core.Log.Warning($"Hologram scan failed: {e.GetType().Name}: {e.Message}"); }
@@ -107,8 +107,12 @@ namespace CustomAvatars.Avatars
             try
             {
                 var owner = hologram.Owner;
-                if (!Interop.Alive(owner)) return null;
-                return _swaps.AvatarNameFor(owner.ActorNumber);
+                if (Interop.Alive(owner)) return _swaps.AvatarNameFor(owner.ActorNumber);
+
+                // No owner. In the menu there is no player object for a mannequin to belong to,
+                // and the only person it could possibly be showing is you, so show what you mean
+                // to wear. Anywhere else an owner-less mannequin isn't ours to touch.
+                return ModGate.Active ? null : _swaps.WantedSelfAvatar;
             }
             catch { return null; }
         }

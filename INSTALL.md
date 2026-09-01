@@ -91,6 +91,11 @@ Get into a **private** party. You should see:
 
 Your avatar goes on by itself. Press **F4** to take it off, and again to put it back on.
 
+You can also do this in the menu, before joining anything. Wearing your own avatar, the F6
+preview and the mannequins only change what **your** machine draws, so they're allowed whenever
+you aren't in a room at all. Everything that involves other people — seeing their avatars,
+sending them your face — still waits for a private lobby with everyone on the same build.
+
 ---
 
 ## Removing it
@@ -173,8 +178,9 @@ Two things worth knowing:
 
 The console tells you why. The common ones:
 
-**`ModGate INERT — room `x` is VISIBLE (public)`**
-You're in a public lobby. The mod only runs in private parties, deliberately.
+**`Swap refused: room `x` is VISIBLE (public)`**
+You're in a public lobby. The mod only runs in private parties, deliberately — including your
+own avatar, which would otherwise be an exception that makes the rule meaningless.
 
 **`ModGate INERT — 1 vanilla player(s) present`**
 Someone in the party hasn't installed the mod. It stays off for everyone until they do, or

@@ -84,16 +84,19 @@ namespace CustomAvatars.Avatars
 
         public AvatarSwapper()
         {
-            ModGate.ActiveChanged += active => { if (!active) Revert("gate closed"); };
+            // A remote player's avatar is only ours to draw while the network gate is open. Our
+            // own survives leaving a room — that's the whole point of the menu working.
+            ModGate.ActiveChanged += active => { if (!active && !IsSelf) Revert("gate closed"); };
+            ModGate.LocalVisualsChanged += allowed => { if (!allowed) Revert("local visuals off"); };
         }
 
         public void Toggle(AvatarLibrary library)
         {
             if (IsActive) { Revert("toggled off"); return; }
 
-            if (!ModGate.Active)
+            if (!ModGate.LocalVisuals)
             {
-                Core.Log.Warning($"Swap refused: gate is inert ({ModGate.Reason}).");
+                Core.Log.Warning($"Swap refused: {ModGate.LocalReason}.");
                 return;
             }
 

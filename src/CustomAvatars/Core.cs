@@ -6,7 +6,7 @@ using CustomAvatars.Gate;
 using CustomAvatars.Net;
 using CustomAvatars.Recon;
 
-[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.29.0", "dan")]
+[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.30.0", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace CustomAvatars
@@ -25,7 +25,7 @@ namespace CustomAvatars
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.29.0";
+        public const string Version = "0.30.0";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -49,6 +49,11 @@ namespace CustomAvatars
         {
             Instance = this;
             ModConfig.Load();
+            // MelonLoader only writes MelonPreferences.cfg when something saves it, which
+            // otherwise means on quit. Save once now so a fresh install has a complete,
+            // readable settings file to edit before the first clean exit rather than after it.
+            try { MelonPreferences.Save(); }
+            catch (Exception e) { LoggerInstance.Warning($"Could not write MelonPreferences.cfg: {e.Message}"); }
 
             LoggerInstance.Msg($"CustomAvatars {Version} — Phase 0 recon + Phase 1 gating + Phase 2 avatar loading and swap.");
             LoggerInstance.Msg($"Recon output: {ReconLog.OutputDir}");

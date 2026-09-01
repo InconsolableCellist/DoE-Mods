@@ -25,7 +25,8 @@ namespace CustomAvatars.Avatars
         public AvatarSwapManager(AvatarLibrary library)
         {
             _library = library;
-            ModGate.ActiveChanged += active => { if (!active) RevertAll("gate closed"); };
+            ModGate.ActiveChanged += active => { if (!active) RevertRemotes("gate closed"); };
+            ModGate.LocalVisualsChanged += allowed => { if (!allowed) RevertAll("local visuals off"); };
         }
 
         public bool SelfActive => _self.IsActive;
@@ -76,20 +77,23 @@ namespace CustomAvatars.Avatars
 
         private void AutoWear()
         {
-            if (_autoWearDone || !ModConfig.AutoWear.Value || !ModGate.Active) return;
+            if (_autoWearDone || !ModConfig.AutoWear.Value || !ModGate.LocalVisuals) return;
             if (_self.IsActive || !string.IsNullOrEmpty(_selfWanted)) { _autoWearDone = true; return; }
-
-            AvatarPlayer local = null;
-            try { local = AvatarPlayer.LocalAvatar; } catch { }
-            if (!Interop.Alive(local)) return;   // not spawned yet; try again next frame
 
             var name = _library.SelectedName;
             if (name == null) { _autoWearDone = true; return; }
 
+            // Recorded as an intention, not applied here. There may be no body to put it on yet
+            // — in the menu there often isn't — and HealSelf is already the thing that watches
+            // for one and dresses it. This also lets the menu mannequin know what we mean to
+            // wear before we are wearing it.
             _autoWearDone = true;
-            Core.Log.Msg($"Putting `{name}` on for you (AutoWear). Press F4 to take it off.");
-            _selfWanted = name;                  // HealSelf does the rest, and keeps doing it
+            _selfWanted = name;
+            Core.Log.Msg($"Wearing `{name}` (AutoWear). Press F4 to take it off.");
         }
+
+        /// <summary>What we mean to be wearing, whether or not there is a body to put it on.</summary>
+        public string WantedSelfAvatar => _selfWanted;
 
         /// <summary>
         /// Put the avatar back on after the player object underneath it has been replaced.
@@ -102,7 +106,7 @@ namespace CustomAvatars.Avatars
         /// </summary>
         private void HealSelf()
         {
-            if (string.IsNullOrEmpty(_selfWanted) || !ModGate.Active) return;
+            if (string.IsNullOrEmpty(_selfWanted) || !ModGate.LocalVisuals) return;
 
             AvatarPlayer local = null;
             try { local = AvatarPlayer.LocalAvatar; } catch { }
@@ -234,6 +238,15 @@ namespace CustomAvatars.Avatars
             if (!_remote.TryGetValue(actorNumber, out var swapper)) return;
             swapper.Revert($"actor {actorNumber}: {why}");
             _remote.Remove(actorNumber);
+        }
+
+        /// <summary>Take peers' avatars off, leaving our own alone.</summary>
+        public void RevertRemotes(string why)
+        {
+            if (_remote.Count == 0) return;
+            var actors = new List<int>(_remote.Keys);
+            foreach (var actor in actors) RevertRemote(actor, why);
+            _pending.Clear();
         }
 
         public void RevertAll(string why)
