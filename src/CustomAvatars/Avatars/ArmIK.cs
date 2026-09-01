@@ -22,6 +22,7 @@ namespace CustomAvatars.Avatars
     {
         private class Arm
         {
+            public Transform Shoulder;
             public Transform Upper, Fore, Hand;
             public Transform Target;
             public Vector3 UpperRestScale = Vector3.one;
@@ -32,6 +33,13 @@ namespace CustomAvatars.Avatars
 
             // Kept for the diagnostic: how long the arm is, how far it is being asked to reach.
             public float LastNatural, LastNeeded, LastScale;
+
+            // The collarbone rotation we are currently contributing, and the two rotations that
+            // let us tell "the retarget re-posed this bone" from "nobody touched it since we
+            // wrote to it last frame".
+            public float CurrentYield;
+            public Quaternion PreYieldLocal, YieldedLocal;
+            public bool HasYield;
         }
 
         private Arm _left, _right;
@@ -57,6 +65,8 @@ namespace CustomAvatars.Avatars
                 map.TryGetValue(side + name, out var path) && !string.IsNullOrEmpty(path)
                     ? model.transform.Find(path) : null;
 
+            // Optional: plenty of rigs have one, some don't, and the solver works either way.
+            var shoulder = Bone("Shoulder");
             var upper = Bone("UpperArm");
             var fore = Bone("LowerArm");
             var hand = Bone("Hand");
@@ -64,6 +74,7 @@ namespace CustomAvatars.Avatars
 
             return new Arm
             {
+                Shoulder = Interop.Alive(shoulder) ? shoulder : null,
                 Upper = upper, Fore = fore, Hand = hand, Target = target,
                 UpperRestScale = upper.localScale,
                 ForeRestScale = fore.localScale,
@@ -91,8 +102,9 @@ namespace CustomAvatars.Avatars
             {
                 if (arm == null || !Interop.Alive(arm.Hand) || !Interop.Alive(arm.Target)) return "-";
                 var miss = Vector3.Distance(arm.Hand.position, arm.Target.position);
+                var yield = arm.CurrentYield >= 0.5f ? $", shoulder {arm.CurrentYield:0}\u00b0" : "";
                 return $"miss {miss * 100f:0.#}cm (reach {arm.LastNatural * 100f:0.#}cm, " +
-                       $"needed {arm.LastNeeded * 100f:0.#}cm, stretch x{arm.LastScale:0.00})";
+                       $"needed {arm.LastNeeded * 100f:0.#}cm, stretch x{arm.LastScale:0.00}{yield})";
             }
         }
 
@@ -114,6 +126,68 @@ namespace CustomAvatars.Avatars
                                   twist.z * inverseLength, twist.w * inverseLength);
         }
 
+        /// <summary>
+        /// Rotate the collarbone toward a hand target that is out of the arm's reach, by no more
+        /// than <c>ArmShoulderYieldDegrees</c>.
+        ///
+        /// The amount is derived from the avatar's own bones — how far short the arm falls, and
+        /// how much reach this particular rig's collarbone can buy — so it is right for a rig
+        /// with long arms and a rig with short ones without anybody tuning a number. Whatever is
+        /// still out of reach afterwards falls through to stretching, as before.
+        /// </summary>
+        private static void YieldShoulder(Arm arm)
+        {
+            if (!Interop.Alive(arm.Shoulder)) return;
+
+            // If the bone still holds exactly what we wrote last frame, nothing re-posed it, so
+            // put it back before adding to it. Otherwise the rotation accumulates every frame on
+            // any rig whose collarbone the retarget doesn't drive, and the shoulder slowly winds
+            // itself round.
+            if (arm.HasYield && arm.Shoulder.localRotation == arm.YieldedLocal)
+                arm.Shoulder.localRotation = arm.PreYieldLocal;
+            arm.HasYield = false;
+
+            var maxDegrees = Mathf.Max(0f, ModConfig.ArmShoulderYieldDegrees.Value);
+
+            var pivot = arm.Shoulder.position;
+            var from = arm.Upper.position - pivot;
+            var to = arm.Target.position - pivot;
+            if (from.sqrMagnitude < 1e-8f || to.sqrMagnitude < 1e-8f) return;
+
+            var wanted = 0f;
+            var full = Quaternion.FromToRotation(from, to);
+            full.ToAngleAxis(out var fullAngle, out var axis);
+            if (axis.sqrMagnitude < 1e-8f || float.IsNaN(fullAngle)) return;
+
+            if (maxDegrees > 0.01f)
+            {
+                var reach = Vector3.Distance(arm.Upper.position, arm.Fore.position) +
+                            Vector3.Distance(arm.Fore.position, arm.Hand.position);
+                var distance = Vector3.Distance(arm.Upper.position, arm.Target.position);
+                var deficit = distance - reach;
+                if (deficit > 0f)
+                {
+                    // Rotating all the way puts the shoulder joint on the line to the hand, which
+                    // is the most reach this collarbone can possibly buy. Take the fraction of
+                    // that which covers the shortfall, and no more — a shoulder that shrugs when
+                    // it doesn't need to looks worse than an arm that's slightly short.
+                    var gain = distance - Vector3.Distance(pivot + full * from, arm.Target.position);
+                    if (gain > 1e-4f)
+                        wanted = Mathf.Min(fullAngle * Mathf.Clamp01(deficit / gain), maxDegrees);
+                }
+            }
+
+            // Ease in and out, so an arm hovering at the edge of its reach doesn't shrug on and
+            // off every other frame.
+            arm.CurrentYield = Mathf.Lerp(arm.CurrentYield, wanted, 0.35f);
+            if (arm.CurrentYield < 0.01f) { arm.CurrentYield = 0f; return; }
+
+            arm.PreYieldLocal = arm.Shoulder.localRotation;
+            arm.Shoulder.rotation = Quaternion.AngleAxis(arm.CurrentYield, axis) * arm.Shoulder.rotation;
+            arm.YieldedLocal = arm.Shoulder.localRotation;
+            arm.HasYield = true;
+        }
+
         private static void Solve(Arm arm)
         {
             if (arm == null) return;
@@ -122,6 +196,15 @@ namespace CustomAvatars.Avatars
 
             try
             {
+                // Buy reach from the collarbone before resorting to stretching bones. Measured
+                // in a session: hands were missing their targets by up to 10 cm at full
+                // extension, and the log said why — `needed` was simply larger than `reach`,
+                // every time. Not a solver bug. A custom avatar is rarely the same proportions
+                // as the game character, but your controllers are where your real hands are, so
+                // the avatar has to cover the difference somehow. Your own shoulder does this:
+                // reach for something far away and your collarbone comes with you.
+                YieldShoulder(arm);
+
                 var a = arm.Upper.position;
                 var b = arm.Fore.position;
                 var c = arm.Hand.position;
