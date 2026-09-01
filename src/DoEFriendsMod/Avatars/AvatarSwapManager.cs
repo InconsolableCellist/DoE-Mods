@@ -42,6 +42,10 @@ namespace DoEFriendsMod.Avatars
                 ? swapper.AvatarName : null;
         }
 
+        /// <summary>A peer's face driver, the destination for their incoming face stream.</summary>
+        public Face.FaceDriver RemoteFaceDriver(int actorNumber) =>
+            _remote.TryGetValue(actorNumber, out var swapper) && swapper.IsActive ? swapper.Face : null;
+
         public HandPoser RemoteHandPoser(int actorNumber) =>
             _remote.TryGetValue(actorNumber, out var swapper) && swapper.IsActive ? swapper.Hands : null;
         public string SelfAvatarName => _self.AvatarName;

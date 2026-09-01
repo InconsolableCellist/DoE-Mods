@@ -76,6 +76,7 @@ namespace DoEFriendsMod.Avatars
 
         /// <summary>The finger poser, if this avatar has one. Null while nothing is worn.</summary>
         public HandPoser Hands => _hands;
+        public Face.FaceDriver Face => _face;
 
         /// <summary>True if this swapper is still driving the player object it was built for.</summary>
         public bool IsAttachedTo(AvatarPlayer player) =>
@@ -734,6 +735,20 @@ namespace DoEFriendsMod.Avatars
                 var state = IsSelf ? Core.Instance?.FaceState : null;
                 var stale = state?.SecondsSinceLastMessage ?? -1;
                 var tracking = state != null && stale >= 0 && stale < ModConfig.FaceStaleSeconds.Value;
+
+                // A peer's face comes from their stream. It ages so that when they stop sending
+                // — tracking off, or they took the avatar off — their face relaxes rather than
+                // freezing in whatever expression arrived last.
+                if (!IsSelf && _face.RemoteValues != null)
+                {
+                    _face.RemoteAgeSeconds += deltaTime;
+                    if (_face.RemoteAgeSeconds < ModConfig.FaceStaleSeconds.Value)
+                    {
+                        _face.ApplyRemote(deltaTime);
+                        return;
+                    }
+                    _face.RemoteValues = null;
+                }
 
                 if (tracking) _face.Apply(state, deltaTime);
                 else if (ModConfig.VoiceJawEnabled.Value) _face.ApplyVoiceJaw(ReadVoiceEnergy(), deltaTime);

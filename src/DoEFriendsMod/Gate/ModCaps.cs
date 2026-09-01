@@ -21,7 +21,7 @@ namespace DoEFriendsMod.Gate
         /// What this build actually implements — not what it aspires to. Custom avatars now
         /// sync between peers, so that capability is real and worth advertising.
         /// </summary>
-        public static ModCaps Local => ModCaps.Avatars;
+        public static ModCaps Local => ModCaps.Avatars | ModCaps.FaceTracking;
 
         public static string Describe(ModCaps caps) => caps == ModCaps.None ? "none" : caps.ToString();
     }

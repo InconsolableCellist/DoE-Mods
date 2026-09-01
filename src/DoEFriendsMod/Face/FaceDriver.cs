@@ -31,6 +31,7 @@ namespace DoEFriendsMod.Face
             public SkinnedMeshRenderer Renderer;
             public int Index;
             public List<string> Sources = new List<string>();
+            public List<int> SourceIds = new List<int>();   // wire ids, for peer-driven faces
             public float Current;
         }
 
@@ -108,6 +109,14 @@ namespace DoEFriendsMod.Face
         private Quaternion _leftEyeRest, _rightEyeRest;
 
         public int TargetCount => _targets.Count;
+
+        /// <summary>
+        /// Peer-supplied shape values, indexed by wire id. When set, the face is driven from
+        /// these instead of from local tracking — the same driver, a different source.
+        /// </summary>
+        public float[] RemoteValues { get; set; }
+
+        public double RemoteAgeSeconds { get; set; } = -1;
         public bool HasEyeBones => Interop.Alive(_leftEye) && Interop.Alive(_rightEye);
 
         public string Build(GameObject model, AvatarManifest manifest)
@@ -147,6 +156,7 @@ namespace DoEFriendsMod.Face
                     _targets.Add(target);
                 }
                 target.Sources.Add(kv.Key);
+                target.SourceIds.Add(UEShapes.IdOf(kv.Key));
             }
 
             _modelRoot = model.transform;
@@ -175,6 +185,65 @@ namespace DoEFriendsMod.Face
         }
 
         /// <summary>Apply the latest values. Call from LateUpdate, after the body is posed.</summary>
+        /// <summary>Apply peer-supplied values. Same maths, different source.</summary>
+        public void ApplyRemote(float deltaTime)
+        {
+            if (RemoteValues == null || _targets.Count == 0) return;
+
+            var smoothing = 1f - Mathf.Exp(-Mathf.Max(0.1f, ModConfig.FaceSmoothing.Value) * deltaTime * 60f);
+            var scale = Mathf.Clamp(ModConfig.FaceShapeScale.Value, 0f, 2f) * 100f;
+
+            for (var i = 0; i < _targets.Count; i++)
+            {
+                var target = _targets[i];
+                if (!Interop.Alive(target.Renderer)) continue;
+
+                var wanted = 0f;
+                for (var s = 0; s < target.SourceIds.Count; s++)
+                {
+                    var id = target.SourceIds[s];
+                    if (id < 0 || id >= RemoteValues.Length) continue;
+                    var value = RemoteValues[id];
+                    if (_overrides != null) value = _overrides.Apply(target.Sources[s], value);
+                    if (value > wanted) wanted = value;
+                }
+
+                target.Current = Mathf.Lerp(target.Current, Mathf.Clamp01(wanted), smoothing);
+                try { target.Renderer.SetBlendShapeWeight(target.Index, target.Current * scale); }
+                catch { }
+            }
+
+            ApplyRemoteEyes(smoothing);
+        }
+
+        private void ApplyRemoteEyes(float smoothing)
+        {
+            if (!HasEyeBones || RemoteValues == null) return;
+
+            float Get(string name)
+            {
+                var id = UEShapes.IdOf(name);
+                return id >= 0 && id < RemoteValues.Length ? RemoteValues[id] : 0f;
+            }
+
+            // Reassembled from the four directions, since that is what crosses the wire.
+            var leftYaw = Get("EyeLookOutLeft") - Get("EyeLookInLeft");
+            var rightYaw = Get("EyeLookInRight") - Get("EyeLookOutRight");
+            var pitch = Get("EyeLookUpLeft") - Get("EyeLookDownLeft");
+
+            Rotate(_leftEye, _leftEyeRest, -pitch * ModConfig.FaceEyePitchDegrees.Value,
+                   leftYaw * ModConfig.FaceEyeYawDegrees.Value, smoothing);
+            Rotate(_rightEye, _rightEyeRest, -pitch * ModConfig.FaceEyePitchDegrees.Value,
+                   rightYaw * ModConfig.FaceEyeYawDegrees.Value, smoothing);
+        }
+
+        /// <summary>Read the current value of a shape by wire id, for the outgoing stream.</summary>
+        public static float Sample(FaceState state, int id)
+        {
+            if (state == null || id < 0 || id >= UEShapes.Count) return 0f;
+            return Mathf.Clamp01(Read(state, UEShapes.Canonical[id]));
+        }
+
         public void Apply(FaceState state, float deltaTime)
         {
             if (state == null || _targets.Count == 0) return;

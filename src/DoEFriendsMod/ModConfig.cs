@@ -96,6 +96,12 @@ namespace DoEFriendsMod
         // Mouth movement from voice loudness, for players without face tracking.
         public static MelonPreferences_Entry<bool> VoiceJawEnabled;
         public static MelonPreferences_Entry<float> VoiceJawScale;
+
+        // Face streaming to peers. Photon relays through the publisher's servers, so this is
+        // kept deliberately small and predictable.
+        public static MelonPreferences_Entry<float> FaceSyncHz;
+        public static MelonPreferences_Entry<int> FaceSyncMaxShapes;
+        public static MelonPreferences_Entry<float> FaceSyncEpsilon;
         public static MelonPreferences_Entry<float> FaceStaleSeconds;
         public static MelonPreferences_Entry<bool> SwapForceVanillaIK;
         /// <summary>"Retarget" copies the vanilla arms; "IKTargets" solves them to your controllers.</summary>
@@ -225,6 +231,13 @@ namespace DoEFriendsMod
             FaceEyeLidOpenPoint = Category.CreateEntry("FaceEyeLidOpenPoint", 0.75f);
             VoiceJawEnabled = Category.CreateEntry("VoiceJawEnabled", true);
             VoiceJawScale = Category.CreateEntry("VoiceJawScale", 1.5f);
+
+            // One message per tick, never more, whatever rate tracking runs at.
+            FaceSyncHz = Category.CreateEntry("FaceSyncHz", 10f);
+            // Hard ceiling on shapes per message, so the worst case is bounded.
+            FaceSyncMaxShapes = Category.CreateEntry("FaceSyncMaxShapes", 24);
+            // How far a shape must move to be worth sending.
+            FaceSyncEpsilon = Category.CreateEntry("FaceSyncEpsilon", 0.012f);
             // Relax the face after this long with no OSC, so it doesn't freeze mid-expression
             // when VRCFaceTracking closes or the headset goes to sleep.
             FaceStaleSeconds = Category.CreateEntry("FaceStaleSeconds", 3f);

@@ -376,7 +376,32 @@ and writes:
 - Blink arbitration: when face tracking is live, disable our `Idler`-style auto-blink;
   re-enable after 5 s of stale data (VRCFT closed / HW asleep) and decay all shapes to 0.
 
-## Wire format (event code 142)
+## Wire format (event code 142) — implemented v0.28.0
+
+**PUN is not peer-to-peer.** Photon relays every message through its cloud servers on the
+publisher's subscription, and those plans cap *messages per second per room* as well as
+bandwidth. Message **count** therefore matters as much as byte size, and the stream is built to
+cost nothing at all when a face is still.
+
+| Property | Value | Why |
+|---|---|---|
+| Tick | `FaceSyncHz`, default **10 Hz** | One message per tick, never more, whatever rate tracking runs at. VRCFT emits up to 100 Hz; we do not forward that. |
+| Gating | change > `FaceSyncEpsilon` (≈3/255) | A still face sends **nothing** — not an empty message, nothing. |
+| Resolution | 1 byte per shape | Finer than a blendshape is worth. |
+| Ceiling | `FaceSyncMaxShapes`, default **24** | Bounds the worst case rather than letting it scale with the avatar. |
+| Delivery | unreliable | A lost packet costs one stale frame and the next tick fixes it. Retransmitting a 100 ms-old face is worse than skipping it. |
+| Keyframe | every 2 s | Covers loss and late joiners without acknowledgements. Skips shapes that have never left zero, so it stays small too. |
+
+Measured cost: **10 msg/s and roughly 300–500 B/s** per talking player; the same 10 msg/s and
+500 B/s at the absolute worst case. For scale, the game already syncs three transforms per
+player continuously. The mod logs its own `msg/s` and `B/s` once a minute so the claim can be
+checked rather than believed.
+
+Receivers age the last packet: when a peer stops sending — tracking off, or avatar removed —
+their face **relaxes** rather than freezing in whatever expression arrived last, and falls back
+to the voice-driven jaw, which costs no traffic at all.
+
+
 
 - Unreliable, sent only to modded peers (Phase 1 roster), 12–15 Hz tick.
 - Payload: `[u8 seq][u8 count][(u8 shapeId, u8 value) * count]` — value = shape × 255.
