@@ -89,7 +89,7 @@ namespace CustomAvatars
                 "F8  dump avatars",
                 "F9  dump room + events",
                 "F10 full-body tracking on/off    F11 calibrate",
-                "PgUp/PgDn taller/shorter   F12 vanilla size",
+                "PgUp/PgDn taller/shorter   Home vanilla size",
                 "",
                 "Settings: UserData/MelonPreferences.cfg",
                 "then press F3. Window must be focused for keys.",

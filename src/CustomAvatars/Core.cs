@@ -38,6 +38,7 @@ namespace CustomAvatars
         private AvatarPreview _preview;
         private AvatarSwapManager _swaps;
         private PlayerScaler _scaler;
+        private bool _saidHeightIsOff;
         private AvatarSync _avatarSync;
         private HandSync _handSync;
         private HologramSwapper _holograms;
@@ -81,7 +82,26 @@ namespace CustomAvatars
             _avatarLibrary.Rescan();
             _preview = new AvatarPreview(_avatarLibrary);
             _swaps = new AvatarSwapManager(_avatarLibrary);
-            _scaler = new PlayerScaler(_swaps, _avatarLibrary);
+            // Built only if it was already switched on when the game started, so a session
+            // that isn't using it has no object that could touch the rig at all. Toggling the
+            // setting mid-session deliberately does nothing: an earlier version of this feature
+            // resolved the rig on the first frame whether it was enabled or not and then held
+            // its scale for the rest of the session, and the safe shape for something that can
+            // leave a player permanently the wrong size is one that isn't there unless asked
+            // for, in writing, before launch.
+            if (ModConfig.HeightScalingEnabled.Value)
+            {
+                _scaler = new PlayerScaler(_swaps, _avatarLibrary);
+                LoggerInstance.Warning("Height scaling is ON (HeightScalingEnabled=true). It can leave " +
+                                       "you the wrong size; set it back to false and restart the game " +
+                                       "to be certain the mod isn't touching your height.");
+            }
+            else
+            {
+                LoggerInstance.Msg("Height scaling is off — the mod will not touch your size this session. " +
+                                   "Set HeightScalingEnabled=true and restart to turn it on.");
+                PlayerScaler.LogRigScaleOnce();
+            }
             _avatarSync = new AvatarSync(_swaps, _avatarLibrary, _roster);
             _handSync = new HandSync(_swaps, _roster);
             _holograms = new HologramSwapper(_avatarLibrary, _swaps);
@@ -176,7 +196,16 @@ namespace CustomAvatars
         public string FbtSummary => _fbt?.Describe() ?? "-";
 
         /// <summary>One-line player-size state for the overlay.</summary>
-        public string HeightSummary => _scaler?.Describe() ?? "-";
+        public string HeightSummary => _scaler?.Describe() ?? "off (needs a restart to enable)";
+
+        /// <summary>Say it once, so a stray PageUp isn't silently swallowed.</summary>
+        private void HeightIsOff()
+        {
+            if (_saidHeightIsOff) return;
+            _saidHeightIsOff = true;
+            LoggerInstance.Msg("Height scaling is off for this session. Set HeightScalingEnabled=true " +
+                               "in MelonPreferences.cfg and restart the game to use PgUp/PgDn.");
+        }
 
         /// <summary>
         /// How much the local player rig is scaled right now, 1 when it isn't. Read by anything
@@ -289,17 +318,17 @@ namespace CustomAvatars
                 else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.PageUp))
                 {
                     _hotkeyCooldown = 0.15f;
-                    _scaler?.Nudge(0.05f);
+                    if (_scaler != null) _scaler.Nudge(0.05f); else HeightIsOff();
                 }
                 else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.PageDown))
                 {
                     _hotkeyCooldown = 0.15f;
-                    _scaler?.Nudge(-0.05f);
+                    if (_scaler != null) _scaler.Nudge(-0.05f); else HeightIsOff();
                 }
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F12))
+                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Home))
                 {
                     _hotkeyCooldown = 0.5f;
-                    _scaler?.Reset();
+                    if (_scaler != null) _scaler.Reset(); else HeightIsOff();
                 }
                 else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F3))
                 {

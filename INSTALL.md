@@ -149,7 +149,7 @@ headset.
 | **F7/F8/F9** | write technical details to a log file, for troubleshooting |
 | **F10/F11** | full-body tracking on/off, and calibrate it |
 | **PgUp/PgDn** | be taller / shorter, in 5% steps |
-| **F12** | back to the size the game gives you |
+| **Home** | back to the size the game gives you |
 
 ### Being the size of your avatar
 

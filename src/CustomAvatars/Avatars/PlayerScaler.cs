@@ -60,11 +60,14 @@ namespace CustomAvatars.Avatars
         private bool _haveLocomotionBase;
 
         private float _applied = 1f;
+        private Transform _body;           // the game's own Model_<nick> for you
+        private Vector3 _bodyRestScale = Vector3.one;
         private float _eyeHeight;          // your real eye height in metres, scale divided out
         private float _nextDriftLogAt;
         private float _nextPropRootScanAt;
         private int _driftTrips;
         private bool _dead;                // resolution threw; complain once, then stay quiet
+        private bool _engaged;             // we are holding the rig and owe it a restore
 
         /// <summary>Props that were in our hands, and the local scale they had when we took them.</summary>
         private readonly Dictionary<int, (Prop prop, Vector3 scale)> _held =
@@ -86,11 +89,20 @@ namespace CustomAvatars.Avatars
 
         public string Describe()
         {
-            if (!ModConfig.HeightScalingEnabled.Value) return "off";
-            if (!Interop.Alive(_rig)) return "waiting for the rig";
-            var eyes = _eyeHeight > 0f ? $"{_eyeHeight * _applied:0.00} m" : "?";
+            // Always show the applied number, off included. "off" alone told you nothing about
+            // what size you were actually standing at, which is the one thing the panel is
+            // there for while you are trimming it with PageUp.
+            var applied = $"x{_applied:0.00}";
+            if (!ModConfig.HeightScalingEnabled.Value)
+                return _engaged ? "off — restoring" : "off";
+            if (!Interop.Alive(_rig)) return $"waiting for the rig ({applied})";
+
+            var eyes = _eyeHeight > 0f ? $"{_eyeHeight * _applied:0.00} m of {_eyeHeight:0.00} m" : "?";
             var from = ModConfig.HeightFromAvatar.Value ? "avatar" : "setting";
-            return $"x{_applied:0.00} — {eyes} to the eyes (from {from})";
+            var wanted = WantedScale();
+            var chasing = Mathf.Abs(wanted - _applied) > 0.005f ? $" → x{wanted:0.00}" : "";
+            return $"{applied}{chasing} — {eyes} to the eyes " +
+                   $"(from {from}, HeightScale {ModConfig.HeightScale.Value:0.00})";
         }
 
         /// <summary>
@@ -103,7 +115,21 @@ namespace CustomAvatars.Avatars
             if (_dead) return;
             try
             {
+                // Off means off: no rig held, nothing written, no opinion about how big you
+                // are. This used to resolve the rig on the first frame whether the feature was
+                // enabled or not, and from then on the drift check below pinned the rig's scale
+                // to whatever it happened to be at startup — so the game's own height handling
+                // was quietly overwritten for the rest of the session, and switching the
+                // feature off changed nothing, because we carried on writing our own idea of
+                // the rest scale over the top of it.
+                if (!ModConfig.HeightScalingEnabled.Value)
+                {
+                    if (_engaged) Release("HeightScalingEnabled is off");
+                    return;
+                }
+
                 if (!ResolveRig()) return;
+                _engaged = true;
 
                 MeasureEyeHeight();
 
@@ -148,12 +174,75 @@ namespace CustomAvatars.Avatars
                          (ModConfig.HeightFromAvatar.Value ? " (on top of the avatar's own height)" : ""));
         }
 
-        /// <summary>F12. Back to the size the game shipped you at, without changing your settings.</summary>
+        /// <summary>Home. Back to the size the game shipped you at, without changing your settings.</summary>
         public void Reset()
         {
             ModConfig.HeightScalingEnabled.Value = false;
             ModConfig.HeightScale.Value = 1f;
+            // The release happens on the next tick, which is what actually puts the rig back.
             Core.Log.Msg("Height: back to vanilla size (HeightScalingEnabled = false).");
+        }
+
+        /// <summary>
+        /// Read the rig's scale and say what it is, touching nothing.
+        ///
+        /// Here so a session with the feature switched off still records the one number that
+        /// settles "am I a different size from everyone else": two players can compare this
+        /// line in their logs. It writes nothing — the whole point of the off path is that
+        /// nothing in this class gets to move the rig.
+        /// </summary>
+        public static void LogRigScaleOnce()
+        {
+            try
+            {
+                Transform cameraRig = null;
+                try { cameraRig = XRRig.Transform; } catch { }
+                if (!Interop.Alive(cameraRig)) return;
+
+                var root = cameraRig;
+                var guard = 0;
+                while (Interop.Alive(root.parent) && guard++ < 32) root = root.parent;
+                if (!Interop.Alive(root)) return;
+
+                Core.Log.Msg($"Height: your rig `{Interop.ScenePath(root)}` is at scale " +
+                             $"{Interop.Vec(root.localScale)} and the mod is leaving it alone. " +
+                             "Compare this line with someone else's if your size looks wrong.");
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// Give the rig back exactly as found and forget everything about it.
+        ///
+        /// Forgetting is the point, not tidiness. A rest scale is only true at the moment it is
+        /// read, and holding a stale one is how a player ends up locked at a size the game
+        /// never chose. Letting go means the next time the feature is switched on it measures
+        /// rest afresh, against whatever the game has decided by then.
+        /// </summary>
+        private void Release(string why)
+        {
+            try { if (Interop.Alive(_rig)) _rig.localScale = _rigRestScale; } catch { }
+            try { if (Interop.Alive(_body)) _body.localScale = _bodyRestScale; } catch { }
+
+            _applied = 1f;
+            ApplyNearClip();
+            ApplyLocomotion();
+            RestoreAllProps(why);
+
+            var path = _rigPath;
+            _rig = null;
+            _body = null;
+            _camera = null;
+            _control = null;
+            _haveLocomotionBase = false;
+            _propRoots.Clear();
+            _rigRestScale = Vector3.one;
+            _bodyRestScale = Vector3.one;
+            _rigPath = "-";
+            _driftTrips = 0;
+            _engaged = false;
+
+            Core.Log.Msg($"Height: released `{path}` at the size the game had it — {why}.");
         }
 
         // ---- resolution -----------------------------------------------------------------
@@ -265,7 +354,19 @@ namespace CustomAvatars.Avatars
                 if (!Interop.Alive(head)) head = player.IKTargetHead;
                 if (!Interop.Alive(head)) return;
 
-                var measured = (head.position.y - player.transform.position.y) / Mathf.Max(0.01f, _applied);
+                // Measure inside the rig, where our own scale has already been divided out by
+                // the transform, rather than measuring in world metres and dividing by the
+                // scale we think we applied. The old way read the vanilla body's head bone,
+                // which sits on a separate scene root and never shrank with us, so every
+                // reading came back inflated by 1/scale. It kept the tallest reading of the
+                // session, so one inflated number latched: your eye height crept up, the
+                // avatar-over-eyes ratio shrank to match, and asking for vanilla size left you
+                // a good deal smaller than vanilla.
+                float measured;
+                if (Interop.Alive(_camera) && Interop.Alive(_rig))
+                    measured = _rig.InverseTransformPoint(_camera.transform.position).y;
+                else
+                    measured = (head.position.y - player.transform.position.y) / Mathf.Max(0.01f, _applied);
 
                 // A person. Anything else is a ragdoll, a chair, a loading screen or a climb,
                 // and none of those are how tall you are.
@@ -324,9 +425,15 @@ namespace CustomAvatars.Avatars
         {
             if (!Interop.Alive(_rig)) return false;
             var want = _rigRestScale.x * _applied;
-            return Mathf.Abs(_rig.localScale.x - want) > 0.001f ||
-                   Mathf.Abs(_rig.localScale.y - want) > 0.001f ||
-                   Mathf.Abs(_rig.localScale.z - want) > 0.001f;
+            if (Mathf.Abs(_rig.localScale.x - want) > 0.001f ||
+                Mathf.Abs(_rig.localScale.y - want) > 0.001f ||
+                Mathf.Abs(_rig.localScale.z - want) > 0.001f) return true;
+
+            // A respawn hands us a fresh body at its own rest scale, so this is how a resized
+            // player stays resized through dying.
+            if (Interop.Alive(_body) &&
+                Mathf.Abs(_body.localScale.x - _bodyRestScale.x * _applied) > 0.001f) return true;
+            return !Interop.Alive(_body) && _applied < 0.999f;
         }
 
         /// <param name="why">null for a silent re-application after drift.</param>
@@ -344,6 +451,7 @@ namespace CustomAvatars.Avatars
 
             _rig.localScale = _rigRestScale * scale;
             _applied = scale;
+            ApplyBodyScale(scale);
 
             if (recentre)
             {
@@ -361,6 +469,51 @@ namespace CustomAvatars.Avatars
             var eyes = _eyeHeight > 0f ? $"{_eyeHeight * scale:0.00} m" : "unmeasured";
             Core.Log.Msg($"*** Height: x{scale:0.000} — {eyes} to the eyes ({why}).");
             LogHitboxes();
+        }
+
+        /// <summary>
+        /// Resize the game's own body along with the rig.
+        ///
+        /// `Model_&lt;nick&gt;` is its own scene root, not a child of the rig, so scaling the rig
+        /// left a full-size body standing around a shrunken player. Everything that aims at you
+        /// aims at that body: it carries the hit capsules the game resolves damage against, its
+        /// VRIK is what reaches for your hand targets, and it is what a peer's client copies
+        /// onto your avatar. A body the wrong size relative to its own targets is a body whose
+        /// arms are permanently over-extended, which is what the blue outline showed.
+        /// </summary>
+        private void ApplyBodyScale(float scale)
+        {
+            if (!ResolveBody()) return;
+            try
+            {
+                var want = _bodyRestScale * scale;
+                if ((_body.localScale - want).sqrMagnitude > 1e-8f) _body.localScale = want;
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// The body is rebuilt on respawn and when cosmetics change, so this re-resolves rather
+        /// than caching once. The rest scale is only ever read from a body we haven't touched.
+        /// </summary>
+        private bool ResolveBody()
+        {
+            if (Interop.Alive(_body)) return true;
+            try
+            {
+                var player = AvatarPlayer.LocalAvatar;
+                if (!Interop.Alive(player)) return false;
+                var full = player.FullBody;
+                if (!Interop.Alive(full)) return false;
+
+                _body = full.transform;
+                _bodyRestScale = _body.localScale;
+                if (_bodyRestScale.x <= 0.0001f) _bodyRestScale = Vector3.one;
+                Core.Log.Msg($"Height: body resolved — `{Interop.ScenePath(_body)}`, " +
+                             $"rest scale {Interop.Vec(_bodyRestScale)}");
+                return true;
+            }
+            catch { return false; }
         }
 
         private void ApplyNearClip()
