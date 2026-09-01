@@ -77,16 +77,6 @@ namespace CustomAvatars.Avatars
         private Vector3 _modelBaseScale = Vector3.one;
         private float _heightScale = 1f;
         private float _calibrateAt;
-        private float _lastRigScale = 1f;
-        // Your standing eye height in your own metres, rig scale divided out. Taken on trust
-        // once, then only ever replaced by a taller reading you hold for a while — see
-        // MeasureStanding.
-        private float _standingEyeHeight;
-        private float _tallerSince, _tallerMin;
-        // The avatar's own head height at _modelBaseScale, measured once per swap. Every fit
-        // is computed from these two numbers rather than re-measured, so a fit can be redone
-        // at any size without reading a model that is already the wrong size.
-        private float _avatarBaseHeadHeight;
         private float _nextArmDumpAt;
         private int _armDumpsLeft;
 
@@ -823,7 +813,7 @@ namespace CustomAvatars.Avatars
             LogPeerPose();
 
             // Only once the body is posed do we know where its head actually is.
-            if (IsSelf) { WatchPlayerScale(); Calibrate(); AlignToHead(); }
+            if (IsSelf) { Calibrate(); AlignToHead(); }
 
             // Arms after the body: the retarget writes the whole skeleton, so solving the arms
             // to the hand targets has to come afterwards or it would be overwritten.
@@ -1087,21 +1077,6 @@ namespace CustomAvatars.Avatars
         }
 
         /// <summary>
-        /// Re-fit the avatar when the player themselves is resized.
-        ///
-        /// Nothing is measured here: your size changed by a known factor, so the fit changes
-        /// by the same factor. The first version waited a quarter of a second and re-measured
-        /// your head, and read the smoothed head target mid-move — 1.53 m for a 1.75 m person.
-        /// </summary>
-        private void WatchPlayerScale()
-        {
-            var rig = Core.Instance?.PlayerScale ?? 1f;
-            if (Mathf.Abs(rig - _lastRigScale) < 0.005f) return;
-            _lastRigScale = rig;
-            if (_standingEyeHeight > 0f && _avatarBaseHeadHeight > 0f) Refit($"player scale x{rig:0.00}");
-        }
-
-        /// <summary>
         /// Size a PEER'S avatar the way they are sizing it themselves. Their number, not a
         /// second guess of ours: they measured it against their own head, and everyone in the
         /// room needs to agree on how tall they are.
@@ -1125,24 +1100,20 @@ namespace CustomAvatars.Avatars
         /// <summary>
         /// Scale the avatar so that, with its head at your head, its feet are on the floor.
         ///
-        /// The manifest's scale matches the avatar to the GAME character's height, which was the
-        /// right question when the feet were pinned to the ground and nobody cared where the
-        /// head ended up. Anchoring the head asks a different one: how tall is this player. So
-        /// we measure both — how far your head is above the play-space floor, and how far this
-        /// avatar's head is above its own root — and take the ratio.
+        /// This is the same silhouette the game's own body has. That body is 1.5 m to the head
+        /// and stands with its feet on the floor whatever your height; VRIK stretches its spine
+        /// up to your head target. Ours is anchored by the head instead, so one uniform scale
+        /// does the same job: measure how far your head is above the play-space floor and how
+        /// far this avatar's head is above its own root, and take the ratio.
         ///
-        /// Both are measured ONCE, a second after the swap, and every later fit is computed
-        /// from those two numbers by <see cref="Refit"/>. The first version re-measured the
-        /// avatar each time and applied the ratio as an absolute scale — but the avatar it was
-        /// measuring had already been scaled by the previous answer, so from any scale s the
-        /// next answer was P/(H·s), and the one after that s again. PageUp made the avatar
-        /// alternate between too big and too small, with its feet in the air on the small
-        /// frames, and Home landed on whichever wrong branch it was on.
+        /// Measured ONCE, a second after the swap, and never again while the avatar is worn.
+        /// Not on crouching (it would shrink you), not on standing taller, not on anything.
+        /// Every attempt at re-fitting — and at resizing the player underneath (v0.33–v0.35) —
+        /// ended with people unable to get back to the size they started at. Put the avatar
+        /// on standing and it fits; if it was put on sitting down, F4 twice.
         /// </summary>
         private void Calibrate()
         {
-            MeasureStanding();
-
             if (_calibrateAt <= 0f || Time.unscaledTime < _calibrateAt) return;
             _calibrateAt = 0f;
 
@@ -1153,7 +1124,6 @@ namespace CustomAvatars.Avatars
                 var head = _player.IKTargetHead;
                 if (!Interop.Alive(head)) return;
 
-                var rig = Mathf.Clamp(Core.Instance?.PlayerScale ?? 1f, 0.05f, 10f);
                 var playerHeight = head.position.y - _player.transform.position.y;
                 var avatarHeight = _headBone.position.y - _model.transform.position.y;
                 if (playerHeight < 0.2f || avatarHeight < 0.05f)
@@ -1163,83 +1133,19 @@ namespace CustomAvatars.Avatars
                     return;
                 }
 
-                // The avatar as it was put on, with whatever fit is currently applied divided
-                // back out. Once per swap: the model's proportions don't change.
-                if (_avatarBaseHeadHeight <= 0f && _heightScale > 0.01f)
-                    _avatarBaseHeadHeight = avatarHeight / _heightScale;
-                // You, in your own metres. Taken on trust the first time; after that only a
-                // sustained taller reading replaces it, so a swap done sitting down is fixed
-                // the moment you stand up rather than for the rest of the session.
-                var standing = playerHeight / rig;
-                if (_standingEyeHeight <= 0f || standing > _standingEyeHeight) _standingEyeHeight = standing;
-
-                Refit("calibrated");
-            }
-            catch { }
-        }
-
-        /// <summary>
-        /// Notice when you are standing taller than the height we fitted to, and re-fit.
-        ///
-        /// Only taller, and only after 1.5 s of it: crouching is transient and must never
-        /// shrink the avatar, and a jump peaks for less than a second. The reading kept is the
-        /// LOWEST of the run, so a jump that started a run can't set the number.
-        /// </summary>
-        private void MeasureStanding()
-        {
-            if (_standingEyeHeight <= 0f || _avatarBaseHeadHeight <= 0f) return;
-            if (!Interop.Alive(_player) || _ragdolling) { _tallerSince = 0f; return; }
-            try
-            {
-                var head = _player.IKTargetHead;
-                if (!Interop.Alive(head)) return;
-                var rig = Mathf.Clamp(Core.Instance?.PlayerScale ?? 1f, 0.05f, 10f);
-                var measured = (head.position.y - _player.transform.position.y) / rig;
-
-                // A person. Anything else is a ragdoll, a chair, a loading screen or a climb.
-                if (measured < 0.5f || measured > 2.5f || measured <= _standingEyeHeight * 1.02f)
-                {
-                    _tallerSince = 0f;
-                    return;
-                }
-
-                var now = Time.unscaledTime;
-                if (_tallerSince <= 0f) { _tallerSince = now; _tallerMin = measured; return; }
-                _tallerMin = Mathf.Min(_tallerMin, measured);
-                if (now - _tallerSince < 1.5f) return;
-
-                _tallerSince = 0f;
-                _standingEyeHeight = _tallerMin;
-                Refit("you are standing taller than before");
-            }
-            catch { _tallerSince = 0f; }
-        }
-
-        /// <summary>
-        /// Apply the fit: the avatar's head at your standing eye height, at whatever size the
-        /// player currently is. Pure arithmetic on the two measurements, so it is the same
-        /// answer at any size and can be redone as often as needed.
-        /// </summary>
-        private void Refit(string why)
-        {
-            if (!Interop.Alive(_model) || _avatarBaseHeadHeight <= 0f || _standingEyeHeight <= 0f) return;
-            try
-            {
-                // The clamp is a nonsense filter, not a size limit, so it moves with the rig:
-                // a player scaled to half size measures half as tall, and clamping that back to
-                // the range a full-size person occupies would stretch their avatar to twice the
-                // body they are standing in.
-                var rig = Mathf.Clamp(Core.Instance?.PlayerScale ?? 1f, 0.05f, 10f);
-                var raw = _standingEyeHeight * rig / _avatarBaseHeadHeight;
+                // The avatar is measured at whatever scale it currently has, so divide that
+                // back out. It is 1 on a fresh swap; this only matters if the measurement ever
+                // runs on a model already fitted, which is exactly the case that oscillated.
+                var baseHeight = avatarHeight / Mathf.Max(0.01f, _heightScale);
+                var raw = playerHeight / baseHeight;
                 var previous = _heightScale;
-                _heightScale = Mathf.Clamp(raw, 0.5f * rig, 2f * rig);
+                // A nonsense filter, not a size limit.
+                _heightScale = Mathf.Clamp(raw, 0.5f, 2f);
                 _model.transform.localScale = _modelBaseScale * _heightScale;
-                _lastRigScale = rig;
 
                 var note = Mathf.Abs(raw - _heightScale) > 0.001f ? $" (clamped from x{raw:0.00})" : "";
-                var at = rig < 0.999f || rig > 1.001f ? $", at player scale x{rig:0.00}" : "";
-                Core.Log.Msg($"    height: you {_standingEyeHeight:0.00} m to the eyes, avatar {_avatarBaseHeadHeight:0.00} m — " +
-                             $"scaling avatar x{_heightScale:0.000}{note}{at} ({why})");
+                Core.Log.Msg($"    height: you {playerHeight:0.00} m to the eyes, avatar {baseHeight:0.00} m — " +
+                             $"scaling avatar x{_heightScale:0.000}{note}, once");
 
                 if (Mathf.Abs(previous - _heightScale) > 0.002f)
                 {
@@ -1540,11 +1446,7 @@ namespace CustomAvatars.Avatars
             _headBone = null;
             _modelBaseScale = Vector3.one;
             _heightScale = 1f;
-            _lastRigScale = 1f;
             _calibrateAt = 0f;
-            _standingEyeHeight = 0f;
-            _avatarBaseHeadHeight = 0f;
-            _tallerSince = 0f;
             _armDumpsLeft = 0;
             _leashTrips = 0;
             _wasAlive = true;

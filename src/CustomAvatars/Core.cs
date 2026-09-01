@@ -6,7 +6,7 @@ using CustomAvatars.Gate;
 using CustomAvatars.Net;
 using CustomAvatars.Recon;
 
-[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.35.0", "dan")]
+[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.36.0", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace CustomAvatars
@@ -25,7 +25,7 @@ namespace CustomAvatars
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.35.0";
+        public const string Version = "0.36.0";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -37,8 +37,6 @@ namespace CustomAvatars
         private AvatarLibrary _avatarLibrary;
         private AvatarPreview _preview;
         private AvatarSwapManager _swaps;
-        private PlayerScaler _scaler;
-        private bool _saidHeightIsOff;
         private AvatarSync _avatarSync;
         private HandSync _handSync;
         private HologramSwapper _holograms;
@@ -82,26 +80,10 @@ namespace CustomAvatars
             _avatarLibrary.Rescan();
             _preview = new AvatarPreview(_avatarLibrary);
             _swaps = new AvatarSwapManager(_avatarLibrary);
-            // Built only if it was already switched on when the game started, so a session
-            // that isn't using it has no object that could touch the rig at all. Toggling the
-            // setting mid-session deliberately does nothing: an earlier version of this feature
-            // resolved the rig on the first frame whether it was enabled or not and then held
-            // its scale for the rest of the session, and the safe shape for something that can
-            // leave a player permanently the wrong size is one that isn't there unless asked
-            // for, in writing, before launch.
-            if (ModConfig.HeightScalingEnabled.Value)
-            {
-                _scaler = new PlayerScaler(_swaps, _avatarLibrary);
-                LoggerInstance.Warning("Height scaling is ON (HeightScalingEnabled=true). It can leave " +
-                                       "you the wrong size; set it back to false and restart the game " +
-                                       "to be certain the mod isn't touching your height.");
-            }
-            else
-            {
-                LoggerInstance.Msg("Height scaling is off — the mod will not touch your size this session. " +
-                                   "Set HeightScalingEnabled=true and restart to turn it on.");
-                PlayerScaler.LogRigScaleOnce();
-            }
+            // The mod never touches your size. Player scaling (v0.33–v0.35) is gone: the game
+            // rewrites the rig's scale every frame from its own height handling, ours fought it,
+            // and the measurements taken during the fight fed back into the scale until nobody
+            // could get back to normal. The rig is the game's.
             _avatarSync = new AvatarSync(_swaps, _avatarLibrary, _roster);
             _handSync = new HandSync(_swaps, _roster);
             _holograms = new HologramSwapper(_avatarLibrary, _swaps);
@@ -140,10 +122,6 @@ namespace CustomAvatars
             _roster.Tick(dt);
             ModGate.Evaluate(_roster);
             ModNet.Pump();
-
-            // First, because it decides how big you are this frame: tracker poses, IK targets
-            // and the avatar's own height calibration are all measured against the scaled rig.
-            _scaler?.Tick();
 
             // Before the game's LateUpdate, where FinalIK solves: tracker targets set here are
             // where this frame's legs land. After Pump, so a peer's poses land the same frame.
@@ -194,25 +172,6 @@ namespace CustomAvatars
 
         /// <summary>One-line FBT state for the overlay.</summary>
         public string FbtSummary => _fbt?.Describe() ?? "-";
-
-        /// <summary>One-line player-size state for the overlay.</summary>
-        public string HeightSummary => _scaler?.Describe() ?? "off (needs a restart to enable)";
-
-        /// <summary>Say it once, so a stray PageUp isn't silently swallowed.</summary>
-        private void HeightIsOff()
-        {
-            if (_saidHeightIsOff) return;
-            _saidHeightIsOff = true;
-            LoggerInstance.Msg("Height scaling is off for this session. Set HeightScalingEnabled=true " +
-                               "in MelonPreferences.cfg and restart the game to use PgUp/PgDn.");
-        }
-
-        /// <summary>
-        /// How much the local player rig is scaled right now, 1 when it isn't. Read by anything
-        /// that measures a distance against the player and needs to know that a metre of world
-        /// is not a metre of them.
-        /// </summary>
-        public float PlayerScale => _scaler?.Applied ?? 1f;
 
         public override void OnGUI()
         {
@@ -315,21 +274,6 @@ namespace CustomAvatars
                     _hotkeyCooldown = 0.5f;
                     _fbt.StartCalibration();
                 }
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.PageUp))
-                {
-                    _hotkeyCooldown = 0.15f;
-                    if (_scaler != null) _scaler.Nudge(0.05f); else HeightIsOff();
-                }
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.PageDown))
-                {
-                    _hotkeyCooldown = 0.15f;
-                    if (_scaler != null) _scaler.Nudge(-0.05f); else HeightIsOff();
-                }
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Home))
-                {
-                    _hotkeyCooldown = 0.5f;
-                    if (_scaler != null) _scaler.Reset(); else HeightIsOff();
-                }
                 else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F3))
                 {
                     // Re-read MelonPreferences.cfg from disk. The spring constants are read
@@ -343,10 +287,6 @@ namespace CustomAvatars
                                        $"gravity x{ModConfig.SpringGravityScale.Value}, drag {ModConfig.SpringDragBase.Value}, " +
                                        $"colliders {ModConfig.SpringCollidersEnabled.Value}");
                     LoggerInstance.Msg($"Preferences reloaded — swap: {AvatarSwapper.DescribeSettings()}");
-                    LoggerInstance.Msg($"Preferences reloaded — height: {_scaler?.Describe() ?? "-"}, " +
-                                       $"from avatar {ModConfig.HeightFromAvatar.Value}, " +
-                                       $"scale {ModConfig.HeightScale.Value}, " +
-                                       $"move speed blend {ModConfig.HeightMoveSpeedBlend.Value}");
                     if (!ModConfig.SwapUseVrik.Value)
                         LoggerInstance.Warning("*** SwapUseVrik is FALSE — swapped avatars will T-pose. " +
                                                "That is a diagnostic setting; set it back to true.");

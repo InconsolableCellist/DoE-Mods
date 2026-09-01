@@ -148,26 +148,18 @@ headset.
 | **F5** | look for newly added avatar files |
 | **F7/F8/F9** | write technical details to a log file, for troubleshooting |
 | **F10/F11** | full-body tracking on/off, and calibrate it |
-| **PgUp/PgDn** | be taller / shorter, in 5% steps |
-| **Home** | back to the size the game gives you |
 
-### Being the size of your avatar
+### Your size
 
-Off until you turn it on (`HeightScalingEnabled`), and then a small avatar makes you a small
-player: your eyes sit where its eyes sit, the world gets bigger, your arms reach as far as its
-arms do, and the weapon in your hand is the size that hand can hold.
+The mod never changes how big you are. The game owns your play space and rewrites its scale
+every frame; the mod does not touch it. The avatar is fitted once, when you put it on, so its
+head is at your eyes and its feet are on the floor — the same silhouette the game's own body
+has — and that number does not change again while you wear it. Put it on standing up; if you
+put it on sitting down, F4 twice.
 
-It changes how the game plays, not just how it looks. You are a smaller target — the game
-works out hits against your own two capsules, and they shrink with you — and you have less
-reach, so most of it evens out. Some of it doesn't: at half height you can walk under attacks
-that would have hit anyone else, and there will be ledges you can no longer climb. That's the
-deal, and it's why it's off by default and why it's for private lobbies with friends who know
-you're doing it.
-
-`HeightFromAvatar` is the part that makes it automatic — wear a 1.2 m character and you're
-1.2 m tall, because the exporter measured that character when it was built. `HeightScale` is a
-plain multiplier on top, and it's what PgUp/PgDn write, so you can dial yourself in from inside
-the headset and the number is still there next time.
+Builds 0.33 to 0.35 had a player-resizing feature. It is gone. If your settings file still has
+`HeightScalingEnabled`, `HeightFromAvatar` or `HeightScale` lines, they do nothing and can be
+deleted.
 
 ## Settings
 

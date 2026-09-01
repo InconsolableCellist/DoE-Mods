@@ -179,11 +179,6 @@ namespace CustomAvatars.Fbt
             {
                 if (Interop.Alive(player))
                 {
-                    // Every length below is a length on a person — how far below the eyes the
-                    // shoulders sit, how close counts as close. A player scaled to half size is
-                    // half a metre tall to the world and exactly as T-posed as anyone else, so
-                    // the thresholds come with them or they could never calibrate at all.
-                    var scale = Mathf.Clamp(Core.Instance?.PlayerScale ?? 1f, 0.05f, 10f);
                     var head = player.Head;
                     var lh = player.LeftHand;
                     var rh = player.RightHand;
@@ -193,10 +188,10 @@ namespace CustomAvatars.Fbt
                         var floorY = player.transform.position.y;
                         var headHeight = headY - floorY;
 
-                        var shoulderY = headY - 0.18f * scale;
+                        var shoulderY = headY - 0.18f;
                         var handsAtShoulders =
-                            Mathf.Abs(lh.position.y - shoulderY) < 0.25f * scale &&
-                            Mathf.Abs(rh.position.y - shoulderY) < 0.25f * scale;
+                            Mathf.Abs(lh.position.y - shoulderY) < 0.25f &&
+                            Mathf.Abs(rh.position.y - shoulderY) < 0.25f;
 
                         var l = lh.position; l.y = 0;
                         var r = rh.position; r.y = 0;
@@ -204,7 +199,7 @@ namespace CustomAvatars.Fbt
 
                         // Arms at your sides span well under half your height; a T-pose spans
                         // close to all of it. 0.8× eye height splits the two cleanly.
-                        posed = headHeight > 0.8f * scale && handsAtShoulders && span > headHeight * 0.8f;
+                        posed = headHeight > 0.8f && handsAtShoulders && span > headHeight * 0.8f;
                     }
                 }
             }
@@ -450,19 +445,14 @@ namespace CustomAvatars.Fbt
             var userHeight = ikHead.position.y - player.transform.position.y;
             var rigHeight = 0f;
             try { rigHeight = rigHead.position.y - player.FullBody.transform.position.y; } catch { }
-            // The clamp exists to reject a bad measurement, and it assumed both bodies were
-            // the same size. They aren't once the player is scaled: you are measured inside the
-            // scaled rig and the game's model never is, so the honest ratio between them moves
-            // with your scale and the range has to move with it too.
-            var playerScale = Mathf.Clamp(Core.Instance?.PlayerScale ?? 1f, 0.05f, 10f);
-            if (userHeight > 0.8f * playerScale && rigHeight > 0.8f)
-                scale = Mathf.Clamp(userHeight / rigHeight, 0.7f * playerScale, 1.5f * playerScale);
+            // The clamp exists to reject a bad measurement.
+            if (userHeight > 0.8f && rigHeight > 0.8f)
+                scale = Mathf.Clamp(userHeight / rigHeight, 0.7f, 1.5f);
             LastBodyScale = scale;
 
-            var at = playerScale < 0.999f || playerScale > 1.001f ? $", at player scale x{playerScale:0.00}" : "";
             Core.Log.Msg($"    FBT: mapping the rig onto you — yaw " +
                          $"{Vector3.SignedAngle(rigForward, userForward, Vector3.up):0.0}°, " +
-                         $"body scale x{scale:0.000} (you {userHeight:0.00} m, rig {rigHeight:0.00} m to the head{at})");
+                         $"body scale x{scale:0.000} (you {userHeight:0.00} m, rig {rigHeight:0.00} m to the head)");
 
             var boneOf = new Dictionary<TrackerRole, HumanBodyBones>
             {

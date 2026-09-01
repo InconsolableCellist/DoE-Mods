@@ -46,9 +46,6 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<bool> VoiceJawEnabled;
         public static MelonPreferences_Entry<bool> FbtEnabled;
         public static MelonPreferences_Entry<bool> TrackerSyncEnabled;
-        public static MelonPreferences_Entry<bool> HeightScalingEnabled;
-        public static MelonPreferences_Entry<bool> HeightFromAvatar;
-        public static MelonPreferences_Entry<float> HeightScale;
 
         // ---- [CustomAvatars_Tuning] -----------------------------------------------------
         public static MelonPreferences_Entry<float> SpringStiffnessScale;
@@ -100,12 +97,6 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<float> FbtRemoteSmoothing;
         public static MelonPreferences_Entry<float> FbtStaleSeconds;
 
-        public static MelonPreferences_Entry<float> HeightEyeHeightOverride;
-        public static MelonPreferences_Entry<float> HeightMinScale;
-        public static MelonPreferences_Entry<float> HeightMaxScale;
-        public static MelonPreferences_Entry<float> HeightMoveSpeedBlend;
-        public static MelonPreferences_Entry<bool> HeightScaleNearClip;
-        public static MelonPreferences_Entry<bool> HeightRestorePropScale;
 
         public static MelonPreferences_Entry<float> HandSyncHz;
         public static MelonPreferences_Entry<float> FaceSyncHz;
@@ -173,13 +164,7 @@ namespace CustomAvatars
             FbtEnabled = Main.CreateEntry("FbtEnabled", false);
             TrackerSyncEnabled = Main.CreateEntry("TrackerSyncEnabled", true);
 
-            // Off by default because it changes how the game plays, not how it looks: your
-            // hitbox, your reach and your weapons all come with you. PageUp/PageDown turn it
-            // on and trim it live.
-            HeightScalingEnabled = Main.CreateEntry("HeightScalingEnabled", false);
-            // The thing people actually want: wear a 1.2 m character, be 1.2 m tall.
-            HeightFromAvatar = Main.CreateEntry("HeightFromAvatar", true);
-            HeightScale = Main.CreateEntry("HeightScale", 1.0f);
+            // There is deliberately no player-size setting. See Core.OnInitializeMelon.
 
             // ---- tuning -----------------------------------------------------------------
             // Restoring force toward the resting pose.
@@ -286,22 +271,6 @@ namespace CustomAvatars
             // Measured automatically from where your headset actually is, taking the tallest
             // plausible reading of the session. Set it if you play seated, or if you want to be
             // sized against a height you didn't happen to be standing at.
-            HeightEyeHeightOverride = Tuning.CreateEntry("HeightEyeHeightOverride", 0f, description:
-                "Your own eye height in metres. 0 measures it.");
-            // Below a quarter size the dungeon stops being playable — you can't reach chests or
-            // climb anything — and above three you don't fit through doors.
-            HeightMinScale = Tuning.CreateEntry("HeightMinScale", 0.25f);
-            HeightMaxScale = Tuning.CreateEntry("HeightMaxScale", 3f);
-            // 0 keeps the game's own metres per second, so everyone crosses a room together.
-            // 1 makes movement feel right for your size and leaves you behind the party.
-            HeightMoveSpeedBlend = Tuning.CreateEntry("HeightMoveSpeedBlend", 0f, description:
-                "How much stick movement and jumping shrink with you, 0 to 1");
-            // Off only to prove that a clipping problem is something else.
-            HeightScaleNearClip = Tuning.CreateEntry("HeightScaleNearClip", true);
-            // Puts a weapon's own scale back when it leaves your hands, so a small player
-            // doesn't leave small axes lying around a full-size dungeon.
-            HeightRestorePropScale = Tuning.CreateEntry("HeightRestorePropScale", true);
-
             // Ten bytes a message, and only when a finger actually moved.
             HandSyncHz = Tuning.CreateEntry("HandSyncHz", 12f);
             // One message per tick, never more, whatever rate tracking runs at. Photon relays
@@ -383,12 +352,12 @@ namespace CustomAvatars
             SwapForceVanillaIK = Dev.CreateEntry("SwapForceVanillaIK", false, description:
                 "Re-enable the IK the game deliberately turned off on your own body. It doesn't " +
                 "produce usable arms, so there's no reason to interfere.");
-            SwapSolvePeerArms = Dev.CreateEntry("SwapSolvePeerArms", false, description:
+            SwapSolvePeerArms = Dev.CreateEntry("SwapSolvePeerArms", true, description:
                 "Solve a peer's avatar arms to their own hand targets instead of copying their " +
-                "rig's arm rotations. Copying is right about where the arm points but not about " +
-                "where the hand ends up, because the avatar's arms aren't the length of the body " +
-                "underneath — which is why a peer's hands sit slightly inside their real ones. " +
-                "Off by default because it has had no playtest yet.");
+                "rig's arm rotations. The game blends a peer's arm IK weight up and down " +
+                "continuously (0.1 to 1.0 in one log), so a copied arm flicks between the walking " +
+                "animation and the solved pose — the elbow snapping between two places. Their " +
+                "hand targets are networked and steady, so solving to those is the fix.");
             RetargetSettleSeconds = Dev.CreateEntry("RetargetSettleSeconds", 0.5f, description:
                 "How long to let a rig settle before taking the reference pose off it. A swap or " +
                 "a respawn catches the body mid-transition, and a reference taken then is a tilt " +

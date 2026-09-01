@@ -103,7 +103,6 @@ namespace CustomAvatars
                 $"ArmSource: {ModConfig.SwapArmSource.Value}",
                 FaceLine(),
                 $"FBT: {Core.Instance?.FbtSummary ?? "-"}",
-                $"Height: {Core.Instance?.HeightSummary ?? "-"}",
                 "",
                 "F1  hide this panel        F2  next avatar",
                 "F3  reload settings        F4  wear avatar",

@@ -775,7 +775,25 @@ vanilla skeleton, and vanilla peers still see stock avatars.
 
 ---
 
-### 2c. Being the size of your avatar (v0.33.0; first real runs and fixes in v0.35.0)
+### 2c. Being the size of your avatar (v0.33.0–v0.35.0, REMOVED in v0.36.0)
+
+**Removed, and not coming back.** Two real runs on 2026-09-01 settled it:
+
+- The game owns the rig's scale and rewrites it every frame (`VRControllerBase.xrRigPlayerHeight`,
+  `OpenVRRig.CalibrateHeight`): the drift log counted 738 resets in ten seconds. Every frame was
+  a fight, and the eye height measured during the fight crept from 1.80 m to 2.00 m in seconds,
+  which fed straight back into the scale — the player shrank to 0.64 without touching a key,
+  and their friend watched it happen through the avatar message stream.
+- Nobody could get back to the size they started at, which is the one property the feature
+  could not be allowed to lose.
+
+What persists from it: nothing in the game. The rig scale is the game's and self-heals the
+moment the mod stops writing; PlayerPrefs holds no height key; the save file is opaque but
+has no reason to contain one. `MelonPreferences.cfg` keeps three dead `Height*` lines that can
+be deleted. The FBT calibration string's `scale|` field was measured before any of these
+sessions and is unaffected. The original notes follow for the record.
+
+
 
 Everything above resizes the MODEL to fit the player — a 1.2 m character is stretched to the
 player's 1.75 m and wears their face. This resizes the PLAYER instead, which is the diversity
