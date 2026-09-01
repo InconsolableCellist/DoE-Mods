@@ -402,6 +402,21 @@ tracking. Two known issues from that first look:
   same rig's forearm bones, so a blanket hide would take away real UI. Original enabled states
   are restored on revert — several of those renderers are already off because they belong to
   cosmetics that aren't equipped.
+- **Arms: the game disables VRIK on your own body (measured 2026-08-31).** After switching to
+  pose retargeting the legs were excellent and the arms sat near an A-pose, moving only a
+  fraction of the controller's travel. The diagnostic said why:
+  `vanilla IK: ikEnabled=True, VRIK.enabled=False, LOD=0, armWeights L=1/1 R=1/1`.
+  **`VRIK.enabled=False`** — the game switches the IK component off on your *own* third-person
+  body, so its arms are pure locomotion animation and are never solved to your controllers.
+  That is also why it looked right under the old VRIK approach: that aimed at
+  `IKTargetLeftHand`/`RightHand`, which are accurate, rather than at the body, which isn't.
+  No amount of forcing fixes copying a pose that was never computed.
+  Fix (v0.15.0): `Avatars/ArmIK.cs`, a two-bone analytic solver aiming the arms at the hand
+  targets, **for your own avatar only**. A remote player's body *is* solved — that is how you
+  see them fight — so their arms keep the copied pose, which is better than anything we would
+  reconstruct from their targets. Everything below the shoulders still comes from the game's
+  pose in both cases, so the legs are unaffected. `SwapForceVanillaIK` now defaults off: the
+  game disables that IK deliberately and re-enabling it produced nothing useful.
 - **Head clipping fixed (v0.7.0)** with the same trick VRChat's Head Chop uses: scale the head
   bone to ~0 so its geometry collapses out of view. The head is part of one merged
   SkinnedMeshRenderer, so there is no renderer or layer to switch off — per-bone scale is the

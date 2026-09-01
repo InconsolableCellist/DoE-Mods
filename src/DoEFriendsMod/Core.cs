@@ -6,7 +6,7 @@ using DoEFriendsMod.Gate;
 using DoEFriendsMod.Net;
 using DoEFriendsMod.Recon;
 
-[assembly: MelonInfo(typeof(Core), "DoEFriendsMod", "0.14.0", "dan")]
+[assembly: MelonInfo(typeof(Core), "DoEFriendsMod", "0.15.0", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace DoEFriendsMod
@@ -25,7 +25,7 @@ namespace DoEFriendsMod
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.14.0";
+        public const string Version = "0.15.0";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -164,33 +164,6 @@ namespace DoEFriendsMod
                 {
                     _hotkeyCooldown = 0.5f;
                     _photon.DumpRoomNow();
-                }
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F10))
-                {
-                    // Direct toggles for the two diagnostic switches. Editing the .cfg and
-                    // pressing F3 should do the same thing, but when a setting appears to have
-                    // no effect you cannot tell whether the code ignored it or the file never
-                    // reached the game — this removes that question.
-                    _hotkeyCooldown = 0.5f;
-                    ModConfig.SwapHideVanillaMesh.Value = !ModConfig.SwapHideVanillaMesh.Value;
-                    LoggerInstance.Msg($"*** SwapHideVanillaMesh is now {ModConfig.SwapHideVanillaMesh.Value} " +
-                                       "(false = your vanilla body is drawn too)");
-                }
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F11))
-                {
-                    _hotkeyCooldown = 0.5f;
-                    ModConfig.SwapHideFpsArms.Value = !ModConfig.SwapHideFpsArms.Value;
-                    LoggerInstance.Msg($"*** SwapHideFpsArms is now {ModConfig.SwapHideFpsArms.Value} " +
-                                       "(false = the vanilla first-person arms are drawn too)");
-                }
-                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F12))
-                {
-                    _hotkeyCooldown = 0.5f;
-                    var toIk = !string.Equals(ModConfig.SwapArmSource.Value, "IKTargets",
-                                              System.StringComparison.OrdinalIgnoreCase);
-                    ModConfig.SwapArmSource.Value = toIk ? "IKTargets" : "Retarget";
-                    LoggerInstance.Msg($"*** SwapArmSource is now {ModConfig.SwapArmSource.Value} " +
-                                       "— press F4 twice to rebuild the avatar with it.");
                 }
                 else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F6))
                 {

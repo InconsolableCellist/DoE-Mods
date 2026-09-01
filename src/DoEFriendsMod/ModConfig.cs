@@ -171,12 +171,17 @@ namespace DoEFriendsMod
             HandSyncHz = Category.CreateEntry("HandSyncHz", 12f);
             // Show custom avatars on the equipment-room mannequins as well as on the players.
             HologramSwapEnabled = Category.CreateEntry("HologramSwapEnabled", true);
-            // We copy the vanilla pose, so anything the game declines to solve on your own body
-            // we inherit. Force it to solve fully.
-            SwapForceVanillaIK = Category.CreateEntry("SwapForceVanillaIK", true);
-            // If forcing the vanilla body to solve doesn't fix the arms, this drives them from
-            // the hand targets directly instead — the half the game gets demonstrably right.
-            SwapArmSource = Category.CreateEntry("SwapArmSource", "Retarget");
+            // Only meaningful when the arms are copied from the vanilla body. Off by default:
+            // the game disables that body's IK deliberately, and re-enabling it didn't produce
+            // usable arms anyway, so there's no reason to interfere with it.
+            SwapForceVanillaIK = Category.CreateEntry("SwapForceVanillaIK", false);
+            // Measured 2026-08-31: the game DISABLES the VRIK component on your own
+            // third-person body (`VRIK.enabled=False`), so its arms are pure locomotion
+            // animation and never solved to your controllers. Copying them can't work, whatever
+            // we force. Solving the arms from the hand targets is the only correct option
+            // locally, so it's the default. Remote bodies are solved normally and keep the
+            // copied pose.
+            SwapArmSource = Category.CreateEntry("SwapArmSource", "IKTargets");
         }
     }
 }

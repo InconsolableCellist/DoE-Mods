@@ -165,12 +165,19 @@ namespace DoEFriendsMod.Avatars
                     // The vanilla body has to be solving properly for there to be a pose worth
                     // copying. Report what it's doing before we touch it.
                     ReportVanillaIk(fullBody);
-                    if (isSelf && ModConfig.SwapForceVanillaIK.Value) ForceVanillaIk(fullBody);
 
                     _retarget = new PoseRetargeter();
                     var result = _retarget.Build(player, _model, manifest);
 
-                    if (string.Equals(ModConfig.SwapArmSource.Value, "IKTargets", StringComparison.OrdinalIgnoreCase))
+                    // Self only. The game disables VRIK on YOUR body, so its arms never track
+                    // your controllers and copying them can't work. A remote player's body is
+                    // solved normally — that's how you see them fight — so their copied arms are
+                    // correct and better than anything we'd reconstruct from their IK targets.
+                    var solveArms = isSelf && string.Equals(ModConfig.SwapArmSource.Value, "IKTargets",
+                                                            StringComparison.OrdinalIgnoreCase);
+                    if (isSelf && !solveArms && ModConfig.SwapForceVanillaIK.Value) ForceVanillaIk(fullBody);
+
+                    if (solveArms)
                     {
                         var lt = HandTarget(ref _leftHandTarget, "DFM_HandTarget_L", player.IKTargetLeftHand);
                         var rt = HandTarget(ref _rightHandTarget, "DFM_HandTarget_R", player.IKTargetRightHand);
