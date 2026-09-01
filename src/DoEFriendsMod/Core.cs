@@ -6,7 +6,7 @@ using DoEFriendsMod.Gate;
 using DoEFriendsMod.Net;
 using DoEFriendsMod.Recon;
 
-[assembly: MelonInfo(typeof(Core), "DoEFriendsMod", "0.23.0", "dan")]
+[assembly: MelonInfo(typeof(Core), "DoEFriendsMod", "0.25.0", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace DoEFriendsMod
@@ -25,7 +25,7 @@ namespace DoEFriendsMod
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.23.0";
+        public const string Version = "0.25.0";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -41,7 +41,6 @@ namespace DoEFriendsMod
         private HandSync _handSync;
         private HologramSwapper _holograms;
         private Face.VrcftBridge _face;
-        private float _nextFaceLogAt;
         private bool _envDumped;
         private float _hotkeyCooldown;
 
@@ -165,15 +164,6 @@ namespace DoEFriendsMod
             _holograms?.Tick(UnityEngine.Time.unscaledTime);
 
             _face?.Tick(UnityEngine.Time.unscaledTime);
-
-            if (_face != null && ModConfig.FaceOscDebug.Value &&
-                UnityEngine.Time.unscaledTime >= _nextFaceLogAt)
-            {
-                _nextFaceLogAt = UnityEngine.Time.unscaledTime + 2f;
-                LoggerInstance.Msg($"Face OSC: {_face.State.Count} parameter(s), " +
-                                   $"{_face.State.MessageCount} message(s), " +
-                                   $"last {_face.State.SecondsSinceLastMessage:0.0}s ago");
-            }
         }
 
         private void OnGateChanged(bool active)

@@ -148,6 +148,14 @@ namespace DoEFriendsMod.Avatars
                         forearmAxis.Normalize();
                         var needed = arm.Target.rotation * Quaternion.Inverse(arm.Hand.rotation);
                         var twist = TwistAbout(needed, forearmAxis);
+
+                        // Spread it across both bones. A real arm pronates along its whole
+                        // length, and putting the entire turn below the elbow still pinches the
+                        // mesh at the extremes — palm fully down was still collapsing to a
+                        // straw even after the forearm started helping.
+                        var upperShare = share * 0.4f;
+                        if (Interop.Alive(arm.Upper))
+                            arm.Upper.rotation = Quaternion.Slerp(Quaternion.identity, twist, upperShare) * arm.Upper.rotation;
                         arm.Fore.rotation = Quaternion.Slerp(Quaternion.identity, twist, share) * arm.Fore.rotation;
                     }
                 }

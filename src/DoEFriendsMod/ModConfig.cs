@@ -88,7 +88,6 @@ namespace DoEFriendsMod
         public static MelonPreferences_Entry<int> FaceOscListenPort;
         public static MelonPreferences_Entry<int> FaceOscSendPort;
         public static MelonPreferences_Entry<bool> FaceForceRelevant;
-        public static MelonPreferences_Entry<bool> FaceOscDebug;
         public static MelonPreferences_Entry<float> FaceSmoothing;
         public static MelonPreferences_Entry<float> FaceShapeScale;
         public static MelonPreferences_Entry<float> FaceEyePitchDegrees;
@@ -179,8 +178,6 @@ namespace DoEFriendsMod
             HandCurlDegrees = Category.CreateEntry("HandCurlDegrees", 70f);
             ThumbCurlDegrees = Category.CreateEntry("ThumbCurlDegrees", 40f);
             HandCurlSmoothing = Category.CreateEntry("HandCurlSmoothing", 0.35f);
-            // Prints the raw grip/trigger/curl values twice a second, so "nothing moves" can be
-            // told apart from "the input is zero".
             HandPoseDebug = Category.CreateEntry("HandPoseDebug", false);
 
             // The game already solves a correct pose for every player, including legs. Copying
@@ -212,7 +209,6 @@ namespace DoEFriendsMod
             // VRCFaceTracking's OSCInPort, where we ask it to send everything.
             FaceOscSendPort = Category.CreateEntry("FaceOscSendPort", 9001);
             FaceForceRelevant = Category.CreateEntry("FaceForceRelevant", true);
-            FaceOscDebug = Category.CreateEntry("FaceOscDebug", false);
             FaceSmoothing = Category.CreateEntry("FaceSmoothing", 0.5f);
             // Multiplier on every blendshape. Some faces want the whole set toned down.
             FaceShapeScale = Category.CreateEntry("FaceShapeScale", 1.0f);

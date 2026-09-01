@@ -103,7 +103,7 @@ namespace DoEFriendsMod.Face
         };
 
         private readonly List<Target> _targets = new List<Target>();
-        private Transform _leftEye, _rightEye;
+        private Transform _leftEye, _rightEye, _modelRoot;
         private FaceOverrides _overrides;
         private Quaternion _leftEyeRest, _rightEyeRest;
 
@@ -148,6 +148,8 @@ namespace DoEFriendsMod.Face
                 }
                 target.Sources.Add(kv.Key);
             }
+
+            _modelRoot = model.transform;
 
             if (ft.eyeUseBones)
             {
@@ -291,13 +293,29 @@ namespace DoEFriendsMod.Face
             Rotate(_rightEye, _rightEyeRest, -rightPitch * maxX, rightYaw * maxY, smoothing);
         }
 
-        private static void Rotate(Transform eye, Quaternion rest, float pitch, float yaw, float smoothing)
+        /// <summary>
+        /// Rotate an eye about the AVATAR's own up and right axes, not the bone's local ones.
+        ///
+        /// Bone-local axes are the wrong frame to work in: which local axis turns an eye left
+        /// depends on how the rig was built, and mirrored left/right eye bones disagree with
+        /// each other — turning both about local Y sent one eye up and the other down while
+        /// pitch happened to work. The avatar's own up and right are the same for both eyes and
+        /// mean the same thing on every rig, so there is nothing to configure and nothing to
+        /// get backwards.
+        /// </summary>
+        private void Rotate(Transform eye, Quaternion rest, float pitch, float yaw, float smoothing)
         {
-            if (!Interop.Alive(eye)) return;
+            if (!Interop.Alive(eye) || !Interop.Alive(_modelRoot)) return;
             try
             {
-                var wanted = rest * Quaternion.Euler(pitch, yaw, 0f);
-                eye.localRotation = Quaternion.Slerp(eye.localRotation, wanted, smoothing);
+                var parentRotation = Interop.Alive(eye.parent) ? eye.parent.rotation : Quaternion.identity;
+                var restWorld = parentRotation * rest;
+
+                var wanted = Quaternion.AngleAxis(yaw, _modelRoot.up)
+                           * Quaternion.AngleAxis(pitch, _modelRoot.right)
+                           * restWorld;
+
+                eye.rotation = Quaternion.Slerp(eye.rotation, wanted, smoothing);
             }
             catch { }
         }

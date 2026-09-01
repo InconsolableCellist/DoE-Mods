@@ -87,6 +87,23 @@ blend trees are driven by `SmileFrownLeft/Right`, `MouthX`, `JawX`, `LipFunnel`,
 `MouthUpperUp`, `MouthLowerDown`, `EyeLidLeft/Right`, `EyeLeftX/RightX` — combined names, every
 one.
 
+### Eye rotation happens in the avatar's frame, not the bone's
+
+Rotating eye bones about their own local axes is the obvious approach and is wrong. Which local
+axis turns an eye left depends on how the rig was built, and **mirrored left/right eye bones
+disagree with each other** — turning both about local Y sent one eye up and the other down,
+while pitch happened to land correctly. The avatar's own up and right axes mean the same thing
+on every rig and are shared by both eyes, so there is nothing to configure and nothing to get
+backwards. That is what the mod uses.
+
+**Range still isn't read from the controller.** The override generator only interprets Direct
+Blend Trees; this avatar's eye range lives in a `SimpleDirectional2D` tree on
+`OSCm/Proxy/FT/v2/EyeLeftX` with its motions at ±0.7, which encodes "full deflection at 0.7 of
+input" — an **input gain**, not an output range, and a different quantity from what the
+generator extracts. So eye travel is tuned by hand through `FaceEyePitchDegrees` /
+`FaceEyeYawDegrees`. Reading 2D trees for eye gain specifically would be a reasonable future
+addition, since the meaning there is unambiguous.
+
 ### Correction to the shape table below
 
 The ordered list in this document was **written from the VRCFT docs, not from its source**, and

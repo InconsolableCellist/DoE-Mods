@@ -807,7 +807,18 @@ namespace DoEFriendsMod.Avatars
             if (_retarget == null && !ModConfig.SwapFollowVanillaRoot.Value) return;
             try
             {
-                var target = _fullBody.transform.position;
+                // Follow the PLAYER object for ourselves, not the model.
+                //
+                // `Model_<nick>` is the display body and is smoothed for networking, so while
+                // you move with the stick it lags behind where you actually are. Our root
+                // followed it, so the shoulders lagged, the arms couldn't reach, and a held
+                // weapon — parented to the unsmoothed controller — slid out of the hand until
+                // you stopped. Aiming the arms at the controllers didn't fix that, because the
+                // lag was never in the hand target; it was in the body underneath it.
+                // For a remote player the smoothed model IS the authoritative position, so they
+                // keep following it.
+                var source = IsSelf && Interop.Alive(_player) ? _player.transform : _fullBody.transform;
+                var target = source.position;
                 if (_ragdolling && _retarget != null)
                 {
                     // A ragdoll's hips travel; the object we normally follow doesn't.
@@ -818,7 +829,7 @@ namespace DoEFriendsMod.Avatars
                 // this should be small; a large steady value means something inside the solver
                 // still wants to own the root and is worth knowing about.
                 _lastSolverDrift = Vector3.Distance(_model.transform.position, target);
-                _model.transform.SetPositionAndRotation(target, _fullBody.transform.rotation);
+                _model.transform.SetPositionAndRotation(target, source.rotation);
             }
             catch { }
         }
