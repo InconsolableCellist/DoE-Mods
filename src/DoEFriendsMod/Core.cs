@@ -6,7 +6,7 @@ using DoEFriendsMod.Gate;
 using DoEFriendsMod.Net;
 using DoEFriendsMod.Recon;
 
-[assembly: MelonInfo(typeof(Core), "DoEFriendsMod", "0.12.1", "dan")]
+[assembly: MelonInfo(typeof(Core), "DoEFriendsMod", "0.13.0", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace DoEFriendsMod
@@ -25,7 +25,7 @@ namespace DoEFriendsMod
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.12.1";
+        public const string Version = "0.13.0";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -39,6 +39,7 @@ namespace DoEFriendsMod
         private AvatarSwapManager _swaps;
         private AvatarSync _avatarSync;
         private HandSync _handSync;
+        private HologramSwapper _holograms;
         private bool _envDumped;
         private float _hotkeyCooldown;
 
@@ -72,6 +73,7 @@ namespace DoEFriendsMod
             _swaps = new AvatarSwapManager(_avatarLibrary);
             _avatarSync = new AvatarSync(_swaps, _avatarLibrary, _roster);
             _handSync = new HandSync(_swaps, _roster);
+            _holograms = new HologramSwapper(_avatarLibrary, _swaps);
         }
 
         public override void OnSceneWasInitialized(int buildIndex, string sceneName)
@@ -122,6 +124,7 @@ namespace DoEFriendsMod
             // After the game's own IK has solved this frame; ours runs on top of the pose it left.
             _swaps?.Tick(dt);
             _handSync?.Tick(UnityEngine.Time.unscaledTime);
+            _holograms?.Tick(UnityEngine.Time.unscaledTime);
         }
 
         private void OnGateChanged(bool active)
@@ -221,6 +224,7 @@ namespace DoEFriendsMod
         public override void OnApplicationQuit()
         {
             _preview?.Despawn("application quitting");
+            _holograms?.RevertAll("application quitting");
             _swaps?.RevertAll("application quitting");
             ModGate.ForceInert("application quitting");
             ReconLog.Close();

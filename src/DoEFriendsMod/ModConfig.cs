@@ -74,6 +74,7 @@ namespace DoEFriendsMod
         public static MelonPreferences_Entry<string> SwapPoseSource;
         public static MelonPreferences_Entry<float> RetargetHipsFollow;
         public static MelonPreferences_Entry<float> HandSyncHz;
+        public static MelonPreferences_Entry<bool> HologramSwapEnabled;
 
         public static void Load()
         {
@@ -165,6 +166,8 @@ namespace DoEFriendsMod
             RetargetHipsFollow = Category.CreateEntry("RetargetHipsFollow", 1.0f);
             // Ten bytes per tick, sent only when a finger actually moved.
             HandSyncHz = Category.CreateEntry("HandSyncHz", 12f);
+            // Show custom avatars on the equipment-room mannequins as well as on the players.
+            HologramSwapEnabled = Category.CreateEntry("HologramSwapEnabled", true);
         }
     }
 }

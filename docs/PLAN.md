@@ -505,7 +505,21 @@ tracking. Two known issues from that first look:
       A genuinely in-headset panel needs a world-space canvas plus laser-pointer interaction
       driven from `XRInput`, which is real work and can't be tested by anyone but the wearer.
       Not attempted yet, and not obviously worth it while the key list fits on one card.
-- [ ] **Replace the character-menu pedestal model.** The home world has your character on a
+- [x] **Equipment-room mannequin (v0.13.0)** — `Avatars/HologramSwapper.cs`. Turned out cheap
+      for a reason worth recording: `AvatarHologram : Idler` is a **real humanoid rig with its
+      own idle animation**, not a static prop, so generalising `PoseRetargeter` to take any
+      `Animator` (rather than only an `AvatarPlayer`) was the whole job — and the custom avatar
+      inherits the mannequin's idling and blinking for free. Scans every 2 s via
+      `FindObjectsOfType<AvatarHologram>`, matches `hologram.Owner.ActorNumber` to whichever
+      avatar that player is currently wearing, hides `avatarMesh` and parents ours to the
+      hologram's animator transform so it picks up the pedestal's placement and scale.
+      `avatarMesh` visibility is re-asserted every frame, because the hologram rebuilds itself
+      whenever cosmetics change (`RecreateAvatarMesh`) and would otherwise re-enable it behind
+      us. `HologramSwapEnabled` turns it off.
+- [ ] **Replace the character-menu pedestal model** in the wardrobe UI (`AvatarCustomizer`),
+      `MainMenu` and `UIEndMission` — the same `AvatarHologram` type, so the swapper above
+      should already cover them if it finds them; verify which of those screens actually spawn
+      one at runtime. The home world has your character on a
       pedestal for trying on cosmetics; showing the custom avatar there instead would make the
       swap feel like part of the game rather than a thing bolted on. Target confirmed:
       `AvatarHologram : Idler` (dump.cs:25323), held by `AvatarCustomizer.hologram`

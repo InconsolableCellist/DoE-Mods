@@ -58,13 +58,24 @@ namespace DoEFriendsMod.Avatars
 
         public string Build(AvatarPlayer player, GameObject model, AvatarManifest manifest)
         {
-            _links.Clear();
-
             Animator source;
             try { source = player.RemoteAnimator; }
             catch { return "the game rig has no Animator — cannot retarget"; }
-
             if (!Interop.Alive(source)) return "AvatarPlayer.RemoteAnimator is null — cannot retarget";
+            return Build(source, model, manifest);
+        }
+
+        /// <summary>
+        /// Retarget from any humanoid Animator, not just a player's. The character mannequin in
+        /// the equipment room is an `AvatarHologram : Idler` with its own humanoid rig and its
+        /// own idle animation, so the same delta retargeting drives it — and the avatar
+        /// inherits the idling and blinking for free.
+        /// </summary>
+        public string Build(Animator source, GameObject model, AvatarManifest manifest)
+        {
+            _links.Clear();
+
+            if (!Interop.Alive(source)) return "no Animator — cannot retarget";
             var isHuman = false;
             try { isHuman = source.isHuman; } catch { }
             if (!isHuman) return "the game rig's Animator is not humanoid — cannot retarget";
