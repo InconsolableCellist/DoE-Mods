@@ -37,6 +37,8 @@ namespace CustomAvatars.Avatars
         private HandPoser _hands;
         private PoseRetargeter _retarget;
         private ArmIK _armIk;
+        private LegIK _legIk;
+        private float _nextLegLogAt;
         private Face.FaceDriver _face;
         private SkinnedMeshRenderer _hiddenVanillaMesh;
         private bool _vanillaMeshWasForcedOff;
@@ -259,13 +261,20 @@ namespace CustomAvatars.Avatars
                         if (!_armIk.HasArms) _armIk = null;
                     }
                     Core.Log.Msg($"    pose source: VanillaRig — {result}");
+                    if (_retarget.LinkCount > 0)
+                    {
+                        _legIk = new LegIK();
+                        Core.Log.Msg($"    legs: {_legIk.Build(_model, manifest, _retarget.SourceOf)}");
+                        if (!_legIk.HasLegs) _legIk = null;
+                    }
                     ArmReferenceAgain("swapped in");
                     if (_retarget.LinkCount == 0)
                     {
                         Core.Log.Warning("    retargeting found no usable bones; falling back to VRIK.");
                         _retarget = null;
-            _armIk = null;
-            _face = null;
+                        _armIk = null;
+                        _legIk = null;
+                        _face = null;
                         useRetarget = false;
                     }
                 }
@@ -815,6 +824,22 @@ namespace CustomAvatars.Avatars
             // Only once the body is posed do we know where its head actually is.
             if (IsSelf) { Calibrate(); AlignToHead(); }
 
+            // Legs after the anchor: the anchor moves the whole model, and the feet have to be
+            // solved from wherever the hips ended up to where the game's feet are. Not while
+            // ragdolling — the root is following the hips then, and a corpse's legs are the
+            // ragdoll's business.
+            if (_legIk != null && !_ragdolling && ModConfig.LegIkEnabled.Value)
+            {
+                try { _legIk.Apply(FootTargetOffset(), _model.transform.right); }
+                catch (Exception e) { Core.Log.Warning($"Leg IK failed, disabling: {e.Message}"); _legIk = null; }
+
+                if (IsSelf && Time.unscaledTime >= _nextLegLogAt)
+                {
+                    _nextLegLogAt = Time.unscaledTime + 1f;
+                    if (_legIk != null && _legIk.WorthLogging) Core.Log.Msg($"legs: {_legIk.Describe()}");
+                }
+            }
+
             // Arms after the body: the retarget writes the whole skeleton, so solving the arms
             // to the hand targets has to come afterwards or it would be overwritten.
             // Not while ragdolling: a corpse whose wrists still strain toward your controllers
@@ -999,8 +1024,28 @@ namespace CustomAvatars.Avatars
                 var result = _retarget.Recapture(source, _model, _manifest);
                 Core.Log.Msg($"    pose source re-captured once the rig had settled — {result}");
                 if (_retarget.LinkCount == 0) _retarget = null;
+                RebuildLegIk();
             }
             catch (Exception e) { Core.Log.Warning($"Pose re-capture failed: {e.Message}"); }
+        }
+
+        /// <summary>
+        /// The legs aim at the game's foot bones, and a respawn hands the game a new body with
+        /// new bones. Re-pair them whenever the pose source is re-paired, with the old
+        /// solver's stretch taken off the bones first so the new one measures a rest leg.
+        /// </summary>
+        private void RebuildLegIk()
+        {
+            _legIk?.Release();
+            _legIk = null;
+            if (_retarget == null || _manifest == null || !Interop.Alive(_model)) return;
+            try
+            {
+                var legs = new LegIK();
+                legs.Build(_model, _manifest, _retarget.SourceOf);
+                if (legs.HasLegs) _legIk = legs;
+            }
+            catch (Exception e) { Core.Log.Warning($"Leg IK rebuild failed: {e.Message}"); }
         }
 
         private void RebuildPoseSource()
@@ -1016,6 +1061,7 @@ namespace CustomAvatars.Avatars
                 Core.Log.Msg($"    pose source rebuilt after respawn — {result}");
                 ArmReferenceAgain("rebuilt after a respawn");
                 if (_retarget.LinkCount == 0) _retarget = null;
+                RebuildLegIk();
             }
             catch (Exception e) { Core.Log.Warning($"Pose rebuild failed: {e.Message}"); }
         }
@@ -1154,6 +1200,26 @@ namespace CustomAvatars.Avatars
                 }
             }
             catch { }
+        }
+
+        /// <summary>
+        /// How far the game's display body is behind where we have put ours. For yourself the
+        /// root follows the unsmoothed player object while `Model_&lt;nick&gt;` is smoothed for
+        /// networking, so while you move with the stick its feet trail where you were; the
+        /// feet are re-based by that difference so the legs don't stretch backwards after you.
+        /// Horizontal only — the vertical truth is the feet on the floor. A peer's root IS the
+        /// display body, so theirs is zero.
+        /// </summary>
+        private Vector3 FootTargetOffset()
+        {
+            if (!IsSelf || !Interop.Alive(_player) || !Interop.Alive(_fullBody)) return Vector3.zero;
+            try
+            {
+                var d = _player.transform.position - _fullBody.transform.position;
+                d.y = 0f;
+                return d;
+            }
+            catch { return Vector3.zero; }
         }
 
         private void FollowVanillaRoot()
@@ -1459,6 +1525,7 @@ namespace CustomAvatars.Avatars
             _hands = null;
             _retarget = null;
             _armIk = null;
+            _legIk = null;
             _face = null;
             _player = null;
             _settledLogAt = 0f;

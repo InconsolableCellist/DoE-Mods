@@ -456,6 +456,17 @@ tracking. Two known issues from that first look:
   full geometry dump — every bone position, local and lossy scale, the game rig's shoulder and
   hand — prints once after each swap and whenever a hand misses by more than its reach
   explains. That dump is what settles the right-arm fault.
+- **Feet floating off the floor (v0.37.0).** The retarget copied the vanilla leg rotations and
+  the head anchor then slid the whole model to put its head at yours, and nothing in between
+  ever looked at where the vanilla feet were — so ours hung off the head at a fixed leg length,
+  above the floor whenever the head was higher than the one-shot fit was measured at, through
+  it in a crouch. `Avatars/LegIK.cs`: the same two-bone solver as the arms, aimed at the game's
+  own foot bones, which the game plants, steps and (under FBT) tracks. Knees bend in the copied
+  pose's plane, then the vanilla leg's plane, then "knees forward" for a dead-straight leg; the
+  foot keeps the vanilla foot's orientation; `LegLockFeet` pins it exactly. For yourself the
+  targets are re-based from the lagging display body onto the unsmoothed player object, so the
+  legs don't trail behind you when you stick-move. Re-paired whenever the pose source is, since
+  a respawn brings new bones. `LegIkEnabled`, `LegStretch` (0.08), `LegLockFeet`.
 - **Red finger outline around held weapons (v0.21.0).** Hiding the first-person arms used a
   *hide-list* of names starting `FPS_Arm`, which only removes what we thought of. Something
   else — an outline or highlight, evidently created or enabled when a weapon is grabbed, so it

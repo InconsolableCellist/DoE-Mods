@@ -76,6 +76,9 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<float> ArmTwistShare;
         public static MelonPreferences_Entry<float> ArmWristTwistLimitDegrees;
         public static MelonPreferences_Entry<bool> ArmLockHands;
+        public static MelonPreferences_Entry<bool> LegIkEnabled;
+        public static MelonPreferences_Entry<float> LegStretch;
+        public static MelonPreferences_Entry<bool> LegLockFeet;
 
         public static MelonPreferences_Entry<float> FaceSmoothing;
         public static MelonPreferences_Entry<float> FaceShapeScale;
@@ -226,6 +229,12 @@ namespace CustomAvatars
             // The hand goes exactly where the controller is, even if the arm couldn't get it
             // there. False shows the solver's honest miss, for diagnosing it.
             ArmLockHands = Tuning.CreateEntry("ArmLockHands", true);
+            // The feet go where the game's own feet are — on the floor, stepping, or on the
+            // trackers — instead of hanging off the head at a fixed leg length.
+            LegIkEnabled = Tuning.CreateEntry("LegIkEnabled", true, description:
+                "Solve each leg to the vanilla body's foot. False leaves the legs to the copied pose.");
+            LegStretch = Tuning.CreateEntry("LegStretch", 0.08f);
+            LegLockFeet = Tuning.CreateEntry("LegLockFeet", true);
 
             FaceSmoothing = Tuning.CreateEntry("FaceSmoothing", 0.5f);
             // Some faces want the whole set toned down.
