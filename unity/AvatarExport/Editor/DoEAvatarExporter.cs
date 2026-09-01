@@ -229,6 +229,19 @@ namespace DoEMod.Export
             return true;
         }
 
+        [MenuItem("Tools/Foxipso/DoE Avatar Export/Generate Face Overrides", priority = 2)]
+        public static void GenerateFaceOverrides()
+        {
+            var src = Selection.activeGameObject;
+            if (src == null)
+            {
+                EditorUtility.DisplayDialog("DoE Export", "Select the avatar first.", "OK");
+                return;
+            }
+            try { FaceOverrideGenerator.Generate(src); }
+            catch (Exception e) { Debug.LogError($"DoE face override scan failed: {e}"); }
+        }
+
         [MenuItem("Tools/Foxipso/DoE Avatar Export/Strip Inactive Objects", priority = 20)]
         static void ToggleStripInactive() => StripInactive = !StripInactive;
 

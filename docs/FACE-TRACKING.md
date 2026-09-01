@@ -223,6 +223,30 @@ adjustment. `gamma` above 1 makes a shape slower to come on, below 1 quicker. `e
 switches one off. Remapping happens **per source parameter**, not per blendshape, because two
 parameters sharing one shape can legitimately want different ranges.
 
+### Generating it from the avatar's own controllers
+
+`Tools ▸ Foxipso ▸ DoE Avatar Export ▸ Generate Face Overrides` reads those ranges out of the
+controllers rather than making you measure them, because the artist already wrote them down.
+
+The tractable structure is the **Direct Blend Tree** the face-tracking templates use: each child
+carries a `directBlendParameter` — the UE parameter name — and a clip, so the mapping is 1:1 and
+unambiguous. The clip's **peak blendshape weight** is the range that was chosen. A clip that
+tops out at 70 becomes `"max": 0.7`.
+
+Deliberately narrow: **1D and 2D blend trees are not interpreted.** They encode input remapping
+rather than output range (an eye-look tree with motions at ±0.7 is saying "full look at 0.7
+input", which is a different quantity), and they're used for quite different things across
+avatars. Guessing would produce confident nonsense. They're listed in the report instead, for
+hand-tuning if they matter.
+
+Controllers are found from the avatar's `Animator`s plus a reflective walk over any VRCFury
+component's serialized graph — ugly next to a typed reference, but it survives VRCFury updates
+and needs no compile-time dependency on it.
+
+Two deliberate behaviours: only ranges that actually differ from full are written (an override
+saying "use the whole range" is noise), and **an existing overrides file is never overwritten**,
+because that file is the one place hand-tuning lives.
+
 ## Per-avatar mapping (manifest.json)
 
 The Unity exporter auto-detects UE-named blendshapes on the avatar's renderers
