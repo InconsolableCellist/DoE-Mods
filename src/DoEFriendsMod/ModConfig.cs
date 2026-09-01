@@ -73,6 +73,9 @@ namespace DoEFriendsMod
         /// <summary>"VanillaRig" copies the game's own animated pose; "VRIK" solves our own.</summary>
         public static MelonPreferences_Entry<string> SwapPoseSource;
         public static MelonPreferences_Entry<float> RetargetHipsFollow;
+        public static MelonPreferences_Entry<bool> RetargetAlignAtCapture;
+        /// <summary>How much wrist roll is passed back to the forearm, 0..1.</summary>
+        public static MelonPreferences_Entry<float> ArmTwistShare;
         public static MelonPreferences_Entry<float> HandSyncHz;
         public static MelonPreferences_Entry<bool> HologramSwapEnabled;
         public static MelonPreferences_Entry<bool> SwapForceVanillaIK;
@@ -167,6 +170,10 @@ namespace DoEFriendsMod
             // players animate properly. Set to "VRIK" to go back to solving our own.
             SwapPoseSource = Category.CreateEntry("SwapPoseSource", "VanillaRig");
             RetargetHipsFollow = Category.CreateEntry("RetargetHipsFollow", 1.0f);
+            RetargetAlignAtCapture = Category.CreateEntry("RetargetAlignAtCapture", true);
+            // Real forearms share pronation between elbow and wrist. Putting all of it on the
+            // wrist pinches the mesh into a straw when you turn your palm up.
+            ArmTwistShare = Category.CreateEntry("ArmTwistShare", 0.5f);
             // Ten bytes per tick, sent only when a finger actually moved.
             HandSyncHz = Category.CreateEntry("HandSyncHz", 12f);
             // Show custom avatars on the equipment-room mannequins as well as on the players.

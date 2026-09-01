@@ -417,6 +417,22 @@ tracking. Two known issues from that first look:
   reconstruct from their targets. Everything below the shoulders still comes from the game's
   pose in both cases, so the legs are unaffected. `SwapForceVanillaIK` now defaults off: the
   game disables that IK deliberately and re-enabling it produced nothing useful.
+- **T-posed mannequin, and the general shape of delta retargeting (v0.16.0).** Delta
+  retargeting preserves whatever difference the two skeletons had *at capture*, and an imported
+  avatar is instantiated in its bind pose — usually a T-pose — while the game's rig is standing
+  naturally. Legs barely notice, because legs are nearly identical in both poses; **arms differ
+  by about ninety degrees**, which is the A-pose that appeared on the player and the T-pose that
+  appeared on the mannequin. `ArmIK` was masking it on the player, so the mannequin is where it
+  showed plainly.
+  Fix: `PoseRetargeter.AlignAtCapture()` rotates each stored reference by whatever turns the
+  avatar's limb direction onto the game rig's, using a static parent→child bone table to get
+  each limb's direction. Direction alone doesn't pin down roll about the bone, so it isn't
+  perfect — but a small roll error beats a limb sticking out sideways.
+  `RetargetAlignAtCapture` turns it off.
+- **Wrist pinching to a straw on palm-up (v0.16.0).** All of the forearm's pronation was landing
+  on the wrist joint. `ArmIK` now passes a share of the roll back to the forearm using a
+  swing-twist decomposition — only the component that spins about the bone, since bending the
+  elbow there would move the hand off the target just solved for. `ArmTwistShare`, default 0.5.
 - **Head clipping fixed (v0.7.0)** with the same trick VRChat's Head Chop uses: scale the head
   bone to ~0 so its geometry collapses out of view. The head is part of one merged
   SkinnedMeshRenderer, so there is no renderer or layer to switch off — per-bone scale is the

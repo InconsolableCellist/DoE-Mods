@@ -35,7 +35,33 @@ namespace DoEFriendsMod.Avatars
             public Quaternion TargetRest;
             public int Depth;
             public string Name;
+            public HumanBodyBones Bone;
         }
+
+        /// <summary>
+        /// Which bone each one points at, for working out a limb's direction. Only used to
+        /// align the two skeletons at capture; a missing entry just means no alignment.
+        /// </summary>
+        private static readonly (HumanBodyBones parent, HumanBodyBones[] child)[] ChildOf =
+        {
+            (HumanBodyBones.Hips, new[]{ HumanBodyBones.Spine }),
+            (HumanBodyBones.Spine, new[]{ HumanBodyBones.Chest, HumanBodyBones.UpperChest, HumanBodyBones.Neck }),
+            (HumanBodyBones.Chest, new[]{ HumanBodyBones.UpperChest, HumanBodyBones.Neck, HumanBodyBones.Head }),
+            (HumanBodyBones.UpperChest, new[]{ HumanBodyBones.Neck, HumanBodyBones.Head }),
+            (HumanBodyBones.Neck, new[]{ HumanBodyBones.Head }),
+            (HumanBodyBones.LeftShoulder, new[]{ HumanBodyBones.LeftUpperArm }),
+            (HumanBodyBones.LeftUpperArm, new[]{ HumanBodyBones.LeftLowerArm }),
+            (HumanBodyBones.LeftLowerArm, new[]{ HumanBodyBones.LeftHand }),
+            (HumanBodyBones.RightShoulder, new[]{ HumanBodyBones.RightUpperArm }),
+            (HumanBodyBones.RightUpperArm, new[]{ HumanBodyBones.RightLowerArm }),
+            (HumanBodyBones.RightLowerArm, new[]{ HumanBodyBones.RightHand }),
+            (HumanBodyBones.LeftUpperLeg, new[]{ HumanBodyBones.LeftLowerLeg }),
+            (HumanBodyBones.LeftLowerLeg, new[]{ HumanBodyBones.LeftFoot }),
+            (HumanBodyBones.LeftFoot, new[]{ HumanBodyBones.LeftToes }),
+            (HumanBodyBones.RightUpperLeg, new[]{ HumanBodyBones.RightLowerLeg }),
+            (HumanBodyBones.RightLowerLeg, new[]{ HumanBodyBones.RightFoot }),
+            (HumanBodyBones.RightFoot, new[]{ HumanBodyBones.RightToes }),
+        };
 
         // Parent-first order matters: we assign world rotations, and moving a parent carries its
         // children with it, so the spine has to settle before the arms hanging off it.
@@ -102,6 +128,7 @@ namespace DoEFriendsMod.Avatars
                     TargetRest = dst.rotation,
                     Depth = Depth(dst),
                     Name = bone.ToString(),
+                    Bone = bone,
                 });
 
                 if (bone == HumanBodyBones.Hips)
@@ -114,9 +141,66 @@ namespace DoEFriendsMod.Avatars
             }
 
             _links.Sort((a, b) => a.Depth.CompareTo(b.Depth));
+            var aligned = AlignAtCapture();
+
             return _links.Count == 0
                 ? "no bones could be paired between the two rigs"
-                : $"{_links.Count} bone(s) paired" + (missing > 0 ? $", {missing} unpaired" : "");
+                : $"{_links.Count} bone(s) paired" + (missing > 0 ? $", {missing} unpaired" : "") +
+                  (aligned > 0 ? $", {aligned} aligned at capture" : "");
+        }
+
+        /// <summary>
+        /// Point each of the avatar's limbs the same way the game's rig points at capture time.
+        ///
+        /// Delta retargeting preserves whatever difference the two skeletons had when it
+        /// started, and an imported avatar is instantiated in its bind pose — usually a T-pose —
+        /// while the game's rig is standing naturally. Legs barely notice, because legs are
+        /// nearly identical in both. Arms differ by about ninety degrees, which is exactly the
+        /// A-pose-with-outstretched-arms that showed up on the mannequin.
+        ///
+        /// So before capturing, rotate each bone's stored reference by whatever turns the
+        /// avatar's limb direction onto the game rig's. Direction alone doesn't pin down roll
+        /// about the bone, so this isn't perfect — but a small roll error is a far better
+        /// starting point than a limb sticking out sideways.
+        /// </summary>
+        private int AlignAtCapture()
+        {
+            if (!ModConfig.RetargetAlignAtCapture.Value) return 0;
+
+            var byBone = new Dictionary<HumanBodyBones, Link>();
+            foreach (var link in _links) byBone[link.Bone] = link;
+
+            var aligned = 0;
+            foreach (var link in _links)
+            {
+                var child = FindChild(byBone, link.Bone);
+                if (child == null) continue;
+
+                try
+                {
+                    var sourceDir = child.Source.position - link.Source.position;
+                    var targetDir = child.Target.position - link.Target.position;
+                    if (sourceDir.sqrMagnitude < 1e-8f || targetDir.sqrMagnitude < 1e-8f) continue;
+
+                    var correction = Quaternion.FromToRotation(targetDir.normalized, sourceDir.normalized);
+                    link.TargetRest = correction * link.TargetRest;
+                    aligned++;
+                }
+                catch { }
+            }
+            return aligned;
+        }
+
+        private static Link FindChild(Dictionary<HumanBodyBones, Link> byBone, HumanBodyBones parent)
+        {
+            foreach (var (p, children) in ChildOf)
+            {
+                if (p != parent) continue;
+                foreach (var c in children)
+                    if (byBone.TryGetValue(c, out var link)) return link;
+                return null;
+            }
+            return null;
         }
 
         private static int Depth(Transform t)

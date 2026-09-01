@@ -64,6 +64,24 @@ namespace DoEFriendsMod.Avatars
             Solve(_right);
         }
 
+        /// <summary>
+        /// The part of a rotation that spins about <paramref name="axis"/>, discarding the part
+        /// that tips away from it — the swing-twist decomposition.
+        /// </summary>
+        private static Quaternion TwistAbout(Quaternion q, Vector3 axis)
+        {
+            var r = new Vector3(q.x, q.y, q.z);
+            var projected = Vector3.Project(r, axis);
+            var twist = new Quaternion(projected.x, projected.y, projected.z, q.w);
+
+            var lengthSq = twist.x * twist.x + twist.y * twist.y + twist.z * twist.z + twist.w * twist.w;
+            if (lengthSq < 1e-8f) return Quaternion.identity;
+
+            var inverseLength = 1f / Mathf.Sqrt(lengthSq);
+            return new Quaternion(twist.x * inverseLength, twist.y * inverseLength,
+                                  twist.z * inverseLength, twist.w * inverseLength);
+        }
+
         private static void Solve(Arm arm)
         {
             if (arm == null) return;
@@ -104,6 +122,23 @@ namespace DoEFriendsMod.Avatars
                 // Now swing the whole arm so the hand lands on the target.
                 var handNow = arm.Hand.position;
                 arm.Upper.rotation = Quaternion.FromToRotation(handNow - a, t - a) * arm.Upper.rotation;
+
+                // Share the roll with the forearm. A real forearm pronates along most of its
+                // length; putting the whole turn on the wrist joint pinches the mesh into a
+                // straw when you rotate your palm up. Only the twist component is passed back —
+                // bending the elbow here would move the hand off the target we just hit.
+                var share = Mathf.Clamp01(ModConfig.ArmTwistShare.Value);
+                if (share > 0.001f)
+                {
+                    var forearmAxis = arm.Hand.position - arm.Fore.position;
+                    if (forearmAxis.sqrMagnitude > 1e-8f)
+                    {
+                        forearmAxis.Normalize();
+                        var needed = arm.Target.rotation * Quaternion.Inverse(arm.Hand.rotation);
+                        var twist = TwistAbout(needed, forearmAxis);
+                        arm.Fore.rotation = Quaternion.Slerp(Quaternion.identity, twist, share) * arm.Fore.rotation;
+                    }
+                }
 
                 arm.Hand.rotation = arm.Target.rotation;
             }
