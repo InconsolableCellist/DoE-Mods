@@ -78,6 +78,8 @@ namespace DoEFriendsMod
         public static MelonPreferences_Entry<float> ArmTwistShare;
         /// <summary>How far past its natural length an arm may stretch to reach the hand target.</summary>
         public static MelonPreferences_Entry<float> ArmStretch;
+        /// <summary>"IKTargets" (the game's smoothed targets) or "Controllers" (no lag).</summary>
+        public static MelonPreferences_Entry<string> SwapArmTargetSource;
         public static MelonPreferences_Entry<float> HandSyncHz;
         public static MelonPreferences_Entry<bool> HologramSwapEnabled;
 
@@ -193,6 +195,11 @@ namespace DoEFriendsMod
             // A custom avatar's arms are rarely the game character's length, and a shorter arm
             // can't reach the hand target, so the hand stops short of the weapon.
             ArmStretch = Category.CreateEntry("ArmStretch", 0.08f);
+            // Left on the game's IK targets by default so existing wrist offsets keep working.
+            // "Controllers" removes the lag that slides a held weapon out of your hand while
+            // you move with the stick, but the two have different orientations, so the wrist
+            // offsets will need retuning if you switch.
+            SwapArmTargetSource = Category.CreateEntry("SwapArmTargetSource", "IKTargets");
             // Ten bytes per tick, sent only when a finger actually moved.
             HandSyncHz = Category.CreateEntry("HandSyncHz", 12f);
             // Show custom avatars on the equipment-room mannequins as well as on the players.

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 
 namespace DoEFriendsMod.Face
 {
@@ -63,5 +64,14 @@ namespace DoEFriendsMod.Face
         }
 
         public void Clear() => _values.Clear();
+
+        /// <summary>Every parameter seen so far with its latest value, sorted by name.</summary>
+        public List<KeyValuePair<string, float>> Snapshot()
+        {
+            var list = new List<KeyValuePair<string, float>>(_values.Count);
+            foreach (var kv in _values) list.Add(kv);
+            list.Sort((a, b) => string.CompareOrdinal(a.Key, b.Key));
+            return list;
+        }
     }
 }

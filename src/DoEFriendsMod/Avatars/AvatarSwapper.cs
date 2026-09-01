@@ -184,8 +184,20 @@ namespace DoEFriendsMod.Avatars
 
                     if (solveArms)
                     {
-                        var lt = HandTarget(ref _leftHandTarget, "DFM_HandTarget_L", player.IKTargetLeftHand);
-                        var rt = HandTarget(ref _rightHandTarget, "DFM_HandTarget_R", player.IKTargetRightHand);
+                        // Which transform the arms chase. The IK targets are what the game's own
+                        // rig follows, but they are smoothed for networking — so while you move
+                        // with the stick they lag behind the controllers, and a held weapon
+                        // (parented to the controller, not the target) slides out of the hand
+                        // until you stop. The controllers themselves have no such lag.
+                        var useControllers = string.Equals(ModConfig.SwapArmTargetSource.Value, "Controllers",
+                                                           StringComparison.OrdinalIgnoreCase);
+                        var leftParent = useControllers ? player.LeftHand : player.IKTargetLeftHand;
+                        var rightParent = useControllers ? player.RightHand : player.IKTargetRightHand;
+                        Core.Log.Msg($"    arm targets: {(useControllers ? "controllers" : "IK targets")} " +
+                                     $"— `{Interop.Name(leftParent)}` / `{Interop.Name(rightParent)}`");
+
+                        var lt = HandTarget(ref _leftHandTarget, "DFM_HandTarget_L", leftParent);
+                        var rt = HandTarget(ref _rightHandTarget, "DFM_HandTarget_R", rightParent);
                         _armIk = new ArmIK();
                         Core.Log.Msg($"    arm source: IKTargets — {_armIk.Build(_model, manifest, lt, rt)}");
                         if (!_armIk.HasArms) _armIk = null;

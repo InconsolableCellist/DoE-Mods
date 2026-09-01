@@ -36,6 +36,7 @@ namespace DoEFriendsMod.Face
 
         private readonly List<Target> _targets = new List<Target>();
         private Transform _leftEye, _rightEye;
+        private FaceOverrides _overrides;
         private Quaternion _leftEyeRest, _rightEyeRest;
 
         public int TargetCount => _targets.Count;
@@ -45,6 +46,8 @@ namespace DoEFriendsMod.Face
         {
             _targets.Clear();
             _leftEye = _rightEye = null;
+
+            _overrides = FaceOverrides.Load(Avatars.AvatarLibrary.AvatarsDir, manifest?.name, out var overrideSummary);
 
             var ft = manifest?.faceTracking;
             if (ft?.shapes == null || ft.shapes.Count == 0) return "no face tracking shapes in the manifest";
@@ -91,7 +94,8 @@ namespace DoEFriendsMod.Face
 
             return $"{_targets.Count} blendshape target(s)" +
                    (shared > 0 ? $", {shared} driven by more than one parameter" : "") +
-                   (HasEyeBones ? ", eye bones" : ", no eye bones");
+                   (HasEyeBones ? ", eye bones" : ", no eye bones") +
+                   $"; {overrideSummary}";
         }
 
         private static Transform FindBone(GameObject model, string path)
@@ -118,7 +122,11 @@ namespace DoEFriendsMod.Face
                 var wanted = 0f;
                 for (var s = 0; s < target.Sources.Count; s++)
                 {
-                    var value = Read(state, target.Sources[s]);
+                    var name = target.Sources[s];
+                    var value = Read(state, name);
+                    // Remap per source, not per target: two parameters sharing a blendshape can
+                    // legitimately want different ranges.
+                    if (_overrides != null) value = _overrides.Apply(name, value);
                     if (value > wanted) wanted = value;
                 }
 

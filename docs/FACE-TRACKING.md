@@ -199,6 +199,30 @@ You can't — your head is scaled away in first person, and you couldn't look at
 expressions show up on a copy of yourself standing in front of you. That is the only way to
 evaluate face tracking without a second player.
 
+## Per-avatar tuning (`<avatar>.overrides.json`)
+
+Not running the FX controller means losing the tuning an artist puts in it — eyelids that only
+close to 70%, a smile that wants easing, a shape at half strength. That has to live somewhere,
+and it has to **survive a re-export**, which rules out the manifest: the exporter rewrites that
+every time. So it goes in a separate file beside the avatar files, which nothing generates and
+nothing overwrites:
+
+```json
+{
+  "shapes": {
+    "EyeClosedLeft":  { "min": 0.0, "max": 0.7 },
+    "EyeClosedRight": { "min": 0.0, "max": 0.7 },
+    "JawOpen":        { "max": 0.8, "gamma": 1.5 },
+    "TongueOut":      { "enabled": false }
+  }
+}
+```
+
+`min`/`max` remap the 0..1 input onto that output range — the common "eyes never fully shut"
+adjustment. `gamma` above 1 makes a shape slower to come on, below 1 quicker. `enabled: false`
+switches one off. Remapping happens **per source parameter**, not per blendshape, because two
+parameters sharing one shape can legitimately want different ranges.
+
 ## Per-avatar mapping (manifest.json)
 
 The Unity exporter auto-detects UE-named blendshapes on the avatar's renderers

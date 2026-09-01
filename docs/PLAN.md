@@ -447,6 +447,15 @@ tracking. Two known issues from that first look:
   exactly the "differs to a lesser or greater degree at various positions" that testing found.
   `ArmStretch` (default 0.08) lets the arm extend a few percent past its natural length; the
   bone lengths scale with it so the elbow solve stays consistent.
+- **Held weapon slides out of the hand while moving (v0.22.0).** Locomoting with the stick made
+  the hand and the sword drift apart, worsening while moving and correcting when stopped. The
+  arms chase `IKTargetLeftHand`/`RightHand`, which are the game's **networking-smoothed**
+  targets (`AvatarPlayer` has `smoothingSpeed = 30`), while a held weapon is parented to the
+  controller — which has no smoothing. So the two lag apart under acceleration.
+  `SwapArmTargetSource = "Controllers"` aims the arms at `AvatarPlayer.LeftHand`/`RightHand`
+  instead, which for the local player are the controller transforms themselves. Left defaulting
+  to `IKTargets` so existing wrist offsets keep working — the two have different orientations,
+  so switching means retuning `SwapHandOffset*` once.
 - **Head clipping fixed (v0.7.0)** with the same trick VRChat's Head Chop uses: scale the head
   bone to ~0 so its geometry collapses out of view. The head is part of one merged
   SkinnedMeshRenderer, so there is no renderer or layer to switch off — per-bone scale is the

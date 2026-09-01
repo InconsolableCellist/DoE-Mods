@@ -6,7 +6,7 @@ using DoEFriendsMod.Gate;
 using DoEFriendsMod.Net;
 using DoEFriendsMod.Recon;
 
-[assembly: MelonInfo(typeof(Core), "DoEFriendsMod", "0.21.0", "dan")]
+[assembly: MelonInfo(typeof(Core), "DoEFriendsMod", "0.22.0", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace DoEFriendsMod
@@ -25,7 +25,7 @@ namespace DoEFriendsMod
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.21.0";
+        public const string Version = "0.22.0";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -119,6 +119,33 @@ namespace DoEFriendsMod
         /// <summary>Latest face-tracking values, or null when the OSC bridge isn't running.</summary>
         public Face.FaceState FaceState => _face?.State;
 
+        /// <summary>
+        /// Everything VRCFaceTracking has actually sent, with current values.
+        ///
+        /// This is the only way to tell "the avatar has no shape for that" apart from "the
+        /// tracking never produced it" apart from "we're reading the wrong parameter name".
+        /// VRCFaceTracking only transmits a parameter when its value CHANGES, so a shape the
+        /// hardware doesn't track never appears here at all — the list is what moved, not what
+        /// exists.
+        /// </summary>
+        private void DumpFaceParameters()
+        {
+            var state = _face?.State;
+            if (state == null) { LoggerInstance.Warning("Face OSC is not running."); return; }
+
+            var snapshot = state.Snapshot();
+            ReconLog.Section($"Face OSC parameters ({snapshot.Count} seen)");
+            ReconLog.KeyValue("messages received", state.MessageCount);
+            ReconLog.KeyValue("last message", $"{state.SecondsSinceLastMessage:0.0}s ago");
+            ReconLog.Line();
+            ReconLog.Line("```");
+            foreach (var kv in snapshot) ReconLog.Line($"{kv.Value,7:0.000}  {kv.Key}");
+            ReconLog.Line("```");
+
+            LoggerInstance.Msg($"Face OSC: {snapshot.Count} parameter(s) written to {ReconLog.CurrentFile}");
+            foreach (var kv in snapshot) LoggerInstance.Msg($"    {kv.Value,7:0.000}  {kv.Key}");
+        }
+
         /// <summary>One-line swap state for the overlay.</summary>
         public string SwapSummary => _swaps?.Describe() ?? "-";
 
@@ -176,6 +203,7 @@ namespace DoEFriendsMod
                 {
                     _hotkeyCooldown = 0.5f;
                     EnvironmentRecon.DumpOnce(force: true);
+                    DumpFaceParameters();
                 }
                 else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F8))
                 {
