@@ -474,6 +474,23 @@ namespace CustomAvatars.Fbt
                 var expectedPos = ikHead.position + yaw * ((bone.position - rigHead.position) * scale);
                 var expectedRot = yaw * bone.rotation;
 
+                // Feet: sideways, believe the puck, not the rig. The mapping above places the
+                // feet at the RIG's stance width under your head, so however your stance
+                // differed from the rig's at lock became a constant sideways error on every
+                // step ("my virtual leg is to the left of my real leg"). The tracker knows
+                // exactly how far to the side your foot is; only the height (ankle above
+                // instep) and the fore/aft (ankle behind instep) still need the rig's anatomy.
+                // Not the hip: a puck worn on the front of the waistband is off-centre by
+                // mounting, and the pelvis genuinely belongs centred under your head.
+                if (kv.Key != TrackerRole.Hip)
+                {
+                    var userRight = Vector3.Cross(Vector3.up, userForward);
+                    var lateral = Vector3.Dot(kv.Value.WorldPos - expectedPos, userRight);
+                    expectedPos += userRight * lateral;
+                    Core.Log.Msg($"    FBT: {kv.Key} lateral position taken from the tracker " +
+                                 $"({lateral * 100f:+0.0;-0.0} cm from the rig's stance)");
+                }
+
                 var inv = Quaternion.Inverse(kv.Value.WorldRot);
                 result.Add(new CalibratedTracker
                 {
@@ -569,7 +586,7 @@ namespace CustomAvatars.Fbt
         /// older build is discarded instead of replaying its bug. Offsets that look sane can
         /// still be wrong — the 180°-mirrored set was 16–36 cm and passed every value check.
         /// </summary>
-        private const string FormatVersion = "v3";   // v3 added the body-scale factor
+        private const string FormatVersion = "v4";   // v4: feet take their lateral position from the trackers
 
         /// <summary>User height ÷ rig height, captured at the last lock. 1 until calibrated.</summary>
         public float LastBodyScale { get; private set; } = 1f;
