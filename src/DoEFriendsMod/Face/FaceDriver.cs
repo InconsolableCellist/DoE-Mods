@@ -239,10 +239,19 @@ namespace DoEFriendsMod.Face
             // returns nothing, which is why eyelids and gaze would never have moved.
             switch (ueName)
             {
+                // `EyeLid` is not 0..1 open-to-shut. VRCFaceTracking's templates rest it at
+                // 0.75 with the eye fully OPEN — that is the documented default in the
+                // expression parameters asset — and values above that are a wide-eyed stare.
+                // Treating 1.0 as fully open therefore left the eyes a quarter shut at rest and
+                // never opened them properly.
                 case "EyeClosedLeft":
-                    return TryRaw(state, "EyeLidLeft", out var lidL) ? 1f - lidL : 0f;
+                    return TryRaw(state, "EyeLidLeft", out var lidL) ? Closure(lidL) : 0f;
                 case "EyeClosedRight":
-                    return TryRaw(state, "EyeLidRight", out var lidR) ? 1f - lidR : 0f;
+                    return TryRaw(state, "EyeLidRight", out var lidR) ? Closure(lidR) : 0f;
+                case "EyeWideLeft":
+                    return TryRaw(state, "EyeLidLeft", out var wideL) ? Widen(wideL) : 0f;
+                case "EyeWideRight":
+                    return TryRaw(state, "EyeLidRight", out var wideR) ? Widen(wideR) : 0f;
 
                 // Gaze arrives signed on one axis per eye; the four UE directions are its
                 // positive and negative halves.
@@ -256,6 +265,21 @@ namespace DoEFriendsMod.Face
                 case "EyeLookDownRight": return Negative(state, "EyeY");
             }
             return 0f;
+        }
+
+        /// <summary>Eyelid value → how shut the eye is, with `EyeLidOpenPoint` counting as open.</summary>
+        private static float Closure(float lid)
+        {
+            var open = Mathf.Clamp(ModConfig.FaceEyeLidOpenPoint.Value, 0.05f, 1f);
+            return Mathf.Clamp01((open - lid) / open);
+        }
+
+        /// <summary>Above the open point the eye is widening rather than opening further.</summary>
+        private static float Widen(float lid)
+        {
+            var open = Mathf.Clamp(ModConfig.FaceEyeLidOpenPoint.Value, 0.05f, 1f);
+            if (lid <= open || open >= 0.999f) return 0f;
+            return Mathf.Clamp01((lid - open) / (1f - open));
         }
 
         private static bool TryRaw(FaceState state, string name, out float value)
@@ -318,6 +342,44 @@ namespace DoEFriendsMod.Face
                 eye.rotation = Quaternion.Slerp(eye.rotation, wanted, smoothing);
             }
             catch { }
+        }
+
+        /// <summary>
+        /// Open the mouth from voice loudness, for anyone without face tracking.
+        ///
+        /// The game has no viseme system to borrow: it drives the vanilla jaw straight from
+        /// Vivox voice amplitude (`CharacterPrefab.closedJawAngle`/`openedJawAngle`,
+        /// `voiceEnergyOverride`), not from phonemes. `AvatarPlayer.VoiceEnergy` is computed on
+        /// every client for every player, so this needs no network traffic at all and works for
+        /// peers immediately — which matters, because a silent, motionless mouth reads as
+        /// broken far more than a crude one does.
+        ///
+        /// Drives `JawOpen` and the `aa` viseme if the avatar has them, which between them cover
+        /// most rigs.
+        /// </summary>
+        public void ApplyVoiceJaw(float energy, float deltaTime)
+        {
+            if (_targets.Count == 0) return;
+
+            var smoothing = 1f - Mathf.Exp(-8f * deltaTime);
+            var wanted = Mathf.Clamp01(energy * Mathf.Max(0f, ModConfig.VoiceJawScale.Value));
+            var scale = Mathf.Clamp(ModConfig.FaceShapeScale.Value, 0f, 2f) * 100f;
+
+            for (var i = 0; i < _targets.Count; i++)
+            {
+                var target = _targets[i];
+                if (!Interop.Alive(target.Renderer)) continue;
+
+                var drives = false;
+                for (var s = 0; s < target.Sources.Count; s++)
+                    if (target.Sources[s] == "JawOpen" || target.Sources[s] == "aa") { drives = true; break; }
+
+                // Everything else eases back to rest rather than freezing wherever it was.
+                var goal = drives ? wanted : 0f;
+                target.Current = Mathf.Lerp(target.Current, goal, smoothing);
+                try { target.Renderer.SetBlendShapeWeight(target.Index, target.Current * scale); }
+                catch { }
+            }
         }
 
         /// <summary>Relax the face — used when tracking goes stale so it doesn't freeze mid-expression.</summary>

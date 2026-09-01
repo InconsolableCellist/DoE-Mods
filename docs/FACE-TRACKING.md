@@ -104,6 +104,33 @@ generator extracts. So eye travel is tuned by hand through `FaceEyePitchDegrees`
 `FaceEyeYawDegrees`. Reading 2D trees for eye gain specifically would be a reasonable future
 addition, since the meaning there is unambiguous.
 
+### `EyeLid` rests at 0.75, not 1.0
+
+Worth stating on its own because it produced a subtle, easily-misread bug. VRCFaceTracking's
+templates rest `FT/v2/EyeLidLeft`/`Right` at **0.75** with the eye fully open — that is the
+documented default in the expression-parameters asset — and values above it mean a wide-eyed
+stare, not "more open". Computing `EyeClosed = 1 − EyeLid` therefore left the eyes a quarter
+shut at rest and never fully opened them.
+
+The mod treats `FaceEyeLidOpenPoint` (0.75) as fully open, scales closure below it, and maps
+above it onto `EyeWide*` where the avatar has those shapes.
+
+### Visemes: the game has none to borrow
+
+The game drives the vanilla jaw straight from **Vivox voice amplitude** —
+`CharacterPrefab.closedJawAngle`/`openedJawAngle` and `voiceEnergyOverride` — not from phonemes.
+OVRLipSync ships with the game but nothing was found using it. So there is no viseme stream to
+tap.
+
+What there is: `AvatarPlayer.VoiceEnergy`, computed on **every client for every player**. The
+mod drives `JawOpen` and the `aa` viseme from it whenever face tracking isn't providing a jaw
+value — which covers players with no face tracking at all, and peers before the face stream
+exists. It needs no network traffic, and a mouth that moves crudely reads far better than one
+that doesn't move at all.
+
+The avatar's own 15 `vrc.v_*` visemes are exported and mapped, so real viseme animation is
+available later if we ever generate phonemes locally.
+
 ### Correction to the shape table below
 
 The ordered list in this document was **written from the VRCFT docs, not from its source**, and

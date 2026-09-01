@@ -92,6 +92,10 @@ namespace DoEFriendsMod
         public static MelonPreferences_Entry<float> FaceShapeScale;
         public static MelonPreferences_Entry<float> FaceEyePitchDegrees;
         public static MelonPreferences_Entry<float> FaceEyeYawDegrees;
+        public static MelonPreferences_Entry<float> FaceEyeLidOpenPoint;
+        // Mouth movement from voice loudness, for players without face tracking.
+        public static MelonPreferences_Entry<bool> VoiceJawEnabled;
+        public static MelonPreferences_Entry<float> VoiceJawScale;
         public static MelonPreferences_Entry<float> FaceStaleSeconds;
         public static MelonPreferences_Entry<bool> SwapForceVanillaIK;
         /// <summary>"Retarget" copies the vanilla arms; "IKTargets" solves them to your controllers.</summary>
@@ -212,8 +216,15 @@ namespace DoEFriendsMod
             FaceSmoothing = Category.CreateEntry("FaceSmoothing", 0.5f);
             // Multiplier on every blendshape. Some faces want the whole set toned down.
             FaceShapeScale = Category.CreateEntry("FaceShapeScale", 1.0f);
-            FaceEyePitchDegrees = Category.CreateEntry("FaceEyePitchDegrees", 20f);
-            FaceEyeYawDegrees = Category.CreateEntry("FaceEyeYawDegrees", 25f);
+            // Measured in the headset against a real avatar rather than guessed: 20/25 was
+            // visibly under-driven.
+            FaceEyePitchDegrees = Category.CreateEntry("FaceEyePitchDegrees", 50f);
+            FaceEyeYawDegrees = Category.CreateEntry("FaceEyeYawDegrees", 60f);
+            // The EyeLid value at which the eye counts as fully open. VRCFaceTracking's
+            // templates rest it here, not at 1.0.
+            FaceEyeLidOpenPoint = Category.CreateEntry("FaceEyeLidOpenPoint", 0.75f);
+            VoiceJawEnabled = Category.CreateEntry("VoiceJawEnabled", true);
+            VoiceJawScale = Category.CreateEntry("VoiceJawScale", 1.5f);
             // Relax the face after this long with no OSC, so it doesn't freeze mid-expression
             // when VRCFaceTracking closes or the headset goes to sleep.
             FaceStaleSeconds = Category.CreateEntry("FaceStaleSeconds", 3f);

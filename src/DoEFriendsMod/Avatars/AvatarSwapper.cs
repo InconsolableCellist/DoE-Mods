@@ -709,15 +709,15 @@ namespace DoEFriendsMod.Avatars
 
             // Face after the body and hands: nothing above it touches blendshapes or eye
             // bones, but a fixed order means a future pose source can't start fighting it.
-            if (_face != null && IsSelf)
+            if (_face != null)
             {
-                var state = Core.Instance?.FaceState;
-                if (state != null)
-                {
-                    var stale = state.SecondsSinceLastMessage;
-                    if (stale >= 0 && stale < ModConfig.FaceStaleSeconds.Value) _face.Apply(state, deltaTime);
-                    else _face.Relax(deltaTime);
-                }
+                var state = IsSelf ? Core.Instance?.FaceState : null;
+                var stale = state?.SecondsSinceLastMessage ?? -1;
+                var tracking = state != null && stale >= 0 && stale < ModConfig.FaceStaleSeconds.Value;
+
+                if (tracking) _face.Apply(state, deltaTime);
+                else if (ModConfig.VoiceJawEnabled.Value) _face.ApplyVoiceJaw(ReadVoiceEnergy(), deltaTime);
+                else _face.Relax(deltaTime);
             }
 
             if (_springs == null || !ModConfig.SpringsEnabled.Value) return;
@@ -1143,6 +1143,13 @@ namespace DoEFriendsMod.Avatars
                         Core.Log.Error($"*** Model is {d:0.#} m from your head — the solver has thrown it across the map.");
                 }
             });
+        }
+
+        private float ReadVoiceEnergy()
+        {
+            if (!Interop.Alive(_player)) return 0f;
+            try { return _player.VoiceEnergy; }
+            catch { return 0f; }
         }
 
         private static string SafeName(AvatarPlayer p)
