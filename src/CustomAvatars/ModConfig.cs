@@ -154,8 +154,7 @@ namespace CustomAvatars
             // Empty picks the first one installed. F2 cycles and writes the choice back here.
             SelectedAvatar = Main.CreateEntry("Avatar", "");
             AutoWear = Main.CreateEntry("AutoWear", true);
-            HotkeysEnabled = Main.CreateEntry("HotkeysEnabled", true, description:
-                "The F-keys. They only work while the desktop game window has focus.");
+            HotkeysEnabled = Main.CreateEntry("HotkeysEnabled", true);
             HologramSwapEnabled = Main.CreateEntry("HologramSwapEnabled", true);
             HandPosesEnabled = Main.CreateEntry("HandPosesEnabled", true);
             SpringsEnabled = Main.CreateEntry("SpringsEnabled", true);
@@ -166,26 +165,19 @@ namespace CustomAvatars
             // VRCFaceTracking's OSCInPort, where we ask it to send everything.
             FaceOscSendPort = Main.CreateEntry("FaceOscSendPort", 9001);
             // What gives a face to friends with no tracking hardware, and it costs no traffic.
-            VoiceJawEnabled = Main.CreateEntry("VoiceJawEnabled", true, description:
-                "Mouth movement based on mic volume");
+            VoiceJawEnabled = Main.CreateEntry("VoiceJawEnabled", true);
             // Remembered across sessions so trackers come back on at launch once calibrated.
             // F10 flips it; the trackers themselves are read straight from SteamVR.
-            FbtEnabled = Main.CreateEntry("FbtEnabled", false, description:
-                "Full-body tracking from SteamVR trackers (hip + feet). F10 toggles.");
-            TrackerSyncEnabled = Main.CreateEntry("TrackerSyncEnabled", true, description:
-                "Stream your tracker poses to modded peers so they see your legs");
+            FbtEnabled = Main.CreateEntry("FbtEnabled", false);
+            TrackerSyncEnabled = Main.CreateEntry("TrackerSyncEnabled", true);
 
             // Off by default because it changes how the game plays, not how it looks: your
             // hitbox, your reach and your weapons all come with you. PageUp/PageDown turn it
             // on and trim it live.
-            HeightScalingEnabled = Main.CreateEntry("HeightScalingEnabled", false, description:
-                "Be the size of your avatar. Small avatars are small players — smaller hitbox, " +
-                "shorter reach, bigger world. PageUp/PageDown adjust, F12 back to vanilla.");
+            HeightScalingEnabled = Main.CreateEntry("HeightScalingEnabled", false);
             // The thing people actually want: wear a 1.2 m character, be 1.2 m tall.
-            HeightFromAvatar = Main.CreateEntry("HeightFromAvatar", true, description:
-                "Take the height from the avatar you're wearing rather than from HeightScale alone");
-            HeightScale = Main.CreateEntry("HeightScale", 1.0f, description:
-                "Multiplier on top of that. 0.5 is half your real height; 1 leaves it alone.");
+            HeightFromAvatar = Main.CreateEntry("HeightFromAvatar", true);
+            HeightScale = Main.CreateEntry("HeightScale", 1.0f);
 
             // ---- tuning -----------------------------------------------------------------
             // Restoring force toward the resting pose.

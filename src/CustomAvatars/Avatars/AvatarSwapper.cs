@@ -1407,9 +1407,6 @@ namespace CustomAvatars.Avatars
         public void Revert(string why)
         {
             // Un-hide first: if anything below throws, the player still has a body.
-            // Restore the vanilla body first and defensively. If this is skipped — because the
-            // renderer looked dead, or something above it threw — the player is left with no
-            // body at all and no way to get one back.
             try
             {
                 if (Interop.Alive(_hiddenVanillaMesh))
