@@ -66,6 +66,30 @@ namespace DoEFriendsMod.Avatars
 
         public int JointCount { get; private set; }
 
+        /// <summary>
+        /// When true, curls are supplied by <see cref="SetRemoteCurls"/> instead of read from
+        /// the controllers — a peer's fingers are driven by THEIR hands, not ours.
+        /// </summary>
+        public bool RemoteDriven { get; set; }
+
+        /// <summary>Current curls, thumb-to-little, left hand then right. Ten values, 0..1.</summary>
+        public void GetCurls(float[] into)
+        {
+            if (into == null || into.Length < FingerCount * 2) return;
+            for (var i = 0; i < FingerCount; i++) into[i] = _left?.Curl[i] ?? 0f;
+            for (var i = 0; i < FingerCount; i++) into[FingerCount + i] = _right?.Curl[i] ?? 0f;
+        }
+
+        public void SetRemoteCurls(float[] curls)
+        {
+            if (curls == null || curls.Length < FingerCount * 2) return;
+            for (var i = 0; i < FingerCount; i++)
+            {
+                if (_left != null) _left.Curl[i] = curls[i];
+                if (_right != null) _right.Curl[i] = curls[FingerCount + i];
+            }
+        }
+
         public string Build(GameObject model, AvatarManifest manifest)
         {
             _left = BuildHand(model, manifest, true);
@@ -189,10 +213,13 @@ namespace DoEFriendsMod.Avatars
             if (_left == null && _right == null) return;
             if (!ModConfig.HandPosesEnabled.Value) return;
 
-            ReadCurls(_left);
-            ReadCurls(_right);
+            if (!RemoteDriven)
+            {
+                ReadCurls(_left);
+                ReadCurls(_right);
+            }
 
-            if (ModConfig.HandPoseDebug.Value && Time.unscaledTime >= _nextDebugAt)
+            if (!RemoteDriven && ModConfig.HandPoseDebug.Value && Time.unscaledTime >= _nextDebugAt)
             {
                 _nextDebugAt = Time.unscaledTime + 0.5f;
                 Core.Log.Msg($"hands: L grip {_left?.LastGrip:0.00} trig {_left?.LastTrigger:0.00} " +

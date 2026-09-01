@@ -56,6 +56,8 @@ namespace DoEFriendsMod.Avatars
         private float _nextLeashLogAt;
         private float _lastSolverDrift;
         private int _leashTrips;
+        private bool _wasAlive = true;
+        private bool _hiddenForDeath;
         public string AvatarName { get; private set; }
 
         /// <summary>
@@ -66,6 +68,9 @@ namespace DoEFriendsMod.Avatars
         public bool IsSelf { get; private set; }
 
         public int ActorNumber { get; private set; } = -1;
+
+        /// <summary>The finger poser, if this avatar has one. Null while nothing is worn.</summary>
+        public HandPoser Hands => _hands;
 
         public AvatarSwapper()
         {
@@ -213,14 +218,12 @@ namespace DoEFriendsMod.Avatars
                 var springSummary = _springs.Build(_model, manifest);
                 _springs.Reset();
 
-                // Finger poses come from OUR controllers, so they only make sense on our own
-                // avatar. A peer's fingers will need the pose sent over the wire.
-                if (isSelf)
-                {
-                    _hands = new HandPoser();
-                    Core.Log.Msg($"    hand poses: {_hands.Build(_model, manifest)}");
-                    HandPoser.LogInputBackend();
-                }
+                // Both self and peers get a poser; they differ only in where the curl values
+                // come from. Ours reads the controllers, theirs is fed from the wire.
+                _hands = new HandPoser { RemoteDriven = !isSelf };
+                var handResult = _hands.Build(_model, manifest);
+                Core.Log.Msg($"    hand poses: {handResult}{(isSelf ? "" : " (driven by that peer)")}");
+                if (isSelf) HandPoser.LogInputBackend();
 
                 Core.Log.Msg($"*** Avatar swapped: {manifest.name} on {SafeName(player)} " +
                              $"(scale x{manifest.rig.suggestedScale:0.###})");
@@ -551,6 +554,9 @@ namespace DoEFriendsMod.Avatars
             // actually renders — reading before the correction produced a "the solver threw
             // the avatar 100 m away" error every single time while the avatar sat, correctly,
             // on the player.
+            ApplyAliveState();
+            if (_hiddenForDeath) return;   // vanilla ragdoll owns the body while you're down
+
             FollowVanillaRoot();
             UpdateHandOffsets();
             ApplyVanillaMeshVisibility();
@@ -584,6 +590,75 @@ namespace DoEFriendsMod.Avatars
             if (_springs == null || !ModConfig.SpringsEnabled.Value) return;
             try { _springs.Simulate(deltaTime); }
             catch (Exception e) { Core.Log.Warning($"Swap springs failed, disabling: {e.Message}"); _springs = null; }
+        }
+
+        /// <summary>
+        /// Hand the body back to the game while the player is down, and take it again when they
+        /// get up.
+        ///
+        /// Death is a ragdoll: the game switches physics on over `CharacterPrefab`'s rigidbodies
+        /// and colliders, and dissolves the character's renderers. Our model has neither — no
+        /// physics bodies and no dissolve-capable materials — so trying to follow a ragdoll
+        /// would leave a custom avatar standing rigidly upright while the real corpse falls over
+        /// beside it. Showing the vanilla body for those few seconds is both the honest result
+        /// and much less work than reproducing a ragdoll.
+        /// </summary>
+        private void ApplyAliveState()
+        {
+            if (!Interop.Alive(_player)) return;
+
+            bool alive;
+            try { alive = _player.IsAlive; }
+            catch { return; }
+
+            if (alive == _wasAlive) return;
+            _wasAlive = alive;
+
+            if (!alive)
+            {
+                _hiddenForDeath = true;
+                SetCustomModelVisible(false);
+                // Un-hide the vanilla mesh directly: ApplyVanillaMeshVisibility is skipped while
+                // we're hidden for death, so it can't do it for us.
+                if (Interop.Alive(_hiddenVanillaMesh))
+                {
+                    try { _hiddenVanillaMesh.enabled = true; } catch { }
+                }
+                Core.Log.Msg($"{(IsSelf ? "You" : $"Actor {ActorNumber}")} died — showing the vanilla body for the ragdoll.");
+            }
+            else
+            {
+                _hiddenForDeath = false;
+                SetCustomModelVisible(true);
+                // The rig was ragdolled and re-posed while we were away, so the retarget's
+                // captured reference is stale — rebuild it against the pose it came back in.
+                RebuildPoseSource();
+                Core.Log.Msg($"{(IsSelf ? "You" : $"Actor {ActorNumber}")} respawned — custom avatar back on.");
+            }
+        }
+
+        private void SetCustomModelVisible(bool visible)
+        {
+            if (!Interop.Alive(_model)) return;
+            try
+            {
+                var renderers = _model.GetComponentsInChildren<Renderer>(true);
+                for (var i = 0; i < renderers.Length; i++)
+                    if (Interop.Alive(renderers[i])) renderers[i].enabled = visible;
+            }
+            catch (Exception e) { Core.Log.Warning($"Could not toggle custom model visibility: {e.Message}"); }
+        }
+
+        private void RebuildPoseSource()
+        {
+            if (_retarget == null || !Interop.Alive(_player) || !Interop.Alive(_model) || _manifest == null) return;
+            try
+            {
+                var result = _retarget.Build(_player, _model, _manifest);
+                Core.Log.Msg($"    pose source rebuilt after respawn — {result}");
+                if (_retarget.LinkCount == 0) _retarget = null;
+            }
+            catch (Exception e) { Core.Log.Warning($"Pose rebuild failed: {e.Message}"); }
         }
 
         /// <summary>
@@ -779,6 +854,8 @@ namespace DoEFriendsMod.Avatars
             _keepBones.Clear();
             _headChopSpec = null;
             _leashTrips = 0;
+            _wasAlive = true;
+            _hiddenForDeath = false;
             _manifest = null;
             _model = null;
             _fullBody = null;

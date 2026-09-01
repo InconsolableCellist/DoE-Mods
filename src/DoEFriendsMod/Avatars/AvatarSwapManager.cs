@@ -29,6 +29,13 @@ namespace DoEFriendsMod.Avatars
         }
 
         public bool SelfActive => _self.IsActive;
+
+        /// <summary>Our own finger poser, the source for the outgoing hand stream.</summary>
+        public HandPoser SelfHandPoser => _self.IsActive ? _self.Hands : null;
+
+        /// <summary>A peer's finger poser, the destination for their incoming hand stream.</summary>
+        public HandPoser RemoteHandPoser(int actorNumber) =>
+            _remote.TryGetValue(actorNumber, out var swapper) && swapper.IsActive ? swapper.Hands : null;
         public string SelfAvatarName => _self.AvatarName;
 
         /// <summary>F4. Returns the avatar now worn, or null if it was taken off or refused.</summary>

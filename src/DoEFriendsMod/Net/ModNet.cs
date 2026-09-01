@@ -25,6 +25,8 @@ namespace DoEFriendsMod.Net
         public const byte CodeAvatarManifest = 141;
         public const byte CodeFaceStream = 142;
         public const byte CodeItems = 143;
+        /// <summary>Finger curls, 10 bytes. Unreliable — a dropped frame is one stale pose.</summary>
+        public const byte CodeHandPose = 144;
         public const byte CodeMin = 140;
         public const byte CodeMax = 149;
 
@@ -100,6 +102,35 @@ namespace DoEFriendsMod.Net
         /// </summary>
         public static bool Send(byte code, string payload, bool reliable, int[] targetActors = null)
             => SendRaw(code, (Il2CppSystem.String)payload, reliable, targetActors);
+
+        /// <summary>
+        /// Binary payload. The pose and face streams are byte-packed rather than stringly
+        /// typed: they run at 10-15 Hz forever, and a few bytes per tick is the difference
+        /// between negligible and noticeable next to voice.
+        /// </summary>
+        public static bool SendBytes(byte code, byte[] payload, bool reliable, int[] targetActors = null)
+        {
+            if (payload == null) return false;
+            var array = new Il2CppStructArray<byte>(payload.Length);
+            for (var i = 0; i < payload.Length; i++) array[i] = payload[i];
+            // An Il2Cpp array is an il2cpp object, but the interop wrapper isn't in
+            // Il2CppSystem.Object's managed hierarchy — cast through the pointer.
+            return SendRaw(code, new Il2CppSystem.Object(array.Pointer), reliable, targetActors);
+        }
+
+        /// <summary>Unpack a received binary payload, or null if it isn't one.</summary>
+        public static byte[] AsBytes(Il2CppSystem.Object content)
+        {
+            try
+            {
+                var array = content?.TryCast<Il2CppStructArray<byte>>();
+                if (array == null) return null;
+                var managed = new byte[array.Length];
+                for (var i = 0; i < array.Length; i++) managed[i] = array[i];
+                return managed;
+            }
+            catch { return null; }
+        }
 
         public static bool SendRaw(byte code, Il2CppSystem.Object payload, bool reliable, int[] targetActors = null)
         {

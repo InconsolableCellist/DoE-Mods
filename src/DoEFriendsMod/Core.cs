@@ -6,7 +6,7 @@ using DoEFriendsMod.Gate;
 using DoEFriendsMod.Net;
 using DoEFriendsMod.Recon;
 
-[assembly: MelonInfo(typeof(Core), "DoEFriendsMod", "0.11.1", "dan")]
+[assembly: MelonInfo(typeof(Core), "DoEFriendsMod", "0.12.0", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace DoEFriendsMod
@@ -25,7 +25,7 @@ namespace DoEFriendsMod
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.11.1";
+        public const string Version = "0.12.0";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -38,6 +38,7 @@ namespace DoEFriendsMod
         private AvatarPreview _preview;
         private AvatarSwapManager _swaps;
         private AvatarSync _avatarSync;
+        private HandSync _handSync;
         private bool _envDumped;
         private float _hotkeyCooldown;
 
@@ -70,6 +71,7 @@ namespace DoEFriendsMod
             _preview = new AvatarPreview(_avatarLibrary);
             _swaps = new AvatarSwapManager(_avatarLibrary);
             _avatarSync = new AvatarSync(_swaps, _avatarLibrary, _roster);
+            _handSync = new HandSync(_swaps, _roster);
         }
 
         public override void OnSceneWasInitialized(int buildIndex, string sceneName)
@@ -110,6 +112,7 @@ namespace DoEFriendsMod
             _preview?.LateUpdate(dt);
             // After the game's own IK has solved this frame; ours runs on top of the pose it left.
             _swaps?.Tick(dt);
+            _handSync?.Tick(UnityEngine.Time.unscaledTime);
         }
 
         private void OnGateChanged(bool active)

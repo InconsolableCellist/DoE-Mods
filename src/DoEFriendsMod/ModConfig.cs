@@ -73,6 +73,7 @@ namespace DoEFriendsMod
         /// <summary>"VanillaRig" copies the game's own animated pose; "VRIK" solves our own.</summary>
         public static MelonPreferences_Entry<string> SwapPoseSource;
         public static MelonPreferences_Entry<float> RetargetHipsFollow;
+        public static MelonPreferences_Entry<float> HandSyncHz;
 
         public static void Load()
         {
@@ -162,6 +163,8 @@ namespace DoEFriendsMod
             // players animate properly. Set to "VRIK" to go back to solving our own.
             SwapPoseSource = Category.CreateEntry("SwapPoseSource", "VanillaRig");
             RetargetHipsFollow = Category.CreateEntry("RetargetHipsFollow", 1.0f);
+            // Ten bytes per tick, sent only when a finger actually moved.
+            HandSyncHz = Category.CreateEntry("HandSyncHz", 12f);
         }
     }
 }

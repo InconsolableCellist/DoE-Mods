@@ -611,8 +611,25 @@ Other fixes in v0.11.0:
   right amounts. **Needs a re-export**: `maxAngleZ` and `limitRotation` aren't in manifests
   produced before this change.
 
+Fixed in v0.12.0:
+- **#3 remote fingers (`Avatars/HandSync.cs`, event 144).** Ten bytes, one per finger,
+  unreliable, ~12 Hz, sent only when a finger actually moved, with a keyframe every two seconds
+  for late joiners. Unreliable is the right call: a dropped packet costs one stale pose for a
+  fraction of a second and the next tick fixes it, whereas retransmitting stale hand positions
+  would be worse than skipping them. `HandPoser` gained a `RemoteDriven` mode — peers get the
+  same poser fed from the wire instead of from our controllers. Deliberately the same shape the
+  face stream will take, so the awkward parts (rate limiting, change gating, per-sender state)
+  get worked out carrying ten bytes rather than ninety-eight.
+- **Death and respawn (v0.12.0).** There was no lifecycle handling at all. Death is a ragdoll —
+  the game switches physics on over `CharacterPrefab`'s rigidbodies and dissolves its renderers —
+  and our model has neither physics bodies nor dissolve-capable materials, so following it would
+  leave a custom avatar standing rigidly upright beside the falling corpse. Instead the vanilla
+  body is shown for those few seconds and the custom one hidden, then swapped back on respawn.
+  The retarget's captured reference is rebuilt on the way back, since the rig was ragdolled and
+  re-posed while we weren't looking.
+
 Still open from that session:
-- **#3 remote fingers don't move.** Finger poses are read from *our* controllers, so peers see
+- **#3 remote fingers don't move.** *(fixed above)* Finger poses are read from *our* controllers, so peers see
   nothing. Needs a hand-curl stream — small, and the same shape as the planned face stream.
 - **#8 holsters sit loosely on the custom body.** Expected: holsters attach to the vanilla
   skeleton, which is the right thing for hitboxes but means the visual anchor is the old body's
