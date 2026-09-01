@@ -44,8 +44,12 @@ namespace DoEFriendsMod.Avatars
             public float Spring01;
             public float Gravity01;
             public float Immobile01;
-            /// <summary>PhysBone's cone limit in degrees from the rest direction. 0 = none.</summary>
-            public float MaxAngle;
+            /// <summary>PhysBone limit shape: None, Angle, Hinge or Polar.</summary>
+            public string LimitType;
+            public float MaxAngleX;
+            public float MaxAngleZ;
+            /// <summary>Rotation from the bone's rest orientation to the limit's own frame.</summary>
+            public Quaternion LimitFrame;
         }
 
         private class Collider
@@ -106,10 +110,22 @@ namespace DoEFriendsMod.Avatars
                     Spring01 = Mathf.Clamp01(info.spring),
                     Gravity01 = Mathf.Clamp01(info.gravity),
                     Immobile01 = Mathf.Clamp01(info.immobile),
-                    // Honour the avatar's own limit when it set one. A chain with no limit can
-                    // fold back through the body, which is the "bone limits not respected" look.
-                    MaxAngle = info.maxAngleX > 0.01f ? info.maxAngleX : ModConfig.SpringMaxAngleFallback.Value,
+                    // VRChat limits are per-chain and apply to every bone in it. `limitRotation`
+                    // is the frame they're measured against — without it a cone is centred on
+                    // the wrong axis and clamps in the wrong direction entirely.
+                    LimitType = string.IsNullOrEmpty(info.limitType) ? "None" : info.limitType,
+                    MaxAngleX = info.maxAngleX,
+                    MaxAngleZ = info.maxAngleZ,
+                    LimitFrame = ToEuler(info.limitRotation),
                 };
+                if (chain.LimitType.Equals("None", StringComparison.OrdinalIgnoreCase)
+                    && ModConfig.SpringMaxAngleFallback.Value > 0.01f)
+                {
+                    // The avatar set no limit; a generous cone still stops a tail folding back
+                    // through the body, which is what "no limit" looks like in practice.
+                    chain.LimitType = "Angle";
+                    chain.MaxAngleX = ModConfig.SpringMaxAngleFallback.Value;
+                }
 
                 var bones = new List<Transform>();
                 foreach (var path in info.bones)
@@ -173,7 +189,9 @@ namespace DoEFriendsMod.Avatars
                 Core.Log.Msg($"  chain `{chain.Name}`: {chain.Nodes.Count} bone(s), " +
                              $"stiffness {chain.Stiffness01:0.##}, spring {chain.Spring01:0.##}, " +
                              $"gravity {chain.Gravity01:0.##}, immobile {chain.Immobile01:0.##}, " +
-                             $"maxAngle {(chain.MaxAngle > 0.01f ? $"{chain.MaxAngle:0}°" : "none")}");
+                             $"limit {chain.LimitType}" +
+                             (chain.LimitType.Equals("None", StringComparison.OrdinalIgnoreCase)
+                                 ? "" : $" x{chain.MaxAngleX:0}° z{chain.MaxAngleZ:0}°"));
             foreach (var col in _colliders)
                 Core.Log.Msg($"  collider r={col.Radius:0.###} on `{Interop.ScenePath(col.Transform)}` " +
                              $"offset {col.Offset}");
@@ -239,19 +257,7 @@ namespace DoEFriendsMod.Avatars
             // Keep the bone rigid: the tip stays exactly one bone-length from its origin.
             nextTip = bone.position + (nextTip - bone.position).normalized * node.Length;
 
-            // Cone limit: never let the joint swing further from its animated direction than
-            // the PhysBone allowed.
-            if (chain.MaxAngle > 0.01f)
-            {
-                var current = nextTip - bone.position;
-                var angle = Vector3.Angle(restDir, current);
-                if (angle > chain.MaxAngle)
-                {
-                    var clamped = Vector3.RotateTowards(restDir, current,
-                        chain.MaxAngle * Mathf.Deg2Rad, 0f).normalized;
-                    nextTip = bone.position + clamped * node.Length;
-                }
-            }
+            nextTip = ApplyLimit(chain, node, bone, parentRotation, restDir, nextTip);
 
             if (ModConfig.SpringCollidersEnabled.Value)
                 nextTip = PushOutOfColliders(nextTip, bone.position, node.Length);
@@ -263,6 +269,71 @@ namespace DoEFriendsMod.Avatars
             if (to.sqrMagnitude < 1e-8f) return;
             bone.rotation = Quaternion.FromToRotation(restDir, to) * parentRotation * node.RestLocalRotation;
         }
+
+        /// <summary>
+        /// VRChat's three limit shapes, measured in the frame `limitRotation` defines. Angle is
+        /// a cone; Hinge confines the bone to a plane and clamps its swing within it; Polar is
+        /// an elliptical cone with separate limits on two axes.
+        ///
+        /// Hinge and Polar are close approximations rather than reproductions — the SDK's exact
+        /// solve isn't public — but they constrain the right axes by the right amounts, which is
+        /// what stops a chain folding somewhere it shouldn't.
+        /// </summary>
+        private static Vector3 ApplyLimit(Chain chain, Node node, Transform bone,
+                                          Quaternion parentRotation, Vector3 restDir, Vector3 tip)
+        {
+            if (string.IsNullOrEmpty(chain.LimitType) ||
+                chain.LimitType.Equals("None", StringComparison.OrdinalIgnoreCase)) return tip;
+
+            var dir = tip - bone.position;
+            if (dir.sqrMagnitude < 1e-8f) return tip;
+            dir.Normalize();
+
+            // The limit's own frame: the bone's rest orientation turned by limitRotation.
+            var frame = parentRotation * node.RestLocalRotation * chain.LimitFrame;
+            var refDir = (frame * node.BoneAxis).normalized;
+
+            Vector3 result;
+            if (chain.LimitType.Equals("Hinge", StringComparison.OrdinalIgnoreCase))
+            {
+                // One axis of freedom: flatten onto the hinge plane, then clamp the swing.
+                var hingeAxis = (frame * Vector3.right).normalized;
+                var flattened = Vector3.ProjectOnPlane(dir, hingeAxis);
+                if (flattened.sqrMagnitude < 1e-8f) return bone.position + refDir * node.Length;
+                flattened.Normalize();
+
+                var signed = Vector3.SignedAngle(refDir, flattened, hingeAxis);
+                var max = Mathf.Max(0f, chain.MaxAngleX);
+                var clampedAngle = Mathf.Clamp(signed, -max, max);
+                result = Quaternion.AngleAxis(clampedAngle, hingeAxis) * refDir;
+            }
+            else if (chain.LimitType.Equals("Polar", StringComparison.OrdinalIgnoreCase))
+            {
+                // Elliptical cone: split the deviation across the frame's two lateral axes and
+                // clamp each to its own maximum.
+                var axisX = (frame * Vector3.right).normalized;
+                var axisZ = (frame * Vector3.forward).normalized;
+                var angleX = Vector3.SignedAngle(refDir, Vector3.ProjectOnPlane(dir, axisZ).normalized, axisZ);
+                var angleZ = Vector3.SignedAngle(refDir, Vector3.ProjectOnPlane(dir, axisX).normalized, axisX);
+                var maxX = Mathf.Max(0f, chain.MaxAngleX);
+                var maxZ = Mathf.Max(0f, chain.MaxAngleZ > 0.01f ? chain.MaxAngleZ : chain.MaxAngleX);
+                var clampedX = Mathf.Clamp(angleX, -maxX, maxX);
+                var clampedZ = Mathf.Clamp(angleZ, -maxZ, maxZ);
+                result = Quaternion.AngleAxis(clampedZ, axisX) * Quaternion.AngleAxis(clampedX, axisZ) * refDir;
+            }
+            else
+            {
+                // Angle: a plain cone about the reference direction.
+                var max = Mathf.Max(0f, chain.MaxAngleX);
+                if (Vector3.Angle(refDir, dir) <= max) return tip;
+                result = Vector3.RotateTowards(refDir, dir, max * Mathf.Deg2Rad, 0f).normalized;
+            }
+
+            return bone.position + result.normalized * node.Length;
+        }
+
+        private static Quaternion ToEuler(List<float> v) =>
+            v != null && v.Count >= 3 ? Quaternion.Euler(v[0], v[1], v[2]) : Quaternion.identity;
 
         private Vector3 PushOutOfColliders(Vector3 tip, Vector3 origin, float length)
         {

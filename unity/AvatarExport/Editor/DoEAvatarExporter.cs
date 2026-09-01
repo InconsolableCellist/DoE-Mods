@@ -906,8 +906,9 @@ namespace DoEMod.Export
                     foreach (var o in ig) if (o is Transform it && it != null) ignore.Add(it);
 
                 float pull, spring, stiffness, gravity, gravityFalloff, immobile, radius, maxAngleX;
+                float maxAngleZ;
                 string limitType;
-                List<object> endpoint;
+                List<object> endpoint, limitRotation;
 
                 if (isPhysBone)
                 {
@@ -919,6 +920,10 @@ namespace DoEMod.Export
                     immobile  = ToFloat(GetMember(c, "immobile"), 0f);
                     radius    = ToFloat(GetMember(c, "radius"), 0f);
                     maxAngleX = ToFloat(GetMember(c, "maxAngleX"), 0f);
+                    // Polar limits use a second angle, and limitRotation is the frame the whole
+                    // limit is measured against — without it a cone is centred on the wrong axis.
+                    maxAngleZ = ToFloat(GetMember(c, "maxAngleZ"), 0f);
+                    limitRotation = VecToList(GetMember(c, "limitRotation"));
                     limitType = GetMember(c, "limitType")?.ToString() ?? "None";
                     endpoint  = VecToList(GetMember(c, "endpointPosition"));
                 }
@@ -935,6 +940,8 @@ namespace DoEMod.Export
                     immobile  = ToFloat(GetMember(c, "m_Inert"), 0f);
                     radius    = ToFloat(GetMember(c, "m_Radius"), 0f);
                     maxAngleX = 0f;
+                    maxAngleZ = 0f;
+                    limitRotation = null;
                     limitType = "None";
                     endpoint  = null;
                 }
@@ -953,6 +960,7 @@ namespace DoEMod.Export
                         {"gravity", gravity}, {"gravityFalloff", gravityFalloff},
                         {"immobile", immobile}, {"radius", radius},
                         {"limitType", limitType}, {"maxAngleX", maxAngleX},
+                        {"maxAngleZ", maxAngleZ}, {"limitRotation", limitRotation},
                         {"endpointPosition", endpoint},
                     });
                 }
@@ -960,7 +968,8 @@ namespace DoEMod.Export
                 var childCount = root.childCount;
                 var rootIsDefault = root == c.transform;
                 notes.Add($"    - {typeName} on `{ownerPath}` → root `{RelPath(clone.transform, root)}`" +
-                          (rootIsDefault ? " (unassigned, defaulted to own transform)" : "") + " " +
+                          (rootIsDefault ? " (unassigned, defaulted to own transform)" : "") +
+                          (limitType != "None" ? $" [limit {limitType} x{maxAngleX:0}° z{maxAngleZ:0}°]" : "") + " " +
                           $"({childCount} child(ren)) → {produced} chain(s)" +
                           (produced == 0
                               ? childCount == 0

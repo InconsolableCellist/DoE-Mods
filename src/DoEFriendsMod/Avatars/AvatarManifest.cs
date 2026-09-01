@@ -71,8 +71,12 @@ namespace DoEFriendsMod.Avatars
             /// <summary>How much the chain ignores the wearer's own motion (VRC `immobile`, 0..1).</summary>
             public float immobile;
             public float radius;
+            /// <summary>VRChat's PhysBone limit: None, Angle, Hinge or Polar.</summary>
             public string limitType;
             public float maxAngleX;
+            public float maxAngleZ;
+            /// <summary>Euler angles defining the frame the limit is measured against.</summary>
+            public List<float> limitRotation;
             public List<float> endpointPosition;
         }
 

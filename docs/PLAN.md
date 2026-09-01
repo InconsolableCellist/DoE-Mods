@@ -598,8 +598,18 @@ Other fixes in v0.11.0:
 - **One pinky bending backwards (#4):** a near-straight finger makes `cross(v1,v2)` degenerate
   and the fallback axis can land mirrored. Fingers on a hand now have to agree — any whose axis
   opposes the majority is flipped. The thumb is exempt, since it genuinely differs.
-- **Spring chains folding through the body (#1):** PhysBone's `maxAngleX` cone limit is now
-  enforced, with `SpringMaxAngleFallback` (75°) for chains that specify none.
+- **Spring chains folding through the body (#1):** VRChat's PhysBone limits are per-chain and
+  apply to every bone in it, with four parts: `limitType` (None / Angle / Hinge / Polar),
+  `maxAngleX`, `maxAngleZ`, and **`limitRotation`** — the frame the limit is measured against.
+  The first attempt only had `limitType`/`maxAngleX` and measured against the raw rest
+  direction, which centres a cone on the wrong axis. v0.11.1 captures all four in the exporter
+  and implements all three shapes: Angle is a cone about the reference direction; Hinge flattens
+  the bone onto the hinge plane and clamps its swing within it; Polar is an elliptical cone
+  clamped separately on two axes. `SpringMaxAngleFallback` (75°) still applies a generous cone to
+  chains that set no limit at all. Hinge and Polar are close approximations rather than
+  reproductions — the SDK's exact solve isn't public — but they constrain the right axes by the
+  right amounts. **Needs a re-export**: `maxAngleZ` and `limitRotation` aren't in manifests
+  produced before this change.
 
 Still open from that session:
 - **#3 remote fingers don't move.** Finger poses are read from *our* controllers, so peers see
