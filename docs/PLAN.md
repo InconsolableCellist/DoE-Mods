@@ -497,6 +497,14 @@ tracking. Two known issues from that first look:
          (dump.cs:849386) but only `GetHumanPose` survived IL2CPP stripping — there is **no
          `SetHumanPose`** in this build, so we can read the game rig's humanoid pose and cannot
          write it to ours. Worth knowing before anyone reaches for it.
+- [ ] **Overlay GUI — scope decided 2026-08-31.** A *desktop* IMGUI panel (v0.12.1,
+      `Overlay.cs`, F1 to hide) showing gate state, selected avatar, swap state and the key
+      list. Deliberately **not** interactive and **not** in VR: Unity's IMGUI draws to the
+      desktop mirror, never into the headset, so on-screen buttons would be no easier to reach
+      than the keys they replace — you would still have to take the headset off to click them.
+      A genuinely in-headset panel needs a world-space canvas plus laser-pointer interaction
+      driven from `XRInput`, which is real work and can't be tested by anyone but the wearer.
+      Not attempted yet, and not obviously worth it while the key list fits on one card.
 - [ ] **Replace the character-menu pedestal model.** The home world has your character on a
       pedestal for trying on cosmetics; showing the custom avatar there instead would make the
       swap feel like part of the game rather than a thing bolted on. Target confirmed:

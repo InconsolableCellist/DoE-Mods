@@ -671,7 +671,10 @@ namespace DoEFriendsMod.Avatars
         private void FollowVanillaRoot()
         {
             if (!Interop.Alive(_fullBody) || !Interop.Alive(_model)) return;
-            if (!ModConfig.SwapFollowVanillaRoot.Value) return;
+            // SwapFollowVanillaRoot only ever existed to hand the root to VRIK's procedural
+            // locomotion for one experiment. When we're retargeting, the root MUST follow the
+            // game's body — nothing else positions it — so the setting doesn't get a say.
+            if (_retarget == null && !ModConfig.SwapFollowVanillaRoot.Value) return;
             try
             {
                 var target = _fullBody.transform.position;

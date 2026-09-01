@@ -6,7 +6,7 @@ using DoEFriendsMod.Gate;
 using DoEFriendsMod.Net;
 using DoEFriendsMod.Recon;
 
-[assembly: MelonInfo(typeof(Core), "DoEFriendsMod", "0.12.0", "dan")]
+[assembly: MelonInfo(typeof(Core), "DoEFriendsMod", "0.12.1", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace DoEFriendsMod
@@ -25,7 +25,7 @@ namespace DoEFriendsMod
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.12.0";
+        public const string Version = "0.12.1";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -106,6 +106,15 @@ namespace DoEFriendsMod
             PollHotkeys();
         }
 
+        /// <summary>One-line swap state for the overlay.</summary>
+        public string SwapSummary => _swaps?.Describe() ?? "-";
+
+        public override void OnGUI()
+        {
+            try { Overlay.Draw(); }
+            catch { /* a GUI exception every frame would bury the log */ }
+        }
+
         public override void OnLateUpdate()
         {
             var dt = UnityEngine.Time.deltaTime;
@@ -170,6 +179,11 @@ namespace DoEFriendsMod
                 {
                     _hotkeyCooldown = 0.5f;
                     _avatarLibrary.Rescan();
+                }
+                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F1))
+                {
+                    _hotkeyCooldown = 0.5f;
+                    Overlay.Visible = !Overlay.Visible;
                 }
                 else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F2))
                 {
