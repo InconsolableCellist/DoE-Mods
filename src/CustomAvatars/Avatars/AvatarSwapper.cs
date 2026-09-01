@@ -62,7 +62,8 @@ namespace CustomAvatars.Avatars
         private float _lastSolverDrift;
         private float _nextArmLogAt;
         private float _nextPeerPoseLogAt;
-        private bool _retargetCapturedUnsolved;
+        private bool _retargetNeedsRecapture;
+        private float _retargetSettleUntil;
         private bool _vanillaMeshWasUpdateOffscreen;
         private Bounds _vanillaMeshWasLocalBounds;
         private int _leashTrips;
@@ -209,12 +210,16 @@ namespace CustomAvatars.Avatars
                     _retarget = new PoseRetargeter();
                     var result = _retarget.Build(player, _model, manifest);
 
-                    // Self only. The game disables VRIK on YOUR body, so its arms never track
-                    // your controllers and copying them can't work. A remote player's body is
-                    // solved normally — that's how you see them fight — so their copied arms are
-                    // correct and better than anything we'd reconstruct from their IK targets.
-                    var solveArms = isSelf && string.Equals(ModConfig.SwapArmSource.Value, "IKTargets",
-                                                            StringComparison.OrdinalIgnoreCase);
+                    // The game disables VRIK on YOUR body, so its arms never track your
+                    // controllers and copying them can't work — your own arms have to be solved.
+                    // A peer's body is solved normally, so copying gets their arms pointing the
+                    // right way, but not their hands in the right place: rotations alone can't
+                    // account for an avatar whose arms aren't the length of the body underneath,
+                    // which is why a peer's hands sit a little inside their real ones.
+                    // SwapSolvePeerArms solves theirs too, against their own hand targets.
+                    var wantSolvedArms = string.Equals(ModConfig.SwapArmSource.Value, "IKTargets",
+                                                       StringComparison.OrdinalIgnoreCase);
+                    var solveArms = wantSolvedArms && (isSelf || ModConfig.SwapSolvePeerArms.Value);
                     if (isSelf && !solveArms && ModConfig.SwapForceVanillaIK.Value) ForceVanillaIk(fullBody);
 
                     if (solveArms)
@@ -224,7 +229,10 @@ namespace CustomAvatars.Avatars
                         // with the stick they lag behind the controllers, and a held weapon
                         // (parented to the controller, not the target) slides out of the hand
                         // until you stop. The controllers themselves have no such lag.
-                        var useControllers = string.Equals(ModConfig.SwapArmTargetSource.Value, "Controllers",
+                        // Controllers are a local thing. A peer has no controller transforms on
+                        // this machine, only the smoothed targets their body already follows.
+                        var useControllers = isSelf &&
+                                             string.Equals(ModConfig.SwapArmTargetSource.Value, "Controllers",
                                                            StringComparison.OrdinalIgnoreCase);
                         var leftParent = useControllers ? player.LeftHand : player.IKTargetLeftHand;
                         var rightParent = useControllers ? player.RightHand : player.IKTargetRightHand;
@@ -238,10 +246,7 @@ namespace CustomAvatars.Avatars
                         if (!_armIk.HasArms) _armIk = null;
                     }
                     Core.Log.Msg($"    pose source: VanillaRig — {result}");
-                    _retargetCapturedUnsolved = !RigIsSolved();
-                    if (_retargetCapturedUnsolved)
-                        Core.Log.Msg("    pose source: captured while the game wasn't solving this " +
-                                     "rig — will take the reference again once it is.");
+                    ArmReferenceAgain("swapped in");
                     if (_retarget.LinkCount == 0)
                     {
                         Core.Log.Warning("    retargeting found no usable bones; falling back to VRIK.");
@@ -913,6 +918,24 @@ namespace CustomAvatars.Avatars
             catch (Exception e) { Core.Log.Warning($"Could not toggle custom model visibility: {e.Message}"); }
         }
 
+        /// <summary>
+        /// Say that the reference pose we just took is provisional, and take it again shortly.
+        ///
+        /// A swap and a respawn both catch the body mid-transition — culled and frozen, or
+        /// still snapping round to face its spawn direction — and the reference is a delta
+        /// origin, so anything wrong with it is wrong for as long as the avatar is worn. One
+        /// playtest respawned into a body turned a full 180°, and two F4s to fix it is two more
+        /// than it should take.
+        /// </summary>
+        private void ArmReferenceAgain(string why)
+        {
+            _retargetNeedsRecapture = true;
+            _retargetSettleUntil = Time.unscaledTime + Mathf.Max(0f, ModConfig.RetargetSettleSeconds.Value);
+            if (!RigIsSolved())
+                Core.Log.Msg($"    pose source: {why} while the game wasn't solving this rig — " +
+                             "will take the reference again once it is.");
+        }
+
         /// <summary>Is the game actually solving this body right now? LOD 2 means it is not.</summary>
         private bool RigIsSolved()
         {
@@ -934,10 +957,11 @@ namespace CustomAvatars.Avatars
         /// </summary>
         private void RecaptureWhenSolved()
         {
-            if (!_retargetCapturedUnsolved || _retarget == null) return;
+            if (!_retargetNeedsRecapture || _retarget == null) return;
+            if (Time.unscaledTime < _retargetSettleUntil) return;
             if (!Interop.Alive(_model) || _manifest == null || !RigIsSolved()) return;
 
-            _retargetCapturedUnsolved = false;
+            _retargetNeedsRecapture = false;
             try
             {
                 Animator source = null;
@@ -945,7 +969,7 @@ namespace CustomAvatars.Avatars
                 if (!Interop.Alive(source)) return;
 
                 var result = _retarget.Recapture(source, _model, _manifest);
-                Core.Log.Msg($"    pose source re-captured now the game is solving this rig — {result}");
+                Core.Log.Msg($"    pose source re-captured once the rig had settled — {result}");
                 if (_retarget.LinkCount == 0) _retarget = null;
             }
             catch (Exception e) { Core.Log.Warning($"Pose re-capture failed: {e.Message}"); }
@@ -962,7 +986,7 @@ namespace CustomAvatars.Avatars
                     ? _retarget.Recapture(source, _model, _manifest)
                     : _retarget.Build(_player, _model, _manifest);
                 Core.Log.Msg($"    pose source rebuilt after respawn — {result}");
-                _retargetCapturedUnsolved = !RigIsSolved();
+                ArmReferenceAgain("rebuilt after a respawn");
                 if (_retarget.LinkCount == 0) _retarget = null;
             }
             catch (Exception e) { Core.Log.Warning($"Pose rebuild failed: {e.Message}"); }

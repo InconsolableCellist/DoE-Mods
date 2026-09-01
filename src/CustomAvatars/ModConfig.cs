@@ -129,6 +129,8 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<float> DiagPeerPoseSeconds;
         public static MelonPreferences_Entry<string> SwapHideVanillaMeshMode;
         public static MelonPreferences_Entry<bool> SwapKeepVanillaMeshInView;
+        public static MelonPreferences_Entry<bool> SwapSolvePeerArms;
+        public static MelonPreferences_Entry<float> RetargetSettleSeconds;
         public static MelonPreferences_Entry<bool> RetargetAlignAtCapture;
         public static MelonPreferences_Entry<bool> FaceForceRelevant;
 
@@ -339,6 +341,16 @@ namespace CustomAvatars
             SwapForceVanillaIK = Dev.CreateEntry("SwapForceVanillaIK", false, description:
                 "Re-enable the IK the game deliberately turned off on your own body. It doesn't " +
                 "produce usable arms, so there's no reason to interfere.");
+            SwapSolvePeerArms = Dev.CreateEntry("SwapSolvePeerArms", false, description:
+                "Solve a peer's avatar arms to their own hand targets instead of copying their " +
+                "rig's arm rotations. Copying is right about where the arm points but not about " +
+                "where the hand ends up, because the avatar's arms aren't the length of the body " +
+                "underneath — which is why a peer's hands sit slightly inside their real ones. " +
+                "Off by default because it has had no playtest yet.");
+            RetargetSettleSeconds = Dev.CreateEntry("RetargetSettleSeconds", 0.5f, description:
+                "How long to let a rig settle before taking the reference pose off it. A swap or " +
+                "a respawn catches the body mid-transition, and a reference taken then is a tilt " +
+                "that lasts the whole session.");
             RetargetHipsFollow = Dev.CreateEntry("RetargetHipsFollow", 1.0f);
             DiagPeerPoseSeconds = Dev.CreateEntry("DiagPeerPoseSeconds", 1.0f, description:
                 "Seconds between the one-line report on why a peer's avatar is or isn't moving. " +

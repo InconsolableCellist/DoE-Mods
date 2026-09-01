@@ -223,6 +223,16 @@ namespace CustomAvatars.Avatars
             {
                 Vector3 sourceDir, targetDir;
 
+                // The head has nothing below it that we retarget, so the child lookup below
+                // never had anything to aim it at and it went unaligned — the same oversight
+                // the hands had, and the reason a peer's head sat up and to the right for a
+                // whole session. Eyes give it something to point at.
+                if (link.Bone == HumanBodyBones.Head)
+                {
+                    if (TryAlignHead(source, model, map, byBone, link)) aligned++;
+                    continue;
+                }
+
                 var child = FindChild(byBone, link.Bone);
                 if (child != null)
                 {
@@ -245,6 +255,79 @@ namespace CustomAvatars.Avatars
                 catch { }
             }
             return aligned;
+        }
+
+        /// <summary>
+        /// Line the head up on two axes rather than one: forward from the eyes, up from the
+        /// neck.
+        ///
+        /// Every other bone is aligned by pointing it at the bone below, which fixes where a
+        /// limb points but says nothing about how it is rolled about its own length. On an arm
+        /// that error is small and hidden by the next joint down. On a head there is no next
+        /// joint, and the error is the whole thing you look at — a peer whose face is turned
+        /// up and to the right for as long as they wear the avatar. Two axes pin all three
+        /// degrees of freedom, so the head starts out facing exactly where the game's head
+        /// faces and the delta carries it correctly from there.
+        /// </summary>
+        private static bool TryAlignHead(Animator source, GameObject model, Dictionary<string, string> map,
+                                         Dictionary<HumanBodyBones, Link> byBone, Link head)
+        {
+            try
+            {
+                if (!Interop.Alive(head.Source) || !Interop.Alive(head.Target)) return false;
+                if (!TryEyeMidpoint(source, model, map, out var srcEye, out var dstEye)) return false;
+
+                // The neck if the avatar has one, the chest if it doesn't; either gives the
+                // direction the head sits along.
+                if (!byBone.TryGetValue(HumanBodyBones.Neck, out var below) &&
+                    !byBone.TryGetValue(HumanBodyBones.UpperChest, out below) &&
+                    !byBone.TryGetValue(HumanBodyBones.Chest, out below)) return false;
+                if (!Interop.Alive(below.Source) || !Interop.Alive(below.Target)) return false;
+
+                var srcForward = srcEye - head.Source.position;
+                var dstForward = dstEye - head.Target.position;
+                var srcUp = head.Source.position - below.Source.position;
+                var dstUp = head.Target.position - below.Target.position;
+
+                if (srcForward.sqrMagnitude < 1e-8f || dstForward.sqrMagnitude < 1e-8f ||
+                    srcUp.sqrMagnitude < 1e-8f || dstUp.sqrMagnitude < 1e-8f) return false;
+
+                var srcRot = Quaternion.LookRotation(srcForward.normalized, srcUp.normalized);
+                var dstRot = Quaternion.LookRotation(dstForward.normalized, dstUp.normalized);
+                head.TargetRest = srcRot * Quaternion.Inverse(dstRot) * head.TargetRest;
+                return true;
+            }
+            catch { return false; }
+        }
+
+        /// <summary>
+        /// Where the eyes are on each rig, averaged when both are mapped so the direction comes
+        /// out of the middle of the face rather than out of one eye.
+        /// </summary>
+        private static bool TryEyeMidpoint(Animator source, GameObject model, Dictionary<string, string> map,
+                                           out Vector3 sourceMid, out Vector3 targetMid)
+        {
+            sourceMid = targetMid = Vector3.zero;
+            var found = 0;
+            foreach (var eye in new[] { HumanBodyBones.LeftEye, HumanBodyBones.RightEye })
+            {
+                try
+                {
+                    var src = source.GetBoneTransform(eye);
+                    if (!Interop.Alive(src)) continue;
+                    if (!map.TryGetValue(eye.ToString(), out var path) || string.IsNullOrEmpty(path)) continue;
+                    var dst = model.transform.Find(path);
+                    if (!Interop.Alive(dst)) continue;
+                    sourceMid += src.position;
+                    targetMid += dst.position;
+                    found++;
+                }
+                catch { }
+            }
+            if (found == 0) return false;
+            sourceMid /= found;
+            targetMid /= found;
+            return true;
         }
 
         /// <summary>
