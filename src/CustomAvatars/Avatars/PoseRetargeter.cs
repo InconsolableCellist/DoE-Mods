@@ -258,8 +258,8 @@ namespace CustomAvatars.Avatars
         }
 
         /// <summary>
-        /// Line the head up on two axes rather than one: forward from the eyes, up from the
-        /// neck.
+        /// Line the head up on two axes rather than one: up from the neck, and which way it
+        /// faces from the eyes.
         ///
         /// Every other bone is aligned by pointing it at the bone below, which fixes where a
         /// limb points but says nothing about how it is rolled about its own length. On an arm
@@ -284,13 +284,22 @@ namespace CustomAvatars.Avatars
                     !byBone.TryGetValue(HumanBodyBones.Chest, out below)) return false;
                 if (!Interop.Alive(below.Source) || !Interop.Alive(below.Target)) return false;
 
-                var srcForward = srcEye - head.Source.position;
-                var dstForward = dstEye - head.Target.position;
                 var srcUp = head.Source.position - below.Source.position;
                 var dstUp = head.Target.position - below.Target.position;
+                if (srcUp.sqrMagnitude < 1e-8f || dstUp.sqrMagnitude < 1e-8f) return false;
 
-                if (srcForward.sqrMagnitude < 1e-8f || dstForward.sqrMagnitude < 1e-8f ||
-                    srcUp.sqrMagnitude < 1e-8f || dstUp.sqrMagnitude < 1e-8f) return false;
+                // Flatten the eye direction against the neck axis before using it. Where the
+                // eyes sit relative to the head bone is a modelling choice and differs between
+                // rigs — the game's sit about level with the bone, an imported avatar's can be
+                // well above or below it — and Quaternion.LookRotation honours the forward
+                // vector exactly, so feeding it the raw eye direction hands that difference
+                // straight through as pitch. It was worth about a chin on the chest. The neck
+                // axis is a real skeletal direction both rigs agree on, so pitch comes from
+                // that, and the eyes are left to do the one job they are reliable for: which
+                // way round the head faces.
+                var srcForward = Vector3.ProjectOnPlane(srcEye - head.Source.position, srcUp);
+                var dstForward = Vector3.ProjectOnPlane(dstEye - head.Target.position, dstUp);
+                if (srcForward.sqrMagnitude < 1e-8f || dstForward.sqrMagnitude < 1e-8f) return false;
 
                 var srcRot = Quaternion.LookRotation(srcForward.normalized, srcUp.normalized);
                 var dstRot = Quaternion.LookRotation(dstForward.normalized, dstUp.normalized);
