@@ -39,9 +39,15 @@ namespace DoEMod.Export
             public string Controller;
         }
 
-        public static void Generate(GameObject avatar)
+        public static void Generate(GameObject selected)
         {
+            // Name the file after the AVATAR, not whatever was selected. Picking a child — a
+            // VRCFury holder, say — produced `VRCFury-FaceTracking-Rex.overrides.json`, which
+            // the mod would never look for, since it matches files by avatar name.
+            var avatar = ResolveAvatarRoot(selected);
             var report = new StringBuilder($"=== DoE face override scan: {avatar.name} ===\n");
+            if (avatar != selected)
+                report.AppendLine($"(Selected `{selected.name}`; using its avatar root `{avatar.name}` for the file name.)");
 
             var controllers = FindControllers(avatar, report);
             if (controllers.Count == 0)
@@ -199,6 +205,17 @@ namespace DoEMod.Export
                         break;
                 }
             }
+        }
+
+        /// <summary>Walk up to the object carrying the humanoid Animator — that's the avatar.</summary>
+        private static GameObject ResolveAvatarRoot(GameObject selected)
+        {
+            for (var t = selected.transform; t != null; t = t.parent)
+            {
+                var animator = t.GetComponent<Animator>();
+                if (animator != null && animator.avatar != null && animator.avatar.isHuman) return t.gameObject;
+            }
+            return selected.transform.root.gameObject;
         }
 
         private static IEnumerable<AnimatorState> AllStates(AnimatorStateMachine machine)

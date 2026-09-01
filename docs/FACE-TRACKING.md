@@ -65,6 +65,28 @@ eyelids therefore work even if everything above fails — a useful floor to degr
   the parser must handle `#bundle`, and a value that stops arriving means it stopped moving,
   not that tracking died.
 
+### VRCFaceTracking's combined parameters are not optional
+
+The single most consequential thing learned here, and it took three separate bugs to see it:
+**avatars built on the face-tracking templates are authored against VRCFT's *combined*
+parameters, not its raw shape names.** The combined set packs opposing pairs into one signed
+value — `SmileFrownLeft` is `MouthCornerPullLeft − MouthFrownLeft`, `JawX` is
+`JawRight − JawLeft`, `BrowExpressionLeft` spans lowerer through inner-up, and `EyeLidLeft`
+carries openness with **1 meaning open**.
+
+Reading only the raw UE names therefore fails in a way that looks like a mapping problem: jaw
+and tongue work (raw names the hardware drives directly), while smile, sneer, brow and mouth
+movement do nothing at all, because the raw parameters behind them never move on an avatar
+driven through the combined ones.
+
+The mod now falls back from each raw name to the combined parameter that carries it, taking the
+positive or negative half as appropriate. The table lives in `Face/FaceDriver.cs`.
+
+Confirming evidence, from running the override generator over the avatar's own controllers: its
+blend trees are driven by `SmileFrownLeft/Right`, `MouthX`, `JawX`, `LipFunnel`, `LipPucker`,
+`MouthUpperUp`, `MouthLowerDown`, `EyeLidLeft/Right`, `EyeLeftX/RightX` — combined names, every
+one.
+
 ### Correction to the shape table below
 
 The ordered list in this document was **written from the VRCFT docs, not from its source**, and

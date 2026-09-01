@@ -34,6 +34,74 @@ namespace DoEFriendsMod.Face
             public float Current;
         }
 
+        private readonly struct CombinedSource
+        {
+            public readonly string Parameter;
+            /// <summary>+1 takes the positive half, -1 the negative half, 0 the whole unsigned value.</summary>
+            public readonly int Sign;
+            public CombinedSource(string parameter, int sign) { Parameter = parameter; Sign = sign; }
+        }
+
+        /// <summary>
+        /// Raw Unified Expressions name → the combined parameter that carries it, and which half.
+        /// Taken from VRCFaceTracking's own combined-shape definitions.
+        /// </summary>
+        private static readonly Dictionary<string, CombinedSource> Combined =
+            new Dictionary<string, CombinedSource>(StringComparer.Ordinal)
+        {
+            { "MouthCornerPullLeft",   new CombinedSource("SmileFrownLeft", 1) },
+            { "MouthCornerSlantLeft",  new CombinedSource("SmileFrownLeft", 1) },
+            { "MouthFrownLeft",        new CombinedSource("SmileFrownLeft", -1) },
+            { "MouthCornerPullRight",  new CombinedSource("SmileFrownRight", 1) },
+            { "MouthCornerSlantRight", new CombinedSource("SmileFrownRight", 1) },
+            { "MouthFrownRight",       new CombinedSource("SmileFrownRight", -1) },
+
+            { "MouthUpperRight", new CombinedSource("MouthX", 1) },
+            { "MouthLowerRight", new CombinedSource("MouthX", 1) },
+            { "MouthUpperLeft",  new CombinedSource("MouthX", -1) },
+            { "MouthLowerLeft",  new CombinedSource("MouthX", -1) },
+
+            { "JawRight", new CombinedSource("JawX", 1) },
+            { "JawLeft",  new CombinedSource("JawX", -1) },
+
+            { "LipFunnelUpperLeft",  new CombinedSource("LipFunnel", 0) },
+            { "LipFunnelUpperRight", new CombinedSource("LipFunnel", 0) },
+            { "LipFunnelLowerLeft",  new CombinedSource("LipFunnel", 0) },
+            { "LipFunnelLowerRight", new CombinedSource("LipFunnel", 0) },
+
+            { "LipPuckerUpperLeft",  new CombinedSource("LipPucker", 0) },
+            { "LipPuckerUpperRight", new CombinedSource("LipPucker", 0) },
+            { "LipPuckerLowerLeft",  new CombinedSource("LipPucker", 0) },
+            { "LipPuckerLowerRight", new CombinedSource("LipPucker", 0) },
+
+            { "MouthUpperUpLeft",    new CombinedSource("MouthUpperUp", 0) },
+            { "MouthUpperUpRight",   new CombinedSource("MouthUpperUp", 0) },
+            { "MouthLowerDownLeft",  new CombinedSource("MouthLowerDown", 0) },
+            { "MouthLowerDownRight", new CombinedSource("MouthLowerDown", 0) },
+
+            { "NoseSneerLeft",  new CombinedSource("NoseSneer", 0) },
+            { "NoseSneerRight", new CombinedSource("NoseSneer", 0) },
+
+            { "BrowInnerUpLeft",  new CombinedSource("BrowExpressionLeft", 1) },
+            { "BrowOuterUpLeft",  new CombinedSource("BrowExpressionLeft", 1) },
+            { "BrowLowererLeft",  new CombinedSource("BrowExpressionLeft", -1) },
+            { "BrowPinchLeft",    new CombinedSource("BrowExpressionLeft", -1) },
+            { "BrowInnerUpRight", new CombinedSource("BrowExpressionRight", 1) },
+            { "BrowOuterUpRight", new CombinedSource("BrowExpressionRight", 1) },
+            { "BrowLowererRight", new CombinedSource("BrowExpressionRight", -1) },
+            { "BrowPinchRight",   new CombinedSource("BrowExpressionRight", -1) },
+
+            { "CheekPuffLeft",  new CombinedSource("CheekPuffSuckLeft", 1) },
+            { "CheekSuckLeft",  new CombinedSource("CheekPuffSuckLeft", -1) },
+            { "CheekPuffRight", new CombinedSource("CheekPuffSuckRight", 1) },
+            { "CheekSuckRight", new CombinedSource("CheekPuffSuckRight", -1) },
+
+            { "TongueRight", new CombinedSource("TongueX", 1) },
+            { "TongueLeft",  new CombinedSource("TongueX", -1) },
+            { "TongueUp",    new CombinedSource("TongueY", 1) },
+            { "TongueDown",  new CombinedSource("TongueY", -1) },
+        };
+
         private readonly List<Target> _targets = new List<Target>();
         private Transform _leftEye, _rightEye;
         private FaceOverrides _overrides;
@@ -146,6 +214,21 @@ namespace DoEFriendsMod.Face
         private static float Read(FaceState state, string ueName)
         {
             if (TryRaw(state, ueName, out var direct)) return direct;
+
+            // Fall back to VRCFaceTracking's COMBINED parameters.
+            //
+            // Its combined set packs a pair of opposing raw shapes into one signed value —
+            // `SmileFrownLeft` is `MouthCornerPullLeft - MouthFrownLeft`, `JawX` is
+            // `JawRight - JawLeft`, and so on. Avatars built on the face-tracking templates are
+            // authored against those combined names, so an avatar can be fully rigged for a
+            // shape while the raw parameter behind it never moves — which is why smiles, sneers
+            // and mouth movement did nothing while jaw and tongue worked.
+            if (Combined.TryGetValue(ueName, out var source))
+            {
+                if (TryRaw(state, source.Parameter, out var combined))
+                    return source.Sign == 0 ? Mathf.Clamp01(combined)
+                         : source.Sign > 0 ? Mathf.Clamp01(combined) : Mathf.Clamp01(-combined);
+            }
 
             // Several shapes our exporter maps are NOT sent by VRCFaceTracking as raw shapes:
             // its UnifiedExpressions enum has no EyeClosed* or EyeLook* members at all. Eye
