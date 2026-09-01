@@ -1121,8 +1121,11 @@ namespace CustomAvatars.Avatars
                 _nextArmDumpAt = Time.unscaledTime + 3f;
 
                 Core.Log.Msg($"*** Avatar re-bound ({why}) — {result}");
+                // The same rise FBT plays when a calibration locks in: you are in a headset
+                // holding a T-pose, and this is how you know it took.
+                Fbt.FbtAudio.Locked();
             }
-            catch (Exception e) { Core.Log.Warning($"Re-bind failed: {e.Message}"); }
+            catch (Exception e) { Core.Log.Warning($"Re-bind failed: {e.Message}"); Fbt.FbtAudio.Error(); }
         }
 
         private void RebuildPoseSource()
