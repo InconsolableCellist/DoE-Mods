@@ -150,11 +150,20 @@ smoothing layers and Binary_Gen quantisation**, both of which exist to fit VRCha
 parameter sync budget and its slow parameter updates. Neither constraint applies to us — our
 Photon stream carries raw bytes at whatever rate we choose, and we smooth on our own terms.
 
-Worse, that machinery is actively in the way. 135 parameters use an `FT/v2/` prefix, alongside
-a `BinaryOut/FT/v2/...` family and bit-weight parameters (`...1`, `...2`, `...4`,
-`...Negative`). Where a blendshape is driven by the decoded `BinaryOut` value rather than the
-raw float, feeding the raw float does nothing — we would have to **quantise floats into bits
-purely so the controller could un-quantise them again on the same machine.**
+**Correction to an earlier claim in this document:** I asserted that blendshapes driven via
+`BinaryOut/FT/v2/...` would ignore raw floats, forcing us to quantise into bits so the
+controller could un-quantise them. A closer read of the template says otherwise — the
+un-suffixed `FT/v2/<Name>` floats **are** the inputs, and the `BinaryOut/...`, `OSCm/...` and
+bit-weight (`1`/`2`/`4`/`Negative`) families are internal to VRChat's sync path. Driving the
+controller locally is a matter of setting ~140 plain floats.
+
+So Option B is more viable than that paragraph implied. It stays deferred for the remaining
+reasons — 4.6 MB of controller, a dependency on VRCFury's build step, and an eye-rotation layer
+that drives **humanoid muscle curves** (`Left Eye In-Out`, etc.) rather than bone transforms,
+which silently does nothing unless the avatar's eye bones are mapped into its humanoid rig.
+Two values worth remembering if it's ever revisited: `FT/v2/EyeLidLeft`/`Right` default to
+**0.75** and `FT/v2/PupilDilation` to **0.43**, so a controller fed all-zeros renders a face
+with its eyes shut.
 
 What we give up: an author's bespoke corrective shapes and any mapping that isn't name-matched.
 Worth revisiting for a specific avatar that needs it; not worth paying for by default, when the
@@ -179,9 +188,15 @@ and writes:
 }
 ```
 
-- **Eyes**: prefer bone rotation (humanoid `LeftEye`/`RightEye`) driven by the 8 gaze
-  shapes (`Out−In → yaw`, `Up−Down → pitch`); fall back to gaze blendshapes if present
-  and no bones. Eyelids from `EyeClosed*` (+ `EyeWide*` counter-shape when present).
+- **Eyes**: bone rotation (humanoid `LeftEye`/`RightEye`), driven from the **combined**
+  parameters — see the correction below.
+- **VRCFaceTracking does not send `EyeClosed*` or `EyeLook*` at all.** Its `UnifiedExpressions`
+  enum contains neither: eye openness and gaze live in a separate eye structure and go out as
+  combined parameters — `EyeLidLeft`/`EyeLidRight` (where **1 is open**, not closed) and
+  `EyeLeftX` / `EyeRightX` / `EyeY` (signed −1..1). Reading the raw UE names returns nothing,
+  so eyelids and gaze silently never moved in v0.19.0. Fixed in v0.19.1, which derives
+  `EyeClosed* = 1 − EyeLid*` and splits the signed gaze axes into the four UE directions for
+  any avatar whose blendshapes are named that way.
 - **Alias table (implemented 2026-08-31).** The exporter runs two passes: canonical UE names
   first, then a fallback table covering ARKit and the older, coarser UE names most avatars were
   actually authored against. Every alias is tagged with a **kind**, because "we found a shape

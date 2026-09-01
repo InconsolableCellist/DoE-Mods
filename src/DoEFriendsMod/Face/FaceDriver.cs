@@ -137,31 +137,61 @@ namespace DoEFriendsMod.Face
         /// </summary>
         private static float Read(FaceState state, string ueName)
         {
-            if (state.TryGet("/avatar/parameters/v2/" + ueName, out var v)) return v;
-            if (state.TryGet("/avatar/parameters/FT/v2/" + ueName, out v)) return v;
-            if (state.TryGet("/avatar/parameters/" + ueName, out v)) return v;
+            if (TryRaw(state, ueName, out var direct)) return direct;
+
+            // Several shapes our exporter maps are NOT sent by VRCFaceTracking as raw shapes:
+            // its UnifiedExpressions enum has no EyeClosed* or EyeLook* members at all. Eye
+            // openness and gaze live in a separate eye structure and go out as COMBINED
+            // parameters — EyeLidLeft/Right and EyeLeftX/EyeRightX/EyeY. Reading the raw names
+            // returns nothing, which is why eyelids and gaze would never have moved.
+            switch (ueName)
+            {
+                case "EyeClosedLeft":
+                    return TryRaw(state, "EyeLidLeft", out var lidL) ? 1f - lidL : 0f;
+                case "EyeClosedRight":
+                    return TryRaw(state, "EyeLidRight", out var lidR) ? 1f - lidR : 0f;
+
+                // Gaze arrives signed on one axis per eye; the four UE directions are its
+                // positive and negative halves.
+                case "EyeLookOutLeft":  return Positive(state, "EyeLeftX");
+                case "EyeLookInLeft":   return Negative(state, "EyeLeftX");
+                case "EyeLookOutRight": return Negative(state, "EyeRightX");
+                case "EyeLookInRight":  return Positive(state, "EyeRightX");
+                case "EyeLookUpLeft":
+                case "EyeLookUpRight":   return Positive(state, "EyeY");
+                case "EyeLookDownLeft":
+                case "EyeLookDownRight": return Negative(state, "EyeY");
+            }
             return 0f;
         }
+
+        private static bool TryRaw(FaceState state, string name, out float value)
+        {
+            if (state.TryGet("/avatar/parameters/v2/" + name, out value)) return true;
+            if (state.TryGet("/avatar/parameters/FT/v2/" + name, out value)) return true;
+            if (state.TryGet("/avatar/parameters/" + name, out value)) return true;
+            value = 0f;
+            return false;
+        }
+
+        private static float Positive(FaceState state, string name) =>
+            TryRaw(state, name, out var v) ? Mathf.Clamp01(v) : 0f;
+
+        private static float Negative(FaceState state, string name) =>
+            TryRaw(state, name, out var v) ? Mathf.Clamp01(-v) : 0f;
 
         private void ApplyEyes(FaceState state, float smoothing)
         {
             if (!HasEyeBones) return;
 
             // UE gives four unsigned directions per eye; a signed angle is their difference.
-            var leftYaw = Read(state, "EyeLookOutLeft") - Read(state, "EyeLookInLeft");
-            var leftPitch = Read(state, "EyeLookUpLeft") - Read(state, "EyeLookDownLeft");
-            var rightYaw = Read(state, "EyeLookInRight") - Read(state, "EyeLookOutRight");
-            var rightPitch = Read(state, "EyeLookUpRight") - Read(state, "EyeLookDownRight");
-
-            // `/tracking/eye/LeftRightPitchYaw` is sent unconditionally, with no negotiation at
-            // all, so it is the one thing that still works if everything else fails.
-            if (Mathf.Abs(leftYaw) + Mathf.Abs(leftPitch) + Mathf.Abs(rightYaw) + Mathf.Abs(rightPitch) < 0.001f)
-            {
-                if (state.TryGet("/tracking/eye/LeftRightPitchYaw", out var packed))
-                {
-                    leftPitch = rightPitch = packed;   // single-value fallback; better than frozen eyes
-                }
-            }
+            // Straight from the combined parameters, which is how VRCFaceTracking actually
+            // sends gaze — already signed, so no reassembly from four directions needed.
+            TryRaw(state, "EyeLeftX", out var leftYaw);
+            TryRaw(state, "EyeRightX", out var rightYaw);
+            TryRaw(state, "EyeY", out var pitch);
+            var leftPitch = pitch;
+            var rightPitch = pitch;
 
             var maxX = ModConfig.FaceEyePitchDegrees.Value;
             var maxY = ModConfig.FaceEyeYawDegrees.Value;
