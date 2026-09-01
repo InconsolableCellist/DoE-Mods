@@ -78,6 +78,13 @@ namespace DoEFriendsMod
         public static MelonPreferences_Entry<float> ArmTwistShare;
         public static MelonPreferences_Entry<float> HandSyncHz;
         public static MelonPreferences_Entry<bool> HologramSwapEnabled;
+
+        // Face tracking over OSC from VRCFaceTracking.
+        public static MelonPreferences_Entry<bool> FaceOscEnabled;
+        public static MelonPreferences_Entry<int> FaceOscListenPort;
+        public static MelonPreferences_Entry<int> FaceOscSendPort;
+        public static MelonPreferences_Entry<bool> FaceForceRelevant;
+        public static MelonPreferences_Entry<bool> FaceOscDebug;
         public static MelonPreferences_Entry<bool> SwapForceVanillaIK;
         /// <summary>"Retarget" copies the vanilla arms; "IKTargets" solves them to your controllers.</summary>
         public static MelonPreferences_Entry<string> SwapArmSource;
@@ -178,6 +185,15 @@ namespace DoEFriendsMod
             HandSyncHz = Category.CreateEntry("HandSyncHz", 12f);
             // Show custom avatars on the equipment-room mannequins as well as on the players.
             HologramSwapEnabled = Category.CreateEntry("HologramSwapEnabled", true);
+
+            FaceOscEnabled = Category.CreateEntry("FaceOscEnabled", true);
+            // VRCFaceTracking's OSCOutPort. 9000 is its default and VRChat's too, so if VRChat
+            // is running at the same time one of them has to move.
+            FaceOscListenPort = Category.CreateEntry("FaceOscListenPort", 9000);
+            // VRCFaceTracking's OSCInPort, where we ask it to send everything.
+            FaceOscSendPort = Category.CreateEntry("FaceOscSendPort", 9001);
+            FaceForceRelevant = Category.CreateEntry("FaceForceRelevant", true);
+            FaceOscDebug = Category.CreateEntry("FaceOscDebug", false);
             // Only meaningful when the arms are copied from the vanilla body. Off by default:
             // the game disables that body's IK deliberately, and re-enabling it didn't produce
             // usable arms anyway, so there's no reason to interfere with it.

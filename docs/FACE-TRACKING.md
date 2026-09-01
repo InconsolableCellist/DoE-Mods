@@ -22,14 +22,57 @@ we decide which parameters VRCFT sends. We request the full UE *base* set as pla
 Combined params exist only to squeeze into VRChat's 256-bit parameter budget, which we
 don't have.
 
-### Getting VRCFT to send to us (investigation order, from PLAN Phase 3)
+### Getting VRCFT to send to us — **settled 2026-08-31 by reading the source**
 
-1. VRCFT manual OSC endpoint config (if current builds still allow bypassing OSCQuery).
-2. Implement minimal **OSCQuery**: mDNS advertise `_oscjson._tcp` (+ `_osc._udp`) and
-   serve the OSCQuery JSON tree listing our `/avatar/parameters/v2/*` float endpoints.
-   VRCFT then discovers us exactly as it would VRChat. (~300 lines: mDNS responder + tiny
-   HTTP server; both trivial over raw sockets.)
-3. Fallback: standalone relay process.
+The OSCQuery work is **not needed**. Two findings from `/mnt/c/git/VRCFaceTracking`:
+
+**1. The send target is plain configuration, and OSCQuery never overrides it.**
+`OscSendService` connects a UDP socket to `IPEndPoint(OscTarget.DestinationAddress,
+OscTarget.OutPort)` and nothing else changes it. Those come from
+`%AppData%\VRCFaceTracking\VRCFaceTracking\ApplicationData\LocalSettings.json`:
+
+| Key | Default | Meaning |
+|---|---|---|
+| `OSCAddress` | `127.0.0.1` | where VRCFT sends |
+| `OSCOutPort` | `9000` | port it sends to — **we listen here** |
+| `OSCInPort` | `9001` | port it listens on — we send here |
+
+So we listen, and that is the whole delivery mechanism. No mDNS responder, no HTTP server.
+
+**2. `/vrcft/settings/forceRelevant` replaces avatar negotiation.**
+By default every `/avatar/parameters/...` parameter starts `Relevant = false` and only switches
+on when VRCFT matches it against a parameter list the receiver declared — normally via an
+OSCQuery `/avatar` response or a VRChat avatar-config JSON on disk. But
+`OscQueryService.HandleNewMessage` also accepts `/vrcft/settings/forceRelevant` (bool), which
+sets `AllParametersRelevant` and switches on **everything**. One UDP packet to
+`127.0.0.1:9001` replaces the entire discovery mechanism. That's what the mod sends at startup.
+
+**3. Some parameters arrive with no negotiation at all.** `AlwaysRelevantParameter` sends
+`/tracking/eye/LeftRightPitchYaw` and `/tracking/eye/EyesClosedAmount` unconditionally. Gaze and
+eyelids therefore work even if everything above fails — a useful floor to degrade to.
+
+### Wire details that matter to the receiver
+
+- Addresses are `"/avatar/parameters/" + name`; raw shapes are `v2/<UnifiedExpressionsName>`.
+- **Raw shape weights are 0..1. Combined parameters are signed −1..1** (`v2/JawX`,
+  `v2/BrowExpression`, `v2/MouthX`, `v2/SmileFrown`, …), computed by VRCFT itself from the raw
+  shapes. Each parameter also has a companion bool.
+- Type tags: `f` float, `i` int, `T`/`F` bool — **`T`/`F` carry no payload bytes**, the tag is
+  the value. Getting that wrong desynchronises the rest of the message.
+- Bit-packed "binary" parameters are only produced for bit-steps the receiver *declared*, so
+  with `forceRelevant` we get plain floats and can ignore that mechanism entirely.
+- Sent as **OSC bundles** on a 10 ms tick, change-gated — unchanged values are not resent. So
+  the parser must handle `#bundle`, and a value that stops arriving means it stopped moving,
+  not that tracking died.
+
+### Correction to the shape table below
+
+The ordered list in this document was **written from the VRCFT docs, not from its source**, and
+the real `UnifiedExpressions` enum (`VRCFaceTracking.Core/Params/Expressions/UnifiedExpressions.cs`)
+is in a different order and includes `SoftPalateClose`, `ThroatSwallow`, `NeckFlexRight/Left`
+before its `Max` sentinel. Since the face stream has not shipped, **the enum's own order should
+become the canonical one** rather than ours — it costs nothing now and avoids a permanent
+translation layer between our IDs and everyone else's.
 
 Parse note: accept any address whose trailing segments are `v2/<Name>` (VRCFT allows
 nested prefixes like `FT/v2/JawOpen`); also accept bare `<Name>` for tools that skip the

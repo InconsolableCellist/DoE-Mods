@@ -6,7 +6,7 @@ using DoEFriendsMod.Gate;
 using DoEFriendsMod.Net;
 using DoEFriendsMod.Recon;
 
-[assembly: MelonInfo(typeof(Core), "DoEFriendsMod", "0.16.0", "dan")]
+[assembly: MelonInfo(typeof(Core), "DoEFriendsMod", "0.17.0", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace DoEFriendsMod
@@ -25,7 +25,7 @@ namespace DoEFriendsMod
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.16.0";
+        public const string Version = "0.17.0";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -40,6 +40,8 @@ namespace DoEFriendsMod
         private AvatarSync _avatarSync;
         private HandSync _handSync;
         private HologramSwapper _holograms;
+        private Face.VrcftBridge _face;
+        private float _nextFaceLogAt;
         private bool _envDumped;
         private float _hotkeyCooldown;
 
@@ -74,6 +76,12 @@ namespace DoEFriendsMod
             _avatarSync = new AvatarSync(_swaps, _avatarLibrary, _roster);
             _handSync = new HandSync(_swaps, _roster);
             _holograms = new HologramSwapper(_avatarLibrary, _swaps);
+
+            if (ModConfig.FaceOscEnabled.Value)
+            {
+                _face = new Face.VrcftBridge();
+                _face.Start();
+            }
         }
 
         public override void OnSceneWasInitialized(int buildIndex, string sceneName)
@@ -125,6 +133,15 @@ namespace DoEFriendsMod
             _swaps?.Tick(dt);
             _handSync?.Tick(UnityEngine.Time.unscaledTime);
             _holograms?.Tick(UnityEngine.Time.unscaledTime);
+
+            if (_face != null && ModConfig.FaceOscDebug.Value &&
+                UnityEngine.Time.unscaledTime >= _nextFaceLogAt)
+            {
+                _nextFaceLogAt = UnityEngine.Time.unscaledTime + 2f;
+                LoggerInstance.Msg($"Face OSC: {_face.State.Count} parameter(s), " +
+                                   $"{_face.State.MessageCount} message(s), " +
+                                   $"last {_face.State.SecondsSinceLastMessage:0.0}s ago");
+            }
         }
 
         private void OnGateChanged(bool active)
@@ -224,6 +241,7 @@ namespace DoEFriendsMod
         public override void OnApplicationQuit()
         {
             _preview?.Despawn("application quitting");
+            _face?.Dispose();
             _holograms?.RevertAll("application quitting");
             _swaps?.RevertAll("application quitting");
             ModGate.ForceInert("application quitting");
