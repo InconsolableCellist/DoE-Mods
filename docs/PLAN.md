@@ -433,6 +433,29 @@ tracking. Two known issues from that first look:
   on the wrist joint. `ArmIK` now passes a share of the roll back to the forearm using a
   swing-twist decomposition — only the component that spins about the bone, since bending the
   elbow there would move the hand off the target just solved for. `ArmTwistShare`, default 0.5.
+- **Right wrist still pinching to a sliver (v0.35.0).** The share above was measured against
+  the hand orientation the retarget left behind — for your own body, the idle animation's
+  wrist, whose roll has nothing to do with your controller's. The wrist was left holding half
+  of (controller − animation), routinely past ninety degrees on the right arm. Now measured
+  against the bind pose, the one wrist known to skin properly: `ArmTwistShare` of that goes to
+  the forearm, and whatever is left over `ArmWristTwistLimitDegrees` (75) goes to the forearm
+  too. Forearm roll is about its own axis, so the hand never moves.
+- **Hands not on target, and the log saying why (v0.35.0).** Three sessions of `arms:` lines
+  said the right hand was 36–53 cm from its target and the left 15–35, far more than
+  `needed − reach` allows, and `needed` itself was 20–25 cm larger on the right than the left
+  with both hands hanging at the sides — so the shoulder joints are not where the shoulders
+  are, and something on the right chain was breaking the solve on top of that. Two certain
+  faults fixed: scale compounds down a hierarchy, so scaling upper arm and forearm both by s
+  made the forearm s² long, and the solve then multiplied the already-scaled measured lengths
+  by s again — at 8% stretch it was planning for an arm 21% longer than it had. Only the upper
+  arm is scaled now (which lengthens both bones by s), lengths are measured with the previous
+  stretch divided out, and the expected geometric miss is computed alongside the real one.
+  Then `ArmLockHands` (on): after the solve the hand bone is put exactly on the target, so a
+  residual pulls the wrist skin rather than leaving the hand off the weapon. The solver's own
+  miss is still logged, with `shoulder off Ncm` (our upper-arm joint vs the game rig's), and a
+  full geometry dump — every bone position, local and lossy scale, the game rig's shoulder and
+  hand — prints once after each swap and whenever a hand misses by more than its reach
+  explains. That dump is what settles the right-arm fault.
 - **Red finger outline around held weapons (v0.21.0).** Hiding the first-person arms used a
   *hide-list* of names starting `FPS_Arm`, which only removes what we thought of. Something
   else — an outline or highlight, evidently created or enabled when a weapon is grabbed, so it
@@ -752,7 +775,7 @@ vanilla skeleton, and vanilla peers still see stock avatars.
 
 ---
 
-### 2c. Being the size of your avatar (v0.33.0, built, untested in a real run)
+### 2c. Being the size of your avatar (v0.33.0; first real runs and fixes in v0.35.0)
 
 Everything above resizes the MODEL to fit the player — a 1.2 m character is stretched to the
 player's 1.75 m and wears their face. This resizes the PLAYER instead, which is the diversity
@@ -791,13 +814,28 @@ themselves is redrawn at their size rather than at the size they put the avatar 
 
 Open, and answerable only in a real run:
 
-- **Held weapons.** `Prop` has `CanParentToPlayer`, `defaultParent` and a stored `defaultScale`,
-  so a held prop is expected to be parented into the rig and scale with the player. If it is,
-  the danger is the moment it leaves: Unity preserves world scale across a reparent, so a
-  dropped weapon keeps its shrunk `localScale` — in a pooled, networked object a full-size
-  friend can then pick up. `HeightRestorePropScale` remembers the scale a prop had on pickup and
-  puts it back on release; the pickup is logged with its local and world scale, which is what
-  settles whether any of this happens at all.
+- **Held weapons — answered (v0.35.0).** A held prop IS parented into the rig, and Unity's
+  world-scale preservation leaves it full-size: the log showed a dagger at local 0.69 under a
+  rig at 1.45, world exactly 1, and local 1 again once dropped. So a small player holds a
+  full-size sword, and nothing needed restoring. Worse, the v0.33 "insurance" remembered the
+  LOCAL scale at pickup and wrote it back on release, which shrank every dropped weapon to
+  0.69 — the exact corruption it was written against. It now remembers world scale and only
+  acts if that has changed by the time the prop leaves, which should be never.
+- **The fit oscillated (v0.35.0).** `AvatarSwapper.Calibrate` measured the avatar's head height
+  on a model it had already scaled and applied the ratio as an absolute scale, so from any
+  scale s the next answer was P/(H·s), then s again: PageUp alternated the avatar between too
+  big and too small (feet in the air on the small frames — 1.45 m, 2.00 m, 1.46 m, 2.19 m in
+  one log), and Home landed on whichever branch it was on, once at 0.76 for a 1.07 avatar. It
+  also re-measured you a quarter second after each change and read the smoothed head target
+  mid-move (1.53 m for a 1.75 m person). Now: your standing eye height and the avatar's base
+  head height are each measured once and every fit is arithmetic on those two; a player-scale
+  change re-fits by the known factor with no measurement; and a taller reading held for 1.5 s
+  replaces the eye height, so a swap done sitting down is fixed when you stand up.
+- **The keys (v0.35.0).** PgUp/PgDn switched `HeightScalingEnabled` on, so "set it to false and
+  press F3" lasted until the next PgUp, and Home — which switched it off — was undone by the
+  same key. The master switch is now the config file's alone; Home is a session-level
+  "vanilla until PgUp/PgDn" that resets `HeightScale` to 1; releasing the rig recentres you the
+  same way applying does, so Home is no longer a sidestep.
 - **Melee damage is velocity-based** (`Prop.velocity`, `maxLinearVelocity`, `throwForceMlp`,
   `OnWhoosh(normalizedSpeed)`). At half scale the same arm motion is half the world velocity,
   so hits land softer and may fall under a threshold the dump can't show (no method bodies).

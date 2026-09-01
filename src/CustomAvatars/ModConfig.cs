@@ -77,6 +77,8 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<float> ArmStretch;
         public static MelonPreferences_Entry<float> ArmShoulderYieldDegrees;
         public static MelonPreferences_Entry<float> ArmTwistShare;
+        public static MelonPreferences_Entry<float> ArmWristTwistLimitDegrees;
+        public static MelonPreferences_Entry<bool> ArmLockHands;
 
         public static MelonPreferences_Entry<float> FaceSmoothing;
         public static MelonPreferences_Entry<float> FaceShapeScale;
@@ -232,6 +234,13 @@ namespace CustomAvatars
             // pinches the mesh into a straw when you turn your palm up.
             ArmTwistShare = Tuning.CreateEntry("ArmTwistShare", 0.5f, description:
                 "How much wrist roll is passed back up to the forearm, 0 to 1");
+            // Past this the wrist mesh collapses whatever the share says, so the forearm takes
+            // the rest. Measured from the bind pose, which is the one wrist that skins right.
+            ArmWristTwistLimitDegrees = Tuning.CreateEntry("ArmWristTwistLimitDegrees", 75f, description:
+                "The most the wrist may twist away from its rest pose before the forearm turns instead");
+            // The hand goes exactly where the controller is, even if the arm couldn't get it
+            // there. False shows the solver's honest miss, for diagnosing it.
+            ArmLockHands = Tuning.CreateEntry("ArmLockHands", true);
 
             FaceSmoothing = Tuning.CreateEntry("FaceSmoothing", 0.5f);
             // Some faces want the whole set toned down.

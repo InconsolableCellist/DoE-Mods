@@ -68,8 +68,9 @@ namespace CustomAvatars.Avatars
         private int _driftTrips;
         private bool _dead;                // resolution threw; complain once, then stay quiet
         private bool _engaged;             // we are holding the rig and owe it a restore
+        private bool _suspended;           // Home: vanilla size until PageUp/PageDown, config untouched
 
-        /// <summary>Props that were in our hands, and the local scale they had when we took them.</summary>
+        /// <summary>Props that were in our hands, and the WORLD scale they had when we took them.</summary>
         private readonly Dictionary<int, (Prop prop, Vector3 scale)> _held =
             new Dictionary<int, (Prop, Vector3)>();
         private readonly List<PropRoot> _propRoots = new List<PropRoot>();
@@ -95,6 +96,8 @@ namespace CustomAvatars.Avatars
             var applied = $"x{_applied:0.00}";
             if (!ModConfig.HeightScalingEnabled.Value)
                 return _engaged ? "off — restoring" : "off";
+            if (_suspended)
+                return _engaged ? "vanilla — restoring" : "vanilla (Home) — PgUp/PgDn to resume";
             if (!Interop.Alive(_rig)) return $"waiting for the rig ({applied})";
 
             var eyes = _eyeHeight > 0f ? $"{_eyeHeight * _applied:0.00} m of {_eyeHeight:0.00} m" : "?";
@@ -122,9 +125,9 @@ namespace CustomAvatars.Avatars
                 // was quietly overwritten for the rest of the session, and switching the
                 // feature off changed nothing, because we carried on writing our own idea of
                 // the rest scale over the top of it.
-                if (!ModConfig.HeightScalingEnabled.Value)
+                if (!ModConfig.HeightScalingEnabled.Value || _suspended)
                 {
-                    if (_engaged) Release("HeightScalingEnabled is off");
+                    if (_engaged) Release(_suspended ? "Home" : "HeightScalingEnabled is off");
                     return;
                 }
 
@@ -163,24 +166,45 @@ namespace CustomAvatars.Avatars
             }
         }
 
-        /// <summary>PageUp / PageDown. Trims your height live, in headset, without the config file.</summary>
+        /// <summary>
+        /// PageUp / PageDown. Trims your height live, in headset, without the config file.
+        ///
+        /// The master switch is the config file's alone. The first version switched it on from
+        /// here, which meant "set it to false and press F3" turned the feature off for exactly
+        /// as long as it took to touch PageUp — and Home, which switched it off, was undone by
+        /// the same key.
+        /// </summary>
         public void Nudge(float delta)
         {
+            if (!ModConfig.HeightScalingEnabled.Value)
+            {
+                Core.Log.Msg("Height scaling is off (HeightScalingEnabled = false). Set it to true in " +
+                             "MelonPreferences.cfg and press F3 to use PgUp/PgDn.");
+                return;
+            }
+            _suspended = false;
             // Writes the setting rather than a private field, so what you dialled in is what the
             // overlay shows, what F3 prints, and what MelonPreferences.cfg keeps for next time.
-            ModConfig.HeightScalingEnabled.Value = true;
             ModConfig.HeightScale.Value = Mathf.Clamp(ModConfig.HeightScale.Value + delta, MinScale, MaxScale);
             Core.Log.Msg($"Height: HeightScale now {ModConfig.HeightScale.Value:0.00}" +
                          (ModConfig.HeightFromAvatar.Value ? " (on top of the avatar's own height)" : ""));
         }
 
-        /// <summary>Home. Back to the size the game shipped you at, without changing your settings.</summary>
+        /// <summary>
+        /// Home. Back to the size the game shipped you at, until the next PageUp/PageDown. The
+        /// trim goes back to 1, the master switch is left alone.
+        /// </summary>
         public void Reset()
         {
-            ModConfig.HeightScalingEnabled.Value = false;
+            if (!ModConfig.HeightScalingEnabled.Value)
+            {
+                Core.Log.Msg("Height scaling is off; you are already vanilla size.");
+                return;
+            }
+            _suspended = true;
             ModConfig.HeightScale.Value = 1f;
             // The release happens on the next tick, which is what actually puts the rig back.
-            Core.Log.Msg("Height: back to vanilla size (HeightScalingEnabled = false).");
+            Core.Log.Msg("Height: back to vanilla size (Home). PgUp/PgDn resume scaling; HeightScale reset to 1.");
         }
 
         /// <summary>
@@ -221,7 +245,9 @@ namespace CustomAvatars.Avatars
         /// </summary>
         private void Release(string why)
         {
-            try { if (Interop.Alive(_rig)) _rig.localScale = _rigRestScale; } catch { }
+            // Through the same recentre as Apply. Writing the rest scale straight back left
+            // you displaced by the same amount scaling had moved you, so Home was a sidestep.
+            try { SetRigScale(_rigRestScale); } catch { }
             try { if (Interop.Alive(_body)) _body.localScale = _bodyRestScale; } catch { }
 
             _applied = 1f;
@@ -433,7 +459,7 @@ namespace CustomAvatars.Avatars
             // player stays resized through dying.
             if (Interop.Alive(_body) &&
                 Mathf.Abs(_body.localScale.x - _bodyRestScale.x * _applied) > 0.001f) return true;
-            return !Interop.Alive(_body) && _applied < 0.999f;
+            return !Interop.Alive(_body) && Mathf.Abs(_applied - 1f) > 0.001f;
         }
 
         /// <param name="why">null for a silent re-application after drift.</param>
@@ -446,19 +472,9 @@ namespace CustomAvatars.Avatars
             // off-centre would slide you half a metre sideways through the room. Put the rig
             // back under where you were standing. Horizontally only: your eyes moving is the
             // entire point of the exercise.
-            var eyesBefore = Interop.Alive(_camera) ? _camera.transform.position : Vector3.zero;
-            var recentre = Interop.Alive(_camera);
-
-            _rig.localScale = _rigRestScale * scale;
+            SetRigScale(_rigRestScale * scale);
             _applied = scale;
             ApplyBodyScale(scale);
-
-            if (recentre)
-            {
-                var drift = _camera.transform.position - eyesBefore;
-                drift.y = 0f;
-                if (drift.sqrMagnitude > 1e-6f) _rig.position -= drift;
-            }
 
             ApplyNearClip();
             ApplyLocomotion();
@@ -469,6 +485,23 @@ namespace CustomAvatars.Avatars
             var eyes = _eyeHeight > 0f ? $"{_eyeHeight * scale:0.00} m" : "unmeasured";
             Core.Log.Msg($"*** Height: x{scale:0.000} — {eyes} to the eyes ({why}).");
             LogHitboxes();
+        }
+
+        /// <summary>Scale the rig and put it back under where you were standing.</summary>
+        private void SetRigScale(Vector3 scale)
+        {
+            if (!Interop.Alive(_rig)) return;
+            var recentre = Interop.Alive(_camera);
+            var eyesBefore = recentre ? _camera.transform.position : Vector3.zero;
+
+            _rig.localScale = scale;
+
+            if (recentre)
+            {
+                var drift = _camera.transform.position - eyesBefore;
+                drift.y = 0f;
+                if (drift.sqrMagnitude > 1e-6f) _rig.position -= drift;
+            }
         }
 
         /// <summary>
@@ -577,14 +610,15 @@ namespace CustomAvatars.Avatars
         /// <summary>
         /// Insurance against leaving half-size axes all over the dungeon.
         ///
-        /// A held weapon is parented into the rig, so it scales with you — which is the
-        /// intended look, a small fighter with a small sword. The danger is the moment it
-        /// LEAVES: Unity preserves world scale across a reparent, so the prop's own localScale
-        /// gets rewritten to keep it small, and it stays small forever — in a shared, networked,
-        /// pooled object that a full-size friend can then pick up. So we remember the scale a
-        /// prop had when it came into our hands, and put it back when it goes.
-        ///
-        /// If it turns out the game doesn't parent held props at all, this simply never fires.
+        /// A held weapon is parented into the rig. Unity preserves WORLD scale across a
+        /// reparent, so the game's own parenting leaves the prop full-size in the world with a
+        /// compensating local scale (the log showed a dagger at local 0.69 under a rig at 1.45,
+        /// world exactly 1), and un-parenting puts local 1 back. The first version of this
+        /// remembered the LOCAL scale at pickup and wrote it back on release — which is the
+        /// corruption it was written to prevent: it shrank every dropped weapon to the size the
+        /// rig had made it. So it now remembers world scale, and only acts if the world scale
+        /// has actually changed by the time the prop leaves — which, if Unity does its job,
+        /// is never.
         /// </summary>
         private void RestoreDroppedProps()
         {
@@ -612,7 +646,7 @@ namespace CustomAvatars.Avatars
                 _scratch.Add(id);
                 if (_held.ContainsKey(id)) continue;
 
-                _held[id] = (prop, prop.transform.localScale);
+                _held[id] = (prop, prop.transform.lossyScale);
                 if (_applied < 0.999f || _applied > 1.001f)
                     Core.Log.Msg($"Height: picked up `{Interop.Name(prop)}` — local scale " +
                                  $"{Interop.Vec(prop.transform.localScale)}, world " +
@@ -642,16 +676,23 @@ namespace CustomAvatars.Avatars
             _held.Clear();
         }
 
-        private void RestoreProp(Prop prop, Vector3 scale, string why)
+        /// <param name="world">The world scale the prop had when it came into our hands.</param>
+        private void RestoreProp(Prop prop, Vector3 world, string why)
         {
             if (!Interop.Alive(prop)) return;
             try
             {
                 var t = prop.transform;
-                if ((t.localScale - scale).sqrMagnitude < 1e-6f) return;
-                Core.Log.Msg($"Height: `{Interop.Name(prop)}` {why} at scale {Interop.Vec(t.localScale)}; " +
-                             $"put back to {Interop.Vec(scale)}.");
-                t.localScale = scale;
+                var now = t.lossyScale;
+                if ((now - world).sqrMagnitude < 1e-6f) return;
+                if (now.x <= 1e-4f || now.y <= 1e-4f || now.z <= 1e-4f) return;
+                // Whatever the parent contributes, the local scale that gets the world scale
+                // back is the current one times the ratio.
+                var local = t.localScale;
+                var fixedLocal = new Vector3(local.x * world.x / now.x, local.y * world.y / now.y, local.z * world.z / now.z);
+                Core.Log.Msg($"Height: `{Interop.Name(prop)}` {why} at world scale {Interop.Vec(now)}; " +
+                             $"put back to {Interop.Vec(world)} (local {Interop.Vec(local)} → {Interop.Vec(fixedLocal)}).");
+                t.localScale = fixedLocal;
             }
             catch { }
         }
