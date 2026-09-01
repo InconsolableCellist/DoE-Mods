@@ -147,6 +147,27 @@ headset.
 | **F3** | re-read the settings file, so you can adjust things without restarting |
 | **F5** | look for newly added avatar files |
 | **F7/F8/F9** | write technical details to a log file, for troubleshooting |
+| **F10/F11** | full-body tracking on/off, and calibrate it |
+| **PgUp/PgDn** | be taller / shorter, in 5% steps |
+| **F12** | back to the size the game gives you |
+
+### Being the size of your avatar
+
+Off until you turn it on (`HeightScalingEnabled`), and then a small avatar makes you a small
+player: your eyes sit where its eyes sit, the world gets bigger, your arms reach as far as its
+arms do, and the weapon in your hand is the size that hand can hold.
+
+It changes how the game plays, not just how it looks. You are a smaller target — the game
+works out hits against your own two capsules, and they shrink with you — and you have less
+reach, so most of it evens out. Some of it doesn't: at half height you can walk under attacks
+that would have hit anyone else, and there will be ledges you can no longer climb. That's the
+deal, and it's why it's off by default and why it's for private lobbies with friends who know
+you're doing it.
+
+`HeightFromAvatar` is the part that makes it automatic — wear a 1.2 m character and you're
+1.2 m tall, because the exporter measured that character when it was built. `HeightScale` is a
+plain multiplier on top, and it's what PgUp/PgDn write, so you can dial yourself in from inside
+the headset and the number is still there next time.
 
 ## Settings
 

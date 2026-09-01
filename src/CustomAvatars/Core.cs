@@ -6,7 +6,7 @@ using CustomAvatars.Gate;
 using CustomAvatars.Net;
 using CustomAvatars.Recon;
 
-[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.32.1", "dan")]
+[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.33.0", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace CustomAvatars
@@ -25,7 +25,7 @@ namespace CustomAvatars
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.32.1";
+        public const string Version = "0.33.0";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -37,6 +37,7 @@ namespace CustomAvatars
         private AvatarLibrary _avatarLibrary;
         private AvatarPreview _preview;
         private AvatarSwapManager _swaps;
+        private PlayerScaler _scaler;
         private AvatarSync _avatarSync;
         private HandSync _handSync;
         private HologramSwapper _holograms;
@@ -80,6 +81,7 @@ namespace CustomAvatars
             _avatarLibrary.Rescan();
             _preview = new AvatarPreview(_avatarLibrary);
             _swaps = new AvatarSwapManager(_avatarLibrary);
+            _scaler = new PlayerScaler(_swaps, _avatarLibrary);
             _avatarSync = new AvatarSync(_swaps, _avatarLibrary, _roster);
             _handSync = new HandSync(_swaps, _roster);
             _holograms = new HologramSwapper(_avatarLibrary, _swaps);
@@ -118,6 +120,10 @@ namespace CustomAvatars
             _roster.Tick(dt);
             ModGate.Evaluate(_roster);
             ModNet.Pump();
+
+            // First, because it decides how big you are this frame: tracker poses, IK targets
+            // and the avatar's own height calibration are all measured against the scaled rig.
+            _scaler?.Tick();
 
             // Before the game's LateUpdate, where FinalIK solves: tracker targets set here are
             // where this frame's legs land. After Pump, so a peer's poses land the same frame.
@@ -168,6 +174,16 @@ namespace CustomAvatars
 
         /// <summary>One-line FBT state for the overlay.</summary>
         public string FbtSummary => _fbt?.Describe() ?? "-";
+
+        /// <summary>One-line player-size state for the overlay.</summary>
+        public string HeightSummary => _scaler?.Describe() ?? "-";
+
+        /// <summary>
+        /// How much the local player rig is scaled right now, 1 when it isn't. Read by anything
+        /// that measures a distance against the player and needs to know that a metre of world
+        /// is not a metre of them.
+        /// </summary>
+        public float PlayerScale => _scaler?.Applied ?? 1f;
 
         public override void OnGUI()
         {
@@ -270,6 +286,21 @@ namespace CustomAvatars
                     _hotkeyCooldown = 0.5f;
                     _fbt.StartCalibration();
                 }
+                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.PageUp))
+                {
+                    _hotkeyCooldown = 0.15f;
+                    _scaler?.Nudge(0.05f);
+                }
+                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.PageDown))
+                {
+                    _hotkeyCooldown = 0.15f;
+                    _scaler?.Nudge(-0.05f);
+                }
+                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F12))
+                {
+                    _hotkeyCooldown = 0.5f;
+                    _scaler?.Reset();
+                }
                 else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F3))
                 {
                     // Re-read MelonPreferences.cfg from disk. The spring constants are read
@@ -283,6 +314,10 @@ namespace CustomAvatars
                                        $"gravity x{ModConfig.SpringGravityScale.Value}, drag {ModConfig.SpringDragBase.Value}, " +
                                        $"colliders {ModConfig.SpringCollidersEnabled.Value}");
                     LoggerInstance.Msg($"Preferences reloaded — swap: {AvatarSwapper.DescribeSettings()}");
+                    LoggerInstance.Msg($"Preferences reloaded — height: {_scaler?.Describe() ?? "-"}, " +
+                                       $"from avatar {ModConfig.HeightFromAvatar.Value}, " +
+                                       $"scale {ModConfig.HeightScale.Value}, " +
+                                       $"move speed blend {ModConfig.HeightMoveSpeedBlend.Value}");
                     if (!ModConfig.SwapUseVrik.Value)
                         LoggerInstance.Warning("*** SwapUseVrik is FALSE — swapped avatars will T-pose. " +
                                                "That is a diagnostic setting; set it back to true.");

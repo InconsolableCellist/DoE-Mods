@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using CustomAvatars.Gate;
 using CustomAvatars.Net;
 
@@ -31,6 +32,7 @@ namespace CustomAvatars.Avatars
             ModGate.ActiveChanged += active => { if (active) Broadcast("gate opened"); };
             _roster.PeerJoined += peer => { if (!peer.IsLocal && ModGate.Active) Broadcast($"{peer.NickName} joined"); };
             _manager.SelfAvatarChanged += () => Broadcast("we changed avatar");
+            _manager.SelfHeightChanged += () => Broadcast("we changed size");
             _roster.PeerLeft += peer => _manager.RevertRemote(peer.ActorNumber, "peer left the room");
         }
 
@@ -53,7 +55,11 @@ namespace CustomAvatars.Avatars
                 var manifest = _library.Get(name);
                 var sha = manifest?.sha256 ?? "";
                 if (sha.Length > 16) sha = sha.Substring(0, 16);
-                payload = $"avatar|{name}|{sha}";
+                // Fourth field: how big we are wearing it. Invariant, because a peer on a
+                // German locale parsing "1,05" as a thousands separator would draw a friend a
+                // hundred times too tall. Old builds send three fields and are read as x1.
+                var height = _manager.SelfHeightScale.ToString("0.000", CultureInfo.InvariantCulture);
+                payload = $"avatar|{name}|{sha}|{height}";
             }
 
             if (ModNet.Send(ModNet.CodeAvatarManifest, payload, reliable: true, targetActors: targets))
@@ -75,12 +81,16 @@ namespace CustomAvatars.Avatars
 
                 var name = parts[1];
                 var sha = parts.Length > 2 ? parts[2] : "";
+                var height = 1f;
+                if (parts.Length > 3 &&
+                    !float.TryParse(parts[3], NumberStyles.Float, CultureInfo.InvariantCulture, out height))
+                    height = 1f;
 
                 Core.Log.Msg(string.IsNullOrEmpty(name)
                     ? $"Actor {senderActor} took their custom avatar off."
                     : $"Actor {senderActor} is wearing `{name}`.");
 
-                _manager.SetRemoteAvatar(senderActor, name, sha);
+                _manager.SetRemoteAvatar(senderActor, name, sha, height);
             }
             catch (Exception e)
             {

@@ -69,6 +69,18 @@ namespace CustomAvatars.Avatars
         private Vector3 _modelBaseScale = Vector3.one;
         private float _heightScale = 1f;
         private float _calibrateAt;
+        private float _lastRigScale = 1f;
+
+        /// <summary>
+        /// How much the model had to be resized to put its head at yours. Peers are told this
+        /// number rather than left to guess: it is the one measurement that says how big the
+        /// person wearing this avatar actually is, and without it a friend who has shrunk
+        /// themselves would still stand full-size on everyone else's screen.
+        /// </summary>
+        public float HeightScale => _heightScale;
+
+        /// <summary>Raised on our own avatar when the fit changes, so peers can be told.</summary>
+        public event Action HeightScaleChanged;
         public string AvatarName { get; private set; }
 
         /// <summary>
@@ -736,7 +748,7 @@ namespace CustomAvatars.Avatars
             }
 
             // Only once the body is posed do we know where its head actually is.
-            if (IsSelf) { Calibrate(); AlignToHead(); }
+            if (IsSelf) { WatchPlayerScale(); Calibrate(); AlignToHead(); }
 
             // Arms after the body: the retarget writes the whole skeleton, so solving the arms
             // to the hand targets has to come afterwards or it would be overwritten.
@@ -922,6 +934,45 @@ namespace CustomAvatars.Avatars
         }
 
         /// <summary>
+        /// Re-fit the avatar when the player themselves is resized.
+        ///
+        /// Calibration is deliberately a one-shot — read continuously it would shrink the
+        /// avatar every time you crouched — but changing your own scale with PageUp moves your
+        /// head without you having moved, and the avatar has to follow or you spend the rest of
+        /// the session looking out of its chest.
+        /// </summary>
+        private void WatchPlayerScale()
+        {
+            var rig = Core.Instance?.PlayerScale ?? 1f;
+            if (Mathf.Abs(rig - _lastRigScale) < 0.005f) return;
+            _lastRigScale = rig;
+            // A moment, so the rig, the IK targets and our own root have all settled at the new
+            // size before anything is measured against them.
+            _calibrateAt = Time.unscaledTime + 0.25f;
+        }
+
+        /// <summary>
+        /// Size a PEER'S avatar the way they are sizing it themselves. Their number, not a
+        /// second guess of ours: they measured it against their own head, and everyone in the
+        /// room needs to agree on how tall they are.
+        /// </summary>
+        public void ApplyRemoteHeight(float heightScale)
+        {
+            if (IsSelf) return;
+            if (!float.IsFinite(heightScale) || heightScale < 0.05f || heightScale > 10f) return;
+            if (Mathf.Abs(heightScale - _heightScale) < 0.005f) return;
+
+            _heightScale = heightScale;
+            if (!Interop.Alive(_model)) return;
+            try
+            {
+                _model.transform.localScale = _modelBaseScale * _heightScale;
+                Core.Log.Msg($"    peer height: `{AvatarName}` scaled x{_heightScale:0.000} to match its wearer.");
+            }
+            catch { }
+        }
+
+        /// <summary>
         /// Scale the avatar so that, with its head at your head, its feet are on the floor.
         ///
         /// The manifest's scale matches the avatar to the GAME character's height, which was the
@@ -954,13 +1005,27 @@ namespace CustomAvatars.Avatars
                     return;
                 }
 
+                // The clamp is a nonsense filter, not a size limit, so it moves with the rig:
+                // a player scaled to half size measures half as tall, and clamping that back to
+                // the range a full-size person occupies would stretch their avatar to twice the
+                // body they are standing in.
+                var rig = Mathf.Clamp(Core.Instance?.PlayerScale ?? 1f, 0.05f, 10f);
                 var raw = playerHeight / avatarHeight;
-                _heightScale = Mathf.Clamp(raw, 0.5f, 2f);
+                var previous = _heightScale;
+                _heightScale = Mathf.Clamp(raw, 0.5f * rig, 2f * rig);
                 _model.transform.localScale = _modelBaseScale * _heightScale;
+                _lastRigScale = rig;
 
                 var note = Mathf.Abs(raw - _heightScale) > 0.001f ? $" (clamped from x{raw:0.00})" : "";
+                var at = rig < 0.999f || rig > 1.001f ? $", at player scale x{rig:0.00}" : "";
                 Core.Log.Msg($"    height: you {playerHeight:0.00} m to the eyes, avatar {avatarHeight:0.00} m — " +
-                             $"scaling avatar x{_heightScale:0.000}{note}");
+                             $"scaling avatar x{_heightScale:0.000}{note}{at}");
+
+                if (Mathf.Abs(previous - _heightScale) > 0.002f)
+                {
+                    try { HeightScaleChanged?.Invoke(); }
+                    catch (Exception e) { Core.Log.Warning($"Height change handler threw: {e.Message}"); }
+                }
             }
             catch { }
         }
@@ -1186,6 +1251,7 @@ namespace CustomAvatars.Avatars
             _headBone = null;
             _modelBaseScale = Vector3.one;
             _heightScale = 1f;
+            _lastRigScale = 1f;
             _calibrateAt = 0f;
             _leashTrips = 0;
             _wasAlive = true;
