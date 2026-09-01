@@ -40,6 +40,9 @@ namespace CustomAvatars.Avatars
         private Face.FaceDriver _face;
         private SkinnedMeshRenderer _hiddenVanillaMesh;
         private bool _vanillaMeshWasForcedOff;
+        private bool _vanillaMeshWasEnabled = true;
+        private UnityEngine.Rendering.ShadowCastingMode _vanillaMeshWasCasting =
+            UnityEngine.Rendering.ShadowCastingMode.On;
         private readonly List<(Renderer renderer, bool wasEnabled)> _fpsArmRenderers =
             new List<(Renderer, bool)>();
 
@@ -58,6 +61,10 @@ namespace CustomAvatars.Avatars
         private float _nextLeashLogAt;
         private float _lastSolverDrift;
         private float _nextArmLogAt;
+        private float _nextPeerPoseLogAt;
+        private bool _retargetCapturedUnsolved;
+        private bool _vanillaMeshWasUpdateOffscreen;
+        private Bounds _vanillaMeshWasLocalBounds;
         private int _leashTrips;
         private bool _wasAlive = true;
         private bool _forcedVanillaIk;
@@ -231,6 +238,10 @@ namespace CustomAvatars.Avatars
                         if (!_armIk.HasArms) _armIk = null;
                     }
                     Core.Log.Msg($"    pose source: VanillaRig — {result}");
+                    _retargetCapturedUnsolved = !RigIsSolved();
+                    if (_retargetCapturedUnsolved)
+                        Core.Log.Msg("    pose source: captured while the game wasn't solving this " +
+                                     "rig — will take the reference again once it is.");
                     if (_retarget.LinkCount == 0)
                     {
                         Core.Log.Warning("    retargeting found no usable bones; falling back to VRIK.");
@@ -557,6 +568,11 @@ namespace CustomAvatars.Avatars
                 if (!Interop.Alive(mesh)) { Core.Log.Warning("No characterMesh found to hide."); return; }
                 _hiddenVanillaMesh = mesh;
                 try { _vanillaMeshWasForcedOff = mesh.forceRenderingOff; } catch { _vanillaMeshWasForcedOff = false; }
+                try { _vanillaMeshWasEnabled = mesh.enabled; } catch { _vanillaMeshWasEnabled = true; }
+                try { _vanillaMeshWasCasting = mesh.shadowCastingMode; }
+                catch { _vanillaMeshWasCasting = UnityEngine.Rendering.ShadowCastingMode.On; }
+                try { _vanillaMeshWasUpdateOffscreen = mesh.updateWhenOffscreen; } catch { }
+                try { _vanillaMeshWasLocalBounds = mesh.localBounds; } catch { }
                 Core.Log.Msg($"    vanilla mesh `{Interop.ScenePath(mesh.transform)}` " +
                              $"— SwapHideVanillaMesh = {ModConfig.SwapHideVanillaMesh.Value}" +
                              (ModConfig.SwapHideVanillaMesh.Value ? "" : " (your old body stays visible)"));
@@ -667,26 +683,29 @@ namespace CustomAvatars.Avatars
         }
 
         /// <summary>
-        /// Stop the vanilla body drawing — with `forceRenderingOff`, never by switching the
-        /// renderer off.
+        /// Stop the vanilla body drawing without telling the game nobody can see it.
         ///
-        /// `characterMesh.enabled = false` looks like the obvious way to hide a body, and it
-        /// is the reason remote players stood there in a slack A-pose, sliding, never turning
-        /// their heads. The game asks `Renderer.isVisible` whether anyone can see a character,
-        /// and a disabled renderer answers "no" forever. `CharacterPrefab.IsVisibleToLocalPlayer`
-        /// returns that answer verbatim for anyone who isn't the local player, and
-        /// `UpdatePhysics` then sets `ik.solver.LOD = 2` — FinalIK for "don't solve at all" —
-        /// as well as skipping the glancer, the blendshapes and the hands' `BeforeAnimation`.
-        /// So hiding a peer's mesh switched off the very pose we copy off it, and full-body
-        /// tracking, which fills that same solver's empty pelvis and leg slots, died with it.
+        /// The game asks `Renderer.isVisible` whether a character is on screen.
+        /// `CharacterPrefab.IsVisibleToLocalPlayer` returns `characterMesh.isVisible` verbatim
+        /// for anyone who isn't the local player, and a false answer costs that peer everything
+        /// we want off them: `ik.solver.LOD` goes to 2, which is FinalIK for "don't solve", and
+        /// the glancer, the blendshapes and the hands' `BeforeAnimation` are all skipped. The
+        /// pose we copy is then pure walking animation — arms at the sides, head fixed forward —
+        /// which is exactly what two playtests reported, and full-body tracking dies with it,
+        /// since it fills the empty pelvis and leg slots on that same solver.
         ///
-        /// `forceRenderingOff` draws nothing while leaving the renderer enabled and still part
-        /// of culling, so `isVisible` keeps tracking the real camera. The game's own distance
-        /// and frustum LOD then goes on working as it always did.
+        /// Both obvious ways to hide a renderer set `isVisible` false: `enabled = false`, and
+        /// `forceRenderingOff = true`, which was tried in the belief that it left the renderer
+        /// in culling. It does not — the peer probe measured `isVisible=False` on 162 lines out
+        /// of 162, on both machines.
+        ///
+        /// So: shadows only. The renderer stays enabled and stays in culling, Unity still skins
+        /// it, and a shadow caster counts as visible, so the game goes on solving the player
+        /// normally. The cost is a leftover human-shaped shadow under the avatar.
         ///
         /// Re-applied every frame rather than set once at swap time. Two reasons: toggling
         /// SwapHideVanillaMesh and pressing F3 mid-swap now actually does something, and if the
-        /// game's own LOD or material handling ever draws the renderer again, this quietly wins.
+        /// game's own visibility handling ever draws the renderer again, this quietly wins.
         /// </summary>
         private void ApplyVanillaMeshVisibility()
         {
@@ -694,9 +713,42 @@ namespace CustomAvatars.Avatars
             try
             {
                 var hide = ModConfig.SwapHideVanillaMesh.Value;
-                if (_hiddenVanillaMesh.forceRenderingOff == hide) return;
-                _hiddenVanillaMesh.forceRenderingOff = hide;
-                Core.Log.Msg($"    vanilla mesh {(hide ? "hidden" : "shown")}.");
+                var mode = (ModConfig.SwapHideVanillaMeshMode.Value ?? "ShadowsOnly").Trim();
+
+                var wantEnabled = _vanillaMeshWasEnabled;
+                var wantForcedOff = _vanillaMeshWasForcedOff;
+                var wantCasting = _vanillaMeshWasCasting;
+
+                if (hide)
+                {
+                    if (string.Equals(mode, "Disable", StringComparison.OrdinalIgnoreCase)) wantEnabled = false;
+                    else if (string.Equals(mode, "ForceOff", StringComparison.OrdinalIgnoreCase)) wantForcedOff = true;
+                    else wantCasting = UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly;
+                }
+
+                var changed = false;
+                if (_hiddenVanillaMesh.enabled != wantEnabled) { _hiddenVanillaMesh.enabled = wantEnabled; changed = true; }
+                if (_hiddenVanillaMesh.forceRenderingOff != wantForcedOff) { _hiddenVanillaMesh.forceRenderingOff = wantForcedOff; changed = true; }
+                if (_hiddenVanillaMesh.shadowCastingMode != wantCasting) { _hiddenVanillaMesh.shadowCastingMode = wantCasting; changed = true; }
+                // Shadows-only got the game solving peers again, but only while their body was
+                // on screen — the moment it left the frustum the solve stopped and the avatar
+                // froze mid-stride, which reads as "sometimes it animates and sometimes it
+                // doesn't". Our avatar is what people actually look at and it is not the same
+                // shape or size as the body underneath, so the game's culling of that body is
+                // no longer a useful answer to "can anyone see this player". Bounds big enough
+                // to survive any frustum keep it solving for as long as the player exists; the
+                // cost is one skinned shadow per peer.
+                if (hide && ModConfig.SwapKeepVanillaMeshInView.Value)
+                {
+                    if (_hiddenVanillaMesh.updateWhenOffscreen) { _hiddenVanillaMesh.updateWhenOffscreen = false; changed = true; }
+                    if (_hiddenVanillaMesh.localBounds.size.x < 100f)
+                    {
+                        _hiddenVanillaMesh.localBounds = new Bounds(Vector3.zero, Vector3.one * 1000f);
+                        changed = true;
+                    }
+                }
+
+                if (changed) Core.Log.Msg($"    vanilla mesh {(hide ? $"hidden ({mode})" : "shown")}.");
             }
             catch { }
         }
@@ -727,6 +779,8 @@ namespace CustomAvatars.Avatars
                 LogSettledPlacement();
             }
 
+            RecaptureWhenSolved();
+
             // Pose first: retargeting writes whole-bone rotations, so fingers and spring chains
             // must run after it or they'd be overwritten the moment they moved.
             if (_retarget != null)
@@ -734,6 +788,8 @@ namespace CustomAvatars.Avatars
                 try { _retarget.Apply(); }
                 catch (Exception e) { Core.Log.Warning($"Retarget failed, disabling: {e.Message}"); _retarget = null; }
             }
+
+            LogPeerPose();
 
             // Only once the body is posed do we know where its head actually is.
             if (IsSelf) { Calibrate(); AlignToHead(); }
@@ -857,13 +913,56 @@ namespace CustomAvatars.Avatars
             catch (Exception e) { Core.Log.Warning($"Could not toggle custom model visibility: {e.Message}"); }
         }
 
+        /// <summary>Is the game actually solving this body right now? LOD 2 means it is not.</summary>
+        private bool RigIsSolved()
+        {
+            try
+            {
+                if (!Interop.Alive(_fullBody)) return false;
+                var ik = _fullBody.ik;
+                if (!Interop.Alive(ik)) return false;
+                var solver = ik.solver;
+                return solver != null && solver.LOD == 0;
+            }
+            catch { return false; }
+        }
+
+        /// <summary>
+        /// If the reference pose was taken against a rig the game had culled, take it again the
+        /// first moment the game starts solving. One line in the log either way, because a
+        /// silent re-capture is indistinguishable from the tilt it is there to prevent.
+        /// </summary>
+        private void RecaptureWhenSolved()
+        {
+            if (!_retargetCapturedUnsolved || _retarget == null) return;
+            if (!Interop.Alive(_model) || _manifest == null || !RigIsSolved()) return;
+
+            _retargetCapturedUnsolved = false;
+            try
+            {
+                Animator source = null;
+                try { source = _player.RemoteAnimator; } catch { }
+                if (!Interop.Alive(source)) return;
+
+                var result = _retarget.Recapture(source, _model, _manifest);
+                Core.Log.Msg($"    pose source re-captured now the game is solving this rig — {result}");
+                if (_retarget.LinkCount == 0) _retarget = null;
+            }
+            catch (Exception e) { Core.Log.Warning($"Pose re-capture failed: {e.Message}"); }
+        }
+
         private void RebuildPoseSource()
         {
             if (_retarget == null || !Interop.Alive(_player) || !Interop.Alive(_model) || _manifest == null) return;
             try
             {
-                var result = _retarget.Build(_player, _model, _manifest);
+                Animator source = null;
+                try { source = _player.RemoteAnimator; } catch { }
+                var result = Interop.Alive(source)
+                    ? _retarget.Recapture(source, _model, _manifest)
+                    : _retarget.Build(_player, _model, _manifest);
                 Core.Log.Msg($"    pose source rebuilt after respawn — {result}");
+                _retargetCapturedUnsolved = !RigIsSolved();
                 if (_retarget.LinkCount == 0) _retarget = null;
             }
             catch (Exception e) { Core.Log.Warning($"Pose rebuild failed: {e.Message}"); }
@@ -1098,6 +1197,71 @@ namespace CustomAvatars.Avatars
         }
 
         /// <summary>
+        /// One line a second saying why a peer's avatar is or isn't moving.
+        ///
+        /// Two playtests have now ended with "the peer slides around in an A-pose", and the
+        /// guesses that fit that description are several: the game may not be solving their rig
+        /// at all, we may be reading it before it is solved, or we may be posing our avatar and
+        /// having it overwritten. Those look identical from across a room and take a whole
+        /// session each to rule out, so the mod measures all three at once instead.
+        ///
+        /// The peer's own hands are the honest test of whether the game solved their rig: a
+        /// solved arm puts the wrist within a few centimetres of the controller target it is
+        /// following, and an unsolved one leaves it wherever the walking animation put it.
+        /// </summary>
+        private void LogPeerPose()
+        {
+            if (IsSelf || _retarget == null) return;
+            var every = ModConfig.DiagPeerPoseSeconds.Value;
+            if (every <= 0f || Time.unscaledTime < _nextPeerPoseLogAt) return;
+            _nextPeerPoseLogAt = Time.unscaledTime + every;
+
+            try
+            {
+                var who = "?";
+                try { if (Interop.Alive(_player)) who = _player.PlayerName; } catch { }
+
+                var reach = "hands ?";
+                var lh = _retarget.SourceOf(HumanBodyBones.LeftHand);
+                var rh = _retarget.SourceOf(HumanBodyBones.RightHand);
+                if (Interop.Alive(_player) && Interop.Alive(lh) && Interop.Alive(rh) &&
+                    Interop.Alive(_player.IKTargetLeftHand) && Interop.Alive(_player.IKTargetRightHand))
+                    reach = $"hands off target L {Vector3.Distance(lh.position, _player.IKTargetLeftHand.position):0.00} m" +
+                            $" R {Vector3.Distance(rh.position, _player.IKTargetRightHand.position):0.00} m";
+
+                var travel = "travel ?";
+                if (_retarget.TryTravel(HumanBodyBones.LeftUpperArm, out var srcDeg))
+                    travel = $"upper arm bent {srcDeg:0.#}° from capture on their rig";
+                var stolen = _retarget.OverwrittenDegrees;
+
+                // Renderer.isVisible is the flag the game's own LOD reads. If hiding the body
+                // still sets it false, the game stops solving and we have nothing to copy.
+                var vis = "mesh ?";
+                if (Interop.Alive(_hiddenVanillaMesh))
+                    vis = $"mesh enabled={_hiddenVanillaMesh.enabled}" +
+                          $" forcedOff={_hiddenVanillaMesh.forceRenderingOff}" +
+                          $" shadows={_hiddenVanillaMesh.shadowCastingMode}" +
+                          $" isVisible={_hiddenVanillaMesh.isVisible}";
+
+                var ik = "ik ?";
+                if (Interop.Alive(_fullBody))
+                {
+                    var k = _fullBody.ik;
+                    var solver = Interop.Alive(k) ? k.solver : null;
+                    if (solver != null)
+                        ik = $"ikEnabled={_fullBody.ikEnabled} VRIK.enabled={k.enabled} LOD={solver.LOD}" +
+                             $" armW L={solver.leftArm.positionWeight:0.##} R={solver.rightArm.positionWeight:0.##}" +
+                             $" headW={solver.spine.positionWeight:0.##}";
+                }
+
+                Core.Log.Msg($"peer `{who}`: {reach} | {travel}" +
+                             (stolen >= 0f ? $", {stolen:0.#}° taken back off us between frames" : "") +
+                             $" | {vis} | {ik}");
+            }
+            catch (Exception e) { Core.Log.Warning($"peer pose probe failed: {e.GetType().Name}: {e.Message}"); }
+        }
+
+        /// <summary>
         /// Belt and braces against runaway root motion. The parenting fix should make this
         /// dead code, but a solver that walks the avatar off the map is bad enough — and quiet
         /// enough — that it's worth a hard backstop rather than trusting one fix.
@@ -1159,7 +1323,14 @@ namespace CustomAvatars.Avatars
             // body at all and no way to get one back.
             try
             {
-                if (Interop.Alive(_hiddenVanillaMesh)) _hiddenVanillaMesh.forceRenderingOff = _vanillaMeshWasForcedOff;
+                if (Interop.Alive(_hiddenVanillaMesh))
+                {
+                    _hiddenVanillaMesh.enabled = _vanillaMeshWasEnabled;
+                    _hiddenVanillaMesh.forceRenderingOff = _vanillaMeshWasForcedOff;
+                    _hiddenVanillaMesh.shadowCastingMode = _vanillaMeshWasCasting;
+                    _hiddenVanillaMesh.localBounds = _vanillaMeshWasLocalBounds;
+                    _hiddenVanillaMesh.updateWhenOffscreen = _vanillaMeshWasUpdateOffscreen;
+                }
             }
             catch (Exception e) { Core.Log.Warning($"Could not restore the vanilla mesh: {e.Message}"); }
             if (_forcedVanillaIk && Interop.Alive(_fullBody))

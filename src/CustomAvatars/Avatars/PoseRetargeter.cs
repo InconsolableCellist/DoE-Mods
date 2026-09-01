@@ -32,7 +32,9 @@ namespace CustomAvatars.Avatars
             public Transform Source;
             public Transform Target;
             public Quaternion SourceRestInverse;
+            public Quaternion SourceRestLocal;
             public Quaternion TargetRest;
+            public Quaternion TargetRestLocal;
             public int Depth;
             public string Name;
             public HumanBodyBones Bone;
@@ -96,10 +98,24 @@ namespace CustomAvatars.Avatars
         };
 
         private readonly List<Link> _links = new List<Link>();
+
+        // One bone we watch, so a peer that won't animate can say which half is broken.
+        private const HumanBodyBones ProbeBone = HumanBodyBones.LeftUpperArm;
+        private Link _probe;
+        private Quaternion _probeWrote;
+        private bool _probeWroteValid;
+
         private Transform _sourceHips, _targetHips;
         private Vector3 _sourceHipsRestLocal, _targetHipsRestLocal;
 
         public int LinkCount => _links.Count;
+
+        /// <summary>
+        /// How far something else turned our probe bone between our own two writes, in degrees.
+        /// Zero means we are the only thing posing this avatar; a large number means we are
+        /// being overwritten every frame. -1 until it has been measured.
+        /// </summary>
+        public float OverwrittenDegrees { get; private set; } = -1f;
 
         /// <summary>Where the game rig's hips are right now, for following a travelling ragdoll.</summary>
         public Vector3? SourceHipsPosition =>
@@ -153,11 +169,15 @@ namespace CustomAvatars.Avatars
                     Source = src,
                     Target = dst,
                     SourceRestInverse = Quaternion.Inverse(src.rotation),
+                    SourceRestLocal = src.localRotation,
                     TargetRest = dst.rotation,
+                    TargetRestLocal = dst.localRotation,
                     Depth = Depth(dst),
                     Name = bone.ToString(),
                     Bone = bone,
                 });
+
+                if (bone == ProbeBone) { _probe = _links[_links.Count - 1]; _probeWroteValid = false; }
 
                 if (bone == HumanBodyBones.Hips)
                 {
@@ -281,9 +301,84 @@ namespace CustomAvatars.Avatars
             return d;
         }
 
+        /// <summary>
+        /// Take the reference pose again, after first putting the avatar back the way it was
+        /// imported.
+        ///
+        /// Retargeting is a delta from a reference pose, so the reference is only worth having
+        /// if it was captured against a rig the game was actually posing. Capture it while a
+        /// peer is culled — LOD 2, frozen in whatever frame the walking animation stopped on —
+        /// and every frame afterwards is measured from a pose that never happened. It doesn't
+        /// look like a frozen avatar, it looks like a permanent tilt: a head that stares up and
+        /// to the right for the rest of the session, which is what a playtest reported.
+        ///
+        /// Putting the bones back first matters. A plain re-Build would capture the avatar in
+        /// whatever pose the bad reference had already twisted it into and bake that in too.
+        /// </summary>
+        public string Recapture(Animator source, GameObject model, AvatarManifest manifest)
+        {
+            // Parent first: _links is already sorted by depth, and local rotations are only
+            // meaningful once the parent above them is back where it started.
+            foreach (var link in _links)
+            {
+                if (!Interop.Alive(link.Target)) continue;
+                try { link.Target.localRotation = link.TargetRestLocal; } catch { }
+            }
+            if (Interop.Alive(_targetHips))
+            {
+                try { _targetHips.localPosition = _targetHipsRestLocal; } catch { }
+            }
+
+            _probe = null;
+            _probeWroteValid = false;
+            OverwrittenDegrees = -1f;
+            return Build(source, model, manifest);
+        }
+
+        /// <summary>The game bone we read for this humanoid bone, or null if it wasn't paired.</summary>
+        public Transform SourceOf(HumanBodyBones bone)
+        {
+            foreach (var link in _links)
+                if (link.Bone == bone) return Interop.Alive(link.Source) ? link.Source : null;
+            return null;
+        }
+
+        /// <summary>
+        /// How far a bone has bent since capture, in degrees.
+        ///
+        /// Local rotation, deliberately. The first version of this measured world rotation and
+        /// was useless: a player who turns on the spot swings every bone's world rotation
+        /// through 180 degrees without bending a single joint, so an arm hanging dead still
+        /// reported 170 degrees of movement. Local rotation is the joint angle and nothing
+        /// else, so a rig the game has stopped solving reads near zero and says so.
+        /// </summary>
+        public bool TryTravel(HumanBodyBones bone, out float sourceDegrees)
+        {
+            sourceDegrees = -1f;
+            foreach (var link in _links)
+            {
+                if (link.Bone != bone) continue;
+                if (!Interop.Alive(link.Source)) return false;
+                try
+                {
+                    sourceDegrees = Quaternion.Angle(link.Source.localRotation, link.SourceRestLocal);
+                    return true;
+                }
+                catch { return false; }
+            }
+            return false;
+        }
+
         /// <summary>Apply this frame's pose. Call from LateUpdate, after the game has animated.</summary>
         public void Apply()
         {
+            // Before we touch anything: is the bone we left behind last frame still where we
+            // left it? If not, something between our two writes is posing this avatar too.
+            if (_probeWroteValid && _probe != null && Interop.Alive(_probe.Target))
+            {
+                try { OverwrittenDegrees = Quaternion.Angle(_probe.Target.rotation, _probeWrote); } catch { }
+            }
+
             for (var i = 0; i < _links.Count; i++)
             {
                 var link = _links[i];
@@ -296,6 +391,11 @@ namespace CustomAvatars.Avatars
                     link.Target.rotation = link.Source.rotation * link.SourceRestInverse * link.TargetRest;
                 }
                 catch { }
+            }
+
+            if (_probe != null && Interop.Alive(_probe.Target))
+            {
+                try { _probeWrote = _probe.Target.rotation; _probeWroteValid = true; } catch { }
             }
 
             // Hips translation carries crouching and bobbing, which rotation alone can't.

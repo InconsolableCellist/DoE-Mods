@@ -126,6 +126,9 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<string> SwapArmTargetSource;
         public static MelonPreferences_Entry<bool> SwapForceVanillaIK;
         public static MelonPreferences_Entry<float> RetargetHipsFollow;
+        public static MelonPreferences_Entry<float> DiagPeerPoseSeconds;
+        public static MelonPreferences_Entry<string> SwapHideVanillaMeshMode;
+        public static MelonPreferences_Entry<bool> SwapKeepVanillaMeshInView;
         public static MelonPreferences_Entry<bool> RetargetAlignAtCapture;
         public static MelonPreferences_Entry<bool> FaceForceRelevant;
 
@@ -305,6 +308,16 @@ namespace CustomAvatars
                 "are real UI, not arms.");
             // Turning this off hands the root to procedural locomotion, which threw an avatar 100 m.
             SwapFollowVanillaRoot = Dev.CreateEntry("SwapFollowVanillaRoot", true);
+            SwapHideVanillaMeshMode = Dev.CreateEntry("SwapHideVanillaMeshMode", "ShadowsOnly", description:
+                "How the vanilla body is hidden. \"ShadowsOnly\" leaves the renderer enabled so the " +
+                "game still counts the player as on screen and keeps solving their pose — it costs " +
+                "a leftover human-shaped shadow. \"ForceOff\" and \"Disable\" both stop the game " +
+                "solving peers, and are here to compare against, not to use.");
+            SwapKeepVanillaMeshInView = Dev.CreateEntry("SwapKeepVanillaMeshInView", true, description:
+                "Give the hidden body bounds large enough that it never leaves the camera, so the " +
+                "game keeps solving that player even when their old body would have been culled. " +
+                "Without it a peer freezes mid-stride whenever their vanilla body goes off screen, " +
+                "which is not the same moment their avatar does.");
             // How far the avatar may drift from your head before it's snapped back.
             SwapLeashMetres = Dev.CreateEntry("SwapLeashMetres", 5.0f);
             // 0 = we place the body ourselves from the game's own root, which is reliable.
@@ -327,6 +340,9 @@ namespace CustomAvatars
                 "Re-enable the IK the game deliberately turned off on your own body. It doesn't " +
                 "produce usable arms, so there's no reason to interfere.");
             RetargetHipsFollow = Dev.CreateEntry("RetargetHipsFollow", 1.0f);
+            DiagPeerPoseSeconds = Dev.CreateEntry("DiagPeerPoseSeconds", 1.0f, description:
+                "Seconds between the one-line report on why a peer's avatar is or isn't moving. " +
+                "0 turns it off.");
             // Without it, an avatar whose rest pose isn't a T-pose ends up in one.
             RetargetAlignAtCapture = Dev.CreateEntry("RetargetAlignAtCapture", true);
             // Without it, VRCFaceTracking only sends what a VRChat avatar asked for, and there is
