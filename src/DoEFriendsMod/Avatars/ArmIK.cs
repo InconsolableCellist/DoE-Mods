@@ -24,6 +24,14 @@ namespace DoEFriendsMod.Avatars
         {
             public Transform Upper, Fore, Hand;
             public Transform Target;
+            public Vector3 UpperRestScale = Vector3.one;
+            public Vector3 ForeRestScale = Vector3.one;
+            public Vector3 HandRestScale = Vector3.one;
+            public float CurrentScale = 1f;
+            public bool Stretched;
+
+            // Kept for the diagnostic: how long the arm is, how far it is being asked to reach.
+            public float LastNatural, LastNeeded, LastScale;
         }
 
         private Arm _left, _right;
@@ -54,7 +62,13 @@ namespace DoEFriendsMod.Avatars
             var hand = Bone("Hand");
             if (!Interop.Alive(upper) || !Interop.Alive(fore) || !Interop.Alive(hand)) return null;
 
-            return new Arm { Upper = upper, Fore = fore, Hand = hand, Target = target };
+            return new Arm
+            {
+                Upper = upper, Fore = fore, Hand = hand, Target = target,
+                UpperRestScale = upper.localScale,
+                ForeRestScale = fore.localScale,
+                HandRestScale = hand.localScale,
+            };
         }
 
         /// <summary>Solve both arms. Call after the retarget has posed the body.</summary>
@@ -62,6 +76,24 @@ namespace DoEFriendsMod.Avatars
         {
             Solve(_left);
             Solve(_right);
+        }
+
+        /// <summary>
+        /// How far each hand ends up from where it was asked to be. If this is large, the
+        /// problem is not the solver — it is that the target isn't where we think, or the
+        /// shoulder is in the wrong place.
+        /// </summary>
+        public string Describe()
+        {
+            return $"L {Describe(_left)} | R {Describe(_right)}";
+
+            string Describe(Arm arm)
+            {
+                if (arm == null || !Interop.Alive(arm.Hand) || !Interop.Alive(arm.Target)) return "-";
+                var miss = Vector3.Distance(arm.Hand.position, arm.Target.position);
+                return $"miss {miss * 100f:0.#}cm (reach {arm.LastNatural * 100f:0.#}cm, " +
+                       $"needed {arm.LastNeeded * 100f:0.#}cm, stretch x{arm.LastScale:0.00})";
+            }
         }
 
         /// <summary>
@@ -99,21 +131,36 @@ namespace DoEFriendsMod.Avatars
                 var lcb = Vector3.Distance(b, c);
                 if (lab < 1e-5f || lcb < 1e-5f) return;
 
-                // Let the arm stretch a little past its natural length. A custom avatar's arms
-                // are rarely the same length as the game character's, and a shorter arm simply
-                // cannot reach the hand target — so the hand stops short of the weapon it is
-                // supposed to be holding, by more the further out you reach. A few percent of
-                // stretch closes that gap and is invisible on the mesh.
-                var stretch = 1f + Mathf.Clamp(ModConfig.ArmStretch.Value, 0f, 0.5f);
-                var reach = (lab + lcb) * stretch;
-                var lat = Mathf.Clamp(Vector3.Distance(a, t), 1e-3f, reach - 1e-3f);
+                // Actually lengthen the arm when the target is out of reach, by scaling the
+                // bones — the previous version only pretended to, inflating the lengths used in
+                // the angle solve while leaving the bones their real size, so the hand pointed
+                // correctly and still stopped short. That is why raising the limit changed
+                // nothing.
+                var natural = lab + lcb;
+                var needed = Vector3.Distance(a, t);
+                var maxStretch = 1f + Mathf.Clamp(ModConfig.ArmStretch.Value, 0f, 1f);
+                var wantScale = natural > 1e-4f ? Mathf.Clamp(needed / natural, 1f, maxStretch) : 1f;
 
-                // Scale the bones to match, so the elbow solve stays consistent with the reach.
-                if (stretch > 1.0001f)
+                arm.LastNatural = natural;
+                arm.LastNeeded = needed;
+                arm.LastScale = wantScale;
+
+                if (wantScale > 1.0001f || arm.Stretched)
                 {
-                    lab *= stretch;
-                    lcb *= stretch;
+                    // Smooth, so an arm at the edge of reach doesn't pop between lengths.
+                    arm.CurrentScale = Mathf.Lerp(arm.CurrentScale, wantScale, 0.35f);
+                    var s = arm.CurrentScale;
+                    arm.Upper.localScale = arm.UpperRestScale * s;
+                    arm.Fore.localScale = arm.ForeRestScale * s;
+                    // Keep the hand its normal size; only the limb stretches.
+                    arm.Hand.localScale = arm.HandRestScale / s;
+                    arm.Stretched = s > 1.0001f;
+
+                    lab *= s;
+                    lcb *= s;
                 }
+
+                var lat = Mathf.Clamp(needed, 1e-3f, lab + lcb - 1e-3f);
 
                 var current0 = Vector3.Angle(c - a, b - a) * Mathf.Deg2Rad;
                 var elbow0 = Vector3.Angle(a - b, c - b) * Mathf.Deg2Rad;
@@ -146,8 +193,8 @@ namespace DoEFriendsMod.Avatars
                     if (forearmAxis.sqrMagnitude > 1e-8f)
                     {
                         forearmAxis.Normalize();
-                        var needed = arm.Target.rotation * Quaternion.Inverse(arm.Hand.rotation);
-                        var twist = TwistAbout(needed, forearmAxis);
+                        var rollNeeded = arm.Target.rotation * Quaternion.Inverse(arm.Hand.rotation);
+                        var twist = TwistAbout(rollNeeded, forearmAxis);
 
                         // Spread it across both bones. A real arm pronates along its whole
                         // length, and putting the entire turn below the elbow still pinches the

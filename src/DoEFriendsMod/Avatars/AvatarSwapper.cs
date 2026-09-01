@@ -57,6 +57,7 @@ namespace DoEFriendsMod.Avatars
         private float _settledLogAt;   // unscaled time at which to re-log placement; 0 = done
         private float _nextLeashLogAt;
         private float _lastSolverDrift;
+        private float _nextArmLogAt;
         private int _leashTrips;
         private bool _wasAlive = true;
         private bool _forcedVanillaIk;
@@ -697,6 +698,17 @@ namespace DoEFriendsMod.Avatars
             {
                 try { _armIk.Apply(); }
                 catch (Exception e) { Core.Log.Warning($"Arm IK failed, disabling: {e.Message}"); _armIk = null; }
+
+                // Report the miss once a second while it is large. A hand that lands 30 cm from
+                // its target is not a tuning problem, and the numbers say which part is wrong:
+                // a big miss with no stretch means the target is unreachable from where the
+                // shoulder is, not that the arm is short.
+                if (IsSelf && Time.unscaledTime >= _nextArmLogAt)
+                {
+                    _nextArmLogAt = Time.unscaledTime + 1f;
+                    var summary = _armIk.Describe();
+                    if (summary.Contains("miss") && !summary.Contains("miss 0")) Core.Log.Msg($"arms: {summary}");
+                }
             }
 
             // Fingers before springs: neither pose source touches them, but keeping the order fixed
