@@ -85,6 +85,11 @@ namespace DoEFriendsMod
         public static MelonPreferences_Entry<int> FaceOscSendPort;
         public static MelonPreferences_Entry<bool> FaceForceRelevant;
         public static MelonPreferences_Entry<bool> FaceOscDebug;
+        public static MelonPreferences_Entry<float> FaceSmoothing;
+        public static MelonPreferences_Entry<float> FaceShapeScale;
+        public static MelonPreferences_Entry<float> FaceEyePitchDegrees;
+        public static MelonPreferences_Entry<float> FaceEyeYawDegrees;
+        public static MelonPreferences_Entry<float> FaceStaleSeconds;
         public static MelonPreferences_Entry<bool> SwapForceVanillaIK;
         /// <summary>"Retarget" copies the vanilla arms; "IKTargets" solves them to your controllers.</summary>
         public static MelonPreferences_Entry<string> SwapArmSource;
@@ -194,6 +199,14 @@ namespace DoEFriendsMod
             FaceOscSendPort = Category.CreateEntry("FaceOscSendPort", 9001);
             FaceForceRelevant = Category.CreateEntry("FaceForceRelevant", true);
             FaceOscDebug = Category.CreateEntry("FaceOscDebug", false);
+            FaceSmoothing = Category.CreateEntry("FaceSmoothing", 0.5f);
+            // Multiplier on every blendshape. Some faces want the whole set toned down.
+            FaceShapeScale = Category.CreateEntry("FaceShapeScale", 1.0f);
+            FaceEyePitchDegrees = Category.CreateEntry("FaceEyePitchDegrees", 20f);
+            FaceEyeYawDegrees = Category.CreateEntry("FaceEyeYawDegrees", 25f);
+            // Relax the face after this long with no OSC, so it doesn't freeze mid-expression
+            // when VRCFaceTracking closes or the headset goes to sleep.
+            FaceStaleSeconds = Category.CreateEntry("FaceStaleSeconds", 3f);
             // Only meaningful when the arms are copied from the vanilla body. Off by default:
             // the game disables that body's IK deliberately, and re-enabling it didn't produce
             // usable arms anyway, so there's no reason to interfere with it.

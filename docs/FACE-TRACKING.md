@@ -125,6 +125,41 @@ interfaces per docs). Add later by appending if an interface starts emitting the
 > The authoritative constant lives in code (`UEShapes.cs`, shared by mod and exporter);
 > this table is documentation. Keep the exporter's copy generated from the mod's.
 
+## Decision: drive blendshapes ourselves, not the avatar's FX controller
+
+Researched properly on 2026-08-31 and **decided against** running the avatar's own animator
+controller, despite it being available and initially the more attractive option.
+
+What was found:
+
+- A **fully merged FX controller already exists on disk** — VRCFury writes one during
+  `Tools/VRCFury ▸ Build an Editor Test Copy`, which runs the SDK build pipeline locally with
+  no upload. For the test avatar that's
+  `Packages/com.vrcfury.temp/Builds/Rex_Que_urCheeks/VRCFury FX.controller`: 4.6 MB, 13 layers,
+  327 parameters, 981 embedded clips. So obtaining it was never the obstacle.
+- Its clips bind almost entirely to `blendShape.*`, plus `m_IsActive` toggles and two material
+  floats. **No transform curves**, and Write Defaults is off — so it could not have fought our
+  bone writes.
+- It references four VRChat `StateMachineBehaviour` types (`VRC_AvatarParameterDriver`,
+  `VRC_PlayableLayerControl`, `VRC_AnimatorTrackingControl`, `VRC_AnimatorPlayAudio`). These are
+  compiled SDK types; outside VRChat they should deserialise to nothing and no-op. None writes
+  bones or blendshapes.
+
+So it was feasible. The reason not to is what the controller is mostly *made of*: **OSCmooth
+smoothing layers and Binary_Gen quantisation**, both of which exist to fit VRChat's 256-bit
+parameter sync budget and its slow parameter updates. Neither constraint applies to us — our
+Photon stream carries raw bytes at whatever rate we choose, and we smooth on our own terms.
+
+Worse, that machinery is actively in the way. 135 parameters use an `FT/v2/` prefix, alongside
+a `BinaryOut/FT/v2/...` family and bit-weight parameters (`...1`, `...2`, `...4`,
+`...Negative`). Where a blendshape is driven by the decoded `BinaryOut` value rather than the
+raw float, feeding the raw float does nothing — we would have to **quantise floats into bits
+purely so the controller could un-quantise them again on the same machine.**
+
+What we give up: an author's bespoke corrective shapes and any mapping that isn't name-matched.
+Worth revisiting for a specific avatar that needs it; not worth paying for by default, when the
+exporter already resolves 75 of 98 UE shapes to a renderer and index directly.
+
 ## Per-avatar mapping (manifest.json)
 
 The Unity exporter auto-detects UE-named blendshapes on the avatar's renderers

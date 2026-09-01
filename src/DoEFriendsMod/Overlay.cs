@@ -45,6 +45,16 @@ namespace DoEFriendsMod
             }
         }
 
+        private static string FaceLine()
+        {
+            var state = Core.Instance?.FaceState;
+            if (state == null) return "Face OSC: off";
+            var stale = state.SecondsSinceLastMessage;
+            return stale < 0
+                ? "Face OSC: listening, nothing received yet"
+                : $"Face OSC: {state.Count} params, last {stale:0.0}s ago";
+        }
+
         private static string[] BuildLines(out string title)
         {
             title = $"DoEFriendsMod {Core.Version}";
@@ -68,6 +78,7 @@ namespace DoEFriendsMod
                 $"PoseSource: {ModConfig.SwapPoseSource.Value}   " +
                 $"ForceVanillaIK: {ModConfig.SwapForceVanillaIK.Value}",
                 $"ArmSource: {ModConfig.SwapArmSource.Value}",
+                FaceLine(),
                 "",
                 "F1  hide this panel        F2  next avatar",
                 "F3  reload settings        F4  wear avatar",

@@ -37,6 +37,7 @@ namespace DoEFriendsMod.Avatars
         private HandPoser _hands;
         private PoseRetargeter _retarget;
         private ArmIK _armIk;
+        private Face.FaceDriver _face;
         private SkinnedMeshRenderer _hiddenVanillaMesh;
         private bool _vanillaMeshWasEnabled = true;
         private readonly List<(Renderer renderer, bool wasEnabled)> _fpsArmRenderers =
@@ -195,6 +196,7 @@ namespace DoEFriendsMod.Avatars
                         Core.Log.Warning("    retargeting found no usable bones; falling back to VRIK.");
                         _retarget = null;
             _armIk = null;
+            _face = null;
                         useRetarget = false;
                     }
                 }
@@ -249,6 +251,10 @@ namespace DoEFriendsMod.Avatars
 
                 // Both self and peers get a poser; they differ only in where the curl values
                 // come from. Ours reads the controllers, theirs is fed from the wire.
+                _face = new Face.FaceDriver();
+                Core.Log.Msg($"    face: {_face.Build(_model, manifest)}");
+                if (_face.TargetCount == 0) _face = null;
+
                 _hands = new HandPoser { RemoteDriven = !isSelf };
                 var handResult = _hands.Build(_model, manifest);
                 Core.Log.Msg($"    hand poses: {handResult}{(isSelf ? "" : " (driven by that peer)")}");
@@ -683,6 +689,19 @@ namespace DoEFriendsMod.Avatars
                 catch (Exception e) { Core.Log.Warning($"Hand poser failed, disabling: {e.Message}"); _hands = null; }
             }
 
+            // Face after the body and hands: nothing above it touches blendshapes or eye
+            // bones, but a fixed order means a future pose source can't start fighting it.
+            if (_face != null && IsSelf)
+            {
+                var state = Core.Instance?.FaceState;
+                if (state != null)
+                {
+                    var stale = state.SecondsSinceLastMessage;
+                    if (stale >= 0 && stale < ModConfig.FaceStaleSeconds.Value) _face.Apply(state, deltaTime);
+                    else _face.Relax(deltaTime);
+                }
+            }
+
             if (_springs == null || !ModConfig.SpringsEnabled.Value) return;
             try { _springs.Simulate(deltaTime); }
             catch (Exception e) { Core.Log.Warning($"Swap springs failed, disabling: {e.Message}"); _springs = null; }
@@ -976,6 +995,7 @@ namespace DoEFriendsMod.Avatars
             _hands = null;
             _retarget = null;
             _armIk = null;
+            _face = null;
             _player = null;
             _settledLogAt = 0f;
             AvatarName = null;
