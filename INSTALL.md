@@ -240,6 +240,11 @@ The files aren't in `UserData\CustomAvatars\Avatars\`, or only one of the pair i
 The avatar's shaders didn't survive being exported. Whoever exported it needs to re-export with
 their shaders locked.
 
+**Clothing floats in place, or doesn't follow the body**
+The garment is skinned to its own armature and the VRCFury Armature Link that joins it to the
+avatar wasn't applied. The exporter bakes those links now, so a re-export fixes it — the export
+report lists each link it applied, and names any it refused.
+
 ---
 
 ## What this mod does and doesn't touch

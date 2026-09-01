@@ -5,8 +5,10 @@
 // Output: <project>/DoEExport/<name>.avatar + <name>.manifest.json
 //
 // What it does:
-//   1. Clones the avatar, strips every VRC SDK component (PhysBones, descriptors,
-//      constraints, contacts, stations...) and missing-script stubs.
+//   1. Clones the avatar, bakes any VRCFury Armature Links (clothing whose armature is
+//      declared to be the avatar's — see ArmatureLinker.cs), then strips every VRC SDK
+//      component (PhysBones, descriptors, constraints, contacts, stations...) and
+//      missing-script stubs.
 //   2. Validates: humanoid Animator, head bone, at least one SkinnedMeshRenderer.
 //   3. Scans all renderers for Unified Expressions blendshapes (exact name or with
 //      common prefixes: "UE.", "ft.", "v2/", "FT/"), VRC visemes (vrc.v_*), and
@@ -199,6 +201,10 @@ namespace DoEMod.Export
         // debug window instead of your face.
         static readonly string[] ScaffoldingMarkers = { "VRCFury", "FT_Debug", "Face Tracking UE Debug" };
 
+        /// <summary>True for a hierarchy path that lives inside feature-holder or debug scaffolding.</summary>
+        static bool IsScaffoldingPath(string path) =>
+            ScaffoldingMarkers.Any(m => path.IndexOf(m, StringComparison.OrdinalIgnoreCase) >= 0);
+
         const string StripInactivePref = "DoEMod.Export.StripInactive";
         static bool StripInactive
         {
@@ -242,6 +248,27 @@ namespace DoEMod.Export
             catch (Exception e) { Debug.LogError($"DoE face override scan failed: {e}"); }
         }
 
+        // Armature Link is the one VRCFury feature worth applying at export: it is a static
+        // statement about the rig rather than a runtime choice, and skipping it leaves clothing
+        // skinned to its own armature, not following the body. Toggles, Full Controller and
+        // mesh merging stay unapplied by design — enable what you want, then export.
+        const string ArmatureLinkPref = "DoEMod.Export.ArmatureLinks";
+        static bool ApplyArmatureLinks
+        {
+            get => EditorPrefs.GetBool(ArmatureLinkPref, true);
+            set => EditorPrefs.SetBool(ArmatureLinkPref, value);
+        }
+
+        [MenuItem("Tools/Foxipso/DoE Avatar Export/Apply VRCFury Armature Links", priority = 22)]
+        static void ToggleArmatureLinks() => ApplyArmatureLinks = !ApplyArmatureLinks;
+
+        [MenuItem("Tools/Foxipso/DoE Avatar Export/Apply VRCFury Armature Links", true)]
+        static bool ToggleArmatureLinksValidate()
+        {
+            Menu.SetChecked("Tools/Foxipso/DoE Avatar Export/Apply VRCFury Armature Links", ApplyArmatureLinks);
+            return true;
+        }
+
         [MenuItem("Tools/Foxipso/DoE Avatar Export/Strip Inactive Objects", priority = 20)]
         static void ToggleStripInactive() => StripInactive = !StripInactive;
 
@@ -271,7 +298,17 @@ namespace DoEMod.Export
             clone.name = avatarName;
             int removedMissing = 0, removedVrc = 0;
 
-            // --- 1a. Capture PhysBone dynamics BEFORE stripping --------------------
+            // --- 1a. Bake Armature Links BEFORE anything reads the hierarchy -------
+            // Order matters twice over. Dynamics below are recorded as paths relative to the
+            // avatar root, so a skirt bone captured before the link is stored at a path that
+            // won't exist after it. And the inactive-object strip protects bones by walking
+            // the renderers' bone arrays — which only names the avatar's bones once the
+            // garment's have been merged into them.
+            int linksApplied = 0;
+            if (ApplyArmatureLinks)
+                linksApplied = ArmatureLinker.Apply(clone, StripInactive, report);
+
+            // --- 1b. Capture PhysBone dynamics BEFORE stripping --------------------
             // The strip pass destroys VRCPhysBone/VRCPhysBoneCollider, which is correct — they
             // would be missing-script stubs in game. But the *configuration* is the only record
             // of which bones are supposed to swing, so read it out first. Reflection rather than
@@ -303,11 +340,12 @@ namespace DoEMod.Export
                 UnityEngine.Object.DestroyImmediate(c);
 
             report.AppendLine($"Stripped {removedVrc} VRC/VRCFury components, {removedMissing} missing scripts.");
-            report.AppendLine("NOTE: VRCFury components are build-time directives. Stripping them means whatever is");
-            report.AppendLine("      active in the scene right now is exactly what ships — toggles, outfit swaps and");
-            report.AppendLine("      armature links are not applied. Set the avatar up the way you want it, then export.");
+            report.AppendLine("NOTE: VRCFury components are build-time directives. Armature links are baked in above");
+            report.AppendLine($"      ({linksApplied} applied), because they describe the rig rather than a choice. Everything");
+            report.AppendLine("      else is not: toggles and outfit swaps ship exactly as the scene has them right now.");
+            report.AppendLine("      Set the avatar up the way you want it, then export.");
 
-            // --- 1b. Strip inactive objects ---------------------------------------
+            // --- 1c. Strip inactive objects ---------------------------------------
             // A representative VRC avatar carries every outfit variant and toggle target in
             // the hierarchy, disabled. They cost bundle size and load time for something no
             // one will ever see. Bones are protected: deleting an inactive bone would break
@@ -410,7 +448,7 @@ namespace DoEMod.Export
                 .Where(r =>
                 {
                     string p = RelPath(clone.transform, r.transform);
-                    bool scaffolding = ScaffoldingMarkers.Any(m => p.IndexOf(m, StringComparison.OrdinalIgnoreCase) >= 0);
+                    bool scaffolding = IsScaffoldingPath(p);
                     if (scaffolding) skippedScaffolding.Add(p);
                     return !scaffolding;
                 })
