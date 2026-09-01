@@ -172,7 +172,8 @@ namespace CustomAvatars.Fbt
             return _tposeHeldFor >= Mathf.Max(0.2f, ModConfig.FbtTposeHoldSeconds.Value);
         }
 
-        private static bool IsTposed(AvatarPlayer player)
+        /// <summary>Arms out level with the shoulders, standing. Shared with the pose re-bind.</summary>
+        public static bool IsTposed(AvatarPlayer player)
         {
             var posed = false;
             try

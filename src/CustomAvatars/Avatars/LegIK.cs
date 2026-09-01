@@ -100,10 +100,10 @@ namespace CustomAvatars.Avatars
         /// the game's display body lags behind where you actually are, so its feet are re-based
         /// from the lagging body onto ours.
         /// </summary>
-        public void Apply(Vector3 offset, Vector3 modelRight)
+        public void Apply(Vector3 offset, Vector3 modelRight, Vector3 modelForward)
         {
-            Solve(_left, offset, modelRight);
-            Solve(_right, offset, modelRight);
+            Solve(_left, offset, modelRight, modelForward);
+            Solve(_right, offset, modelRight, modelForward);
         }
 
         /// <summary>Put the bone scales back, before this solver is thrown away for a new one.</summary>
@@ -148,7 +148,7 @@ namespace CustomAvatars.Avatars
             leg.Foot.localScale = leg.FootRestScale / s;
         }
 
-        private static void Solve(Leg leg, Vector3 offset, Vector3 modelRight)
+        private static void Solve(Leg leg, Vector3 offset, Vector3 modelRight, Vector3 modelForward)
         {
             if (leg == null) return;
             if (!Interop.Alive(leg.Upper) || !Interop.Alive(leg.Lower) ||
@@ -189,15 +189,13 @@ namespace CustomAvatars.Avatars
                 leg.LastNeeded = needed;
                 leg.LastScale = wantScale;
 
-                var s = 1f;
-                if (wantScale > 1.0001f || leg.Stretched)
-                {
-                    leg.CurrentScale = Mathf.Lerp(leg.CurrentScale, wantScale, 0.35f);
-                    s = leg.CurrentScale;
-                    ApplyStretch(leg, s);
-                    leg.Stretched = s > 1.0001f;
-                    if (!leg.Stretched) { leg.CurrentScale = 1f; s = 1f; RestScales(leg); }
-                }
+                // Exact, not smoothed: the foot is pinned either way, and a longer shin is
+                // less wrong than a foot off the end of it. See ArmIK for the reasoning.
+                var s = wantScale;
+                if (s > 1.0001f) { ApplyStretch(leg, s); leg.Stretched = true; }
+                else if (leg.Stretched) { s = 1f; leg.Stretched = false; RestScales(leg); }
+                else s = 1f;
+                leg.CurrentScale = s;
 
                 var lab = labRest * s;
                 var lcb = lcbRest * s;
@@ -205,21 +203,44 @@ namespace CustomAvatars.Avatars
 
                 var lat = Mathf.Clamp(needed, 1e-3f, lab + lcb - 1e-3f);
 
+                // Which way the knee points is never left to our own pose. A digitigrade rig
+                // starts with a deeply bent knee and an ankle bent the other way, and the copied
+                // rotations can put its knee behind the hip–foot line as easily as in front;
+                // taking the bend plane from that pose then solved the knee backwards, and it
+                // alternated as the knee crossed the line. Knees point forward. The vanilla
+                // leg says which way forward is — its knee is always ahead of its hip–foot
+                // line — and if it is standing dead straight, the model's own forward does.
+                var hint = Vector3.zero;
+                if (Interop.Alive(leg.SourceUpper) && Interop.Alive(leg.SourceLower))
+                {
+                    var srcLeg = leg.SourceFoot.position - leg.SourceUpper.position;
+                    hint = Vector3.ProjectOnPlane(leg.SourceLower.position - leg.SourceUpper.position, srcLeg);
+                }
+                if (hint.sqrMagnitude < 0.03f * 0.03f) hint = modelForward;
+                hint = Vector3.ProjectOnPlane(hint, c - a);
+                if (hint.sqrMagnitude < 1e-8f) hint = modelForward;
+
+                // If our knee is currently on the wrong side, mirror it across the hip–foot
+                // line first: a half turn about that line keeps hip and foot where they are
+                // and swings the knee, and the kneecap, round to the front.
+                var kneeSide = Vector3.Dot(Vector3.ProjectOnPlane(b - a, c - a), hint);
+                if (kneeSide < 0f)
+                {
+                    leg.Upper.rotation = Quaternion.AngleAxis(180f, (c - a).normalized) * leg.Upper.rotation;
+                    b = leg.Lower.position;
+                    c = leg.Foot.position;
+                }
+
                 var current0 = Vector3.Angle(c - a, b - a) * Mathf.Deg2Rad;
                 var knee0 = Vector3.Angle(a - b, c - b) * Mathf.Deg2Rad;
                 var current1 = Mathf.Acos(Mathf.Clamp((lcb * lcb - lab * lab - lat * lat) / (-2f * lab * lat), -1f, 1f));
                 var knee1 = Mathf.Acos(Mathf.Clamp((lat * lat - lab * lab - lcb * lcb) / (-2f * lab * lcb), -1f, 1f));
 
-                // Bend in the plane the copied pose already has the knee in. A standing leg is
-                // nearly straight, which makes that plane ill-defined, so fall back to the
-                // vanilla leg's own plane, and past that to "knees forward": with the leg
-                // pointing down and the knee ahead of it, (foot−hip)×(knee−hip) points to the
-                // model's left.
-                var axis = Vector3.Cross(c - a, b - a);
-                if (axis.sqrMagnitude < 1e-6f && Interop.Alive(leg.SourceUpper) && Interop.Alive(leg.SourceLower))
-                    axis = Vector3.Cross(leg.SourceFoot.position - leg.SourceUpper.position,
-                                         leg.SourceLower.position - leg.SourceUpper.position);
-                if (axis.sqrMagnitude < 1e-6f) axis = -modelRight;
+                // Bend about the axis that puts the knee on the hint's side: with the leg
+                // pointing down and the knee ahead, (foot−hip)×forward points to the model's
+                // left, and a positive rotation about it straightens the knee.
+                var axis = Vector3.Cross(c - a, hint);
+                if (axis.sqrMagnitude < 1e-8f) axis = -modelRight;
                 if (axis.sqrMagnitude < 1e-8f) return;
                 axis.Normalize();
 

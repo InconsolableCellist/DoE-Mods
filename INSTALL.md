@@ -154,8 +154,11 @@ headset.
 The mod never changes how big you are. The game owns your play space and rewrites its scale
 every frame; the mod does not touch it. The avatar is fitted once, when you put it on, so its
 head is at your eyes and its feet are on the floor — the same silhouette the game's own body
-has — and that number does not change again while you wear it. Put it on standing up; if you
-put it on sitting down, F4 twice.
+has — and that number does not change again while you wear it. Put it on standing up.
+
+If it went on wrong — legs twisted, put on sitting down — stand up and **hold a T-pose for a
+second and a half**: arms straight out to the sides, level with your shoulders. The avatar
+re-binds to your body on the spot, the same as taking it off and putting it back on.
 
 Builds 0.33 to 0.35 had a player-resizing feature. It is gone. If your settings file still has
 `HeightScalingEnabled`, `HeightFromAvatar` or `HeightScale` lines, they do nothing and can be

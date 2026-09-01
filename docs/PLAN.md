@@ -466,7 +466,17 @@ tracking. Two known issues from that first look:
   foot keeps the vanilla foot's orientation; `LegLockFeet` pins it exactly. For yourself the
   targets are re-based from the lagging display body onto the unsmoothed player object, so the
   legs don't trail behind you when you stick-move. Re-paired whenever the pose source is, since
-  a respawn brings new bones. `LegIkEnabled`, `LegStretch` (0.08), `LegLockFeet`.
+  a respawn brings new bones. `LegIkEnabled`, `LegStretch`, `LegLockFeet`.
+- **Stretch the arm, not the wrist; knees forward; T-pose re-bind (v0.38.0).** The wrist lock
+  was visibly pulling the hand off the forearm in first person, so the stretch is now exact and
+  uncapped up to `ArmStretch` (0.5) — the arm covers the shortfall and the wrist only what is
+  left; same for legs with `LegStretch` (0.25). Digitigrade knees were solving backwards and
+  alternating as the knee crossed the hip–foot line, because the bend plane came from our own
+  pose; it now comes from the vanilla leg (whose knee is always forward), falling back to the
+  model's forward, and a knee found on the wrong side is mirrored across the line first. And
+  the "F4 twice" workaround for twisted legs is a held T-pose (`RebindOnTposeSeconds`, 1.5):
+  `AvatarSwapper.Rebind` re-captures the reference, rebuilds both solvers at rest, re-fits and
+  resets the springs, using the same T-pose test full-body tracking calibrates from.
 - **Red finger outline around held weapons (v0.21.0).** Hiding the first-person arms used a
   *hide-list* of names starting `FPS_Arm`, which only removes what we thought of. Something
   else — an outline or highlight, evidently created or enabled when a weapon is grabbed, so it

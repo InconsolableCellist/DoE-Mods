@@ -79,6 +79,7 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<bool> LegIkEnabled;
         public static MelonPreferences_Entry<float> LegStretch;
         public static MelonPreferences_Entry<bool> LegLockFeet;
+        public static MelonPreferences_Entry<float> RebindOnTposeSeconds;
 
         public static MelonPreferences_Entry<float> FaceSmoothing;
         public static MelonPreferences_Entry<float> FaceShapeScale;
@@ -212,9 +213,12 @@ namespace CustomAvatars
             HandCurlSmoothing = Tuning.CreateEntry("HandCurlSmoothing", 0.35f, description:
                 "How quickly fingers follow the controller. Lower is smoother and laggier.");
 
-            // A custom avatar's arms are rarely the game character's length, and an arm that
-            // can't reach leaves the hand short of the weapon.
-            ArmStretch = Tuning.CreateEntry("ArmStretch", 0.08f);
+            // A custom avatar's arms are rarely the game character's length. The hand goes on
+            // the target regardless; this is how much of the shortfall the arm may cover by
+            // getting longer before the wrist skin covers the rest. High, because in first
+            // person a long forearm is far less visible than a wrist pulled off the end of it.
+            ArmStretch = Tuning.CreateEntry("ArmStretch", 0.5f, description:
+                "How much longer the arm may get to reach the hand, 0 to 1 (0.5 = half again)");
             // 0 turns it off.
             ArmShoulderYieldDegrees = Tuning.CreateEntry("ArmShoulderYieldDegrees", 25f, description:
                 "How far the collarbone may rotate toward a hand that's out of reach, in degrees");
@@ -233,8 +237,13 @@ namespace CustomAvatars
             // trackers — instead of hanging off the head at a fixed leg length.
             LegIkEnabled = Tuning.CreateEntry("LegIkEnabled", true, description:
                 "Solve each leg to the vanilla body's foot. False leaves the legs to the copied pose.");
-            LegStretch = Tuning.CreateEntry("LegStretch", 0.08f);
+            LegStretch = Tuning.CreateEntry("LegStretch", 0.25f, description:
+                "How much longer a leg may get to reach the game's foot, 0 to 1");
             LegLockFeet = Tuning.CreateEntry("LegLockFeet", true);
+            // What F4-twice does, without F4: hold a T-pose this long and the avatar takes its
+            // reference pose again, re-fits, and resets its solvers. 0 turns it off.
+            RebindOnTposeSeconds = Tuning.CreateEntry("RebindOnTposeSeconds", 1.5f, description:
+                "Hold a T-pose this many seconds to re-bind the avatar to your body. 0 disables.");
 
             FaceSmoothing = Tuning.CreateEntry("FaceSmoothing", 0.5f);
             // Some faces want the whole set toned down.

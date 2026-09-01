@@ -39,6 +39,7 @@ namespace CustomAvatars.Avatars
         private ArmIK _armIk;
         private LegIK _legIk;
         private float _nextLegLogAt;
+        private float _tposeSince, _lastRebindAt;
         private Face.FaceDriver _face;
         private SkinnedMeshRenderer _hiddenVanillaMesh;
         private bool _vanillaMeshWasForcedOff;
@@ -810,6 +811,7 @@ namespace CustomAvatars.Avatars
             }
 
             RecaptureWhenSolved();
+            WatchForRebind();
 
             // Pose first: retargeting writes whole-bone rotations, so fingers and spring chains
             // must run after it or they'd be overwritten the moment they moved.
@@ -830,7 +832,7 @@ namespace CustomAvatars.Avatars
             // ragdoll's business.
             if (_legIk != null && !_ragdolling && ModConfig.LegIkEnabled.Value)
             {
-                try { _legIk.Apply(FootTargetOffset(), _model.transform.right); }
+                try { _legIk.Apply(FootTargetOffset(), _model.transform.right, _model.transform.forward); }
                 catch (Exception e) { Core.Log.Warning($"Leg IK failed, disabling: {e.Message}"); _legIk = null; }
 
                 if (IsSelf && Time.unscaledTime >= _nextLegLogAt)
@@ -1046,6 +1048,81 @@ namespace CustomAvatars.Avatars
                 if (legs.HasLegs) _legIk = legs;
             }
             catch (Exception e) { Core.Log.Warning($"Leg IK rebuild failed: {e.Message}"); }
+        }
+
+        /// <summary>
+        /// Hold a T-pose and the avatar re-binds. Standing with your arms out is the one pose
+        /// nobody strikes by accident mid-dungeon, and it is already what full-body tracking
+        /// asks for, so it doubles as "start over" without a key.
+        /// </summary>
+        private void WatchForRebind()
+        {
+            if (!IsSelf || _ragdolling || !Interop.Alive(_player)) { _tposeSince = 0f; return; }
+            var hold = ModConfig.RebindOnTposeSeconds.Value;
+            if (hold <= 0f) return;
+
+            bool posed;
+            try { posed = Fbt.FbtCalibrator.IsTposed(_player); }
+            catch { posed = false; }
+            if (!posed) { _tposeSince = 0f; return; }
+
+            var now = Time.unscaledTime;
+            if (_tposeSince <= 0f) { _tposeSince = now; return; }
+            if (now - _tposeSince < hold) return;
+            // Held long enough. Once per hold, and not more than every ten seconds — a
+            // re-bind mid-way through the previous one's settle would capture the settling.
+            _tposeSince = 0f;
+            if (now - _lastRebindAt < 10f) return;
+            _lastRebindAt = now;
+            Rebind("T-pose held");
+        }
+
+        /// <summary>
+        /// Everything F4-twice did that mattered, without the respawn: take the reference pose
+        /// again, reset the arm and leg solvers to rest, re-fit, and let the springs settle.
+        ///
+        /// "Take it off and put it back on" was the standing workaround for legs that came out
+        /// twisted, and it worked because a fresh swap captures a fresh reference against a
+        /// rig that has by then settled. This captures the same reference on request.
+        /// </summary>
+        public void Rebind(string why)
+        {
+            if (!IsActive || _manifest == null) return;
+            try
+            {
+                var result = "no pose source";
+                if (_retarget != null)
+                {
+                    Animator source = null;
+                    try { source = _player.RemoteAnimator; } catch { }
+                    result = Interop.Alive(source)
+                        ? _retarget.Recapture(source, _model, _manifest)
+                        : _retarget.Build(_player, _model, _manifest);
+                    if (_retarget.LinkCount == 0) _retarget = null;
+                }
+
+                // Solvers from scratch: their stretch comes off the bones, their yields and
+                // twists start from nothing, and the legs re-pair with the game's feet.
+                if (_armIk != null)
+                {
+                    _armIk.Release();
+                    var arms = new ArmIK();
+                    arms.Build(_model, _manifest, _leftHandTarget?.transform, _rightHandTarget?.transform,
+                               _retarget != null ? _retarget.SourceOf : null);
+                    _armIk = arms.HasArms ? arms : null;
+                }
+                RebuildLegIk();
+                try { _springs?.Reset(); } catch { }
+
+                // Re-fit shortly, once the fresh reference has posed the body.
+                _calibrateAt = Time.unscaledTime + 0.25f;
+                ArmReferenceAgain(why);
+                _armDumpsLeft = 1;
+                _nextArmDumpAt = Time.unscaledTime + 3f;
+
+                Core.Log.Msg($"*** Avatar re-bound ({why}) — {result}");
+            }
+            catch (Exception e) { Core.Log.Warning($"Re-bind failed: {e.Message}"); }
         }
 
         private void RebuildPoseSource()
@@ -1528,6 +1605,8 @@ namespace CustomAvatars.Avatars
             _legIk = null;
             _face = null;
             _player = null;
+            _tposeSince = 0f;
+            _lastRebindAt = 0f;
             _settledLogAt = 0f;
             AvatarName = null;
 

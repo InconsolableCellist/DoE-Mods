@@ -138,6 +138,16 @@ namespace CustomAvatars.Avatars
             Solve(_right);
         }
 
+        /// <summary>Put the bone scales back, before this solver is thrown away for a new one.</summary>
+        public void Release()
+        {
+            foreach (var arm in new[] { _left, _right })
+            {
+                if (arm == null) continue;
+                try { if (Interop.Alive(arm.Upper)) RestScales(arm); } catch { }
+            }
+        }
+
         /// <summary>
         /// How far each hand ends up from where it was asked to be. If this is large, the
         /// problem is not the solver — it is that the target isn't where we think, or the
@@ -388,16 +398,17 @@ namespace CustomAvatars.Avatars
                 arm.LastNeeded = needed;
                 arm.LastScale = wantScale;
 
-                var s = 1f;
-                if (wantScale > 1.0001f || arm.Stretched)
-                {
-                    // Smooth, so an arm at the edge of reach doesn't pop between lengths.
-                    arm.CurrentScale = Mathf.Lerp(arm.CurrentScale, wantScale, 0.35f);
-                    s = arm.CurrentScale;
-                    ApplyStretch(arm, s);
-                    arm.Stretched = s > 1.0001f;
-                    if (!arm.Stretched) { arm.CurrentScale = 1f; s = 1f; RestScales(arm); }
-                }
+                // Exactly what is needed, this frame, no smoothing. The old lerp existed so a
+                // hand at the edge of reach wouldn't pop between lengths; now the hand is on
+                // the target either way and the only question is whether the arm or the wrist
+                // skin covers the distance. In first person a longer forearm is far less
+                // visible than a wrist pulled off the end of it, so the arm takes as much as
+                // ArmStretch allows and the wrist lock only gets the remainder.
+                var s = wantScale;
+                if (s > 1.0001f) { ApplyStretch(arm, s); arm.Stretched = true; }
+                else if (arm.Stretched) { s = 1f; arm.Stretched = false; RestScales(arm); }
+                else s = 1f;
+                arm.CurrentScale = s;
 
                 // The lengths the bones have NOW, after this frame's stretch. Directions are
                 // unchanged by a uniform scale about the shoulder, so a, b, c still describe
