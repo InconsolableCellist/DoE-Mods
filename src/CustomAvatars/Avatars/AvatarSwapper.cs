@@ -39,7 +39,7 @@ namespace CustomAvatars.Avatars
         private ArmIK _armIk;
         private Face.FaceDriver _face;
         private SkinnedMeshRenderer _hiddenVanillaMesh;
-        private bool _vanillaMeshWasEnabled = true;
+        private bool _vanillaMeshWasForcedOff;
         private readonly List<(Renderer renderer, bool wasEnabled)> _fpsArmRenderers =
             new List<(Renderer, bool)>();
 
@@ -556,7 +556,7 @@ namespace CustomAvatars.Avatars
                 var mesh = fullBody.characterMesh;
                 if (!Interop.Alive(mesh)) { Core.Log.Warning("No characterMesh found to hide."); return; }
                 _hiddenVanillaMesh = mesh;
-                _vanillaMeshWasEnabled = mesh.enabled;
+                try { _vanillaMeshWasForcedOff = mesh.forceRenderingOff; } catch { _vanillaMeshWasForcedOff = false; }
                 Core.Log.Msg($"    vanilla mesh `{Interop.ScenePath(mesh.transform)}` " +
                              $"— SwapHideVanillaMesh = {ModConfig.SwapHideVanillaMesh.Value}" +
                              (ModConfig.SwapHideVanillaMesh.Value ? "" : " (your old body stays visible)"));
@@ -627,13 +627,7 @@ namespace CustomAvatars.Avatars
             try
             {
                 var hide = ModConfig.SwapHideFpsArms.Value;
-                if (_forcedVanillaIk && Interop.Alive(_fullBody))
-            {
-                try { _fullBody.ikEnabled = _vanillaIkWas; } catch { }
-            }
-            _forcedVanillaIk = false;
-
-            foreach (var (r, wasEnabled) in _fpsArmRenderers)
+                foreach (var (r, wasEnabled) in _fpsArmRenderers)
                 {
                     if (!Interop.Alive(r)) continue;
                     // Restoring to `wasEnabled` rather than to true matters: several of these
@@ -673,19 +667,36 @@ namespace CustomAvatars.Avatars
         }
 
         /// <summary>
+        /// Stop the vanilla body drawing — with `forceRenderingOff`, never by switching the
+        /// renderer off.
+        ///
+        /// `characterMesh.enabled = false` looks like the obvious way to hide a body, and it
+        /// is the reason remote players stood there in a slack A-pose, sliding, never turning
+        /// their heads. The game asks `Renderer.isVisible` whether anyone can see a character,
+        /// and a disabled renderer answers "no" forever. `CharacterPrefab.IsVisibleToLocalPlayer`
+        /// returns that answer verbatim for anyone who isn't the local player, and
+        /// `UpdatePhysics` then sets `ik.solver.LOD = 2` — FinalIK for "don't solve at all" —
+        /// as well as skipping the glancer, the blendshapes and the hands' `BeforeAnimation`.
+        /// So hiding a peer's mesh switched off the very pose we copy off it, and full-body
+        /// tracking, which fills that same solver's empty pelvis and leg slots, died with it.
+        ///
+        /// `forceRenderingOff` draws nothing while leaving the renderer enabled and still part
+        /// of culling, so `isVisible` keeps tracking the real camera. The game's own distance
+        /// and frustum LOD then goes on working as it always did.
+        ///
         /// Re-applied every frame rather than set once at swap time. Two reasons: toggling
         /// SwapHideVanillaMesh and pressing F3 mid-swap now actually does something, and if the
-        /// game's own LOD or material handling ever re-enables the renderer, this quietly wins.
+        /// game's own LOD or material handling ever draws the renderer again, this quietly wins.
         /// </summary>
         private void ApplyVanillaMeshVisibility()
         {
             if (!Interop.Alive(_hiddenVanillaMesh)) return;
             try
             {
-                var shouldBeVisible = !ModConfig.SwapHideVanillaMesh.Value;
-                if (_hiddenVanillaMesh.enabled == shouldBeVisible) return;
-                _hiddenVanillaMesh.enabled = shouldBeVisible;
-                Core.Log.Msg($"    vanilla mesh {(shouldBeVisible ? "shown" : "hidden")}.");
+                var hide = ModConfig.SwapHideVanillaMesh.Value;
+                if (_hiddenVanillaMesh.forceRenderingOff == hide) return;
+                _hiddenVanillaMesh.forceRenderingOff = hide;
+                Core.Log.Msg($"    vanilla mesh {(hide ? "hidden" : "shown")}.");
             }
             catch { }
         }
@@ -1144,7 +1155,7 @@ namespace CustomAvatars.Avatars
             // body at all and no way to get one back.
             try
             {
-                if (Interop.Alive(_hiddenVanillaMesh)) _hiddenVanillaMesh.enabled = _vanillaMeshWasEnabled;
+                if (Interop.Alive(_hiddenVanillaMesh)) _hiddenVanillaMesh.forceRenderingOff = _vanillaMeshWasForcedOff;
             }
             catch (Exception e) { Core.Log.Warning($"Could not restore the vanilla mesh: {e.Message}"); }
             if (_forcedVanillaIk && Interop.Alive(_fullBody))
