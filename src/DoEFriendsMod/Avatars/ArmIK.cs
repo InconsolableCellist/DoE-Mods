@@ -99,9 +99,21 @@ namespace DoEFriendsMod.Avatars
                 var lcb = Vector3.Distance(b, c);
                 if (lab < 1e-5f || lcb < 1e-5f) return;
 
-                // Just short of full extension: a perfectly straight arm has no bend plane, and
-                // the next frame would have nothing to rotate about.
-                var lat = Mathf.Clamp(Vector3.Distance(a, t), 1e-3f, lab + lcb - 1e-3f);
+                // Let the arm stretch a little past its natural length. A custom avatar's arms
+                // are rarely the same length as the game character's, and a shorter arm simply
+                // cannot reach the hand target — so the hand stops short of the weapon it is
+                // supposed to be holding, by more the further out you reach. A few percent of
+                // stretch closes that gap and is invisible on the mesh.
+                var stretch = 1f + Mathf.Clamp(ModConfig.ArmStretch.Value, 0f, 0.5f);
+                var reach = (lab + lcb) * stretch;
+                var lat = Mathf.Clamp(Vector3.Distance(a, t), 1e-3f, reach - 1e-3f);
+
+                // Scale the bones to match, so the elbow solve stays consistent with the reach.
+                if (stretch > 1.0001f)
+                {
+                    lab *= stretch;
+                    lcb *= stretch;
+                }
 
                 var current0 = Vector3.Angle(c - a, b - a) * Mathf.Deg2Rad;
                 var elbow0 = Vector3.Angle(a - b, c - b) * Mathf.Deg2Rad;

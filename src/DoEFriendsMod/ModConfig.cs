@@ -58,7 +58,7 @@ namespace DoEFriendsMod
         // The first-person arms are a SEPARATE model on the SteamVR rig, not part of the
         // character body — hiding the body does nothing to them.
         public static MelonPreferences_Entry<bool> SwapHideFpsArms;
-        public static MelonPreferences_Entry<string> SwapFpsArmPrefixes;
+        public static MelonPreferences_Entry<string> SwapFpsArmKeepPrefixes;
         /// <summary>Pin the avatar to the game's own body position every frame. Turn OFF to let
         /// VRIK's procedural locomotion own the root, which is what makes legs step.</summary>
         public static MelonPreferences_Entry<bool> SwapFollowVanillaRoot;
@@ -76,6 +76,8 @@ namespace DoEFriendsMod
         public static MelonPreferences_Entry<bool> RetargetAlignAtCapture;
         /// <summary>How much wrist roll is passed back to the forearm, 0..1.</summary>
         public static MelonPreferences_Entry<float> ArmTwistShare;
+        /// <summary>How far past its natural length an arm may stretch to reach the hand target.</summary>
+        public static MelonPreferences_Entry<float> ArmStretch;
         public static MelonPreferences_Entry<float> HandSyncHz;
         public static MelonPreferences_Entry<bool> HologramSwapEnabled;
 
@@ -161,9 +163,11 @@ namespace DoEFriendsMod
             SelfHeadKeepBones = Category.CreateEntry("SelfHeadKeepBones", "");
 
             SwapHideFpsArms = Category.CreateEntry("SwapHideFpsArms", true);
-            // Only the arm meshes. The weapon-stat and kill-counter panels are parented into
-            // the same rig's forearm bones, and hiding those would take away real UI.
-            SwapFpsArmPrefixes = Category.CreateEntry("SwapFpsArmPrefixes", "FPS_Arm");
+            // Everything under the first-person arms rig is hidden EXCEPT paths matching one
+            // of these. Keeping the UI: the weapon-stat and kill-counter panels are parented
+            // into the same rig's forearm bones and are real UI, not part of the arms.
+            SwapFpsArmKeepPrefixes = Category.CreateEntry("SwapFpsArmKeepPrefixes",
+                "ui_counter,_StatsPanel,TMP,Holster");
             SwapFollowVanillaRoot = Category.CreateEntry("SwapFollowVanillaRoot", true);
 
             HandPosesEnabled = Category.CreateEntry("HandPosesEnabled", true);
@@ -186,6 +190,9 @@ namespace DoEFriendsMod
             // Real forearms share pronation between elbow and wrist. Putting all of it on the
             // wrist pinches the mesh into a straw when you turn your palm up.
             ArmTwistShare = Category.CreateEntry("ArmTwistShare", 0.5f);
+            // A custom avatar's arms are rarely the game character's length, and a shorter arm
+            // can't reach the hand target, so the hand stops short of the weapon.
+            ArmStretch = Category.CreateEntry("ArmStretch", 0.08f);
             // Ten bytes per tick, sent only when a finger actually moved.
             HandSyncHz = Category.CreateEntry("HandSyncHz", 12f);
             // Show custom avatars on the equipment-room mannequins as well as on the players.

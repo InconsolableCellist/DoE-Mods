@@ -544,28 +544,34 @@ namespace DoEFriendsMod.Avatars
                     return;
                 }
 
-                var prefixes = (ModConfig.SwapFpsArmPrefixes.Value ?? "").Split(',');
+                // Hide everything under the arms rig EXCEPT a keep-list, rather than hiding a
+                // list of known arm meshes. A hide-list only removes what we thought of: a red
+                // outline of the fingers appeared around held weapons, because whatever draws
+                // it isn't named FPS_Arm and was left behind when the mesh under it went away.
+                // Inverting the rule means anything we didn't anticipate is hidden by default,
+                // and the keep-list stays short and stable.
+                var keep = (ModConfig.SwapFpsArmKeepPrefixes.Value ?? "").Split(',');
                 var renderers = armsModel.GetComponentsInChildren<Renderer>(true);
                 for (var i = 0; i < renderers.Length; i++)
                 {
                     var r = renderers[i];
                     if (!Interop.Alive(r)) continue;
-                    var name = Interop.Name(r);
-                    var matches = false;
-                    foreach (var raw in prefixes)
+                    var path = Interop.ScenePath(r.transform);
+                    var kept = false;
+                    foreach (var raw in keep)
                     {
-                        var prefix = raw.Trim();
-                        if (prefix.Length == 0) continue;
-                        if (name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) { matches = true; break; }
+                        var token = raw.Trim();
+                        if (token.Length == 0) continue;
+                        if (path.IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0) { kept = true; break; }
                     }
-                    if (matches) _fpsArmRenderers.Add((r, r.enabled));
+                    if (!kept) _fpsArmRenderers.Add((r, r.enabled));
                 }
 
-                Core.Log.Msg($"    FPS arms: {_fpsArmRenderers.Count} renderer(s) matched " +
-                             $"`{ModConfig.SwapFpsArmPrefixes.Value}` under `{Interop.ScenePath(armsModel)}` " +
-                             $"— SwapHideFpsArms = {ModConfig.SwapHideFpsArms.Value}");
+                Core.Log.Msg($"    FPS arms: hiding {_fpsArmRenderers.Count} of {renderers.Length} renderer(s) " +
+                             $"under `{Interop.ScenePath(armsModel)}`, keeping paths matching " +
+                             $"`{ModConfig.SwapFpsArmKeepPrefixes.Value}` — SwapHideFpsArms = {ModConfig.SwapHideFpsArms.Value}");
                 foreach (var (r, wasOn) in _fpsArmRenderers)
-                    Core.Log.Msg($"      {(wasOn ? "on " : "off")} `{Interop.Name(r)}`");
+                    Core.Log.Msg($"      hide {(wasOn ? "(was on) " : "(was off)")} `{Interop.Name(r)}`");
             }
             catch (Exception e) { Core.Log.Warning($"    FPS arms lookup failed: {e.GetType().Name}: {e.Message}"); }
         }

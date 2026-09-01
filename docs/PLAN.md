@@ -433,6 +433,20 @@ tracking. Two known issues from that first look:
   on the wrist joint. `ArmIK` now passes a share of the roll back to the forearm using a
   swing-twist decomposition — only the component that spins about the bone, since bending the
   elbow there would move the hand off the target just solved for. `ArmTwistShare`, default 0.5.
+- **Red finger outline around held weapons (v0.21.0).** Hiding the first-person arms used a
+  *hide-list* of names starting `FPS_Arm`, which only removes what we thought of. Something
+  else — an outline or highlight, evidently created or enabled when a weapon is grabbed, so it
+  wasn't in the Phase 0 recon dump — was left behind once the mesh beneath it vanished, leaving
+  a floating red outline of the fingers. Inverted to a **keep-list**
+  (`SwapFpsArmKeepPrefixes`, default `ui_counter,_StatsPanel,TMP,Holster`): everything under the
+  arms rig is hidden unless its path matches, so anything unanticipated is hidden by default and
+  the short list is the part that needs maintaining. Every hidden renderer is logged by name.
+- **Custom hand not quite on the weapon (v0.21.0).** A custom avatar's arms are rarely the game
+  character's length, and the two-bone solver clamped the target to the arm's natural reach — so
+  a shorter arm stopped short of the hand target, by more the further out you reached, which is
+  exactly the "differs to a lesser or greater degree at various positions" that testing found.
+  `ArmStretch` (default 0.08) lets the arm extend a few percent past its natural length; the
+  bone lengths scale with it so the elbow solve stays consistent.
 - **Head clipping fixed (v0.7.0)** with the same trick VRChat's Head Chop uses: scale the head
   bone to ~0 so its geometry collapses out of view. The head is part of one merged
   SkinnedMeshRenderer, so there is no renderer or layer to switch off — per-bone scale is the
