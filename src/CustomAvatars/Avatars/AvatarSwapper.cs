@@ -93,6 +93,13 @@ namespace CustomAvatars.Avatars
 
         /// <summary>Raised on our own avatar when the fit changes, so peers can be told.</summary>
         public event Action HeightScaleChanged;
+
+        /// <summary>
+        /// Raised when a held T-pose asks for the avatar to be taken off and put back on. The
+        /// manager does that, not us: a swapper can't safely replace itself from inside its
+        /// own LateUpdate.
+        /// </summary>
+        public event Action<string> RebindRequested;
         public string AvatarName { get; private set; }
 
         /// <summary>
@@ -1074,58 +1081,8 @@ namespace CustomAvatars.Avatars
             _tposeSince = 0f;
             if (now - _lastRebindAt < 10f) return;
             _lastRebindAt = now;
-            Rebind("T-pose held");
-        }
-
-        /// <summary>
-        /// Everything F4-twice did that mattered, without the respawn: take the reference pose
-        /// again, reset the arm and leg solvers to rest, re-fit, and let the springs settle.
-        ///
-        /// "Take it off and put it back on" was the standing workaround for legs that came out
-        /// twisted, and it worked because a fresh swap captures a fresh reference against a
-        /// rig that has by then settled. This captures the same reference on request.
-        /// </summary>
-        public void Rebind(string why)
-        {
-            if (!IsActive || _manifest == null) return;
-            try
-            {
-                var result = "no pose source";
-                if (_retarget != null)
-                {
-                    Animator source = null;
-                    try { source = _player.RemoteAnimator; } catch { }
-                    result = Interop.Alive(source)
-                        ? _retarget.Recapture(source, _model, _manifest)
-                        : _retarget.Build(_player, _model, _manifest);
-                    if (_retarget.LinkCount == 0) _retarget = null;
-                }
-
-                // Solvers from scratch: their stretch comes off the bones, their yields and
-                // twists start from nothing, and the legs re-pair with the game's feet.
-                if (_armIk != null)
-                {
-                    _armIk.Release();
-                    var arms = new ArmIK();
-                    arms.Build(_model, _manifest, _leftHandTarget?.transform, _rightHandTarget?.transform,
-                               _retarget != null ? _retarget.SourceOf : null);
-                    _armIk = arms.HasArms ? arms : null;
-                }
-                RebuildLegIk();
-                try { _springs?.Reset(); } catch { }
-
-                // Re-fit shortly, once the fresh reference has posed the body.
-                _calibrateAt = Time.unscaledTime + 0.25f;
-                ArmReferenceAgain(why);
-                _armDumpsLeft = 1;
-                _nextArmDumpAt = Time.unscaledTime + 3f;
-
-                Core.Log.Msg($"*** Avatar re-bound ({why}) — {result}");
-                // The same rise FBT plays when a calibration locks in: you are in a headset
-                // holding a T-pose, and this is how you know it took.
-                Fbt.FbtAudio.Locked();
-            }
-            catch (Exception e) { Core.Log.Warning($"Re-bind failed: {e.Message}"); Fbt.FbtAudio.Error(); }
+            try { RebindRequested?.Invoke("T-pose held"); }
+            catch (Exception e) { Core.Log.Warning($"Re-bind request failed: {e.Message}"); }
         }
 
         private void RebuildPoseSource()
@@ -1608,8 +1565,9 @@ namespace CustomAvatars.Avatars
             _legIk = null;
             _face = null;
             _player = null;
+            // _lastRebindAt deliberately survives a revert: a re-bind IS a revert, and the
+            // ten-second gap has to hold across it or a T-pose still being held re-fires.
             _tposeSince = 0f;
-            _lastRebindAt = 0f;
             _settledLogAt = 0f;
             AvatarName = null;
 

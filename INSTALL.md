@@ -157,9 +157,9 @@ head is at your eyes and its feet are on the floor — the same silhouette the g
 has — and that number does not change again while you wear it. Put it on standing up.
 
 If it went on wrong — legs twisted, put on sitting down — stand up and **hold a T-pose for a
-second and a half**: arms straight out to the sides, level with your shoulders. The avatar
-re-binds to your body on the spot, the same as taking it off and putting it back on. You'll
-hear the same rising two-note chime full-body tracking plays when it locks in.
+second and a half**: arms straight out to the sides, level with your shoulders. The avatar is
+taken off and put straight back on — exactly what pressing F4 twice does — and you'll hear
+the same rising two-note chime full-body tracking plays when it locks in.
 
 Builds 0.33 to 0.35 had a player-resizing feature. It is gone. If your settings file still has
 `HeightScalingEnabled`, `HeightFromAvatar` or `HeightScale` lines, they do nothing and can be

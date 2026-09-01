@@ -29,6 +29,9 @@ namespace CustomAvatars.Avatars
             // ourselves — both are moments peers need to hear about, or they keep drawing us
             // at the size we were when we put the avatar on.
             _self.HeightScaleChanged += () => SelfHeightChanged?.Invoke();
+            // Deferred to the next Tick: the request comes from inside the swapper's own
+            // LateUpdate, and replacing it there would pull the floor out from under it.
+            _self.RebindRequested += why => _rewearWhy = why;
             ModGate.ActiveChanged += active => { if (!active) RevertRemotes("gate closed"); };
             ModGate.LocalVisualsChanged += allowed => { if (!allowed) RevertAll("local visuals off"); };
         }
@@ -137,6 +140,38 @@ namespace CustomAvatars.Avatars
             SelfAvatarChanged?.Invoke();
         }
 
+        /// <summary>
+        /// F4 twice, as one step: take the avatar off and put it straight back on.
+        ///
+        /// A re-bind that only re-captured the reference pose and rebuilt the solvers in place
+        /// was tried first and was not the same thing — the avatar didn't come back to the
+        /// position and fit a fresh swap gives it. A fresh swap is a new model instance in its
+        /// bind pose, a new reference, a new fit, new springs, new everything; there is no
+        /// cheaper equivalent, so this does the real thing.
+        /// </summary>
+        private void ReWearSelf(string why)
+        {
+            var name = _self.AvatarName ?? _selfWanted;
+            if (string.IsNullOrEmpty(name) || !ModGate.LocalVisuals) return;
+
+            AvatarPlayer local = null;
+            try { local = AvatarPlayer.LocalAvatar; } catch { }
+            if (!Interop.Alive(local)) { Fbt.FbtAudio.Error(); return; }
+
+            var manifest = _library.Get(name);
+            if (manifest == null) { Fbt.FbtAudio.Error(); return; }
+
+            Core.Log.Msg($"*** Re-wearing `{name}` ({why}) — off and straight back on.");
+            _self.Revert(why);
+            _self.Apply(local, manifest, isSelf: true);
+            _selfWanted = _self.AvatarName ?? _selfWanted;
+            SelfAvatarChanged?.Invoke();
+
+            // You are in a headset holding a T-pose; this is how you know it took. The same
+            // rise FBT plays when a calibration locks in.
+            if (_self.IsActive) Fbt.FbtAudio.Locked(); else Fbt.FbtAudio.Error();
+        }
+
         /// <summary>A peer told us what they're wearing, and how big they are wearing it.</summary>
         public void SetRemoteAvatar(int actorNumber, string avatarName, string sha, float height)
         {
@@ -188,11 +223,13 @@ namespace CustomAvatars.Avatars
         /// </summary>
         /// <summary>What we were wearing before a scene change invalidated the player object.</summary>
         private string _selfWanted;
+        private string _rewearWhy;
 
         public void Tick(float deltaTime)
         {
             AutoWear();
             HealSelf();
+            if (_rewearWhy != null) { var why = _rewearWhy; _rewearWhy = null; ReWearSelf(why); }
 
             _self.LateUpdate(deltaTime);
             foreach (var kv in _remote) kv.Value.LateUpdate(deltaTime);

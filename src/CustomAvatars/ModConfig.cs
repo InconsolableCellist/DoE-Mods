@@ -240,8 +240,8 @@ namespace CustomAvatars
             LegStretch = Tuning.CreateEntry("LegStretch", 0.25f, description:
                 "How much longer a leg may get to reach the game's foot, 0 to 1");
             LegLockFeet = Tuning.CreateEntry("LegLockFeet", true);
-            // What F4-twice does, without F4: hold a T-pose this long and the avatar takes its
-            // reference pose again, re-fits, and resets its solvers. 0 turns it off.
+            // F4 twice, without F4: hold a T-pose this long and the avatar is taken off and
+            // put straight back on. 0 turns it off.
             RebindOnTposeSeconds = Tuning.CreateEntry("RebindOnTposeSeconds", 1.5f, description:
                 "Hold a T-pose this many seconds to re-bind the avatar to your body. 0 disables.");
 
