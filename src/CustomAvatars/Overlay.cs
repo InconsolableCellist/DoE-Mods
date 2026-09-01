@@ -25,6 +25,21 @@ namespace CustomAvatars
         private const int LineHeight = 19;
         private const int TitleHeight = 26;
 
+        private static GUIStyle _left, _centre, _right;
+
+        private static void EnsureStyles()
+        {
+            if (_left != null) return;
+            // Built here rather than in a field initialiser: GUI.skin only exists inside OnGUI.
+            _left = new GUIStyle(GUI.skin.label);
+            _left.alignment = TextAnchor.MiddleLeft;
+            _centre = new GUIStyle(GUI.skin.label);
+            _centre.alignment = TextAnchor.MiddleCenter;
+            _centre.fontStyle = FontStyle.Bold;
+            _right = new GUIStyle(GUI.skin.label);
+            _right.alignment = TextAnchor.MiddleRight;
+        }
+
         public static void Draw()
         {
             if (!Visible) return;
@@ -33,7 +48,15 @@ namespace CustomAvatars
             var height = Pad * 2 + TitleHeight + lines.Length * LineHeight;
             var rect = new Rect(Pad, Pad, Width, height);
 
-            GUI.Box(rect, title);
+            GUI.Box(rect, "");
+
+            // Three labels over one strip, each anchored differently: author left, title
+            // centre, site right.
+            EnsureStyles();
+            var header = new Rect(rect.x + Pad, rect.y + 4, Width - Pad * 2, TitleHeight - 6);
+            GUI.Label(header, "By Foxipso", _left);
+            GUI.Label(header, title, _centre);
+            GUI.Label(header, "foxipso.com", _right);
 
             var y = rect.y + TitleHeight;
             foreach (var line in lines)
