@@ -6,7 +6,7 @@ using CustomAvatars.Gate;
 using CustomAvatars.Net;
 using CustomAvatars.Recon;
 
-[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.31.0", "dan")]
+[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.32.0", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace CustomAvatars
@@ -25,7 +25,7 @@ namespace CustomAvatars
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.31.0";
+        public const string Version = "0.32.0";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -42,6 +42,8 @@ namespace CustomAvatars
         private HologramSwapper _holograms;
         private Face.VrcftBridge _face;
         private Face.FaceSync _faceSync;
+        private Fbt.TrackerReader _trackers;
+        private Fbt.FbtManager _fbt;
         private bool _envDumped;
         private float _hotkeyCooldown;
 
@@ -81,6 +83,8 @@ namespace CustomAvatars
             _avatarSync = new AvatarSync(_swaps, _avatarLibrary, _roster);
             _handSync = new HandSync(_swaps, _roster);
             _holograms = new HologramSwapper(_avatarLibrary, _swaps);
+            _trackers = new Fbt.TrackerReader();
+            _fbt = new Fbt.FbtManager(_swaps, _roster, _trackers);
 
             if (ModConfig.FaceOscEnabled.Value)
             {
@@ -114,6 +118,10 @@ namespace CustomAvatars
             _roster.Tick(dt);
             ModGate.Evaluate(_roster);
             ModNet.Pump();
+
+            // Before the game's LateUpdate, where FinalIK solves: tracker targets set here are
+            // where this frame's legs land. After Pump, so a peer's poses land the same frame.
+            _fbt?.Update(dt);
 
             // Hotkeys are not a recon feature. They used to sit behind this check, which meant
             // turning the dumps off silently took F4 with it.
@@ -158,6 +166,9 @@ namespace CustomAvatars
         /// <summary>One-line swap state for the overlay.</summary>
         public string SwapSummary => _swaps?.Describe() ?? "-";
 
+        /// <summary>One-line FBT state for the overlay.</summary>
+        public string FbtSummary => _fbt?.Describe() ?? "-";
+
         public override void OnGUI()
         {
             try { Overlay.Draw(); }
@@ -171,6 +182,7 @@ namespace CustomAvatars
             // After the game's own IK has solved this frame; ours runs on top of the pose it left.
             _swaps?.Tick(dt);
             _handSync?.Tick(UnityEngine.Time.unscaledTime);
+            _fbt?.LateTick(UnityEngine.Time.unscaledTime);
             _holograms?.Tick(UnityEngine.Time.unscaledTime);
 
             _face?.Tick(UnityEngine.Time.unscaledTime);
@@ -246,6 +258,18 @@ namespace CustomAvatars
                         ? "No avatars installed to choose from."
                         : $"*** Avatar selected: {next} — press F4 twice to put it on.");
                 }
+                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F10))
+                {
+                    // Refusing (fewer than 3 trackers) still writes the full recon dump, so
+                    // F10 with no pucks on doubles as the tracker diagnostics key.
+                    _hotkeyCooldown = 0.5f;
+                    _fbt.Toggle();
+                }
+                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F11))
+                {
+                    _hotkeyCooldown = 0.5f;
+                    _fbt.StartCalibration();
+                }
                 else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F3))
                 {
                     // Re-read MelonPreferences.cfg from disk. The spring constants are read
@@ -273,6 +297,7 @@ namespace CustomAvatars
 
         public override void OnApplicationQuit()
         {
+            _fbt?.Shutdown();
             _preview?.Despawn("application quitting");
             _face?.Dispose();
             _holograms?.RevertAll("application quitting");

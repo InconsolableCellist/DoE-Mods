@@ -888,6 +888,21 @@ namespace CustomAvatars.Avatars
 
             try
             {
+                // FBT escape hatch: with a hip tracker driving the game rig's pelvis, anchoring
+                // by the head can fight the hip drive (risk #2 in the FBT plan). This re-anchors
+                // by the hips instead — the same placement the ragdoll branch already uses — so
+                // the fix can be tried from the settings file if the fight ever shows up.
+                if (ModConfig.FbtAnchorHips.Value && _retarget != null)
+                {
+                    var hips = _retarget.SourceHipsPosition;
+                    var offset = _retarget.TargetHipsOffset;
+                    if (hips.HasValue && offset.HasValue)
+                    {
+                        _model.transform.position = hips.Value - offset.Value;
+                        return;
+                    }
+                }
+
                 var head = _player.IKTargetHead;
                 if (!Interop.Alive(head)) return;
                 _model.transform.position += head.position - _headBone.position;

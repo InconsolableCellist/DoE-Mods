@@ -192,6 +192,21 @@ namespace CustomAvatars.Gate
             return list.ToArray();
         }
 
+        /// <summary>
+        /// Same, but only peers advertising a capability. The strict build-hash gate means
+        /// mixed builds never share an active lobby, so today this filter is belt-and-braces —
+        /// but a stream sent to a peer without its handler logs a warning per message, and at
+        /// 15 Hz that is a warning firehose the first time the gate ever loosens.
+        /// </summary>
+        public int[] ModdedPeerActors(ModCaps required)
+        {
+            var list = new List<int>();
+            foreach (var kv in _peers)
+                if (kv.Value.IsModded && !kv.Value.IsLocal && (kv.Value.Caps & required) == required)
+                    list.Add(kv.Key);
+            return list.ToArray();
+        }
+
         /// <summary>Human-readable roster, for logs and the gate's reason string.</summary>
         public string Describe()
         {

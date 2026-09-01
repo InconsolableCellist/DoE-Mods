@@ -188,6 +188,9 @@ namespace CustomAvatars.Avatars
             arm.HasYield = true;
         }
 
+        private static bool Finite(Vector3 v) =>
+            !float.IsNaN(v.x + v.y + v.z) && !float.IsInfinity(v.x + v.y + v.z);
+
         private static void Solve(Arm arm)
         {
             if (arm == null) return;
@@ -196,6 +199,25 @@ namespace CustomAvatars.Avatars
 
             try
             {
+                // NaN firewall. A single non-finite frame — a bad IK target upstream was
+                // enough in testing — must not be allowed to stick: CurrentScale lerps toward
+                // itself, so once it goes NaN the bone scales stay NaN and the mesh stays
+                // broken long after the cause is gone. Skip the frame, put the bones back to
+                // rest, and the next clean frame carries on as if nothing happened.
+                if (!Finite(arm.Upper.position) || !Finite(arm.Fore.position) ||
+                    !Finite(arm.Hand.position) || !Finite(arm.Target.position) ||
+                    !float.IsFinite(arm.CurrentScale))
+                {
+                    arm.CurrentScale = 1f;
+                    arm.Stretched = false;
+                    arm.CurrentYield = 0f;
+                    arm.HasYield = false;
+                    arm.Upper.localScale = arm.UpperRestScale;
+                    arm.Fore.localScale = arm.ForeRestScale;
+                    arm.Hand.localScale = arm.HandRestScale;
+                    return;
+                }
+
                 // Buy reach from the collarbone before resorting to stretching bones. Measured
                 // in a session: hands were missing their targets by up to 10 cm at full
                 // extension, and the log said why — `needed` was simply larger than `reach`,

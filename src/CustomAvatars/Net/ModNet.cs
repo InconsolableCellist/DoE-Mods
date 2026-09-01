@@ -27,6 +27,8 @@ namespace CustomAvatars.Net
         public const byte CodeItems = 143;
         /// <summary>Finger curls, 10 bytes. Unreliable — a dropped frame is one stale pose.</summary>
         public const byte CodeHandPose = 144;
+        /// <summary>Full-body tracker targets (hip + feet), 32 bytes. Unreliable, like 144.</summary>
+        public const byte CodeTrackerPose = 145;
         public const byte CodeMin = 140;
         public const byte CodeMax = 149;
 

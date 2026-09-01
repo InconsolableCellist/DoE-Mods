@@ -44,6 +44,8 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<int> FaceOscListenPort;
         public static MelonPreferences_Entry<int> FaceOscSendPort;
         public static MelonPreferences_Entry<bool> VoiceJawEnabled;
+        public static MelonPreferences_Entry<bool> FbtEnabled;
+        public static MelonPreferences_Entry<bool> TrackerSyncEnabled;
 
         // ---- [CustomAvatars_Tuning] -----------------------------------------------------
         public static MelonPreferences_Entry<float> SpringStiffnessScale;
@@ -81,6 +83,18 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<float> FaceStaleSeconds;
         public static MelonPreferences_Entry<float> VoiceJawScale;
 
+        public static MelonPreferences_Entry<bool> FbtAudioCues;
+        public static MelonPreferences_Entry<float> FbtTriggerHoldSeconds;
+        public static MelonPreferences_Entry<float> FbtTposeHoldSeconds;
+        public static MelonPreferences_Entry<float> FbtPelvisRotationWeight;
+        public static MelonPreferences_Entry<float> FbtFootRotationWeight;
+        public static MelonPreferences_Entry<string> FbtCalibration;
+        public static MelonPreferences_Entry<float> TrackerSyncHz;
+        public static MelonPreferences_Entry<float> TrackerPosEpsilonMm;
+        public static MelonPreferences_Entry<float> TrackerRotEpsilonDegrees;
+        public static MelonPreferences_Entry<float> FbtRemoteSmoothing;
+        public static MelonPreferences_Entry<float> FbtStaleSeconds;
+
         public static MelonPreferences_Entry<float> HandSyncHz;
         public static MelonPreferences_Entry<float> FaceSyncHz;
         public static MelonPreferences_Entry<int> FaceSyncMaxShapes;
@@ -95,6 +109,10 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<bool> LogPhotonEvents;
         public static MelonPreferences_Entry<bool> MirrorReconToConsole;
         public static MelonPreferences_Entry<bool> HandPoseDebug;
+
+        public static MelonPreferences_Entry<bool> FbtDebug;
+        public static MelonPreferences_Entry<bool> FbtDisableGrounder;
+        public static MelonPreferences_Entry<bool> FbtAnchorHips;
 
         public static MelonPreferences_Entry<bool> SwapUseVrik;
         public static MelonPreferences_Entry<bool> SwapHideVanillaMesh;
@@ -135,6 +153,12 @@ namespace CustomAvatars
             // What gives a face to friends with no tracking hardware, and it costs no traffic.
             VoiceJawEnabled = Main.CreateEntry("VoiceJawEnabled", true, description:
                 "Mouth movement based on mic volume");
+            // Remembered across sessions so trackers come back on at launch once calibrated.
+            // F10 flips it; the trackers themselves are read straight from SteamVR.
+            FbtEnabled = Main.CreateEntry("FbtEnabled", false, description:
+                "Full-body tracking from SteamVR trackers (hip + feet). F10 toggles.");
+            TrackerSyncEnabled = Main.CreateEntry("TrackerSyncEnabled", true, description:
+                "Stream your tracker poses to modded peers so they see your legs");
 
             // ---- tuning -----------------------------------------------------------------
             // Restoring force toward the resting pose.
@@ -205,6 +229,32 @@ namespace CustomAvatars
             FaceStaleSeconds = Tuning.CreateEntry("FaceStaleSeconds", 3f);
             VoiceJawScale = Tuning.CreateEntry("VoiceJawScale", 1.5f);
 
+            // You're in a headset during calibration; sound is the only feedback that reaches you.
+            FbtAudioCues = Tuning.CreateEntry("FbtAudioCues", true, description:
+                "Beeps for FBT arming, locking, and refusing");
+            // How long both triggers must stay squeezed to lock calibration in. Long enough
+            // that gripping a weapon two-handed doesn't do it by accident.
+            FbtTriggerHoldSeconds = Tuning.CreateEntry("FbtTriggerHoldSeconds", 1.0f);
+            // How long the T-pose must hold before the pucks appear and calibration arms.
+            FbtTposeHoldSeconds = Tuning.CreateEntry("FbtTposeHoldSeconds", 1.5f);
+            // 1 = hips follow the tracker's tilt too (lean, sitting); lower if a hip puck on a
+            // loose waistband makes the pelvis twitch.
+            FbtPelvisRotationWeight = Tuning.CreateEntry("FbtPelvisRotationWeight", 1.0f);
+            FbtFootRotationWeight = Tuning.CreateEntry("FbtFootRotationWeight", 1.0f);
+            // Written by calibration: serial|role|pos|rot per tracker. Delete to force a
+            // fresh calibration; never edit by hand.
+            FbtCalibration = Tuning.CreateEntry("FbtCalibration", "");
+            // Three poses ≈ 32 bytes a message. Same Photon-relay economics as FaceSyncHz.
+            TrackerSyncHz = Tuning.CreateEntry("TrackerSyncHz", 15f);
+            // Standing truly still sends nothing at all.
+            TrackerPosEpsilonMm = Tuning.CreateEntry("TrackerPosEpsilonMm", 5f);
+            TrackerRotEpsilonDegrees = Tuning.CreateEntry("TrackerRotEpsilonDegrees", 1.5f);
+            FbtRemoteSmoothing = Tuning.CreateEntry("FbtRemoteSmoothing", 0.35f, description:
+                "How quickly a peer's legs follow their stream. Lower is smoother and laggier.");
+            // After this long without tracker data a peer's legs go back to the game's own
+            // walking animation rather than freezing mid-stride.
+            FbtStaleSeconds = Tuning.CreateEntry("FbtStaleSeconds", 1.0f);
+
             // Ten bytes a message, and only when a finger actually moved.
             HandSyncHz = Tuning.CreateEntry("HandSyncHz", 12f);
             // One message per tick, never more, whatever rate tracking runs at. Photon relays
@@ -230,6 +280,15 @@ namespace CustomAvatars
             HandPoseDebug = Dev.CreateEntry("HandPoseDebug", false, description:
                 "Log raw finger-curl values every frame.");
             LogPhotonEvents = Dev.CreateEntry("LogPhotonEvents", true);
+
+            FbtDebug = Dev.CreateEntry("FbtDebug", false, description:
+                "Log tracker poses and VRIK weights every frame while FBT is on.");
+            // The grounder plants feet on the floor procedurally; real foot trackers and a
+            // foot-planter fighting over the same feet is visible as toe jitter.
+            FbtDisableGrounder = Dev.CreateEntry("FbtDisableGrounder", true);
+            // Escape hatch for risk #2 in the FBT plan: anchor the self avatar to the solved
+            // hips (the ragdoll branch) instead of the head, if head-anchoring fights hip drive.
+            FbtAnchorHips = Dev.CreateEntry("FbtAnchorHips", false);
 
             // Answers "is it the solver or the placement?". A false here is why an avatar T-poses.
             SwapUseVrik = Dev.CreateEntry("SwapUseVrik", true, description:

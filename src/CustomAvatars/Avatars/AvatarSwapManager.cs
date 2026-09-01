@@ -216,7 +216,8 @@ namespace CustomAvatars.Avatars
             foreach (var actor in gone) RevertRemote(actor, "player left");
         }
 
-        private static AvatarPlayer FindPlayer(int actorNumber)
+        /// <summary>Actor number → live AvatarPlayer, or null. Also used by the FBT layer.</summary>
+        public static AvatarPlayer FindPlayer(int actorNumber)
         {
             try
             {
