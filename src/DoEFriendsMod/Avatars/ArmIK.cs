@@ -196,13 +196,16 @@ namespace DoEFriendsMod.Avatars
                         var rollNeeded = arm.Target.rotation * Quaternion.Inverse(arm.Hand.rotation);
                         var twist = TwistAbout(rollNeeded, forearmAxis);
 
-                        // Spread it across both bones. A real arm pronates along its whole
-                        // length, and putting the entire turn below the elbow still pinches the
-                        // mesh at the extremes — palm fully down was still collapsing to a
-                        // straw even after the forearm started helping.
-                        var upperShare = share * 0.4f;
-                        if (Interop.Alive(arm.Upper))
-                            arm.Upper.rotation = Quaternion.Slerp(Quaternion.identity, twist, upperShare) * arm.Upper.rotation;
+                        // FOREARM ONLY. Rotating the forearm about the elbow→hand axis leaves
+                        // the hand where it is, because the hand sits on that axis. Doing the
+                        // same to the upper arm does not: it pivots at the shoulder, the axis
+                        // misses the shoulder, and the hand swings off the target the solver
+                        // just put it on. That cost about 10 cm of accuracy with the target
+                        // well inside reach — far worse than the wrist pinch it was meant to
+                        // relieve.
+                        //
+                        // A twist bone would be the anatomically right home for the rest of the
+                        // roll, but not every rig has one, so the wrist keeps its share.
                         arm.Fore.rotation = Quaternion.Slerp(Quaternion.identity, twist, share) * arm.Fore.rotation;
                     }
                 }
