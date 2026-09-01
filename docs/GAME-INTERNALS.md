@@ -192,7 +192,7 @@ Phase 4.
 
 **Correction to the 2026-08-31 01:26 reading:** player `CustomProperties` is *not* empty. The
 early lobby dump caught it before it populated; in a settled room it reads
-`{Ping=(Int32)72, Build=(String)Build:1.2.3849}`. `dfm.*` keys still can't collide with
+`{Ping=(Int32)72, Build=(String)Build:1.2.3849}`. `ca.*` keys still can't collide with
 `Ping`/`Build`, but the bag is not ours alone. `Build:1.2.3849` is also a free game-version
 signal worth folding into the Phase 1 handshake.
 
@@ -329,7 +329,7 @@ in re-dump triage after a patch.
       both sessions), so it's unconfirmed whether a remote `AvatarPlayer` uses the same
       three-root split and whether `FPS-Arms-Model` exists only locally.
 - [ ] **Photon event codes with a second player** — join/leave/ownership traffic unobserved.
-- [ ] Whether `dfm.*` player custom properties replicate as expected (Phase 1 exit criteria).
+- [ ] Whether `ca.*` player custom properties replicate as expected (Phase 1 exit criteria).
 - [ ] Whether OVRLipSync actually *drives* the viseme shapes at runtime, or whether they're
       vestigial and only the Vivox energy jaw is live. (The shapes exist; the driver is
       unproven.)

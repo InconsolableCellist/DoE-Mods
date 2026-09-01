@@ -11,7 +11,7 @@ tracking sync via VRCFaceTracking + OSC, and (stretch) custom inventory/loot.
   IDE reference). Regenerate after game updates with `tools/run_dumper.bat`.
 - **[INSTALL.md](INSTALL.md)** — installing and (importantly) removing the mod. This is the
   page to hand to a friend; it assumes no knowledge of the project.
-- **[src/README.md](src/README.md)** — the mod itself (`src/DoEFriendsMod/`): how to build
+- **[src/README.md](src/README.md)** — the mod itself (`src/CustomAvatars/`): how to build
   it, and what the Phase 0 recon build reports.
 - **tools/** — MelonLoader 0.7.3, Il2CppDumper, Cpp2IL, AssetRipper, UnityExplorer builds.
 

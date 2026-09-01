@@ -836,7 +836,7 @@ namespace DoEMod.Export
                 report.AppendLine($"WARNING: {bundleMb:F0} MB is heavy. Up to four of these load at once in a dungeon at\n" +
                                   "         90 Hz, and every friend needs the file on disk before they can see you.\n" +
                                   "         Biggest wins are usually texture resolution and unused outfit variants.");
-            report.AppendLine("\nInstall: copy both files to <game>/UserData/DoEFriendsMod/Avatars/ on every friend's machine.");
+            report.AppendLine("\nInstall: copy both files to <game>/UserData/CustomAvatars/Avatars/ on every friend's machine.");
             Debug.Log(report.ToString());
             EditorUtility.RevealInFinder(bundlePath);
         }

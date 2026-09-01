@@ -1,10 +1,17 @@
-# Installing and removing DoEFriendsMod
+# Installing and removing CustomAvatars
 
 A friends-only cosmetic mod for **Dungeons of Eternity**. It puts custom avatars on the people
 in your party. It only does anything in a **private lobby where everyone is running the same
 build** — in a public lobby, or with one vanilla player present, it turns itself off completely.
 
 Everything below is manual file copying. There is no installer and no server.
+
+> **Upgrading from DoEFriendsMod?** It's the same mod under a better name. Delete
+> `Mods\DoEFriendsMod.dll` — leaving it there runs both copies at once — and drop in
+> `CustomAvatars.dll` instead. Your avatars move themselves: the mod renames
+> `UserData\DoEFriendsMod\` to `UserData\CustomAvatars\` the first time it starts, and says so
+> in the console. Your settings reset to defaults, which is deliberate; the old file mixed
+> everyday settings with debugging switches and the new one doesn't.
 
 ---
 
@@ -14,11 +21,11 @@ Ask whoever set this up for **one zip** containing:
 
 | File | What it is |
 |---|---|
-| `DoEFriendsMod.dll` | the mod |
+| `CustomAvatars.dll` | the mod |
 | `<avatar>.avatar` | an avatar's model and textures |
 | `<avatar>.manifest.json` | that avatar's settings — **always travels with the .avatar** |
 
-> **Everyone must use the same `DoEFriendsMod.dll` file.** Not "the same version" — the same
+> **Everyone must use the same `CustomAvatars.dll` file.** Not "the same version" — the same
 > file. The mod compares a checksum of the DLL between players, and two people who each built
 > their own copy can end up with different checksums and the mod will refuse to switch on. One
 > person builds it, everyone else copies that file.
@@ -49,7 +56,7 @@ so mods can talk to it. It may look frozen. Let it finish and reach the menu, th
 
 ### 3. The mod
 
-Copy `DoEFriendsMod.dll` into the `Mods` folder in the game directory. Create the folder if it
+Copy `CustomAvatars.dll` into the `Mods` folder in the game directory. Create the folder if it
 isn't there.
 
 ### 4. The avatar
@@ -57,7 +64,7 @@ isn't there.
 Copy **both** avatar files into:
 
 ```
-<game folder>\UserData\DoEFriendsMod\Avatars\
+<game folder>\UserData\CustomAvatars\Avatars\
 ```
 
 Create those folders if they don't exist. Copy both files — an `.avatar` without its
@@ -68,7 +75,7 @@ Create those folders if they don't exist. Copy both files — an `.avatar` witho
 Launch, and look at the MelonLoader console window:
 
 ```
-DoEFriendsMod 0.7.0 — ...
+CustomAvatars 0.29.0 — ...
 Mod DLL SHA-256: 8c52b45c7ad15621…
 Avatar OK: `YourAvatar` — 51,823 verts / 1 mesh(es), ...
 ```
@@ -79,10 +86,10 @@ and the mod will stay switched off when you play together.
 Get into a **private** party. You should see:
 
 ```
-*** ModGate ACTIVE — private room, all 2 peers on 0.7.0/8c52b45c7ad15621
+*** ModGate ACTIVE — private room, all 2 peers on 0.29.0/8c52b45c7ad15621
 ```
 
-Then press **F4** to put your avatar on. Press it again to take it off.
+Your avatar goes on by itself. Press **F4** to take it off, and again to put it back on.
 
 ---
 
@@ -93,7 +100,7 @@ Then press **F4** to put your avatar on. Press it again to take it off.
 Delete one file:
 
 ```
-<game folder>\Mods\DoEFriendsMod.dll
+<game folder>\Mods\CustomAvatars.dll
 ```
 
 That's it. The game runs normally the next time you start it.
@@ -130,24 +137,35 @@ headset.
 | Key | What it does |
 |---|---|
 | **F2** | choose which avatar to wear, if you have more than one |
-| **F4** | put your avatar on / take it off |
+| **F4** | take your avatar off / put it back on |
 | **F6** | spawn a copy of the avatar in front of you, to look at |
 | **F3** | re-read the settings file, so you can adjust things without restarting |
 | **F5** | look for newly added avatar files |
 | **F7/F8/F9** | write technical details to a log file, for troubleshooting |
 
-Settings live in `UserData\MelonPreferences.cfg`, under `[DoEFriendsMod]`. Edit it, save, then
-press **F3** in game — most settings apply immediately.
+## Settings
 
-Two things worth knowing about that file:
+They live in `UserData\MelonPreferences.cfg`, in three sections. Every setting has a comment
+above it explaining what it does, so the file is worth opening even if you change nothing.
+
+| Section | What's in it |
+|---|---|
+| `[CustomAvatars]` | The ordinary ones. Which avatar, whether it goes on by itself, which ports face tracking uses, and on/off switches for the big features. |
+| `[CustomAvatars_Tuning]` | Dialling in one particular avatar — wrist angles, how far tails swing, how far the eyes turn, how much traffic face tracking is allowed. Safe to change; the defaults are sensible and you only come here when something looks wrong on **your** avatar. |
+| `[CustomAvatars_Dev]` | Switches for taking the mod apart when something is broken. **These are already correct.** Changing one is how you work out which half of a problem is at fault, not how you set the mod up. |
+
+Edit, save, then press **F3** in game — most settings apply immediately.
+
+Two things worth knowing:
 
 - **Press F3 after every edit.** MelonLoader writes its own copy of the settings back to disk
   when the game closes, so an edit you never loaded can be overwritten and appear to have been
   ignored.
-- **`SwapUseVrik` and `SwapHideVanillaMesh` are diagnostic switches.** If your avatar stands in
-  a T-pose and doesn't follow your head, `SwapUseVrik` is set to `false`. If your old body is
-  still visible through the new one, `SwapHideVanillaMesh` is `false`. Both should be `true`
-  normally. On startup and on every F3, the console prints the current values.
+- **If something is broken in a way that seems impossible, look in `[CustomAvatars_Dev]`
+  first.** A value left over from a debugging session looks exactly like a bug. If your avatar
+  stands in a T-pose, `SwapUseVrik` is `false`. If your old body shows through the new one,
+  `SwapHideVanillaMesh` is `false`. Both should be `true`. The console prints the current values
+  at startup and on every F3.
 
 ---
 
@@ -174,12 +192,16 @@ the same source.
 Neither of you has chosen one, so both picked the same file by default. Press **F2** until the
 console names the one you want, then F4 twice.
 
+**Your avatar doesn't go on by itself**
+`AutoWear` is `false`, or you took it off with F4 earlier in the session — taking it off is
+meant to stick. Press F4.
+
 **Your friend looks like a normal character, not their avatar**
 You don't have their avatar file. The console names it — copy that `.avatar` and
 `.manifest.json` pair into your own Avatars folder and press F5. Both of you need both files.
 
 **`No avatars found`**
-The files aren't in `UserData\DoEFriendsMod\Avatars\`, or only one of the pair is there.
+The files aren't in `UserData\CustomAvatars\Avatars\`, or only one of the pair is there.
 
 **Avatar stands in a T-pose and doesn't move with you**
 `SwapUseVrik = false` in the settings file. Set it to `true` and press F3.

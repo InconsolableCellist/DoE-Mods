@@ -37,12 +37,12 @@ is built on. Re-read it before each milestone; re-dump after every game patch.
       **Status 2026-08-31: installed but never launched** — `MelonLoader/Il2CppAssemblies/`
       does not exist yet and there are no logs. Nothing in `src/` can compile until it does;
       this is the one remaining hard blocker in Phase 0.
-- [x] **Mod project skeleton** (`src/DoEFriendsMod/`): `net6.0` class library.
+- [x] **Mod project skeleton** (`src/CustomAvatars/`): `net6.0` class library.
       References: `MelonLoader/net6/MelonLoader.dll`, `MelonLoader/net6/0Harmony.dll`,
       `MelonLoader/Il2CppAssemblies/{Assembly-CSharp,PhotonUnityNetworking,PhotonRealtime,Il2Cppmscorlib,UnityEngine.CoreModule,...}.dll`
       (reference via `<Reference>` HintPaths or a copy step; add a `Directory.Build.props`
       with `$(GameDir)` so paths aren't hardcoded per-machine).
-      `[assembly: MelonInfo(typeof(Core), "DoEFriendsMod", "0.1.0", "dan")]`,
+      `[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.1.0", "dan")]`,
       `[assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]` (verify exact
       company/game strings from `app.info` — they are `Othergate LLC` / `Dungeons of Eternity`).
       Build → drop DLL in `<game>/Mods/`.
@@ -61,7 +61,7 @@ is built on. Re-read it before each milestone; re-dump after every game patch.
       rather than patching spawn methods — cheaper, unable to destabilise the game, and it
       also catches avatars that existed before the melon woke up. Environment/XR/quality,
       per-avatar hierarchy + bones + shaders, Photon room options and an event-code sniffer
-      all write to `UserData/DoEFriendsMod/recon/recon-<timestamp>.md`. The only patch in the
+      all write to `UserData/CustomAvatars/recon/recon-<timestamp>.md`. The only patch in the
       build is a read-only prefix on `LoadBalancingClient.OnEvent`.
 - [x] **Runtime recon checklist** — *done 2026-08-31 over two solo sessions (lobby, and a full
       Soul Harvest run with enemies active). Answers written up in GAME-INTERNALS.md →
@@ -93,19 +93,19 @@ the identical build by choice.
       (mismatched bundles are refused with a log line, not "best-effort loaded").
 - [x] On joining a room, set Photon **player custom properties** (`Gate/ModRoster.Advertise`)
       (replicate automatically to all clients, including late joiners; the game puts
-      `Ping` and `Build` in the player property bag, so `dfm.*` keys are collision-free but
+      `Ping` and `Build` in the player property bag, so `ca.*` keys are collision-free but
       the bag is shared — and `Build:1.2.3849` is a free game-version signal to fold in):
-      - `dfm.ver` — mod semver
-      - `dfm.sha` — first 16 hex chars of the mod DLL's SHA-256
-      - `dfm.caps` — capability bitfield (avatars / face / items)
-- [x] `ModRoster` + `ModGate` (`src/DoEFriendsMod/Gate/`): maps `Player → (ver, sha, caps)?`; events `PeerJoined/PeerLeft/RosterChanged`,
+      - `ca.ver` — mod semver
+      - `ca.sha` — first 16 hex chars of the mod DLL's SHA-256
+      - `ca.caps` — capability bitfield (avatars / face / items)
+- [x] `ModRoster` + `ModGate` (`src/CustomAvatars/Gate/`): maps `Player → (ver, sha, caps)?`; events `PeerJoined/PeerLeft/RosterChanged`,
       and a single **`ModGate.Active`** master switch consulted by every feature. Active
       requires ALL of:
       1. room is private — **test `IsVisible == false` and nothing else** (confirmed
          2026-08-31). Do *not* test `IsOpen`: it flips to `False` the moment a run is in
          progress, which would make the mod go inert on entering a dungeon.
          `PlayerTtl = 0`, so a leave is final and the roster needs no rejoin window,
-      2. every occupant advertises identical `dfm.ver` **and** `dfm.sha`,
+      2. every occupant advertises identical `ca.ver` **and** `ca.sha`,
       3. local self-checksum passed.
       Any condition fails (or a vanilla player joins mid-run) → live-downgrade to fully
       inert: despawn custom avatars, stop all custom event traffic, unhook cosmetic
@@ -122,7 +122,7 @@ the identical build by choice.
       One code per subsystem: `140=handshake/misc`, `141=avatar-manifest`,
       `142=face-stream`, `143=items`. Wrap `PhotonNetwork.RaiseEvent` +
       `EventReceived` in a tiny `ModNet` API (targeted send, reliable/unreliable flag).
-- [x] Version policy: **exact match on both `dfm.ver` and `dfm.sha`**, or the gate stays shut.
+- [x] Version policy: **exact match on both `ca.ver` and `ca.sha`**, or the gate stays shut.
 
 **Exit criteria:** two modded clients in a private party see each other's version; a
 vanilla test client causes clean inert-mode. — **Built 2026-08-31 (v0.2.0), unverified with a
@@ -140,7 +140,7 @@ Implementation notes worth keeping:
 - **`ModNet` is the only place bytes leave the process**, and it refuses to send — and drops
   inbound — whenever the gate is shut. Putting the check at the boundary rather than at each
   call site is what makes inertness structural instead of a promise to be careful.
-- **One deliberate exception to "writes nothing while inert":** `dfm.*` player properties are
+- **One deliberate exception to "writes nothing while inert":** `ca.*` player properties are
   advertised as soon as we're in a *private* room, before the gate opens. Peers can't be
   discovered without someone speaking first. A public lobby therefore sees nothing at all from
   this mod, and the worst case in a private lobby with a vanilla friend is two inert string
@@ -238,7 +238,7 @@ roughly 26 MB down to 6 MB without touching the silhouette. Geometry needs no wo
       the same version" constraint that falls out of the gate's SHA comparison, and how to read
       the gate's refusal messages.
 - [x] Distribution v1 **(mod side built 2026-08-31, v0.3.0)**: everyone drops the same
-      `.avatar` + `.manifest.json` pair into `<game>/UserData/DoEFriendsMod/Avatars/`.
+      `.avatar` + `.manifest.json` pair into `<game>/UserData/CustomAvatars/Avatars/`.
       `Avatars/AvatarLibrary` scans that folder and **refuses any bundle whose SHA-256 doesn't
       match its manifest** — refused with a log line, never best-effort loaded. Two friends
       silently running different bytes under one avatar name is precisely what the Phase 1
@@ -641,7 +641,7 @@ tracking. Two known issues from that first look:
 - [ ] Optional polish backlog: eye-glance reuse of `Glancer`, per-avatar shader keyword QA,
       victory-move/emote handling.
 
-**Avatar selection was a real trap.** With two avatars installed and `PreviewAvatarName`
+**Avatar selection was a real trap.** With two avatars installed and `Avatar`
 empty, both clients fell back to `library.First()` — alphabetically first — so two people wore
 the same model and each thought the mod had picked wrong. Now: a loud startup warning listing
 every installed avatar when the choice is ambiguous, a confirmation line when it isn't, and
@@ -790,7 +790,7 @@ Do this only after 1–3 are stable; it's the most invasive layer.
       the Phase 1 gate). Start with a purely cosmetic prop (a mug you can throw), then a
       reskinned `WeaponMelee` clone with vanilla stats.
 - [ ] **Mod-side inventory**: session persistence in
-      `UserData/DoEFriendsMod/inventory.json` (who's carrying which custom item), restored
+      `UserData/CustomAvatars/inventory.json` (who's carrying which custom item), restored
       on room join via event 143. Explicitly *not* PlayFab — custom items have zero coin/
       XP/economy value and vanish in vanilla lobbies.
 - [ ] Fairness guardrail: custom weapons clamp to vanilla damage tables (`WeaponDamage`
@@ -831,7 +831,7 @@ DoE-mod/
 ├── docs/            PLAN.md (this), GAME-INTERNALS.md, FACE-TRACKING.md
 ├── dump/            Il2CppDumper output: dump.cs, DummyDll/, stringliteral.json, il2cpp.h
 ├── tools/           run_dumper.bat, MelonLoader.x64/, UnityExplorer zips, AssetRipper, Cpp2IL
-├── src/             DoEFriendsMod/ (mod source) + build docs
+├── src/             CustomAvatars/ (mod source) + build docs
 ├── unity/           AvatarExport/ (drop-in exporter for the ALCOM avatar project)
 └── bundles/         built .avatar bundles + manifests  [to create]
 ```

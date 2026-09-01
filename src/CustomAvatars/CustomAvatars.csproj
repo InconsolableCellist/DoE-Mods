@@ -1,0 +1,87 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyName>CustomAvatars</AssemblyName>
+    <RootNamespace>CustomAvatars</RootNamespace>
+    <Version>0.29.0</Version>
+    <!-- Nothing here is NuGet-sourced; MelonLoader ships every reference we need. -->
+    <EnableDefaultItems>true</EnableDefaultItems>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <!-- Fail early and legibly rather than with 400 "type not found" errors. -->
+  <Target Name="CheckGameRefs" BeforeTargets="BeforeResolveReferences">
+    <Error Condition="!Exists('$(MelonNet6Dir)')"
+           Text="MelonLoader not found at '$(MelonNet6Dir)'. Set GameDir (see src/Directory.Build.props) or install MelonLoader into the game folder." />
+    <Error Condition="!Exists('$(Il2CppAssembliesDir)')"
+           Text="'$(Il2CppAssembliesDir)' is missing. Launch the game once with MelonLoader installed so it can run Cpp2IL + Il2CppInterop and generate the interop assemblies, then rebuild." />
+  </Target>
+
+  <ItemGroup>
+    <Reference Include="MelonLoader">
+      <HintPath>$(MelonNet6Dir)\MelonLoader.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(MelonNet6Dir)\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2CppInterop.Runtime">
+      <HintPath>$(MelonNet6Dir)\Il2CppInterop.Runtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2CppInterop.Common">
+      <HintPath>$(MelonNet6Dir)\Il2CppInterop.Common.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- MelonLoader's AssetBundle wrapper. Il2Cpp's own AssetBundle.LoadAsset<T> is a
+         generic native method that interop can't call cleanly; this is the supported path. -->
+    <Reference Include="UnityEngine.Il2CppAssetBundleManager">
+      <HintPath>$(MelonNet6Dir)\UnityEngine.Il2CppAssetBundleManager.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- Shipped by MelonLoader itself, so it's already loaded — no dependency to deploy. -->
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(MelonNet6Dir)\Newtonsoft.Json.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!--
+    Reference every generated interop assembly rather than a hand-maintained list:
+    the set shifts with game updates, and a glob turns "the game moved a type to
+    another assembly" into a normal compile, not a reference-hunting session.
+  -->
+  <ItemGroup>
+    <Il2CppAssembly Include="$(Il2CppAssembliesDir)\*.dll" />
+  </ItemGroup>
+  <Target Name="AddIl2CppRefs" BeforeTargets="BeforeResolveReferences">
+    <ItemGroup>
+      <Reference Include="@(Il2CppAssembly->'%(Filename)')">
+        <HintPath>%(Il2CppAssembly.FullPath)</HintPath>
+        <Private>false</Private>
+      </Reference>
+    </ItemGroup>
+  </Target>
+
+  <!--
+    Build straight into the game's Mods folder; set NoDeploy=true to skip.
+    Retries="0" because the only realistic cause of failure is the game still running and
+    holding the DLL — MSBuild's default is ten one-second retries, which just makes you wait
+    ten seconds to be told what you already knew.
+  -->
+  <Target Name="DeployToGame" AfterTargets="Build"
+          Condition="'$(NoDeploy)' != 'true' And Exists('$(GameModsDir)')">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(GameModsDir)"
+          Retries="0" ContinueOnError="WarnAndContinue">
+      <Output TaskParameter="CopiedFiles" ItemName="DeployedFiles" />
+    </Copy>
+    <Message Importance="high" Condition="'@(DeployedFiles)' != ''"
+             Text="Deployed $(TargetFileName) -> $(GameModsDir)" />
+    <Message Importance="high" Condition="'@(DeployedFiles)' == ''"
+             Text="NOT deployed: $(GameModsDir)\$(TargetFileName) is locked (game running?). Quit the game and rebuild." />
+  </Target>
+
+</Project>

@@ -1,4 +1,4 @@
-# DoEFriendsMod — building
+# CustomAvatars — building
 
 ## One-time prerequisites
 
@@ -14,11 +14,11 @@
 ## Build
 
 ```
-cd src/DoEFriendsMod
+cd src/CustomAvatars
 dotnet build
 ```
 
-The build copies `DoEFriendsMod.dll` into `<GameDir>\Mods\` automatically.
+The build copies `CustomAvatars.dll` into `<GameDir>\Mods\` automatically.
 Pass `-p:NoDeploy=true` to skip that.
 
 **Game in a different folder?** Copy `src/Local.props.example` to `src/Local.props` and set
@@ -31,7 +31,7 @@ in the build is a read-only prefix on `LoadBalancingClient.OnEvent`, shared by t
 event-tally and the mod's own event dispatch.
 
 - `Gate/` — `ModRoster` discovers modded peers from Photon player custom properties
-  (`dfm.ver` / `dfm.sha` / `dfm.caps`); `ModGate` is the master switch every future feature
+  (`ca.ver` / `ca.sha` / `ca.caps`); `ModGate` is the master switch every future feature
   consults; `ModHandshake` sends one hello on code 140 to prove the transport works.
 - `Net/` — `PhotonHook` owns the single inbound patch; `ModNet` is the **only** place bytes
   leave the process, and it refuses to send (and drops inbound) whenever the gate is shut.
@@ -43,7 +43,7 @@ the live `PlayerCount` matches the roster (fail closed on stale data), and our o
 passed. Watch the MelonLoader console for `*** ModGate ACTIVE` / `*** ModGate INERT` lines with
 the reason attached.
 
-Output: `<GameDir>\UserData\DoEFriendsMod\recon\recon-<timestamp>.md`, plus headlines in the
+Output: `<GameDir>\UserData\CustomAvatars\recon\recon-<timestamp>.md`, plus headlines in the
 MelonLoader console and `MelonLoader/Latest.log`.
 
 It answers the Open Questions in `docs/GAME-INTERNALS.md`:
@@ -73,7 +73,7 @@ Desktop hotkeys (game window focused — these do work in VR if you click the wi
 - **F2** — cycle which avatar you wear (saved to config)
 - **F3** — reload MelonPreferences.cfg (spring constants apply live, no respawn)
 - **F4** — swap your own avatar on/off (Phase 2b)
-- **F5** — rescan `UserData/DoEFriendsMod/Avatars/`
+- **F5** — rescan `UserData/CustomAvatars/Avatars/`
 - **F6** — spawn/despawn the custom avatar preview in front of you
 - **F7** — re-dump environment
 - **F8** — re-dump every `AvatarPlayer`
@@ -82,7 +82,7 @@ Desktop hotkeys (game window focused — these do work in VR if you click the wi
 ## Installing an avatar
 
 Copy **both** files from the Unity exporter's `DoEExport/` folder into
-`<game>/UserData/DoEFriendsMod/Avatars/`:
+`<game>/UserData/CustomAvatars/Avatars/`:
 
 ```
 <name>.avatar
@@ -90,10 +90,10 @@ Copy **both** files from the Unity exporter's `DoEExport/` folder into
 ```
 
 The mod SHA-256s the bundle against the manifest on startup (and on F5) and **refuses a
-mismatch** rather than loading it anyway. Set `PreviewAvatarName` in MelonPreferences.cfg to
+mismatch** rather than loading it anyway. Set `Avatar` in MelonPreferences.cfg to
 pick between several; leave it empty to use the first.
 
-Tunables live in `UserData/MelonPreferences.cfg` under `[DoEFriendsMod]`
+Tunables live in `UserData/MelonPreferences.cfg` under `[CustomAvatars]`
 (`HierarchyMaxDepth`, `MaxBlendShapesLogged`, `MirrorReconToConsole`, …).
 
 ## Session checklist
@@ -112,7 +112,7 @@ This is what closes the remaining Phase 0 questions. Just play; the melon does t
 
 ### Two-player pass (Phase 1 exit criteria — needs one friend)
 
-Both of you on the **same** `DoEFriendsMod.dll` (identical SHA — the console prints it at
+Both of you on the **same** `CustomAvatars.dll` (identical SHA — the console prints it at
 startup; if they differ the gate stays shut by design).
 
 1. **Private party, both modded.** Expect `*** ModGate ACTIVE` on both clients, a
@@ -132,12 +132,12 @@ startup; if they differ the gate stays shut by design).
 src/
 ├── Directory.Build.props      GameDir resolution, shared compiler settings
 ├── Local.props.example        per-machine GameDir override template
-└── DoEFriendsMod/
+└── CustomAvatars/
     ├── Core.cs                MelonMod entry, hotkeys, wiring
     ├── ModConfig.cs           MelonPreferences
     ├── Gate/
     │   ├── ModGate.cs         the master switch — nothing acts unless this is Active
-    │   ├── ModRoster.cs       peer discovery via dfm.* player custom properties
+    │   ├── ModRoster.cs       peer discovery via ca.* player custom properties
     │   ├── ModPeer.cs         one room occupant, modded or vanilla
     │   ├── ModCaps.cs         capability bitfield (append-only)
     │   └── ModHandshake.cs    code-140 hello; proves the transport round-trips
