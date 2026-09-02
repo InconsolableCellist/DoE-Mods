@@ -1231,8 +1231,15 @@ namespace CustomAvatars.Avatars
         /// This is the same silhouette the game's own body has. That body is 1.5 m to the head
         /// and stands with its feet on the floor whatever your height; VRIK stretches its spine
         /// up to your head target. Ours is anchored by the head instead, so one uniform scale
-        /// does the same job: measure how far your head is above the play-space floor and how
-        /// far this avatar's head is above its own root, and take the ratio.
+        /// does the same job: measure how far your head is above the play-space floor, and
+        /// divide by how far this avatar's head is above its own root.
+        ///
+        /// That second number is NOT measured in game. The exporter measured it, in the rest
+        /// pose, and chose `suggestedScale` to put it at the game's 1.5 m; the manifest carries
+        /// both. Measuring it live caught one avatar mid-settle — head 0.93 m above the root
+        /// while the solver was still drifting a metre a frame — and fitted it at x1.785
+        /// instead of x1.10, "once", so the wearer spawned enormous until an F4 re-measured
+        /// on a settled rig. The live number is still logged, as a check on the manifest.
         ///
         /// Measured ONCE, a second after the swap, and never again while the avatar is worn.
         /// Not on crouching (it would shrink you), not on standing taller, not on anything.
@@ -1258,19 +1265,27 @@ namespace CustomAvatars.Avatars
                 if (!Interop.Alive(head)) return;
 
                 var playerHeight = head.position.y - _player.transform.position.y;
-                var avatarHeight = _headBone.position.y - _model.transform.position.y;
-                if (playerHeight < 0.2f || avatarHeight < 0.05f)
+                if (playerHeight < 0.2f)
                 {
-                    Core.Log.Warning($"    height calibration skipped: you {playerHeight:0.00} m, " +
-                                     $"avatar {avatarHeight:0.00} m — one of those isn't a person.");
+                    Core.Log.Warning($"    height calibration skipped: you {playerHeight:0.00} m to the eyes — " +
+                                     "that isn't a person.");
                     return;
                 }
 
-                // The avatar is measured at whatever scale it currently has, so divide that
-                // back out. It is 1 on a fresh swap; this only matters if the measurement ever
-                // runs on a model already fitted, which is exactly the case that oscillated.
-                var baseHeight = avatarHeight / Mathf.Max(0.01f, _heightScale);
+                // The model sits at the scene root at `suggestedScale * _heightScale`, so its
+                // head is `baseHeight * _heightScale` above its root in world metres once the
+                // rig is standing. Your head is in world metres too, sized play space and all,
+                // so the ratio comes out at your chosen size without any further arithmetic.
+                var baseHeight = ManifestHeadHeight();
                 var raw = playerHeight / baseHeight;
+
+                // What the rig is doing right now, for the log only. It disagrees with the
+                // manifest when the pose hasn't settled, or when the manifest was hand-edited.
+                var measured = (_headBone.position.y - _model.transform.position.y) / Mathf.Max(0.01f, _heightScale);
+                var check = Mathf.Abs(measured - baseHeight) > baseHeight * 0.15f
+                    ? $" (measured {measured:0.00} m right now — the rig hasn't settled, or the manifest is off; " +
+                      $"measuring would have given x{playerHeight / Mathf.Max(0.05f, measured):0.00})"
+                    : $" (measured {measured:0.00} m, agrees)";
                 var previous = _heightScale;
                 var size = PlayerSize.Applied;
                 // A nonsense filter, not a size limit.
@@ -1280,8 +1295,8 @@ namespace CustomAvatars.Avatars
 
                 var note = Mathf.Abs(raw - _heightScale) > 0.001f ? $" (clamped from x{raw:0.00})" : "";
                 var sized = Mathf.Abs(size - 1f) > 0.0005f ? $" (you are x{size:0.00}: {playerHeight / size:0.00} m at vanilla size)" : "";
-                Core.Log.Msg($"    height: you {playerHeight:0.00} m to the eyes{sized}, avatar {baseHeight:0.00} m — " +
-                             $"scaling avatar x{_heightScale:0.000}{note}, once");
+                Core.Log.Msg($"    height: you {playerHeight:0.00} m to the eyes{sized}, avatar {baseHeight:0.00} m " +
+                             $"by its manifest{check} — scaling avatar x{_heightScale:0.000}{note}, once");
 
                 if (Mathf.Abs(previous - _heightScale) > 0.002f)
                 {
@@ -1290,6 +1305,21 @@ namespace CustomAvatars.Avatars
                 }
             }
             catch { }
+        }
+
+        /// <summary>
+        /// How far this avatar's head is above its root at `suggestedScale`, in metres, from
+        /// the exporter's rest-pose measurement. That product is the game's 1.5 m for any
+        /// manifest the exporter wrote; it stays honest if someone edits `suggestedScale` by
+        /// hand, because the raw head height is recorded next to it.
+        /// </summary>
+        private float ManifestHeadHeight()
+        {
+            var rig = _manifest?.rig;
+            if (rig != null && rig.headHeight > 0.05f && rig.suggestedScale > 0.01f)
+                return rig.headHeight * rig.suggestedScale;
+            if (rig != null && rig.gameHeadHeight > 0.05f) return rig.gameHeadHeight;
+            return 1.5f;
         }
 
         /// <summary>
