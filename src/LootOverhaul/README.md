@@ -36,19 +36,65 @@ gate rule is the same: private room, every occupant on the identical version and
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
 
+## Running the 0.1 recon build
+
+Everything v0.1 does is read-only: logging hooks, a PlayFab write watchdog, and four hotkey
+probes. It writes a transcript to `UserData/LootOverhaul/recon/recon-<timestamp>.md`; the
+MelonLoader console and `MelonLoader/Latest.log` get headlines only, each prefixed
+`[LootOverhaul]` (`grep '\[LootOverhaul\]' Latest.log` separates them from CustomAvatars,
+which shares the same file — MelonLoader has one log, one prefix per mod).
+
+Suggested session, solo is fine (a private room with only you counts as gated):
+
+1. **Main menu or lobby, before joining a room** — press **Insert**. Generator survey: one
+   weapon per type × rarity through the game's own generator, with prefab names, coloured
+   names, stats, cost, salvage, save-string round-trips, and 800 rarity rolls. The headline
+   `VERDICT` says whether the generator touched your profile weapon lists; the watchdog
+   flags any `PlayerProfile` write that lands during the probe with `!!! ... DURING PROBE`.
+2. **In a private lobby** — press **Backslash** (`\`). (End is a game key: it sends you to the main menu.) Lobby survey: scene flags, fabricator and vendor
+   positions, every holster and what each slot accepts, your current loadout and armory
+   (read-only), then two marker cubes near your head: cyan is plain, magenta is
+   DontDestroyOnLoad. Leave for a dungeon and come back; the transcript reports which cube
+   survived each scene change.
+3. **Same lobby** — press **Scroll Lock**. A vanilla fabricator button is cloned in front of
+   you labelled `LOOT TEST` and wired to a managed handler, with every inherited listener
+   switched off (the first version left them on and two presses reached the fabricator's
+   coin write). Point at it and pull the trigger;
+   each press logs a headline. If nothing logs, the transcript says whether registration with
+   the hands' pointable list succeeded.
+4. **Same lobby** — press **Delete**. Spawns one Rare weapon in front of you through the same
+   networked path drops would use (a different type each press). Pick it up, holster it,
+   drop it. The `Prop.PickUp` / `Prop.Drop` lines show what fires and on which client. Go
+   into a dungeon: the transcript says whether the spawned weapon survived the scene change.
+5. **Run a dungeon** — kill things, open a chest, take damage, die and respawn if you can.
+   `AI.OnKilled`, `Chest.OnLootCollected`, `Holster.InitHolsterContents` /
+   `RefillHolster` / `OnAvatarRespawn`, `AvatarPlayer.RespawnAvatar` and `OnDamaged` lines
+   land with timestamps, so the ordering questions answer themselves.
+6. **Quit normally.** The transcript closes with the Photon event-code tally (is 150–159
+   clear?) and the watchdog summary of every profile write the game made.
+
+With a friend on the same build, repeat steps 4 and 5 together: who sees the spawned
+weapon, whose `Prop.PickUp` fires when they take it, and what `AI.OnKilled` logs on the
+non-master client.
+
+Switch it all off with `ReconEnabled = false` in `[LootOverhaul_Dev]`; `HotkeysEnabled` and
+`ProfileWatchEnabled` are separate switches.
+
 ## Layout
 
 ```
 LootOverhaul/
-├── Core.cs           MelonMod entry: config, self-hash, hook, roster, gate, handshake
+├── Core.cs           MelonMod entry: config, self-hash, hook, roster, gate, handshake, hotkeys
 ├── ModConfig.cs      [LootOverhaul] / [LootOverhaul_Dev] settings
-├── ModPaths.cs       UserData/LootOverhaul/, per-account inventory path
+├── ModPaths.cs       UserData/LootOverhaul/, recon dir, per-account inventory path
 ├── SelfCheck.cs      DLL SHA-256 for the roster
 ├── Gate/             ModCaps, ModPeer, ModRoster, ModGate, ModHandshake
 ├── Net/              PhotonHook (the one Harmony patch), ModNet (send/receive, 150–159)
-└── Loot/             LootItem, LootInventory — the JSON model, no game types
+├── Loot/             LootItem, LootInventory — the JSON model, no game types
+└── Recon/            ReconLog, Interop, Hooks, ProfileWatch, GameplayHooks, EventTally,
+                      GeneratorProbe, LobbyProbe — the 0.1 build
 ```
 
 Still to build, in the order the design doc estimates: drop roll on `AI.OnKilled` (master
 only) + loot tag + bag-on-pickup; the bag panel; the lobby booth; equip-from-bag with respawn
-re-apply; the shop. Run the "verify first" list in the design doc before the first of these.
+re-apply; the shop.

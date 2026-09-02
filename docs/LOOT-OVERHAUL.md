@@ -243,6 +243,12 @@ So mod armor is two things:
   143 with a one-byte sub-opcode (LootSpawned / LootTaken / InventorySummary / Sold) rather than
   widening the block; the game's own codes are 1, 2, 50, 70 and the block is clear.
 - **Master authority for drops, owner authority for pickup** — same split the game uses.
+- **Never patch a method whose native address is shared.** IL2CPP folds identical bodies
+  into one function: every empty method in the game sits at dump.cs RVA `0x35FC20`
+  (about 3,200 of them). `Chest.OnLootCollected` is one; patching it patched all of them and
+  crashed 0.1.0 at startup. Rule: check the RVA's occurrence count in `dump.cs` before
+  choosing a hook, and let `Recon/Hooks.cs` refuse shared addresses at runtime. Hook
+  `EV_CollectedLoot` / `EV_ChestOpened` on chests, or the per-subclass overrides.
 - **Il2Cpp friction to expect:** `object[]` instantiation data crosses the interop boundary as
   `Il2CppSystem.Object[]`; `WeaponModule` `ValueTuple` fields showed garbage in the recon
   dump (GAME-INTERNALS "still open") — read via the DTO instead of the tuple dictionary.
@@ -260,7 +266,90 @@ So mod armor is two things:
 | L6 Armor: garment + `OnDamaged` mitigation | 1–2 weeks |
 | Overworld town | not sized; additive-scene spike first |
 
+## Recon results (LootOverhaul 0.1, 2026-09-01/02, solo, private lobby)
+
+Transcripts: `UserData/LootOverhaul/recon/recon-20260902-002755.md` and the two before it.
+
+**Confirmed**
+
+- **The generator is clean.** 44 weapons (11 types × 4 rarities) through
+  `GenerateRandomWeaponModuleForLocalPlayer` plus 800 rarity rolls: uncrafted and armory
+  counts unchanged, no `PlayerProfile` writer called during the probe. Prefab names are
+  `<Type>_Gen1`; staves are style-specific (`Staff_Heal_Gen1`). Instantiation data is 5
+  values for every type. **LongAxe throws a NullReferenceException inside the generator**
+  — leave it out of the drop table until understood.
+- **`GetSaveString()` is not self-describing.** It returns `#<guid>`, a key into the PlayFab
+  armory, so `WeaponModule.GetWeaponModule(save)` cannot rebuild an unsaved weapon. The
+  **DTO round-trip is exact** (`new WeaponModuleDTO(wm)` → `new WeaponModule(dto)`): the bag
+  stores DTO fields, not save strings. `LootItem` was changed accordingly.
+- **Networked spawning works.** `PhotonNetwork.Instantiate(prefab, pos, rot, 0, data)` for
+  every type except LongAxe: the result carries `WeaponMelee`/`Weapon`, `PhotonView`,
+  `Rigidbody`; `Weapon.RandomSeed` matches the module; Rare outline is cyan; owner is the
+  spawner. Picking the spawned weapons up and dropping them logs normally.
+- **Cost and salvage come straight from the tables.** At level 15: Common salvage ~20,
+  Unique ~120–170, Rare ~180, Legendary ~360–390; costs 200–1300.
+- **Rarity rolls at level 15 never produced Legendary** in 800 rolls (Common/Unique/Rare
+  only, realm-weighted: Vilehalls leans Rare). Legendary is probably level-gated in
+  `RealmDrop`; the mod's own pity/boss rules will have to supply the top end.
+- **Buttons work without registration.** A cloned `InteractableButton` is found by the
+  game's pointer on its own (the `AddPointable` cast fails — interop proxies don't carry
+  `IPointable` — and it doesn't matter). A managed handler bound via `DelegateSupport` fires
+  on every trigger pull.
+- **A cloned button keeps its serialized listeners.** Two presses of the test button reached
+  the fabricator's own `EV_Fabricate` path and wrote `IncrementCharacterData(Coins, -9999)`
+  to the profile before our handler ran — the one PlayFab write the recon caused. Every
+  persistent listener on a clone must be switched `Off` (`SetPersistentListenerState`);
+  `RemoveAllListeners` does not touch them. The probe now does this and refuses to place a
+  button that still has one active.
+- **Holster fill order on lobby entry:** `InitHolsterContents(isLobby=true)` for all six
+  holsters (sidearm L/R, arrows, back, shield, inventory ring) → `RespawnAvatar` →
+  `RespawnLocalPlayer(initialSpawn=true)` → `Prop.PickUp` of the loadout weapons. The
+  loadout weapons are seeded generator weapons themselves (`Dagger_Gen1`, `random=True`).
+  `hazardWeapons` is empty in the lobby.
+- **Profile write baseline:** a burst of ~116 `SetData` settings writes at boot, one
+  `SavePlayerProfile` on lobby join, nothing else. The watchdog is quiet enough to use.
+- **Identity and transport:** `lo.*` properties replicate ~2 s after join; gate goes ACTIVE
+  solo; event block 150–159 clear (the game used code 70).
+- **Hooks are safe:** 36 read-only patches installed, none failed, game stable.
+
+**Dungeon run (recon-20260902-003604, solo Underworld, died)**
+
+- **`AI.OnKilled` is the drop hook.** Fires on the master for every kill with
+  `killerActor` (1 = the player), `damageType`, `AI.type` (Light/Medium) and `armorTier`
+  (1–3) — enough to weight drops. **Filter out `killerActor == -1, damageType == 8`**: that
+  is the run-end cleanup killing the remaining wave, not a player kill. Each real kill is
+  followed by vanilla achievement/stat writes (Kills, UndeadKills, Blademaster).
+- **`AvatarPlayer.OnDamaged` is the damage entry point.** Melee hits arrive as `dmg=2
+  type=Melee`, ticks as `0.4 type=Other`, and death as `dmg=100 type=LastChanceFailed`;
+  it returns `true` and `health.normalizedHP` updates in step. `ApplyRemoteDamage` never
+  fired solo. An armor prefix scales `damage` here and must leave `LastChanceFailed` alone.
+- **Scene survival.** Plain objects die on every scene change; a `DontDestroyOnLoad`
+  object survived lobby → dungeon → lobby. Networked weapons spawned in the lobby were
+  destroyed on leaving it. So: the booth is re-placed (or DDOL and toggled) on each lobby
+  load, and floor loot must be bagged before the scene changes.
+- **Dungeon holster order:** `RefillHolster` then `InitHolsterContents(isLobby=false)` per
+  holster, then `RespawnAvatar` → `RespawnLocalPlayer(initialSpawn=true)`. Solo death goes
+  straight back to the lobby (no in-dungeon respawn observed). On lobby return the game
+  writes the run rewards itself: `IncrementCharacterData(Coins, 40)`, `(XP, 822)`,
+  `SetLevel`, then `SavePlayerProfile`. **The vanilla economy writes coins client-side.**
+- **Lobby geometry** (world units): four player fabricators at (65,-2,33), (43,-2,7),
+  (55,-2,7), (53,-2,33); the goblin `WeaponVendor` at (97,-7,15); the merchant at
+  (106,-7,29); the player spawned at about (54,0,20). `CurrentRealm` reads Underworld in
+  the lobby. Fabricator buttons are inactive until walk-up (only the door button is found
+  active).
+- **Slot acceptance:** back = Bow, Crossbow, Staff, KineticStaff, Spear, Longsword,
+  LongAxe, Shield; both hips = Axe, Hammer, SmallAxe, Sword, Dagger, Blunt; shield slot =
+  Shield; arrows ×10; the inventory ring is consumables only. Loadout slots in PlayFab are
+  `#guid` references into the armory, which is why the booth swaps at holster level.
+- **Photon codes seen over a run:** 1, 2, 50, 70, 92. Block 150–159 clear.
+
+**Still open:** chest hooks (no chest was opened), in-dungeon respawn with a partner alive,
+and every two-player question (who sees the spawn, non-master `OnKilled`, claims).
+
 ## Verify first (one UnityExplorer/recon session, no headset-heavy iteration)
+
+The LootOverhaul 0.1 recon build covers this list with read-only hooks and hotkey probes; see
+`src/LootOverhaul/README.md` for the session script.
 
 1. Call `WeaponFactory.GenerateRandomWeaponModuleForLocalPlayer(Rare)` in the lobby, then check
    `PlayerProfile.GetUncraftedWeapons()` did **not** grow and `PlayerData.Unsaved` is false.

@@ -12,6 +12,8 @@ namespace LootOverhaul
 
         public static string Root => _root ??= Path.Combine(MelonEnvironment.UserDataDirectory, Folder);
 
+        public static string ReconDir => Path.Combine(Root, "recon");
+
         /// <summary>One inventory file per account, so two people sharing a PC don't share a bag.</summary>
         public static string InventoryFile(string accountId) =>
             Path.Combine(Root, "inventory", $"{Sanitize(accountId)}.json");
