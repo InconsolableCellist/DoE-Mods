@@ -31,6 +31,8 @@ namespace LootOverhaul.Loot
         public string WeaponGuid;
         public int WeaponStyle;
         public int[] NameIDs;
+        /// <summary>The DTO's own <c>name</c> field, carried verbatim.</summary>
+        public string DtoName;
         /// <summary>The DTO's module name / type, so a mythic or manual weapon rebuilds through the right subclass.</summary>
         public string ModuleName;
         public int ModuleType;
@@ -41,6 +43,8 @@ namespace LootOverhaul.Loot
 
         /// <summary>Uncoloured display name from <c>WeaponModule.GetDisplayName(false)</c>.</summary>
         public string Name;
+        /// <summary>The same with the game's rarity colour tags, for toasts and the bag UI.</summary>
+        public string ColoredName;
 
         /// <summary>Weight units, from the mod's table by type and tier.</summary>
         public float Weight;

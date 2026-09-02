@@ -85,7 +85,7 @@ namespace LootOverhaul.Recon
 
                     if (ptr == IntPtr.Zero) { Refused.Add($"{overload} — native method not found"); continue; }
                     if (ptr == _stubPointer) { Refused.Add($"{overload} — shares the universal empty-method address (would patch ~3,200 methods)"); continue; }
-                    if (PatchedPointers.TryGetValue(ptr, out var other)) { Refused.Add($"{overload} — shares native code with already-patched {other}"); continue; }
+                    if (PatchedPointers.TryGetValue(ptr, out var other) && other != overload) { Refused.Add($"{overload} — shares native code with already-patched {other}"); continue; }
 
                     try
                     {

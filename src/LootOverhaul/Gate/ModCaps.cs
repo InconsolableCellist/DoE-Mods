@@ -22,7 +22,7 @@ namespace LootOverhaul.Gate
     public static class ModCapsInfo
     {
         /// <summary>What this build actually implements — not what it aspires to.</summary>
-        public static ModCaps Local => ModCaps.None;
+        public static ModCaps Local => ModCaps.Loot;
 
         public static string Describe(ModCaps caps) => caps == ModCaps.None ? "none" : caps.ToString();
     }

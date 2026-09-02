@@ -2,10 +2,11 @@ using System;
 using MelonLoader;
 using LootOverhaul;
 using LootOverhaul.Gate;
+using LootOverhaul.Loot;
 using LootOverhaul.Net;
 using LootOverhaul.Recon;
 
-[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.1.0", "dan")]
+[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.2.0", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace LootOverhaul
@@ -15,14 +16,15 @@ namespace LootOverhaul
     /// to sell and equip from it. See docs/LOOT-OVERHAUL.md for the investigation and the
     /// design decisions this build follows.
     ///
-    /// v0.1 is the **recon build**: gate, roster and transport under this mod's own identity
-    /// (`lo.*` player properties, event block 150–159), read-only logging hooks on the
-    /// gameplay methods the design will build on, a PlayFab write watchdog, and four hotkey
-    /// probes that answer the "verify first" list. No gameplay changes.
+    /// v0.2 is milestone **L1, the core loop**: the master rolls a drop on every real kill,
+    /// spawns the weapon through the game's own networked path, tags it (rarity beam,
+    /// toast) for every modded client, and picking a tagged weapon up bags it instead of
+    /// wielding it, arbitrated by the master. The bag is a local JSON. The 0.1 recon hooks,
+    /// watchdog and probes are still here behind `ReconEnabled`.
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.1.0";
+        public const string Version = "0.2.0";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -37,7 +39,7 @@ namespace LootOverhaul
             try { MelonPreferences.Save(); }
             catch (Exception e) { LoggerInstance.Warning($"Could not write MelonPreferences.cfg: {e.Message}"); }
 
-            LoggerInstance.Msg($"LootOverhaul {Version} — recon build. No gameplay changes; read-only hooks and hotkey probes only.");
+            LoggerInstance.Msg($"LootOverhaul {Version} — L1: drops, loot tags, bag-on-pickup. Recon hooks {(ModConfig.ReconEnabled.Value ? "on" : "off")}.");
             LoggerInstance.Msg($"Data folder: {ModPaths.Root}; recon transcripts in {ModPaths.ReconDir}");
 
             SelfCheck.LogSelfHash(LoggerInstance);
@@ -51,13 +53,21 @@ namespace LootOverhaul
             _handshake = new ModHandshake(_roster);
             ModGate.ActiveChanged += OnGateChanged;
 
+            Hooks.Init(HarmonyInstance);
+            LootNet.Init(_roster);
+            DropRoller.Install();
+            BagPickup.Install();
+
             if (ModConfig.ReconEnabled.Value)
             {
-                Hooks.Init(HarmonyInstance);
                 EventTally.Install();
                 if (ModConfig.ProfileWatchEnabled.Value) ProfileWatch.Install();
                 GameplayHooks.Install();
-                Hooks.Report();
+            }
+            Hooks.Report();
+            LoggerInstance.Msg("Bag hotkeys: [ = bag summary (toast + transcript), ] = drop the last bagged item at your feet.");
+            if (ModConfig.ReconEnabled.Value)
+            {
                 LoggerInstance.Msg("Recon hotkeys: Insert = generator survey, Delete = spawn a test weapon (private room), Backslash (\\) = lobby survey + marker cubes, Scroll Lock = cloned button + pointer test.");
             }
         }
@@ -69,10 +79,14 @@ namespace LootOverhaul
             ModGate.Evaluate(_roster);
             ModNet.Pump();
             CoinRepair.Tick();
+            LootRegistry.Tick();
 
-            if (!ModConfig.ReconEnabled.Value || !ModConfig.HotkeysEnabled.Value) return;
+            if (!ModConfig.HotkeysEnabled.Value) return;
             try
             {
+                if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.LeftBracket)) BagManager.SummaryToast();
+                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.RightBracket)) BagManager.DropLast();
+                if (!ModConfig.ReconEnabled.Value) return;
                 if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Insert)) GeneratorProbe.Survey();
                 else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Delete)) GeneratorProbe.SpawnTest();
                 else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Backslash)) LobbyProbe.Survey();
@@ -84,6 +98,7 @@ namespace LootOverhaul
         public override void OnSceneWasInitialized(int buildIndex, string sceneName)
         {
             CoinRepair.OnScene(sceneName);
+            LootRegistry.Clear($"scene changed to {sceneName}");
             if (!ModConfig.ReconEnabled.Value) return;
             ReconLog.Section($"Scene initialized: {sceneName} (#{buildIndex})");
             ReconLog.TryKeyValue("GameManager.IsLobbyScene", () => Il2Cpp.GameManager.IsLobbyScene);
@@ -96,8 +111,11 @@ namespace LootOverhaul
         public override void OnApplicationQuit()
         {
             ModGate.ForceInert("application quitting");
+            LootRegistry.Clear("application quitting");
             if (ModConfig.ReconEnabled.Value)
             {
+                ReconLog.Section("Loot loop counters");
+                ReconLog.Line($"- kills rolled on this master: {DropRoller.RollsSeen}, drops: {DropRoller.Dropped}, pickups cancelled into claims: {BagPickup.Cancelled}");
                 EventTally.Report("quit");
                 ProfileWatch.Report();
                 ReconLog.Close();
@@ -106,8 +124,10 @@ namespace LootOverhaul
 
         private void OnGateChanged(bool active)
         {
-            // Features arm and disarm here once they exist: drop rolls on the master, the
-            // loot-tag table, the booth in the lobby. Nothing to do in the recon build.
+            // The drop roll and the pickup prefix each check ModGate.Active on every call, so
+            // there is nothing to arm. Disarming means forgetting the floor loot: in a room
+            // that just went vanilla, those weapons are ordinary weapons now.
+            if (!active) LootRegistry.Clear("gate closed");
         }
     }
 }

@@ -346,6 +346,14 @@ Transcripts: `UserData/LootOverhaul/recon/recon-20260902-002755.md` and the two 
 **Still open:** chest hooks (no chest was opened), in-dungeon respawn with a partner alive,
 and every two-player question (who sees the spawn, non-master `OnKilled`, claims).
 
+## Implementation state
+
+- **0.1 (2026-09-01):** recon build. Findings above.
+- **0.2 (2026-09-02):** milestone L1 built — master drop roll on `AI.OnKilled`, tagged
+  networked spawns with rarity beams and toasts, master-arbitrated claims on `Prop.PickUp`,
+  JSON bag, `[`/`]` hotkeys. Untested in game as of writing; see `src/LootOverhaul/README.md`
+  for the solo test script. Next: L2 bag panel, L3 booth.
+
 ## Verify first (one UnityExplorer/recon session, no headset-heavy iteration)
 
 The LootOverhaul 0.1 recon build covers this list with read-only hooks and hotkey probes; see

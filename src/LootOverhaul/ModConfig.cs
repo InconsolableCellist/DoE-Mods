@@ -20,8 +20,12 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<float> BaseDropChance;
         /// <summary>Bag capacity in weight units. The weight table lives in code, by weapon type and tier.</summary>
         public static MelonPreferences_Entry<float> BagWeightCapacity;
-        /// <summary>Auto-bag commons on pickup without the beam and sting, to keep the floor clean.</summary>
-        public static MelonPreferences_Entry<bool> AutoBagCommons;
+        /// <summary>Drop chance, 0–1, when a boss dies.</summary>
+        public static MelonPreferences_Entry<float> BossDropChance;
+        /// <summary>After this many kills without a Legendary, the next drop is one. 0 disables.</summary>
+        public static MelonPreferences_Entry<int> LegendaryPityKills;
+        /// <summary>Rarity-coloured beam over floor loot.</summary>
+        public static MelonPreferences_Entry<bool> DropBeams;
 
         // ---- [LootOverhaul_Dev] ---------------------------------------------------------
         public static MelonPreferences_Entry<bool> VerboseLogging;
@@ -42,7 +46,9 @@ namespace LootOverhaul
             EnemyDropsEnabled = Main.CreateEntry("EnemyDropsEnabled", true);
             BaseDropChance = Main.CreateEntry("BaseDropChance", 0.08f);
             BagWeightCapacity = Main.CreateEntry("BagWeightCapacity", 60f);
-            AutoBagCommons = Main.CreateEntry("AutoBagCommons", false);
+            BossDropChance = Main.CreateEntry("BossDropChance", 1.0f);
+            LegendaryPityKills = Main.CreateEntry("LegendaryPityKills", 120);
+            DropBeams = Main.CreateEntry("DropBeams", true);
 
             Dev = MelonPreferences.CreateCategory("LootOverhaul_Dev");
             VerboseLogging = Dev.CreateEntry("VerboseLogging", false);
