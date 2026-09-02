@@ -36,8 +36,6 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<bool> HotkeysEnabled;
         /// <summary>Echo every transcript line to the MelonLoader console as well.</summary>
         public static MelonPreferences_Entry<bool> MirrorReconToConsole;
-        /// <summary>One-shot coin restoration for the 0.1.0 test-button bug. Applied once in the lobby, then reset to 0.</summary>
-        public static MelonPreferences_Entry<int> CoinRepairAmount;
 
         public static void Load()
         {
@@ -59,8 +57,6 @@ namespace LootOverhaul
             HotkeysEnabled = Dev.CreateEntry("HotkeysEnabled", true,
                 description: "Insert = generator survey, Delete = spawn test weapon, Backslash = lobby survey, Scroll Lock = button test.");
             MirrorReconToConsole = Dev.CreateEntry("MirrorReconToConsole", false);
-            CoinRepairAmount = Dev.CreateEntry("CoinRepairAmount", 0,
-                description: "One-shot: added to Coins once in the lobby, then reset to 0. Exists only to undo the 0.1.0 test-button charge.");
         }
     }
 }

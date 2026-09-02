@@ -78,7 +78,6 @@ namespace LootOverhaul
             _roster.Tick(dt);
             ModGate.Evaluate(_roster);
             ModNet.Pump();
-            CoinRepair.Tick();
             LootRegistry.Tick();
 
             if (!ModConfig.HotkeysEnabled.Value) return;
@@ -97,7 +96,6 @@ namespace LootOverhaul
 
         public override void OnSceneWasInitialized(int buildIndex, string sceneName)
         {
-            CoinRepair.OnScene(sceneName);
             LootRegistry.Clear($"scene changed to {sceneName}");
             if (!ModConfig.ReconEnabled.Value) return;
             ReconLog.Section($"Scene initialized: {sceneName} (#{buildIndex})");
