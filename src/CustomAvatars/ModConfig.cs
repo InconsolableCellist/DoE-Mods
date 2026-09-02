@@ -70,6 +70,8 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<float> HandCurlDegrees;
         public static MelonPreferences_Entry<float> ThumbCurlDegrees;
         public static MelonPreferences_Entry<float> HandCurlSmoothing;
+        public static MelonPreferences_Entry<bool> HandCurlFlipLeft;
+        public static MelonPreferences_Entry<bool> HandCurlFlipRight;
 
         public static MelonPreferences_Entry<float> ArmStretch;
         public static MelonPreferences_Entry<float> ArmShoulderYieldDegrees;
@@ -206,12 +208,19 @@ namespace CustomAvatars
             SelfHeadKeepBones = Tuning.CreateEntry("SelfHeadKeepBones", "", description:
                 "Keep bones (like snout) to see your own muzzle");
 
-            // Negate if the fingers bend backwards — the direction comes from the avatar's own
-            // bone geometry and a rig can have it mirrored.
+            // How far a full grip closes the fingers. Applies to both hands; the bend
+            // direction comes from the avatar's own bone geometry, per hand.
             HandCurlDegrees = Tuning.CreateEntry("HandCurlDegrees", 70f);
             ThumbCurlDegrees = Tuning.CreateEntry("ThumbCurlDegrees", 40f);
             HandCurlSmoothing = Tuning.CreateEntry("HandCurlSmoothing", 0.35f, description:
                 "How quickly fingers follow the controller. Lower is smoother and laggier.");
+            // Escape hatch for a rig the palm detection gets wrong: one hand's fingers bend
+            // backwards while the other is fine. The log line `hand poses: right palm from …`
+            // says what it decided and why; please report the rig so the detection can learn.
+            HandCurlFlipLeft = Tuning.CreateEntry("HandCurlFlipLeft", false, description:
+                "Reverse the left hand's finger curl if it bends backwards");
+            HandCurlFlipRight = Tuning.CreateEntry("HandCurlFlipRight", false, description:
+                "Reverse the right hand's finger curl if it bends backwards");
 
             // A custom avatar's arms are rarely the game character's length. The hand goes on
             // the target regardless; this is how much of the shortfall the arm may cover by

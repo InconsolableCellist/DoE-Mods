@@ -108,6 +108,22 @@ namespace CustomAvatars.Avatars
             }
         }
 
+        /// <summary>
+        /// A finger bent less than this at rest counts as straight, and gets its bend axis from
+        /// the palm direction instead of its own geometry. An angle, not a raw cross-product
+        /// magnitude: the old test scaled with bone length, so a small avatar's fingers all
+        /// counted as straight while a big one's never did.
+        /// </summary>
+        private const float StraightFingerDegrees = 3f;
+
+        private class FingerInfo
+        {
+            public List<Transform> Chain;
+            public float RestBend;      // degrees between the first two segments
+            public bool Curled;
+            public bool Flipped;        // rest curl opposed the palm; the axis was negated
+        }
+
         private static Hand BuildHand(GameObject model, AvatarManifest manifest, bool isLeft)
         {
             var map = manifest?.rig?.humanoidBones;
@@ -115,12 +131,11 @@ namespace CustomAvatars.Avatars
 
             var hand = new Hand { IsLeft = isLeft };
             var side = isLeft ? "Left" : "Right";
+            var fingers = new FingerInfo[FingerCount];
 
             for (var f = 0; f < FingerCount; f++)
             {
-                var joints = new List<Joint>();
                 var transforms = new List<Transform>();
-
                 foreach (var suffix in BoneNames[f])
                 {
                     if (!map.TryGetValue(side + suffix, out var path) || string.IsNullOrEmpty(path)) continue;
@@ -129,80 +144,189 @@ namespace CustomAvatars.Avatars
                 }
                 if (transforms.Count == 0) continue;
 
-                // The bend axis is perpendicular to the plane the finger folds in, which the
-                // chain's own geometry gives us: cross(proximal→middle, middle→distal). A
-                // finger modelled dead straight makes that degenerate, so fall back to the
-                // palm's lateral axis.
-                var axis = BendAxis(transforms, model.transform, isLeft);
+                var info = new FingerInfo { Chain = transforms };
+                if (transforms.Count >= 3)
+                {
+                    try
+                    {
+                        var v1 = transforms[1].position - transforms[0].position;
+                        var v2 = transforms[2].position - transforms[1].position;
+                        if (v1.sqrMagnitude > 1e-12f && v2.sqrMagnitude > 1e-12f)
+                            info.RestBend = Vector3.Angle(v1, v2);
+                    }
+                    catch { }
+                }
+                info.Curled = info.RestBend > StraightFingerDegrees;
+                fingers[f] = info;
+            }
 
-                foreach (var t in transforms)
+            // Everything hangs off one absolute reference: which way the palm faces. Each
+            // finger's axis is then cross(finger, palm), whose sign is right on both hands by
+            // construction. The old code took the sign from each finger's own rest curl, fell
+            // back to a lateral axis that was inverted on the right hand, and then made the
+            // fingers vote — so one correctly-curled finger on a hand of straight ones lost the
+            // vote and got flipped to match the wrong ones.
+            var palm = PalmDirection(fingers, model.transform, out var palmSource);
+
+            var notes = new List<string>();
+            for (var f = 0; f < FingerCount; f++)
+            {
+                var info = fingers[f];
+                if (info == null) continue;
+
+                var axis = BendAxis(info, palm, model.transform, f == 0);
+                if (axis.sqrMagnitude < 1e-8f) continue;
+
+                var joints = new List<Joint>();
+                foreach (var t in info.Chain)
                     joints.Add(new Joint
                     {
                         Bone = t,
                         Rest = t.localRotation,
                         BendAxisLocal = t.InverseTransformDirection(axis).normalized,
                     });
-
                 hand.Fingers[f] = joints;
+
+                notes.Add($"{FingerNames[f]} {(info.Curled ? "curled" : "straight")} {info.RestBend:0}°" +
+                          (info.Flipped ? " (rest curl opposes the palm — axis flipped)" : ""));
             }
 
-            // A near-straight finger makes cross(v1,v2) degenerate, and the fallback can land
-            // pointing the opposite way to its neighbours — which is how one pinky ended up
-            // bending backwards while every other finger was fine. Force agreement: any finger
-            // whose axis opposes the majority gets flipped.
-            HarmoniseAxes(hand);
+            var flip = isLeft ? ModConfig.HandCurlFlipLeft.Value : ModConfig.HandCurlFlipRight.Value;
+            if (flip)
+            {
+                foreach (var joints in hand.Fingers)
+                {
+                    if (joints == null) continue;
+                    foreach (var j in joints) j.BendAxisLocal = -j.BendAxisLocal;
+                }
+            }
+
+            Core.Log.Msg($"    hand poses: {side.ToLowerInvariant()} palm from {palmSource}" +
+                         (flip ? $", HandCurlFlip{side} negated every axis" : "") +
+                         $"; {string.Join(", ", notes)}");
             return hand;
         }
 
-        /// <summary>Flip any finger whose bend axis disagrees with the rest of the hand.</summary>
-        private static void HarmoniseAxes(Hand hand)
-        {
-            // Compare in the hand's own space, since each joint stores its axis locally.
-            var reference = Vector3.zero;
-            var samples = 0;
-            for (var f = 1; f < FingerCount; f++)   // skip the thumb: it genuinely differs
-            {
-                var joints = hand.Fingers[f];
-                if (joints == null || joints.Count == 0) continue;
-                reference += joints[0].Bone.TransformDirection(joints[0].BendAxisLocal);
-                samples++;
-            }
-            if (samples < 2 || reference.sqrMagnitude < 1e-8f) return;
-            reference.Normalize();
+        private static readonly string[] FingerNames = { "thumb", "index", "middle", "ring", "little" };
 
-            for (var f = 1; f < FingerCount; f++)
+        /// <summary>
+        /// The direction from the back of the hand through the palm, from the avatar's own
+        /// bones. In order of trust: the way the fingers already curl at rest; failing that
+        /// the side of the hand the thumb leans to; failing that the humanoid T-pose
+        /// convention, palms down.
+        /// </summary>
+        private static Vector3 PalmDirection(FingerInfo[] fingers, Transform modelRoot, out string source)
+        {
+            // 1. Fingers modelled with a rest curl curl toward the palm — nobody exports a hand
+            //    hyperextended. The part of the second segment that isn't along the first is
+            //    that curl direction. Weighted by the bend, so a barely-bent finger can't
+            //    outvote a clearly-curled one.
+            var sum = Vector3.zero;
+            var count = 0;
+            for (var f = 1; f < FingerCount; f++)   // not the thumb: it curls across, not down
             {
-                var joints = hand.Fingers[f];
-                if (joints == null || joints.Count == 0) continue;
-                var world = joints[0].Bone.TransformDirection(joints[0].BendAxisLocal);
-                if (Vector3.Dot(world, reference) >= 0f) continue;
-                foreach (var j in joints) j.BendAxisLocal = -j.BendAxisLocal;
-                Core.Log.Msg($"    hand poses: flipped a mirrored bend axis on finger {f}");
+                var info = fingers[f];
+                if (info == null || !info.Curled || info.Chain.Count < 3) continue;
+                try
+                {
+                    var v1 = (info.Chain[1].position - info.Chain[0].position).normalized;
+                    var v2 = info.Chain[2].position - info.Chain[1].position;
+                    var curl = v2 - Vector3.Dot(v2, v1) * v1;
+                    if (curl.sqrMagnitude < 1e-12f) continue;
+                    sum += curl.normalized * info.RestBend;
+                    count++;
+                }
+                catch { }
             }
+            if (count > 0 && sum.sqrMagnitude > 1e-8f)
+            {
+                source = $"{count} curled finger(s)";
+                return sum.normalized;
+            }
+
+            // 2. Straight fingers: use the thumb. The plane of the hand is spanned by the
+            //    fingers and the line across the knuckles; the thumb sits on the palm side
+            //    of it. Only trusted when the thumb clearly leaves the plane.
+            try
+            {
+                var thumb = fingers[0];
+                var index = fingers[1];
+                var outer = fingers[4] ?? fingers[3];
+                if (thumb != null && thumb.Chain.Count >= 2 && index != null && index.Chain.Count >= 2 && outer != null)
+                {
+                    var fingerDir = (index.Chain[1].position - index.Chain[0].position).normalized;
+                    var across = outer.Chain[0].position - index.Chain[0].position;
+                    var normal = Vector3.Cross(fingerDir, across);
+                    var thumbDir = (thumb.Chain[thumb.Chain.Count - 1].position - thumb.Chain[0].position).normalized;
+                    if (normal.sqrMagnitude > 1e-12f)
+                    {
+                        normal.Normalize();
+                        var lean = Vector3.Dot(thumbDir, normal);
+                        if (Mathf.Abs(lean) > 0.1f)
+                        {
+                            source = $"the thumb's lean ({lean * 100f:+0;-0}% out of the hand plane)";
+                            return lean > 0f ? normal : -normal;
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            // 3. T-pose convention: arms out, palms facing the floor.
+            source = "the T-pose convention (palms down)";
+            return -modelRoot.up;
         }
 
-        private static Vector3 BendAxis(List<Transform> chain, Transform modelRoot, bool isLeft)
+        /// <summary>
+        /// The world axis a positive curl rotates this finger about. For a finger with a rest
+        /// curl, the plane it already folds in; otherwise the plane through the palm direction.
+        /// Either way the sign is checked against the palm, so a positive curl always closes
+        /// the hand.
+        /// </summary>
+        private static Vector3 BendAxis(FingerInfo info, Vector3 palm, Transform modelRoot, bool isThumb)
         {
             try
             {
-                if (chain.Count >= 3)
+                var chain = info.Chain;
+                var fingerDir = chain.Count >= 2
+                    ? (chain[1].position - chain[0].position).normalized
+                    : chain[0].forward;
+
+                // A finger's own rest curl is the best evidence of how it bends — but the
+                // thumb aside, it must agree with the palm, or the rig has that finger bent
+                // backwards and following it would too.
+                if (info.Curled && chain.Count >= 3)
                 {
                     var v1 = chain[1].position - chain[0].position;
                     var v2 = chain[2].position - chain[1].position;
-                    var cross = Vector3.Cross(v1, v2);
-                    if (cross.sqrMagnitude > 1e-8f) return cross.normalized;
+                    var axis = Vector3.Cross(v1, v2);
+                    if (axis.sqrMagnitude > 1e-12f)
+                    {
+                        axis.Normalize();
+                        if (!isThumb)
+                        {
+                            var expected = Vector3.Cross(fingerDir, palm);
+                            if (expected.sqrMagnitude > 1e-8f && Vector3.Dot(axis, expected) < 0f)
+                            {
+                                info.Flipped = true;
+                                axis = -axis;
+                            }
+                        }
+                        return axis;
+                    }
                 }
 
-                // Straight finger: bend about the axis across the palm. The finger direction
-                // crossed with the model's up gives that, and the sign flips per hand.
-                var dir = chain.Count >= 2
-                    ? (chain[1].position - chain[0].position).normalized
-                    : chain[0].forward;
-                var lateral = Vector3.Cross(dir, modelRoot.up);
-                if (lateral.sqrMagnitude < 1e-8f) lateral = modelRoot.right;
-                return (isLeft ? -lateral : lateral).normalized;
+                // Straight: bend toward the palm.
+                var lateral = Vector3.Cross(fingerDir, palm);
+                if (lateral.sqrMagnitude > 1e-8f) return lateral.normalized;
+
+                // Finger pointing straight at or away from the palm? Something is odd about
+                // this rig; take the horizontal axis across the hand and hope.
+                lateral = Vector3.Cross(modelRoot.up, fingerDir);
+                if (lateral.sqrMagnitude > 1e-8f) return lateral.normalized;
+                return Vector3.zero;
             }
-            catch { return isLeft ? -modelRoot.right : modelRoot.right; }
+            catch { return Vector3.zero; }
         }
 
         /// <summary>Read the controllers and apply. Call from LateUpdate, after VRIK.</summary>
