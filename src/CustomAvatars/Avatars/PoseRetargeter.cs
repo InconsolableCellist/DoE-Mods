@@ -107,6 +107,8 @@ namespace CustomAvatars.Avatars
 
         private Transform _sourceHips, _targetHips;
         private Vector3 _sourceHipsRestLocal, _targetHipsRestLocal;
+        /// <summary>The model we are posing. Not `Transform.root`: a mannequin is parented.</summary>
+        private Transform _targetRoot;
 
         public int LinkCount => _links.Count;
 
@@ -123,8 +125,8 @@ namespace CustomAvatars.Avatars
 
         /// <summary>Our hips' offset from our own root, so the two can be lined up.</summary>
         public Vector3? TargetHipsOffset =>
-            Interop.Alive(_targetHips) && Interop.Alive(_targetHips.root)
-                ? _targetHips.position - _targetHips.root.position : (Vector3?)null;
+            Interop.Alive(_targetHips) && Interop.Alive(_targetRoot)
+                ? _targetHips.position - _targetRoot.position : (Vector3?)null;
 
         public string Build(AvatarPlayer player, GameObject model, AvatarManifest manifest)
         {
@@ -187,14 +189,29 @@ namespace CustomAvatars.Avatars
                     _targetHipsRestLocal = dst.localPosition;
                 }
             }
+            _targetRoot = model.transform;
 
             _links.Sort((a, b) => a.Depth.CompareTo(b.Depth));
             var aligned = AlignAtCapture(source, model, map);
 
+            // A rig exported at a unit scale of 100 (or 70, or 0.01) keeps that scale on a
+            // node between the model root and the hips. Nothing about rotations cares; the
+            // hips translation does, which is why it goes through world space below.
+            var rigScale = "";
+            try
+            {
+                if (Interop.Alive(_targetHips) && Interop.Alive(_targetHips.parent))
+                {
+                    var inner = _targetHips.parent.lossyScale.y / Mathf.Max(1e-6f, model.transform.lossyScale.y);
+                    if (Mathf.Abs(inner - 1f) > 0.01f) rigScale = $", hips sit at x{inner:0.###} inside the rig";
+                }
+            }
+            catch { }
+
             return _links.Count == 0
                 ? "no bones could be paired between the two rigs"
                 : $"{_links.Count} bone(s) paired" + (missing > 0 ? $", {missing} unpaired" : "") +
-                  (aligned > 0 ? $", {aligned} aligned at capture" : "");
+                  (aligned > 0 ? $", {aligned} aligned at capture" : "") + rigScale;
         }
 
         /// <summary>
@@ -491,11 +508,27 @@ namespace CustomAvatars.Avatars
             }
 
             // Hips translation carries crouching and bobbing, which rotation alone can't.
+            //
+            // Through world space, not local to local. The two hips live under different
+            // parents, and a local delta only means the same thing in both if those parents
+            // share axes AND scale. One avatar's rig kept a x70 unit scale on the node above
+            // its hips, so every centimetre the game rig bobbed shoved its hips 70 cm: the
+            // mannequin slid off its pedestal whenever the hologram moved, and on the wearer
+            // the head anchor hid it as legs missing by a metre and a bad height reading.
+            // Scaled back up by the model's own scale so the effect stays proportional to the
+            // avatar's size, which is what a unit rig always got.
             if (Interop.Alive(_sourceHips) && Interop.Alive(_targetHips))
             {
                 try
                 {
                     var delta = _sourceHips.localPosition - _sourceHipsRestLocal;
+                    var sourceParent = _sourceHips.parent;
+                    var targetParent = _targetHips.parent;
+                    if (Interop.Alive(sourceParent) && Interop.Alive(targetParent) && Interop.Alive(_targetRoot))
+                    {
+                        var world = sourceParent.TransformVector(delta);
+                        delta = Vector3.Scale(targetParent.InverseTransformVector(world), _targetRoot.lossyScale);
+                    }
                     _targetHips.localPosition = _targetHipsRestLocal + delta * ModConfig.RetargetHipsFollow.Value;
                 }
                 catch { }

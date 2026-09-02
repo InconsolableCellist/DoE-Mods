@@ -167,6 +167,7 @@ namespace CustomAvatars.Avatars
                 entry.Model = UnityEngine.Object.Instantiate(bundle.Prefab);
                 entry.Model.name = $"DFM_Hologram_{avatarName}";
                 entry.Model.SetActive(false);
+                Core.Log.Msg($"    mannequin Animator: {AvatarBundle.QuietAnimators(entry.Model)}");
 
                 // Parent to the mannequin so it inherits the pedestal's placement and scale;
                 // then sit exactly where the source rig sits.
@@ -287,6 +288,7 @@ namespace CustomAvatars.Avatars
 
         private void ApplyEntry(Entry entry, float deltaTime)
         {
+            PinToPedestal(entry);
             ApplyWearerFit(entry);
             try { entry.Retarget?.Apply(); } catch { }
 
@@ -305,6 +307,24 @@ namespace CustomAvatars.Avatars
             {
                 if (Interop.Alive(entry.VanillaMesh) && entry.VanillaMesh.enabled)
                     entry.VanillaMesh.enabled = false;
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// The model sits exactly on the mannequin's rig, and nothing we run should move its
+        /// root — the retargeter writes rotations and a hips offset, never the root. Anything
+        /// that does move it (a controller the exporter didn't strip, on an older bundle) is
+        /// undone here before it can show. Cheap compare, rare write.
+        /// </summary>
+        private static void PinToPedestal(Entry entry)
+        {
+            if (!Interop.Alive(entry.Model)) return;
+            try
+            {
+                var t = entry.Model.transform;
+                if (t.localPosition.sqrMagnitude > 1e-8f) t.localPosition = Vector3.zero;
+                if (Quaternion.Angle(t.localRotation, Quaternion.identity) > 0.01f) t.localRotation = Quaternion.identity;
             }
             catch { }
         }

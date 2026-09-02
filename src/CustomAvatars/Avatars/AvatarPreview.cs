@@ -89,6 +89,7 @@ namespace CustomAvatars.Avatars
 
                 _instance = UnityEngine.Object.Instantiate(_bundle.Prefab);
                 _instance.name = $"DFM_Preview_{manifest.name}";
+                Core.Log.Msg($"    preview Animator: {AvatarBundle.QuietAnimators(_instance)}");
             }
             catch (Exception e)
             {

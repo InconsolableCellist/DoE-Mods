@@ -149,6 +149,46 @@ namespace CustomAvatars.Avatars
         }
 
         /// <summary>
+        /// Switch off every Animator on an instance we have just made. The exporter keeps the
+        /// avatar's Animator for its humanoid map, and if the author left a controller on it —
+        /// a VRChat FX or locomotion layer is common — it plays that controller in every copy
+        /// we spawn. The worn avatar hides it, because VRIK and the retargeter overwrite the
+        /// bones and the root is re-anchored every frame. A mannequin has nobody re-anchoring
+        /// it, so the controller's idle drove its hips and root around the pedestal. Nothing
+        /// in the mod reads the avatar's own Animator; every pose here is ours.
+        /// </summary>
+        public static string QuietAnimators(GameObject instance)
+        {
+            if (!Interop.Alive(instance)) return "no instance";
+            var count = 0;
+            var controllers = new List<string>();
+            var rootMotion = false;
+            try
+            {
+                foreach (var animator in instance.GetComponentsInChildren<Animator>(true))
+                {
+                    if (!Interop.Alive(animator)) continue;
+                    count++;
+                    try
+                    {
+                        var controller = animator.runtimeAnimatorController;
+                        if (Interop.Alive(controller)) controllers.Add(controller.name);
+                        if (animator.applyRootMotion) rootMotion = true;
+                    }
+                    catch { }
+                    try { animator.enabled = false; } catch { }
+                }
+            }
+            catch (Exception e) { return $"could not inspect: {e.Message}"; }
+
+            if (count == 0) return "none on the prefab";
+            var what = controllers.Count == 0
+                ? "no controller"
+                : $"controller `{string.Join("`, `", controllers)}` still attached (harmless now; re-export to drop it)";
+            return $"{count} disabled — {what}{(rootMotion ? ", root motion was on" : "")}";
+        }
+
+        /// <summary>
         /// Unload the bundle but NOT the objects loaded from it — instances already in the
         /// scene are destroyed separately, and pulling their assets out from under them gives
         /// you an avatar that renders as nothing at all.

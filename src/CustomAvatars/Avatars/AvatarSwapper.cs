@@ -211,6 +211,7 @@ namespace CustomAvatars.Avatars
                 _model = UnityEngine.Object.Instantiate(_bundle.Prefab);
                 _model.name = $"DFM_Avatar_{manifest.name}";
                 UnityEngine.Object.DontDestroyOnLoad(_model);
+                Core.Log.Msg($"    avatar Animator: {AvatarBundle.QuietAnimators(_model)}");
 
                 // Configure while inactive: VRIK's Awake initiates its solver, and it must not
                 // run before `references` is populated.

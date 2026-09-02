@@ -414,6 +414,23 @@ namespace DoEMod.Export
                 throw new Exception("Avatar must have an Animator with a valid Humanoid avatar.");
             var head = animator.GetBoneTransform(HumanBodyBones.Head);
             if (head == null) throw new Exception("Humanoid rig has no Head bone mapped.");
+
+            // The Animator ships for its humanoid map only. A controller left on it — the
+            // VRChat FX or locomotion layer, typically — would play in every copy the mod
+            // spawns, and on the mannequin nothing re-anchors the root it animates.
+            foreach (var a in clone.GetComponentsInChildren<Animator>(true))
+            {
+                if (a.runtimeAnimatorController != null)
+                {
+                    report.AppendLine($"Dropped animator controller `{a.runtimeAnimatorController.name}` from `{RelPath(clone.transform, a.transform)}` — the mod poses the avatar itself.");
+                    a.runtimeAnimatorController = null;
+                }
+                if (a.applyRootMotion)
+                {
+                    report.AppendLine($"Turned off root motion on `{RelPath(clone.transform, a.transform)}`.");
+                    a.applyRootMotion = false;
+                }
+            }
             var renderers = clone.GetComponentsInChildren<SkinnedMeshRenderer>(true);
             if (renderers.Length == 0) throw new Exception("No SkinnedMeshRenderers found.");
 
