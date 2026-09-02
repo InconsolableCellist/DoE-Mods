@@ -19,8 +19,8 @@ namespace CustomAvatars.Avatars
         private readonly Dictionary<int, AvatarSwapper> _remote = new Dictionary<int, AvatarSwapper>();
 
         /// <summary>Peers who told us their avatar before their AvatarPlayer existed yet.</summary>
-        private readonly Dictionary<int, (string name, string sha, float height)> _pending =
-            new Dictionary<int, (string, string, float)>();
+        private readonly Dictionary<int, (string name, string sha, float height, float size)> _pending =
+            new Dictionary<int, (string, string, float, float)>();
 
         public AvatarSwapManager(AvatarLibrary library)
         {
@@ -66,6 +66,23 @@ namespace CustomAvatars.Avatars
 
         /// <summary>How much our own avatar is scaled, for peers who have to draw it.</summary>
         public float SelfHeightScale => _self.IsActive ? _self.HeightScale : 1f;
+
+        /// <summary>How much a peer's avatar is scaled, as they told us; 1 when they wear none.</summary>
+        public float RemoteHeightScale(int actorNumber) =>
+            _remote.TryGetValue(actorNumber, out var swapper) && swapper.IsActive ? swapper.HeightScale : 1f;
+
+        /// <summary>
+        /// We have just become a different size (PlayerSize). The avatar's fit, its spring
+        /// forces and its arm geometry were all built for the old one, so it comes off and
+        /// goes straight back on — the same re-bind a held T-pose does — once the keys have
+        /// stopped: a run of PageUp presses is one change, not ten.
+        /// </summary>
+        public void OnSelfSizeChanged(float size)
+        {
+            if (!_self.IsActive) return;
+            _rewearAt = UnityEngine.Time.unscaledTime + 0.6f;
+            _rewearSizeWhy = $"you are now x{size:0.00}";
+        }
 
         /// <summary>F4. Returns the avatar now worn, or null if it was taken off or refused.</summary>
         public string ToggleSelf()
@@ -162,8 +179,14 @@ namespace CustomAvatars.Avatars
             if (manifest == null) { Fbt.FbtAudio.Error(); return; }
 
             Core.Log.Msg($"*** Re-wearing `{name}` ({why}) — off and straight back on.");
+            // Start from the fit we had, moved by however much our size changed since it was
+            // measured, so the second before the new measurement doesn't leave the feet in
+            // the air. Exact when nothing but the size changed.
+            var guess = _self.IsActive && _self.HeightScale > 0f
+                ? _self.HeightScale * PlayerSize.Applied / UnityEngine.Mathf.Max(0.05f, _self.SizeAtFit)
+                : 0f;
             _self.Revert(why);
-            _self.Apply(local, manifest, isSelf: true);
+            _self.Apply(local, manifest, isSelf: true, initialFit: guess);
             _selfWanted = _self.AvatarName ?? _selfWanted;
             SelfAvatarChanged?.Invoke();
 
@@ -173,7 +196,7 @@ namespace CustomAvatars.Avatars
         }
 
         /// <summary>A peer told us what they're wearing, and how big they are wearing it.</summary>
-        public void SetRemoteAvatar(int actorNumber, string avatarName, string sha, float height)
+        public void SetRemoteAvatar(int actorNumber, string avatarName, string sha, float height, float size)
         {
             if (string.IsNullOrEmpty(avatarName))
             {
@@ -209,11 +232,12 @@ namespace CustomAvatars.Avatars
                 string.Equals(current.AvatarName, avatarName, StringComparison.Ordinal))
             {
                 current.ApplyRemoteHeight(height);
+                current.ApplyRemoteBodySize(size);
                 _pending.Remove(actorNumber);
                 return;
             }
 
-            _pending[actorNumber] = (avatarName, sha, height);
+            _pending[actorNumber] = (avatarName, sha, height, size);
             TryApplyPending();
         }
 
@@ -225,11 +249,19 @@ namespace CustomAvatars.Avatars
         private string _selfWanted;
         private string _rewearWhy;
 
+        private float _rewearAt;
+        private string _rewearSizeWhy;
+
         public void Tick(float deltaTime)
         {
             AutoWear();
             HealSelf();
             if (_rewearWhy != null) { var why = _rewearWhy; _rewearWhy = null; ReWearSelf(why); }
+            else if (_rewearAt > 0f && UnityEngine.Time.unscaledTime >= _rewearAt)
+            {
+                _rewearAt = 0f;
+                ReWearSelf(_rewearSizeWhy ?? "size changed");
+            }
 
             _self.LateUpdate(deltaTime);
             foreach (var kv in _remote) kv.Value.LateUpdate(deltaTime);
@@ -258,6 +290,7 @@ namespace CustomAvatars.Avatars
                 if (swapper.IsActive)
                 {
                     swapper.ApplyRemoteHeight(kv.Value.height);
+                    swapper.ApplyRemoteBodySize(kv.Value.size);
                     _remote[kv.Key] = swapper;
                 }
 

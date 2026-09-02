@@ -148,22 +148,38 @@ headset.
 | **F5** | look for newly added avatar files |
 | **F7/F8/F9** | write technical details to a log file, for troubleshooting |
 | **F10/F11** | full-body tracking on/off, and calibrate it |
+| **PageUp / PageDown** | be bigger / smaller, in 5% steps |
+| **Home** | back to your normal size |
 
 ### Your size
 
-The mod never changes how big you are. The game owns your play space and rewrites its scale
-every frame; the mod does not touch it. The avatar is fitted once, when you put it on, so its
-head is at your eyes and its feet are on the floor — the same silhouette the game's own body
-has — and that number does not change again while you wear it. Put it on standing up.
+Out of the box the mod never changes how big you are. The avatar is fitted once, when you
+put it on, so its head is at your eyes and its feet are on the floor — the same silhouette
+the game's own body has — and that number does not change again while you wear it. Put it
+on standing up.
 
 If it went on wrong — legs twisted, put on sitting down — stand up and **hold a T-pose for a
 second and a half**: arms straight out to the sides, level with your shoulders. The avatar is
 taken off and put straight back on — exactly what pressing F4 twice does — and you'll hear
 the same rising two-note chime full-body tracking plays when it locks in.
 
-Builds 0.33 to 0.35 had a player-resizing feature. It is gone. If your settings file still has
-`HeightScalingEnabled`, `HeightFromAvatar` or `HeightScale` lines, they do nothing and can be
-deleted.
+**Being a different size.** Press **PageDown** to be smaller and **PageUp** to be bigger.
+Everything scales together: your eye height, your reach, your hit boxes, the game's own body
+and your avatar, so the world reads as bigger or smaller and your feet stay on the floor.
+Friends running the mod see you at that size; the mannequins in the equipment room show you
+at it too. A moment after you stop pressing, the avatar is taken off and put back on (same
+chime as the T-pose) so it is fitted to your new size. **Home** puts you back to normal — and
+normal means the mod has let go completely, nothing is written, the game is exactly as it
+was. The size is remembered in the settings file as `AvatarSize` (1 = normal); editing it to
+1 there and pressing F3 is the same as Home.
+
+Things that are metres to the game stay metres: you walk and jump at the same speed whatever
+your size (there is a `SizeMoveSpeedBlend` setting if you'd rather move at your body's pace),
+a held sword is still a full-size sword, and chests and ledges are as high as they always
+were. Full-body tracking works at any size; a calibration taken at one size is used at another.
+
+If the console ever prints `the game is fighting for it`, the mod has given up on sizing for
+that session and put you back to normal on its own — please send that log.
 
 ## Settings
 

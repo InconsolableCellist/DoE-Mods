@@ -46,6 +46,7 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<bool> VoiceJawEnabled;
         public static MelonPreferences_Entry<bool> FbtEnabled;
         public static MelonPreferences_Entry<bool> TrackerSyncEnabled;
+        public static MelonPreferences_Entry<float> AvatarSize;
 
         // ---- [CustomAvatars_Tuning] -----------------------------------------------------
         public static MelonPreferences_Entry<float> SpringStiffnessScale;
@@ -82,6 +83,7 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<float> LegStretch;
         public static MelonPreferences_Entry<bool> LegLockFeet;
         public static MelonPreferences_Entry<float> RebindOnTposeSeconds;
+        public static MelonPreferences_Entry<float> SizeMoveSpeedBlend;
 
         public static MelonPreferences_Entry<float> FaceSmoothing;
         public static MelonPreferences_Entry<float> FaceShapeScale;
@@ -169,8 +171,12 @@ namespace CustomAvatars
             // F10 flips it; the trackers themselves are read straight from SteamVR.
             FbtEnabled = Main.CreateEntry("FbtEnabled", false);
             TrackerSyncEnabled = Main.CreateEntry("TrackerSyncEnabled", true);
-
-            // There is deliberately no player-size setting. See Core.OnInitializeMelon.
+            // How big you are, as a multiple of vanilla. 1 means the mod never touches your
+            // size — no reference held, nothing written. PageUp/PageDown step it, Home puts
+            // it back to 1; each key writes the file. See Avatars/PlayerSize.cs.
+            AvatarSize = Main.CreateEntry("AvatarSize", 1.0f, description:
+                "How big you are, as a multiple of normal (0.3 to 3). 1 = the mod leaves your size alone. " +
+                "PageUp/PageDown change it in game, Home sets it back to 1.");
 
             // ---- tuning -----------------------------------------------------------------
             // Restoring force toward the resting pose.
@@ -253,6 +259,10 @@ namespace CustomAvatars
             // put straight back on. 0 turns it off.
             RebindOnTposeSeconds = Tuning.CreateEntry("RebindOnTposeSeconds", 1.5f, description:
                 "Hold a T-pose this many seconds to re-bind the avatar to your body. 0 disables.");
+            // Stick speed and jump height are world metres, so a small player crosses a room
+            // fast. 0 leaves the game alone; 1 makes a half-size player half as fast.
+            SizeMoveSpeedBlend = Tuning.CreateEntry("SizeMoveSpeedBlend", 0f, description:
+                "0 to 1: how much your movement speed and jump follow your size (0 = vanilla speed at any size).");
 
             FaceSmoothing = Tuning.CreateEntry("FaceSmoothing", 0.5f);
             // Some faces want the whole set toned down.

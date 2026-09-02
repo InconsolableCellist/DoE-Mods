@@ -41,6 +41,8 @@ namespace CustomAvatars.Avatars
             public Face.FaceDriver Face;
             public HandPoser Hands;
             public string AvatarName;
+            /// <summary>The avatar's own scale, before the wearer's fit is applied on top.</summary>
+            public float SuggestedScale = 1f;
             /// <summary>Whose mannequin this is; -1 when nobody owns it, as in the menu.</summary>
             public int ActorNumber = -1;
             /// <summary>Show your face and your fingers on it, rather than a peer's.</summary>
@@ -172,6 +174,7 @@ namespace CustomAvatars.Avatars
                 entry.Model.transform.localPosition = Vector3.zero;
                 entry.Model.transform.localRotation = Quaternion.identity;
                 entry.Model.transform.localScale = Vector3.one * manifest.rig.suggestedScale;
+                entry.SuggestedScale = manifest.rig.suggestedScale;
 
                 foreach (var smr in entry.Model.GetComponentsInChildren<SkinnedMeshRenderer>(true))
                     if (Interop.Alive(smr)) smr.updateWhenOffscreen = true;
@@ -284,6 +287,7 @@ namespace CustomAvatars.Avatars
 
         private void ApplyEntry(Entry entry, float deltaTime)
         {
+            ApplyWearerFit(entry);
             try { entry.Retarget?.Apply(); } catch { }
 
             // Same order as the in-world avatar: body, then fingers, then face, then the
@@ -311,6 +315,26 @@ namespace CustomAvatars.Avatars
         /// rather than two, and it is the only source there is for a peer. The menu has no
         /// in-world body to copy from, so there the mannequin reads the controllers itself.
         /// </summary>
+        /// <summary>
+        /// The mannequin shows the wearer as they are in the world: the avatar at the fit
+        /// its wearer has it at, which is how their size (PlayerSize) reaches the pedestal.
+        /// The mannequin's own vanilla rig is a fixed 1.5 m body, so this is the one place
+        /// the fit has to be applied by hand. Cheap compare, rare write.
+        /// </summary>
+        private void ApplyWearerFit(Entry entry)
+        {
+            if (!Interop.Alive(entry.Model)) return;
+            try
+            {
+                var fit = entry.IsSelf ? _swaps.SelfHeightScale : _swaps.RemoteHeightScale(entry.ActorNumber);
+                if (!float.IsFinite(fit) || fit <= 0f) fit = 1f;
+                var want = Vector3.one * (entry.SuggestedScale * fit);
+                if ((entry.Model.transform.localScale - want).sqrMagnitude > 1e-8f)
+                    entry.Model.transform.localScale = want;
+            }
+            catch { }
+        }
+
         private void ApplyHands(Entry entry, float deltaTime)
         {
             if (entry.Hands == null) return;

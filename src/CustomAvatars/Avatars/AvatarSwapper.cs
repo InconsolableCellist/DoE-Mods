@@ -80,6 +80,12 @@ namespace CustomAvatars.Avatars
         private Vector3 _modelBaseScale = Vector3.one;
         private float _heightScale = 1f;
         private float _calibrateAt;
+        private Vector3 _fullBodyRestScale = Vector3.one;
+        private float _remoteBodySize = 1f;
+        private float _sizeAtFit = 1f;
+
+        /// <summary>The player's size (PlayerSize) the current fit was measured at.</summary>
+        public float SizeAtFit => _sizeAtFit;
         private float _nextArmDumpAt;
         private int _armDumpsLeft;
 
@@ -151,7 +157,12 @@ namespace CustomAvatars.Avatars
 
         public void Apply(AvatarPlayer player, AvatarManifest manifest) => Apply(player, manifest, true);
 
-        public void Apply(AvatarPlayer player, AvatarManifest manifest, bool isSelf)
+        /// <param name="initialFit">
+        /// A starting scale for the model, for a re-wear: the previous fit, adjusted for any
+        /// size change. Calibrate still measures a second later; this just means the feet
+        /// are not off the floor for that second. 0 for a fresh swap.
+        /// </param>
+        public void Apply(AvatarPlayer player, AvatarManifest manifest, bool isSelf, float initialFit = 0f)
         {
             IsSelf = isSelf;
             try { ActorNumber = player.ActorNumber; } catch { ActorNumber = -1; }
@@ -172,6 +183,11 @@ namespace CustomAvatars.Avatars
             _fullBody = fullBody;
             _manifest = manifest;
             AvatarName = manifest.name;
+            // A peer's body may get sized to match them (ApplyRemoteBodySize); this is what
+            // it goes back to. Our own body is PlayerSize's, not ours.
+            try { _fullBodyRestScale = fullBody.transform.localScale; } catch { _fullBodyRestScale = Vector3.one; }
+            if (_fullBodyRestScale.x <= 1e-4f) _fullBodyRestScale = Vector3.one;
+            _remoteBodySize = 1f;
 
             try
             {
@@ -204,6 +220,12 @@ namespace CustomAvatars.Avatars
                 _model.transform.localScale = Vector3.one * manifest.rig.suggestedScale;
                 _modelBaseScale = _model.transform.localScale;
                 _heightScale = 1f;
+                if (isSelf && float.IsFinite(initialFit) && initialFit > 0f)
+                {
+                    _heightScale = Mathf.Clamp(initialFit, 0.5f, 2f);
+                    _model.transform.localScale = _modelBaseScale * _heightScale;
+                }
+                _sizeAtFit = PlayerSize.Applied;
                 // The head bone is what we anchor ourselves by, so resolve it once here rather
                 // than searching the hierarchy every frame.
                 _headBone = null;
@@ -1181,6 +1203,29 @@ namespace CustomAvatars.Avatars
         }
 
         /// <summary>
+        /// Size a PEER'S game body the way they have sized themselves (their PlayerSize). The
+        /// game networks their head and hands at their real, scaled positions and their VRIK
+        /// on our client reaches for those — with a full-size body it would crouch to a low
+        /// head, and our copy of their avatar would copy the crouch. Never for ourselves:
+        /// PlayerSize owns our body.
+        /// </summary>
+        public void ApplyRemoteBodySize(float size)
+        {
+            if (IsSelf) return;
+            if (!float.IsFinite(size) || size < PlayerSize.Minimum * 0.5f || size > PlayerSize.Maximum * 2f) return;
+            if (Mathf.Abs(size - _remoteBodySize) < 0.0005f) return;
+
+            _remoteBodySize = size;
+            if (!Interop.Alive(_fullBody)) return;
+            try
+            {
+                _fullBody.transform.localScale = _fullBodyRestScale * size;
+                Core.Log.Msg($"    peer size: `{SafeName(_player)}`'s body scaled x{size:0.000} to match them.");
+            }
+            catch { }
+        }
+
+        /// <summary>
         /// Scale the avatar so that, with its head at your head, its feet are on the floor.
         ///
         /// This is the same silhouette the game's own body has. That body is 1.5 m to the head
@@ -1191,9 +1236,14 @@ namespace CustomAvatars.Avatars
         ///
         /// Measured ONCE, a second after the swap, and never again while the avatar is worn.
         /// Not on crouching (it would shrink you), not on standing taller, not on anything.
-        /// Every attempt at re-fitting — and at resizing the player underneath (v0.33–v0.35) —
-        /// ended with people unable to get back to the size they started at. Put the avatar
-        /// on standing and it fits; if it was put on sitting down, F4 twice.
+        /// Every attempt at re-fitting ended with people unable to get back to the size they
+        /// started at. Put the avatar on standing and it fits; if it was put on sitting down,
+        /// F4 twice, or hold a T-pose.
+        ///
+        /// Your size (PlayerSize) needs no arithmetic here: it is already on the play space
+        /// by the time this runs, so the head is measured where it now is, in world metres,
+        /// and the avatar comes out at your chosen size. A size change re-wears the avatar,
+        /// which brings it back through here.
         /// </summary>
         private void Calibrate()
         {
@@ -1222,12 +1272,15 @@ namespace CustomAvatars.Avatars
                 var baseHeight = avatarHeight / Mathf.Max(0.01f, _heightScale);
                 var raw = playerHeight / baseHeight;
                 var previous = _heightScale;
+                var size = PlayerSize.Applied;
                 // A nonsense filter, not a size limit.
                 _heightScale = Mathf.Clamp(raw, 0.5f, 2f);
+                _sizeAtFit = size;
                 _model.transform.localScale = _modelBaseScale * _heightScale;
 
                 var note = Mathf.Abs(raw - _heightScale) > 0.001f ? $" (clamped from x{raw:0.00})" : "";
-                Core.Log.Msg($"    height: you {playerHeight:0.00} m to the eyes, avatar {baseHeight:0.00} m — " +
+                var sized = Mathf.Abs(size - 1f) > 0.0005f ? $" (you are x{size:0.00}: {playerHeight / size:0.00} m at vanilla size)" : "";
+                Core.Log.Msg($"    height: you {playerHeight:0.00} m to the eyes{sized}, avatar {baseHeight:0.00} m — " +
                              $"scaling avatar x{_heightScale:0.000}{note}, once");
 
                 if (Mathf.Abs(previous - _heightScale) > 0.002f)
@@ -1542,6 +1595,15 @@ namespace CustomAvatars.Avatars
                 if (Interop.Alive(holder)) { try { UnityEngine.Object.Destroy(holder); } catch { } }
             _leftHandTarget = null;
             _rightHandTarget = null;
+
+            // A peer's body we sized goes back to what the game had. (Ours is PlayerSize's.)
+            if (!IsSelf && Mathf.Abs(_remoteBodySize - 1f) > 0.0005f && Interop.Alive(_fullBody))
+            {
+                try { _fullBody.transform.localScale = _fullBodyRestScale; } catch { }
+            }
+            _remoteBodySize = 1f;
+            _fullBodyRestScale = Vector3.one;
+            _sizeAtFit = 1f;
 
             _shrinkBones.Clear();
             _keepBones.Clear();

@@ -189,10 +189,12 @@ namespace CustomAvatars.Fbt
                         var floorY = player.transform.position.y;
                         var headHeight = headY - floorY;
 
-                        var shoulderY = headY - 0.18f;
+                        // World metres, so a resized player's absolute margins scale with them.
+                        var size = Avatars.PlayerSize.Applied;
+                        var shoulderY = headY - 0.18f * size;
                         var handsAtShoulders =
-                            Mathf.Abs(lh.position.y - shoulderY) < 0.25f &&
-                            Mathf.Abs(rh.position.y - shoulderY) < 0.25f;
+                            Mathf.Abs(lh.position.y - shoulderY) < 0.25f * size &&
+                            Mathf.Abs(rh.position.y - shoulderY) < 0.25f * size;
 
                         var l = lh.position; l.y = 0;
                         var r = rh.position; r.y = 0;
@@ -200,7 +202,7 @@ namespace CustomAvatars.Fbt
 
                         // Arms at your sides span well under half your height; a T-pose spans
                         // close to all of it. 0.8× eye height splits the two cleanly.
-                        posed = headHeight > 0.8f && handsAtShoulders && span > headHeight * 0.8f;
+                        posed = headHeight > 0.8f * size && handsAtShoulders && span > headHeight * 0.8f;
                     }
                 }
             }
@@ -290,7 +292,7 @@ namespace CustomAvatars.Fbt
                     FbtAudio.Error();
                     return;
                 }
-                if (c.OffsetPos.magnitude > 1f)
+                if (c.OffsetPos.magnitude > 1f * Avatars.PlayerSize.Applied)
                 {
                     Core.Log.Warning($"*** FBT: the {c.Role} offset came out {c.OffsetPos.magnitude:0.00} m — " +
                                      "that is not a mounting offset, the tracker data is wrong. " +
@@ -450,6 +452,7 @@ namespace CustomAvatars.Fbt
             if (userHeight > 0.8f && rigHeight > 0.8f)
                 scale = Mathf.Clamp(userHeight / rigHeight, 0.7f, 1.5f);
             LastBodyScale = scale;
+            LastCalibratedAtSize = Avatars.PlayerSize.Applied;
 
             Core.Log.Msg($"    FBT: mapping the rig onto you — yaw " +
                          $"{Vector3.SignedAngle(rigForward, userForward, Vector3.up):0.0}°, " +
@@ -593,6 +596,14 @@ namespace CustomAvatars.Fbt
         /// <summary>User height ÷ rig height, captured at the last lock. 1 until calibrated.</summary>
         public float LastBodyScale { get; private set; } = 1f;
 
+        /// <summary>
+        /// The player's size (PlayerSize) when the offsets were captured. Offsets are world
+        /// metres, so a calibration taken at x1 is used at x0.8 by scaling them 0.8 — the
+        /// manager does that on the tracker proxies. Stored alongside the offsets; a file
+        /// without the field is from before sizes existed, so 1.
+        /// </summary>
+        public float LastCalibratedAtSize { get; private set; } = 1f;
+
         private void Persist(List<CalibratedTracker> calibrated)
         {
             var inv = CultureInfo.InvariantCulture;
@@ -600,6 +611,7 @@ namespace CustomAvatars.Fbt
             {
                 FormatVersion,
                 string.Format(inv, "scale|{0:F4}", LastBodyScale),
+                string.Format(inv, "size|{0:F4}", LastCalibratedAtSize),
             };
             foreach (var c in calibrated)
             {
@@ -619,9 +631,10 @@ namespace CustomAvatars.Fbt
         /// with the same pucks strapped on shouldn't have to T-pose again. Null means
         /// calibrate afresh.
         /// </summary>
-        public static List<CalibratedTracker> TryLoadPersisted(TrackerReader reader, out float bodyScale)
+        public static List<CalibratedTracker> TryLoadPersisted(TrackerReader reader, out float bodyScale, out float atSize)
         {
             bodyScale = 1f;
+            atSize = 1f;
             var raw = ModConfig.FbtCalibration.Value;
             if (string.IsNullOrWhiteSpace(raw)) return null;
 
@@ -647,6 +660,11 @@ namespace CustomAvatars.Fbt
                         bodyScale = Mathf.Clamp(float.Parse(f[1], inv), 0.7f, 1.5f);
                         continue;
                     }
+                    if (f.Length == 2 && f[0] == "size")
+                    {
+                        atSize = float.Parse(f[1], inv);
+                        continue;
+                    }
                     if (f.Length != 4) return null;
                     var p = f[2].Split(',');
                     var q = f[3].Split(',');
@@ -669,9 +687,10 @@ namespace CustomAvatars.Fbt
             // another wrote a finite 2.5e9 metres. A stored calibration that isn't a plausible
             // mounting offset is a stored explosion; make it recalibrate.
             if (!FbtMath.Finite(bodyScale) || bodyScale <= 0f) bodyScale = 1f;
+            if (!FbtMath.Finite(atSize) || atSize < Avatars.PlayerSize.Minimum || atSize > Avatars.PlayerSize.Maximum) atSize = 1f;
             foreach (var c in result)
                 if (!FbtMath.Finite(c.OffsetPos) || !FbtMath.Finite(c.OffsetRot) ||
-                    c.OffsetPos.magnitude > 1f)
+                    c.OffsetPos.magnitude > 1f * atSize)
                 {
                     Core.Log.Warning("FBT: stored calibration contains impossible values (a bad " +
                                      "capture from an earlier build) — discarding it. Recalibrate.");

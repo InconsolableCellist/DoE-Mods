@@ -800,23 +800,60 @@ vanilla skeleton, and vanilla peers still see stock avatars.
 
 ---
 
-### 2c. Being the size of your avatar (v0.33.0–v0.35.0, REMOVED in v0.36.0)
+### 2c. Being a different size (v0.33.0–v0.35.0, removed in v0.36.0, back in v0.40.0 as `PlayerSize`)
 
-**Removed, and not coming back.** Two real runs on 2026-09-01 settled it:
+**The v0.36 post-mortem was wrong, and the logs it cited show it.** Re-read for v0.40
+(2026-09-01 evening), the three v0.35 session logs say:
 
-- The game owns the rig's scale and rewrites it every frame (`VRControllerBase.xrRigPlayerHeight`,
-  `OpenVRRig.CalibrateHeight`): the drift log counted 738 resets in ten seconds. Every frame was
-  a fight, and the eye height measured during the fight crept from 1.80 m to 2.00 m in seconds,
-  which fed straight back into the scale — the player shrank to 0.64 without touching a key,
-  and their friend watched it happen through the avatar message stream.
-- Nobody could get back to the size they started at, which is the one property the feature
-  could not be allowed to lose.
+- **The "738 resets" were the mod's own drift check misfiring, not the game.** `Drifted()`
+  returned true whenever `Model_<nick>` was not alive and the applied scale was not 1. Every
+  reset in all three logs falls in exactly those windows: 14:29:19–14:29:31 in the third log,
+  between `rig resolved` (scale applied from the config, in the menu) and `body resolved`
+  (the first swap) — the storm stops the same second the body appears; three at 14:27:00 in
+  the second log, at "application quitting" after the local player object was destroyed.
+  Zero resets in the seven minutes of play with the body alive. And the dump backs it up:
+  neither `VRControllerBase` nor `OpenVRRig` has an Update; `CalibrateHeight` is called from
+  Awake/recentre. The game does not rewrite the rig scale per frame.
+- **The runaway shrink was a measurement bug, not a fight.** `MeasureEyeHeight` read
+  `rig.InverseTransformPoint(FirstPersonCamera.position).y`, kept the running maximum, and
+  fed it back into the scale. That number grew exactly as 1/scale (1.80 m at x0.875, 2.02 m
+  at x0.781) — `FirstPersonCamera` does not sit under the scaled rig, so dividing its world
+  height by the scale inflated it every frame — while the swap's own measurement
+  (`IKTargetHead.y − Player_.y`, divided by the applied scale) sat steady at 1.71 m the whole
+  time. A positive-feedback loop entirely inside the mod.
+- **Everything else in those logs worked.** The rig scale took, both player capsules scaled
+  with it, the body scaled, PgUp ran the player from 0.95 to 1.27 and back, the friend saw it,
+  and the prop watch caught the game resetting a held sword's local scale and put it back.
 
-What persists from it: nothing in the game. The rig scale is the game's and self-heals the
-moment the mod stops writing; PlayerPrefs holds no height key; the save file is opaque but
-has no reason to contain one. `MelonPreferences.cfg` keeps three dead `Height*` lines that can
-be deleted. The FBT calibration string's `scale|` field was measured before any of these
-sessions and is unaffected. The original notes follow for the record.
+So v0.40 brings it back, with rules that are the inverse of the failure:
+
+- **Nothing is measured.** `AvatarSize` (config; PageUp/PageDown/Home) IS the play-space
+  scale. It is applied to `VR Controller` (walk up from `XRRig.Transform`) and to
+  `Model_<nick>` (`AvatarPlayer.LocalAvatar.FullBody`). The avatar's one-shot fit runs after
+  it, in world space, so it needs no arithmetic: the head is where it is.
+- **A missing body is nothing to do.** A fresh body (respawn) is read for its rest scale and
+  sized; no body means wait.
+- **A fuse instead of a fight.** If the rig or body scale is found changed, it is re-applied
+  and counted; 120 trips in 5 s switches the feature off for the session with a loud log
+  line and puts you back to vanilla. Expected trips: zero.
+- **Off is vanilla.** `AvatarSize = 1` means no reference held and nothing written; Home
+  writes 1 and the release restores rest scales, near clip, speeds and held props once.
+- **A size change re-wears the avatar** (the T-pose re-bind path, debounced 0.6 s, starting
+  from the previous fit scaled by the size ratio so the feet don't float meanwhile), which
+  rebuilds springs, arm geometry and fit at the new size instead of patching each.
+- **Peers** get a fifth field on the avatar message (`avatar|name|sha|fit|size`) and scale
+  our `Model_<nick>` on their client by `size` before solving our avatar onto it — a
+  full-size body reaching for a low head would crouch, and the avatar would copy it.
+  Mannequins apply the wearer's fit. FBT: T-pose margins, the offset sanity bound and the
+  space check are multiplied by the size; the calibration string carries `size|` so offsets
+  captured at one size are scaled to another on the tracker proxies.
+
+Still open, answerable only in a headset: the recentre anchor (`AvatarPlayer.Head`, falling
+back to `XRRig.CenterEyeAnchor`) must be under the rig for the horizontal recentre to work —
+the log line `Size: holding` is followed by whether it was found; melee damage thresholds
+and locomotion feel at small sizes; world-unit interactions (vault heights, grab range).
+
+The original v0.33 notes follow for the record.
 
 
 

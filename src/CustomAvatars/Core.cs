@@ -6,7 +6,7 @@ using CustomAvatars.Gate;
 using CustomAvatars.Net;
 using CustomAvatars.Recon;
 
-[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.39.1", "dan")]
+[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.40.0", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace CustomAvatars
@@ -25,7 +25,7 @@ namespace CustomAvatars
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.39.1";
+        public const string Version = "0.40.0";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -44,6 +44,7 @@ namespace CustomAvatars
         private Face.FaceSync _faceSync;
         private Fbt.TrackerReader _trackers;
         private Fbt.FbtManager _fbt;
+        private PlayerSize _size;
         private bool _envDumped;
         private float _hotkeyCooldown;
 
@@ -80,10 +81,12 @@ namespace CustomAvatars
             _avatarLibrary.Rescan();
             _preview = new AvatarPreview(_avatarLibrary);
             _swaps = new AvatarSwapManager(_avatarLibrary);
-            // The mod never touches your size. Player scaling (v0.33–v0.35) is gone: the game
-            // rewrites the rig's scale every frame from its own height handling, ours fought it,
-            // and the measurements taken during the fight fed back into the scale until nobody
-            // could get back to normal. The rig is the game's.
+            // Your size. Idle at AvatarSize 1; otherwise scales the play space and the game's
+            // body together, and the avatar is re-fitted to wherever your head ends up.
+            _size = new PlayerSize();
+            _size.Changed += size => _swaps.OnSelfSizeChanged(size);
+            if (Math.Abs(PlayerSize.Wanted() - 1f) > 0.0005f)
+                LoggerInstance.Msg($"Size: AvatarSize is {PlayerSize.Wanted():0.00} — you will be that size once the rig is up. Home puts it back to 1.");
             _avatarSync = new AvatarSync(_swaps, _avatarLibrary, _roster);
             _handSync = new HandSync(_swaps, _roster);
             _holograms = new HologramSwapper(_avatarLibrary, _swaps);
@@ -122,6 +125,10 @@ namespace CustomAvatars
             _roster.Tick(dt);
             ModGate.Evaluate(_roster);
             ModNet.Pump();
+
+            // Size first: this frame's tracker poses, IK targets and avatar fit must all see
+            // the play space at the size settled on, not last frame's.
+            _size?.Tick();
 
             // Before the game's LateUpdate, where FinalIK solves: tracker targets set here are
             // where this frame's legs land. After Pump, so a peer's poses land the same frame.
@@ -172,6 +179,9 @@ namespace CustomAvatars
 
         /// <summary>One-line FBT state for the overlay.</summary>
         public string FbtSummary => _fbt?.Describe() ?? "-";
+
+        /// <summary>One-line size state for the overlay.</summary>
+        public string SizeSummary => _size?.Describe() ?? "-";
 
         public override void OnGUI()
         {
@@ -274,6 +284,22 @@ namespace CustomAvatars
                     _hotkeyCooldown = 0.5f;
                     _fbt.StartCalibration();
                 }
+                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.PageUp))
+                {
+                    // Short cooldown: these are held-and-tapped keys, not one-shot dumps.
+                    _hotkeyCooldown = 0.12f;
+                    _size.Nudge(+1);
+                }
+                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.PageDown))
+                {
+                    _hotkeyCooldown = 0.12f;
+                    _size.Nudge(-1);
+                }
+                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Home))
+                {
+                    _hotkeyCooldown = 0.5f;
+                    _size.ResetToVanilla();
+                }
                 else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F3))
                 {
                     // Re-read MelonPreferences.cfg from disk. The spring constants are read
@@ -287,6 +313,8 @@ namespace CustomAvatars
                                        $"gravity x{ModConfig.SpringGravityScale.Value}, drag {ModConfig.SpringDragBase.Value}, " +
                                        $"colliders {ModConfig.SpringCollidersEnabled.Value}");
                     LoggerInstance.Msg($"Preferences reloaded — swap: {AvatarSwapper.DescribeSettings()}");
+                    LoggerInstance.Msg($"Preferences reloaded — AvatarSize {PlayerSize.Wanted():0.00}, " +
+                                       $"SizeMoveSpeedBlend {ModConfig.SizeMoveSpeedBlend.Value:0.00}");
                     if (!ModConfig.SwapUseVrik.Value)
                         LoggerInstance.Warning("*** SwapUseVrik is FALSE — swapped avatars will T-pose. " +
                                                "That is a diagnostic setting; set it back to true.");
@@ -302,6 +330,7 @@ namespace CustomAvatars
         public override void OnApplicationQuit()
         {
             _fbt?.Shutdown();
+            _size?.Shutdown();
             _preview?.Despawn("application quitting");
             _face?.Dispose();
             _holograms?.RevertAll("application quitting");

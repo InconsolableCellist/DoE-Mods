@@ -9,10 +9,12 @@ tracking sync via VRCFaceTracking + OSC, and (stretch) custom inventory/loot.
   pipeline, networking map, loot system, open questions.
 - **dump/** — Il2CppDumper output (`dump.cs` is the searchable class dump; `DummyDll/` for
   IDE reference). Regenerate after game updates with `tools/run_dumper.bat`.
+- **[docs/LOOT-OVERHAUL.md](docs/LOOT-OVERHAUL.md)** — feasibility investigation for a
+  separate loot/inventory/shop mod built on the game's own weapon generator.
 - **[INSTALL.md](INSTALL.md)** — installing and (importantly) removing the mod. This is the
   page to hand to a friend; it assumes no knowledge of the project.
-- **[src/README.md](src/README.md)** — the mod itself (`src/CustomAvatars/`): how to build
-  it, and what the Phase 0 recon build reports.
+- **[src/README.md](src/README.md)** — the mods themselves: `src/CustomAvatars/` and the
+  independent `src/LootOverhaul/` scaffold; how to build them.
 - **tools/** — MelonLoader 0.7.3, Il2CppDumper, Cpp2IL, AssetRipper, UnityExplorer builds.
 
 Game install: `C:\Games\Steam\steamapps\common\Dungeons of Eternity`

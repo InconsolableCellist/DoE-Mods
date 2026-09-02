@@ -39,6 +39,7 @@ namespace CustomAvatars.Fbt
 
         private List<CalibratedTracker> _calibration;
         private float _bodyScale = 1f;
+        private float _calibratedAtSize = 1f;   // PlayerSize when the offsets were captured
         private readonly Dictionary<string, TrackerRole> _roleOf = new Dictionary<string, TrackerRole>();
 
         // ---- local rig ----
@@ -117,7 +118,7 @@ namespace CustomAvatars.Fbt
             // straight into the skeleton; refuse and put the evidence in the log instead.
             var check = _reader.SpaceCheck(out var worstMiss);
             Core.Log.Msg($"FBT {check}");
-            if (worstMiss > 0.5f)
+            if (worstMiss > 0.5f * Avatars.PlayerSize.Applied)
             {
                 Core.Log.Warning("*** FBT: the tracker read path disagrees with the game by " +
                                  $"{worstMiss * 100f:0.0} cm — refusing to engage. Full dump follows.");
@@ -131,7 +132,7 @@ namespace CustomAvatars.Fbt
             if (!_swaps.SelfActive)
                 Core.Log.Msg("FBT: on — engages when your avatar is (F4).");
 
-            _calibration ??= FbtCalibrator.TryLoadPersisted(_reader, out _bodyScale);
+            _calibration ??= FbtCalibrator.TryLoadPersisted(_reader, out _bodyScale, out _calibratedAtSize);
             if (_calibration != null)
             {
                 RebuildRoleMap();
@@ -293,7 +294,14 @@ namespace CustomAvatars.Fbt
 
                 var proxy = _proxies[(int)c.Role];
                 if (Interop.Alive(proxy))
+                {
                     proxy.transform.SetPositionAndRotation(device.WorldPos, device.WorldRot);
+                    // The tracker→bone offset under this proxy is world metres captured at
+                    // one size; at another size the same strap sits proportionally closer.
+                    var ratio = Avatars.PlayerSize.Applied / Mathf.Max(0.05f, _calibratedAtSize);
+                    if (Mathf.Abs(proxy.transform.localScale.x - ratio) > 1e-4f)
+                        proxy.transform.localScale = Vector3.one * ratio;
+                }
             }
 
             if (_blipCount > 0 && Time.unscaledTime >= _blipNextLogAt)
@@ -337,6 +345,7 @@ namespace CustomAvatars.Fbt
         {
             _calibration = calibrated;
             _bodyScale = _calibrator.LastBodyScale;
+            _calibratedAtSize = _calibrator.LastCalibratedAtSize;
             RebuildRoleMap();
             EnsureProxies();          // creates or re-offsets, whichever applies
             HideVisuals();            // "pucks disappear" is the lock-in confirmation

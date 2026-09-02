@@ -1,5 +1,8 @@
 # CustomAvatars — building
 
+This folder holds two independent mods: `CustomAvatars/` (this page) and `LootOverhaul/`
+(see [LootOverhaul/README.md](LootOverhaul/README.md)). They share only `Directory.Build.props`.
+
 ## One-time prerequisites
 
 1. **MelonLoader 0.7.3 installed into the game folder** — `version.dll` + `MelonLoader/`

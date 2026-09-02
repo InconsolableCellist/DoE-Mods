@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using UnityEngine;
 using CustomAvatars.Gate;
 using CustomAvatars.Net;
 
@@ -59,7 +60,11 @@ namespace CustomAvatars.Avatars
                 // German locale parsing "1,05" as a thousands separator would draw a friend a
                 // hundred times too tall. Old builds send three fields and are read as x1.
                 var height = _manager.SelfHeightScale.ToString("0.000", CultureInfo.InvariantCulture);
-                payload = $"avatar|{name}|{sha}|{height}";
+                // Fifth field: how big WE are (PlayerSize), so a peer can size our game body
+                // to match before they solve our avatar onto it. Without it a small player's
+                // full-size body on their screen would crouch to reach a low head target.
+                var size = PlayerSize.Applied.ToString("0.000", CultureInfo.InvariantCulture);
+                payload = $"avatar|{name}|{sha}|{height}|{size}";
             }
 
             if (ModNet.Send(ModNet.CodeAvatarManifest, payload, reliable: true, targetActors: targets))
@@ -85,12 +90,17 @@ namespace CustomAvatars.Avatars
                 if (parts.Length > 3 &&
                     !float.TryParse(parts[3], NumberStyles.Float, CultureInfo.InvariantCulture, out height))
                     height = 1f;
+                var size = 1f;
+                if (parts.Length > 4 &&
+                    !float.TryParse(parts[4], NumberStyles.Float, CultureInfo.InvariantCulture, out size))
+                    size = 1f;
 
                 Core.Log.Msg(string.IsNullOrEmpty(name)
                     ? $"Actor {senderActor} took their custom avatar off."
-                    : $"Actor {senderActor} is wearing `{name}`.");
+                    : $"Actor {senderActor} is wearing `{name}`" +
+                      (Mathf.Abs(size - 1f) > 0.0005f ? $" at x{size:0.00} their normal size." : "."));
 
-                _manager.SetRemoteAvatar(senderActor, name, sha, height);
+                _manager.SetRemoteAvatar(senderActor, name, sha, height, size);
             }
             catch (Exception e)
             {
