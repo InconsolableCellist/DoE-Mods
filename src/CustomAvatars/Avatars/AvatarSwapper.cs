@@ -57,8 +57,8 @@ namespace CustomAvatars.Avatars
             $"LocomotionWeight={ModConfig.SwapLocomotionWeight.Value}, HideHead={ModConfig.SelfHideHead.Value}, " +
             $"HideFpsArms={ModConfig.SwapHideFpsArms.Value}, FollowVanillaRoot={ModConfig.SwapFollowVanillaRoot.Value}, " +
             $"PoseSource={ModConfig.SwapPoseSource.Value}, ArmSource={ModConfig.SwapArmSource.Value}, " +
-            $"wrist L=({ModConfig.SwapHandOffsetLeftX.Value},{ModConfig.SwapHandOffsetLeftY.Value},{ModConfig.SwapHandOffsetLeftZ.Value}) " +
-            $"R=({ModConfig.SwapHandOffsetRightX.Value},{ModConfig.SwapHandOffsetRightY.Value},{ModConfig.SwapHandOffsetRightZ.Value})";
+            $"hand trim L=({ModConfig.SwapHandTrimLeftX.Value},{ModConfig.SwapHandTrimLeftY.Value},{ModConfig.SwapHandTrimLeftZ.Value}) " +
+            $"R=({ModConfig.SwapHandTrimRightX.Value},{ModConfig.SwapHandTrimRightY.Value},{ModConfig.SwapHandTrimRightZ.Value})";
 
         private float _settledLogAt;   // unscaled time at which to re-log placement; 0 = done
         private float _nextLeashLogAt;
@@ -218,8 +218,8 @@ namespace CustomAvatars.Avatars
                 _model.SetActive(false);
                 _model.transform.position = fullBody.transform.position;
                 _model.transform.rotation = fullBody.transform.rotation;
-                _model.transform.localScale = Vector3.one * manifest.rig.suggestedScale;
-                _modelBaseScale = _model.transform.localScale;
+                _modelBaseScale = AvatarBundle.RootScale(_model, "avatar") * manifest.rig.suggestedScale;
+                _model.transform.localScale = _modelBaseScale;
                 _heightScale = 1f;
                 if (isSelf && float.IsFinite(initialFit) && initialFit > 0f)
                 {
@@ -493,10 +493,9 @@ namespace CustomAvatars.Avatars
             solver.spine.rotationWeight = 1f;   // Spine — there is no headPositionWeight.
 
             // Aim the arms at child transforms of the game's hand targets rather than at the
-            // targets themselves. The game's IK targets are authored for ITS rig's wrist
-            // orientation; a VRChat rig's wrists rarely agree. A child with a tunable local
-            // rotation absorbs the difference, and because it's re-applied every frame from
-            // config, the offset can be dialled in with F3 without respawning the avatar.
+            // targets themselves. VRIK's GuessHandOrientations above works out how this rig's
+            // wrists face; the child carries the configured trim on top, re-applied every frame
+            // from config so it can be dialled in with F3 without respawning the avatar.
             solver.leftArm.target = HandTarget(ref _leftHandTarget, "DFM_HandTarget_L", player.IKTargetLeftHand);
             solver.leftArm.positionWeight = 1f;
             solver.leftArm.rotationWeight = 1f;
@@ -547,22 +546,26 @@ namespace CustomAvatars.Avatars
             return holder.transform;
         }
 
-        /// <summary>Re-apply the configured wrist offsets, so F3 retunes a live avatar.</summary>
+        /// <summary>
+        /// Re-apply the configured wrist trims, so F3 retunes a live avatar. The rotation
+        /// that turns the target's frame into this rig's hand bone is measured from the bones
+        /// in <see cref="ArmIK"/>; this is only whatever the user adds on top.
+        /// </summary>
         private void UpdateHandOffsets()
         {
             try
             {
                 if (Interop.Alive(_leftHandTarget))
                     _leftHandTarget.transform.localRotation = Quaternion.Euler(
-                        ModConfig.SwapHandOffsetLeftX.Value,
-                        ModConfig.SwapHandOffsetLeftY.Value,
-                        ModConfig.SwapHandOffsetLeftZ.Value);
+                        ModConfig.SwapHandTrimLeftX.Value,
+                        ModConfig.SwapHandTrimLeftY.Value,
+                        ModConfig.SwapHandTrimLeftZ.Value);
 
                 if (Interop.Alive(_rightHandTarget))
                     _rightHandTarget.transform.localRotation = Quaternion.Euler(
-                        ModConfig.SwapHandOffsetRightX.Value,
-                        ModConfig.SwapHandOffsetRightY.Value,
-                        ModConfig.SwapHandOffsetRightZ.Value);
+                        ModConfig.SwapHandTrimRightX.Value,
+                        ModConfig.SwapHandTrimRightY.Value,
+                        ModConfig.SwapHandTrimRightZ.Value);
             }
             catch { }
         }
@@ -1318,7 +1321,7 @@ namespace CustomAvatars.Avatars
         private float ManifestHeadHeight()
         {
             var rig = _manifest?.rig;
-            if (rig != null && rig.headHeight > 0.05f && rig.suggestedScale > 0.01f)
+            if (rig != null && rig.headHeight > 0.05f && rig.suggestedScale > 0.0001f)
                 return rig.headHeight * rig.suggestedScale;
             if (rig != null && rig.gameHeadHeight > 0.05f) return rig.gameHeadHeight;
             return 1.5f;
@@ -1767,7 +1770,9 @@ namespace CustomAvatars.Avatars
                 if (bad)
                     Core.Log.Error("*** Model position is NaN — the IK solve has blown up. " +
                                    "Set SwapUseVrik=false to confirm.");
-                if (scale.x < 0.01f)
+                // Against what it was put on at, not a fixed number: an inch rig legitimately
+                // stands at a root scale of 0.024.
+                if (scale.x < _modelBaseScale.x * 0.05f)
                     Core.Log.Error($"*** Model has collapsed to scale {scale.x:0.####} — it is present but too small to see.");
 
                 var head = Interop.Alive(_player) ? _player.IKTargetHead : null;

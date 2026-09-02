@@ -35,9 +35,16 @@ namespace CustomAvatars.Avatars
             // The wrist as the modeller left it: the one orientation, relative to the forearm,
             // that is known to skin properly. Everything the twist code does is measured from it.
             public Quaternion HandRestLocal = Quaternion.identity;
+            // From the hand target's frame to this rig's hand bone, measured from the bones at
+            // build. What the bone is given every frame is the target's rotation times this.
+            // See HandFromTargetFrame.
+            public Quaternion HandFromTarget = Quaternion.identity;
+            public string HandFrameNote = "";
             // Elbow-to-wrist, in the forearm's own space. The axis a forearm pronates about.
             public Vector3 ForeAxisLocal = Vector3.forward;
             public float CurrentScale = 1f;
+            // How much each bone is actually lengthened; CurrentScale is the whole-arm figure.
+            public float CurrentUpperScale = 1f, CurrentForeScale = 1f;
             public bool Stretched;
 
             // Kept for the diagnostic: how long the arm is, how far it is being asked to reach,
@@ -78,7 +85,11 @@ namespace CustomAvatars.Avatars
             _right = BuildArm(model, manifest, "Right", rightTarget, sourceBone);
 
             var count = (_left != null ? 1 : 0) + (_right != null ? 1 : 0);
-            return count == 0 ? "no arm bones could be resolved" : $"{count} arm(s) driven from the hand targets";
+            if (count == 0) return "no arm bones could be resolved";
+            var notes = "";
+            if (_left != null) notes += $"\n      L hand: {_left.HandFrameNote}";
+            if (_right != null) notes += $"\n      R hand: {_right.HandFrameNote}";
+            return $"{count} arm(s) driven from the hand targets{notes}";
         }
 
         private static Arm BuildArm(GameObject model, AvatarManifest manifest, string side, Transform target,
@@ -117,6 +128,8 @@ namespace CustomAvatars.Avatars
                 try { axis = fore.InverseTransformDirection(hand.position - fore.position); } catch { }
             }
             arm.ForeAxisLocal = axis.sqrMagnitude > 1e-10f ? axis.normalized : Vector3.forward;
+
+            arm.HandFromTarget = HandFromTargetFrame(model, side, hand, fore, Bone, out arm.HandFrameNote);
 
             if (sourceBone != null)
             {
@@ -324,21 +337,40 @@ namespace CustomAvatars.Avatars
         }
 
         /// <summary>
-        /// Lengthen the whole arm by <paramref name="s"/> and nothing else.
+        /// Lengthen the upper arm by <paramref name="su"/> and the forearm by <paramref name="sf"/>,
+        /// and nothing else.
         ///
         /// Scale compounds down a hierarchy. The first version of this scaled the upper arm AND
         /// the forearm by s, which made the forearm s² long in the world — and then solved the
         /// angles for lengths inflated once more on top, so at an 8% stretch the solver was
-        /// planning for an arm 21% longer than the one it had. Scaling the upper arm alone
-        /// lengthens both bones by exactly s, because the forearm's offset from the elbow is
-        /// measured in the upper arm's (now larger) units. The hand undoes it so the paw stays
-        /// its own size.
+        /// planning for an arm 21% longer than the one it had. The forearm's offset from the
+        /// elbow is measured in the upper arm's units, so the upper arm's scale sets the upper
+        /// bone's length; the forearm's LOCAL scale is then sf over su, which leaves it at sf in
+        /// the world, and the hand undoes that so the paw stays its own size. With sf = 1 the
+        /// forearm mesh is not distorted at all — only the upper arm, which in first person you
+        /// almost never see.
         /// </summary>
-        private static void ApplyStretch(Arm arm, float s)
+        private static void ApplyStretch(Arm arm, float su, float sf)
         {
-            arm.Upper.localScale = arm.UpperRestScale * s;
-            arm.Fore.localScale = arm.ForeRestScale;
-            arm.Hand.localScale = arm.HandRestScale / s;
+            arm.Upper.localScale = arm.UpperRestScale * su;
+            arm.Fore.localScale = arm.ForeRestScale * (sf / su);
+            arm.Hand.localScale = arm.HandRestScale / sf;
+        }
+
+        /// <summary>
+        /// Split a whole-arm stretch between the two bones. The extra length is shared by
+        /// <c>ArmStretchUpperShare</c> (1 = all on the upper arm), and each bone's own factor
+        /// is that share of the extra over its own rest length, so the total still comes to
+        /// exactly what the solve asked for whatever the rig's proportions are.
+        /// </summary>
+        private static void SplitStretch(float s, float labRest, float lcbRest, out float su, out float sf)
+        {
+            var share = Mathf.Clamp01(ModConfig.ArmStretchUpperShare.Value);
+            var extra = (s - 1f) * (labRest + lcbRest);
+            su = 1f + share * extra / labRest;
+            sf = 1f + (1f - share) * extra / lcbRest;
+            if (!float.IsFinite(su) || su < 1f) su = 1f;
+            if (!float.IsFinite(sf) || sf < 1f) sf = 1f;
         }
 
         private static void Solve(Arm arm)
@@ -359,6 +391,8 @@ namespace CustomAvatars.Avatars
                     !float.IsFinite(arm.CurrentScale) || arm.CurrentScale < 0.5f)
                 {
                     arm.CurrentScale = 1f;
+                    arm.CurrentUpperScale = 1f;
+                    arm.CurrentForeScale = 1f;
                     arm.Stretched = false;
                     arm.CurrentYield = 0f;
                     arm.HasYield = false;
@@ -384,9 +418,8 @@ namespace CustomAvatars.Avatars
                 // divide it back out to get the arm's own length. Measuring the bones rather
                 // than caching a length at build keeps this right when the whole model is
                 // rescaled to fit the player.
-                var previous = arm.CurrentScale;
-                var labRest = Vector3.Distance(a, b) / previous;
-                var lcbRest = Vector3.Distance(b, c) / previous;
+                var labRest = Vector3.Distance(a, b) / arm.CurrentUpperScale;
+                var lcbRest = Vector3.Distance(b, c) / arm.CurrentForeScale;
                 if (labRest < 1e-5f || lcbRest < 1e-5f) return;
 
                 var natural = labRest + lcbRest;
@@ -405,16 +438,24 @@ namespace CustomAvatars.Avatars
                 // visible than a wrist pulled off the end of it, so the arm takes as much as
                 // ArmStretch allows and the wrist lock only gets the remainder.
                 var s = wantScale;
-                if (s > 1.0001f) { ApplyStretch(arm, s); arm.Stretched = true; }
+                float su = 1f, sf = 1f;
+                if (s > 1.0001f)
+                {
+                    SplitStretch(s, labRest, lcbRest, out su, out sf);
+                    ApplyStretch(arm, su, sf);
+                    arm.Stretched = true;
+                }
                 else if (arm.Stretched) { s = 1f; arm.Stretched = false; RestScales(arm); }
                 else s = 1f;
                 arm.CurrentScale = s;
+                arm.CurrentUpperScale = su;
+                arm.CurrentForeScale = sf;
 
-                // The lengths the bones have NOW, after this frame's stretch. Directions are
-                // unchanged by a uniform scale about the shoulder, so a, b, c still describe
-                // the bend even though b and c have moved along their bones.
-                var lab = labRest * s;
-                var lcb = lcbRest * s;
+                // The lengths the bones have NOW, after this frame's stretch. Each bone is
+                // scaled along itself about its own joint, so a, b, c still describe the bend
+                // even though b and c have moved along their bones.
+                var lab = labRest * su;
+                var lcb = lcbRest * sf;
                 arm.LastExpectedMiss = Mathf.Max(0f, needed - (lab + lcb));
 
                 var lat = Mathf.Clamp(needed, 1e-3f, lab + lcb - 1e-3f);
@@ -444,8 +485,10 @@ namespace CustomAvatars.Avatars
                 // than the geometric shortfall.
                 arm.LastMiss = Vector3.Distance(arm.Hand.position, t);
 
-                Pronate(arm);
-                arm.Hand.rotation = arm.Target.rotation;
+                // The target's orientation, said in this rig's own hand-bone convention.
+                var handRotation = arm.Target.rotation * arm.HandFromTarget;
+                Pronate(arm, handRotation);
+                arm.Hand.rotation = handRotation;
 
                 // Dead on, whatever happened above. Moving the hand bone by itself pulls the
                 // skin at the wrist rather than lengthening the arm, and the skin is
@@ -456,6 +499,104 @@ namespace CustomAvatars.Avatars
                 if (ModConfig.ArmLockHands.Value) arm.Hand.position = t;
             }
             catch { /* one bad frame must not stop the other arm */ }
+        }
+
+        /// <summary>
+        /// The rotation from the hand target's frame to this rig's hand bone, so the bone can be
+        /// handed the target's orientation without anyone caring how the rig labels its axes.
+        ///
+        /// The game's hand targets are laid out the way you would expect a controller to be:
+        /// Z along the fingers, Y out the back of the hand. What a hand BONE calls its axes is
+        /// up to whoever rigged it. One Blender export runs Y down the fingers with Z out the
+        /// back of the hand; another runs Y down the fingers with X out the back. Writing the
+        /// target's rotation straight onto both leaves the second one's palm rolled ninety
+        /// degrees about the forearm, which is exactly how one tester's avatar arrived. The
+        /// (-90, 0, 180) that used to be tuned into the config was nothing but the first rig's
+        /// answer to this question, and it was wrong for everyone else.
+        ///
+        /// So the target's frame is rebuilt here from geometry every rig agrees on — wrist to
+        /// the middle knuckle for the fingers, little knuckle to index knuckle across the palm,
+        /// and their cross product for the back of the hand (which side that is depends on
+        /// which hand) — and the bone is measured against it in the rest pose. A rig with no
+        /// finger bones gets the forearm's own direction for the fingers and the T-pose
+        /// convention (palms facing the floor) for the back, the same last resort the finger
+        /// poser uses. Measured on the rig that (-90, 0, 180) was tuned against, this comes
+        /// out at exactly (-90, 0, 180).
+        /// </summary>
+        private static Quaternion HandFromTargetFrame(GameObject model, string side, Transform hand, Transform fore,
+                                                      Func<string, Transform> bone, out string note)
+        {
+            var isLeft = side == "Left";
+            Vector3 fingers = Vector3.zero, back = Vector3.zero;
+            var source = "";
+
+            Transform First(params string[] names)
+            {
+                foreach (var name in names)
+                {
+                    try { var t = bone(name); if (Interop.Alive(t)) return t; } catch { }
+                }
+                return null;
+            }
+
+            try
+            {
+                var middle = First("MiddleProximal", "IndexProximal", "RingProximal");
+                var index = First("IndexProximal", "MiddleProximal");
+                var little = First("LittleProximal", "RingProximal", "MiddleProximal");
+                if (middle != null && index != null && little != null && index != little)
+                {
+                    var f = middle.position - hand.position;
+                    var across = index.position - little.position;
+                    var angle = Vector3.Angle(f, across);
+                    if (f.sqrMagnitude > 1e-10f && across.sqrMagnitude > 1e-10f && angle > 15f && angle < 165f)
+                    {
+                        fingers = f;
+                        // Fingers x across-the-palm is out of the back of a left hand and out of
+                        // the palm of a right one: the two hands are mirror images.
+                        back = isLeft ? Vector3.Cross(f, across) : Vector3.Cross(across, f);
+                        source = $"the knuckles ({Interop.Name(middle)}, {Interop.Name(little)} to {Interop.Name(index)})";
+                    }
+                }
+            }
+            catch { }
+
+            if (fingers.sqrMagnitude < 1e-10f)
+            {
+                try
+                {
+                    fingers = hand.position - fore.position;
+                    back = model.transform.up;
+                    source = "the forearm and the T-pose convention (no finger bones to measure)";
+                }
+                catch { }
+            }
+
+            if (fingers.sqrMagnitude < 1e-10f || Vector3.Cross(fingers, back).sqrMagnitude < 1e-12f)
+            {
+                note = "axes could not be measured; the target's frame is used as-is";
+                return Quaternion.identity;
+            }
+
+            var frame = Quaternion.LookRotation(fingers.normalized, back.normalized);
+            var boneInFrame = Quaternion.Inverse(frame) * hand.rotation;
+            note = $"fingers along the bone's {Closest(boneInFrame, Vector3.forward)}, " +
+                   $"back of the hand along its {Closest(boneInFrame, Vector3.up)}, from {source}";
+            return boneInFrame;
+
+            // Which of the bone's own axes (as the frame sees them) lies nearest a frame direction.
+            static string Closest(Quaternion boneInFrame, Vector3 direction)
+            {
+                var best = ""; var bestDot = 0f;
+                foreach (var (axis, name) in new[] { (Vector3.right, "X"), (Vector3.up, "Y"), (Vector3.forward, "Z") })
+                {
+                    var d = Vector3.Dot(boneInFrame * axis, direction);
+                    if (Mathf.Abs(d) <= Mathf.Abs(bestDot)) continue;
+                    bestDot = d;
+                    best = (d < 0f ? "-" : "+") + name;
+                }
+                return best;
+            }
         }
 
         /// <summary>
@@ -476,14 +617,14 @@ namespace CustomAvatars.Avatars
         /// <c>ArmWristTwistLimitDegrees</c>. Rotating the forearm about its own axis leaves the
         /// hand exactly where the solver put it, so none of this costs any accuracy.
         /// </summary>
-        private static void Pronate(Arm arm)
+        private static void Pronate(Arm arm, Quaternion handRotation)
         {
             var share = Mathf.Clamp01(ModConfig.ArmTwistShare.Value);
             var limit = Mathf.Clamp(ModConfig.ArmWristTwistLimitDegrees.Value, 0f, 180f);
 
             // The wrist's local rotation once it takes the controller's orientation, and how
             // that differs from the bind pose, both in the forearm's frame.
-            var handLocal = Quaternion.Inverse(arm.Fore.rotation) * arm.Target.rotation;
+            var handLocal = Quaternion.Inverse(arm.Fore.rotation) * handRotation;
             var deviation = handLocal * Quaternion.Inverse(arm.HandRestLocal);
             var twist = TwistAbout(deviation, arm.ForeAxisLocal);
             var angle = SignedTwistDegrees(twist, arm.ForeAxisLocal);

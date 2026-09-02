@@ -163,6 +163,37 @@ namespace CustomAvatars.Avatars
         /// it, so the controller's idle drove its hips and root around the pedestal. Nothing
         /// in the mod reads the avatar's own Animator; every pose here is ours.
         /// </summary>
+        /// <summary>
+        /// The scale a freshly instantiated copy of the prefab carries on its root, which is
+        /// the scale the prefab root was saved with. Every scale the mod puts on an avatar
+        /// root multiplies this rather than replacing it.
+        ///
+        /// A rig authored in inches or centimetres is made human-sized in the scene by a
+        /// 0.024 or 0.01 typed onto its root, and exporters before 2026-09-02 saved that root
+        /// as it was. The mod then overwrote the root's scale with `suggestedScale`, the 0.024
+        /// was gone, and one tester stood sixty metres tall in the lobby and on the pedestal.
+        /// Newer exports fold the factor into `suggestedScale` and ship a unit root, so for
+        /// them this is one; either way the product lands in the same place.
+        /// </summary>
+        public static Vector3 RootScale(GameObject instance, string what)
+        {
+            if (!Interop.Alive(instance)) return Vector3.one;
+            try
+            {
+                var s = instance.transform.localScale;
+                if (s.x <= 1e-6f || s.y <= 1e-6f || s.z <= 1e-6f)
+                {
+                    Core.Log.Warning($"    {what} prefab root has a degenerate scale {Interop.Vec(s)} — treating it as 1.");
+                    return Vector3.one;
+                }
+                if ((s - Vector3.one).sqrMagnitude > 1e-6f)
+                    Core.Log.Msg($"    {what} prefab root carries scale {Interop.Vec(s)} — kept; the runtime scale multiplies it " +
+                                 "(an export from before 2026-09-02 left the scene's root scale on the prefab).");
+                return s;
+            }
+            catch { return Vector3.one; }
+        }
+
         public static string QuietAnimators(GameObject instance)
         {
             if (!Interop.Alive(instance)) return "no instance";

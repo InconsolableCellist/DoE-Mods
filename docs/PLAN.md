@@ -382,7 +382,9 @@ tracking. Two known issues from that first look:
   FinalIK's `VRIK.GuessHandOrientations()`, which derives `wristToPalmAxis` and
   `palmToThumbAxis` from the avatar's own hand and finger bones, and additionally routes each
   arm at a *child* of the game's hand target whose local rotation comes from config
-  (`SwapHandOffset{Left,Right}{X,Y,Z}`, applied every frame so F3 dials it in live).
+  (`SwapHandOffset{Left,Right}{X,Y,Z}`, applied every frame so F3 dials it in live). Since
+  v0.40 that rotation is measured from the avatar's own knuckle bones in `ArmIK` and the config
+  entries are `SwapHandTrim*`, zero by default.
 - **Wrist offsets measured (v0.6.1).** `GuessHandOrientations` reported sensible axes
   (`wristToPalm (0,1,0)`, `palmToThumb (∓1,0,0)`) but did not fully resolve it; the working
   values on a real VRChat rig were **X = −90, Z = 180 on both wrists**, now the shipped
@@ -503,7 +505,7 @@ tracking. Two known issues from that first look:
   `SwapArmTargetSource = "Controllers"` aims the arms at `AvatarPlayer.LeftHand`/`RightHand`
   instead, which for the local player are the controller transforms themselves. Left defaulting
   to `IKTargets` so existing wrist offsets keep working — the two have different orientations,
-  so switching means retuning `SwapHandOffset*` once.
+  so switching means setting `SwapHandTrim*` once.
 - **Head clipping fixed (v0.7.0)** with the same trick VRChat's Head Chop uses: scale the head
   bone to ~0 so its geometry collapses out of view. The head is part of one merged
   SkinnedMeshRenderer, so there is no renderer or layer to switch off — per-bone scale is the

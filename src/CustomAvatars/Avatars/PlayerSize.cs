@@ -706,6 +706,22 @@ namespace CustomAvatars.Avatars
                 var now = t.lossyScale;
                 if ((now - world).sqrMagnitude < 1e-6f) return;
                 if (now.x <= 1e-4f || now.y <= 1e-4f || now.z <= 1e-4f) return;
+
+                // Only the one thing this exists for: the game wrote a local scale of 1 on a
+                // prop parented under our scaled rig, so it is now exactly our factor too
+                // small. Anything else — the game growing an item in from the inventory,
+                // shrinking one back into a holster — is an animation in progress, and
+                // "correcting" a mid-animation scale by its ratio would blow it up by that
+                // ratio, which is the likeliest cause of a tester's potions spawning huge.
+                // Not ours; leave it.
+                var applied = _instance?._applied ?? 1f;
+                var ratio = now.x / Mathf.Max(1e-4f, world.x);
+                if (Mathf.Abs(ratio - applied) > 0.02f || Mathf.Abs(now.x - now.y) > 1e-3f)
+                {
+                    Core.Log.Msg($"Size: `{Interop.Name(prop)}` {why} at world scale {Interop.Vec(now)} " +
+                                 $"(was {Interop.Vec(world)}); not our doing, leaving it.");
+                    return;
+                }
                 var local = t.localScale;
                 var fixedLocal = new Vector3(local.x * world.x / now.x, local.y * world.y / now.y, local.z * world.z / now.z);
                 Core.Log.Msg($"Size: `{Interop.Name(prop)}` {why} at world scale {Interop.Vec(now)}; " +

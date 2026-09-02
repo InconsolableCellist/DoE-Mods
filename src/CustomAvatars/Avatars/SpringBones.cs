@@ -110,7 +110,9 @@ namespace CustomAvatars.Avatars
 
             foreach (var info in dyn.chains)
             {
-                if (info?.bones == null || info.bones.Count < 2) continue;
+                // One bone is enough when the chain carries an endpoint: the bone swings
+                // toward the virtual tip. Two are needed otherwise.
+                if (info?.bones == null || info.bones.Count < 1) continue;
 
                 var chain = new Chain
                 {
@@ -145,7 +147,7 @@ namespace CustomAvatars.Avatars
                     if (!Interop.Alive(t)) { missingPaths++; bones.Clear(); break; }
                     bones.Add(t);
                 }
-                if (bones.Count < 2) continue;
+                if (bones.Count < 1) continue;
 
                 // Node i drives bone i and tracks the world position of bone i+1.
                 for (var i = 0; i < bones.Count - 1; i++)
@@ -192,6 +194,52 @@ namespace CustomAvatars.Avatars
                 _chains.Add(chain);
             }
 
+            // A bone is driven by one chain or by none. Exporters before 2026-09-02 wrote a
+            // PhysBone root into every chain under it, so a Head with fourteen hair strands was
+            // rotated toward fourteen different tips every frame and a toe root toward four:
+            // the head turned round, the feet twisted toward the floor, and the dress flickered
+            // between frames. VRChat's rule for a root with several children (Multi Child Type,
+            // default Ignore) is that the root stays with the animation and only the strands
+            // swing, so a first bone that several chains share is dropped from all of them. A
+            // bone that turns up further down more than one chain is kept in the first chain
+            // only, so it is at least driven toward one tip rather than fought over.
+            var sharedRoots = 0;
+            var duplicates = 0;
+            try
+            {
+                var firstCounts = new Dictionary<int, int>();
+                foreach (var chain in _chains)
+                {
+                    if (chain.Nodes.Count == 0 || !Interop.Alive(chain.Nodes[0].Bone)) continue;
+                    var id = chain.Nodes[0].Bone.GetInstanceID();
+                    firstCounts[id] = firstCounts.TryGetValue(id, out var n) ? n + 1 : 1;
+                }
+                foreach (var chain in _chains)
+                {
+                    if (chain.Nodes.Count == 0 || !Interop.Alive(chain.Nodes[0].Bone)) continue;
+                    if (firstCounts[chain.Nodes[0].Bone.GetInstanceID()] > 1) { chain.Nodes.RemoveAt(0); sharedRoots++; }
+                }
+                var claimed = new HashSet<int>();
+                foreach (var chain in _chains)
+                {
+                    for (var i = chain.Nodes.Count - 1; i >= 0; i--)
+                    {
+                        var b = chain.Nodes[i].Bone;
+                        if (!Interop.Alive(b)) continue;
+                        if (!claimed.Add(b.GetInstanceID())) { chain.Nodes.RemoveAt(i); duplicates++; }
+                    }
+                }
+                // Claiming ran tail-first within a chain so removal indices stayed valid, which
+                // means a bone shared between chains kept its LAST claimant. Order between
+                // chains is what matters for the log; either chain drives it acceptably.
+                BoneCount -= sharedRoots + duplicates;
+                _chains.RemoveAll(c => c.Nodes.Count == 0);
+            }
+            catch (Exception e) { Core.Log.Warning($"  chain de-duplication failed: {e.Message}"); }
+            if (sharedRoots > 0 || duplicates > 0)
+                Core.Log.Msg($"  {sharedRoots} chain root(s) shared by several chains left to the animation, " +
+                             $"{duplicates} bone(s) further down kept in one chain only.");
+
             var sources = new HashSet<string>();
             foreach (var info in dyn.chains) if (!string.IsNullOrEmpty(info?.source)) sources.Add(info.source);
             var from = sources.Count > 0 ? $" from {string.Join("/", sources)}" : "";
@@ -204,8 +252,8 @@ namespace CustomAvatars.Avatars
                              (chain.LimitType.Equals("None", StringComparison.OrdinalIgnoreCase)
                                  ? "" : $" x{chain.MaxAngleX:0}° z{chain.MaxAngleZ:0}°"));
             foreach (var col in _colliders)
-                Core.Log.Msg($"  collider r={col.Radius:0.###} on `{Interop.ScenePath(col.Transform)}` " +
-                             $"offset {col.Offset}");
+                Core.Log.Msg($"  collider r={col.Radius:0.###} ({col.Radius * ColliderScale(col.Transform):0.###} m in world) " +
+                             $"on `{Interop.ScenePath(col.Transform)}` offset {col.Offset}");
 
             var summary = $"{_chains.Count} chain(s){from}, {BoneCount} bone(s), {_colliders.Count} sphere collider(s)";
             if (missingPaths > 0) summary += $" — {missingPaths} path(s) did not resolve on this mesh";
@@ -354,7 +402,7 @@ namespace CustomAvatars.Avatars
                 if (!Interop.Alive(col.Transform)) continue;
 
                 var center = col.Transform.TransformPoint(col.Offset);
-                var radius = col.Radius * ForceScale;
+                var radius = col.Radius * ColliderScale(col.Transform);
                 var delta = tip - center;
                 var distance = delta.magnitude;
                 if (distance >= radius || distance < 1e-6f) continue;
@@ -365,6 +413,22 @@ namespace CustomAvatars.Avatars
                 tip = origin + (tip - origin).normalized * length;
             }
             return tip;
+        }
+
+        /// <summary>
+        /// A collider's radius is in the units of the bone it sits on, like its offset, and
+        /// VRChat scales it by that transform's scale. Taken raw it was a metre figure only on
+        /// a metre-authored rig; on an inch-authored one a 3.6 unit hip collider became a 3.6
+        /// metre sphere that every strand and toe was shoved out of each frame, so the tail,
+        /// dress and hair stood straight out from the hips and flickered between the colliders
+        /// pushing them. The offset already went through TransformPoint; this is the same for
+        /// the radius. The mannequin's size relative to the world copy is in this scale too, so
+        /// ForceScale has no part in it.
+        /// </summary>
+        private static float ColliderScale(Transform t)
+        {
+            var s = t.lossyScale;
+            return Mathf.Max(Mathf.Abs(s.x), Mathf.Abs(s.y), Mathf.Abs(s.z));
         }
 
         /// <summary>Snap every chain back to its animated pose — on spawn, or after a teleport.</summary>

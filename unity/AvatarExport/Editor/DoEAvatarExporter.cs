@@ -447,14 +447,33 @@ namespace DoEMod.Export
                 foreach (var r in activeSkinned) bounds.Encapsulate(r.bounds);
                 height = bounds.size.y;
             }
-            float headHeight = head.position.y - clone.transform.position.y;
+            float headHeightWorld = head.position.y - clone.transform.position.y;
             float humanScale = animator.humanScale;
+
+            // The root's own scale is folded into the runtime scale and the prefab ships
+            // with a unit root. A rig authored in inches or centimetres arrives with a 0.024
+            // or 0.01 typed onto its root GameObject so it stands at human size in the scene
+            // (humanScale reads the skeleton in its own units and says 42 for an inch rig).
+            // The mod sets the root's scale itself, so a factor left on the prefab root was
+            // simply lost, and one tester spawned sixty metres tall. Everything below the root
+            // is left exactly as authored: bindposes, blendshape deltas and PhysBone radii are
+            // all in the rig's units, and a uniform scale on the root is the same thing for
+            // free.
+            var rootScale = clone.transform.localScale;
+            bool rootScaled = Mathf.Abs(rootScale.x - 1f) > 0.001f || Mathf.Abs(rootScale.y - 1f) > 0.001f ||
+                              Mathf.Abs(rootScale.z - 1f) > 0.001f;
+            bool rootUneven = Mathf.Abs(rootScale.x - rootScale.y) > 0.001f * Mathf.Abs(rootScale.y) ||
+                              Mathf.Abs(rootScale.z - rootScale.y) > 0.001f * Mathf.Abs(rootScale.y);
+            float rootFactor = Mathf.Abs(rootScale.y) > 1e-6f ? rootScale.y : 1f;
+            // Head height in the prefab's own units, i.e. with the root at 1 — what the game
+            // multiplies by suggestedScale. Recorded that way so the two stay a pair.
+            float headHeight = headHeightWorld / rootFactor;
 
             // The game spawns players with AvatarPlayer.headYHeight = 1.5 m. This is the
             // factor the mod will need to make a custom avatar's eyes land at the game's
             // viewpoint; recorded so the runtime doesn't have to rediscover it.
             const float GameHeadHeight = 1.5f;
-            float suggestedScale = headHeight > 0.01f ? GameHeadHeight / headHeight : 1f;
+            float suggestedScale = headHeight > 0.0001f ? GameHeadHeight / headHeight : 1f;
 
             // --- 3. Scan blendshapes / bones / shaders ----------------------------
             var shapes  = new Dictionary<string, object>();
@@ -688,8 +707,23 @@ namespace DoEMod.Export
             report.AppendLine($"Eye bones: L={(leftEye ? leftEye.name : "none")} R={(rightEye ? rightEye.name : "none")}");
             report.AppendLine($"Jaw bone: {(jaw ? jaw.name : "none")}");
             report.AppendLine($"Bounds height: {height:F2}m (renderer AABB — ears/hair/tail inflate this), " +
-                              $"head bone: {headHeight:F2}m, humanScale: {humanScale:F3}");
-            report.AppendLine($"Suggested runtime scale: x{suggestedScale:F3}  (to put the head at the game's {GameHeadHeight}m)");
+                              $"head bone: {headHeightWorld:F2}m, humanScale: {humanScale:F3}");
+            if (rootScaled)
+            {
+                report.AppendLine($"Root scale: ({rootScale.x:F4}, {rootScale.y:F4}, {rootScale.z:F4}) on the avatar's root GameObject — folded into the runtime " +
+                                  $"scale below; the prefab ships with a unit root and the head {headHeight:F2} units above it.");
+                if (rootUneven)
+                    report.AppendLine("WARNING: that root scale is not uniform. Only Y is kept; the avatar will be " +
+                                      "uniformly scaled in game. Make the root's X, Y and Z equal if this matters.");
+            }
+            string unitsHint = humanScale > 30f && humanScale < 50f ? "inches" :
+                               humanScale > 80f && humanScale < 120f ? "centimetres" : null;
+            if (humanScale > 2f || (humanScale > 0f && humanScale < 0.5f))
+                report.AppendLine($"NOTE: humanScale {humanScale:F1} — this rig's skeleton is authored at x{humanScale:F1} " +
+                                  $"human size in its own units{(unitsHint != null ? $" (that is {unitsHint})" : "")}. " +
+                                  (rootScaled ? "The root scale compensates; nothing to do."
+                                              : "No root scale compensates, so the avatar will be that many times too big or small in game."));
+            report.AppendLine($"Suggested runtime scale: x{suggestedScale:F4}  (to put the head at the game's {GameHeadHeight}m)");
             if (maxInfluences == 0)
                 report.AppendLine($"Max bone influences/vertex: unknown" +
                                   (boneWeightNote != null ? $" — {boneWeightNote}" : ""));
@@ -804,6 +838,8 @@ namespace DoEMod.Export
                     AssetDatabase.CreateAsset(GeneratedMeshes[i],
                         $"{TempAssetDir}/{Sanitize(GeneratedMeshes[i].name)}_{i}.asset");
             string prefabPath = $"{TempAssetDir}/{avatarName}.prefab";
+            // Unit root: the scale it carried is in suggestedScale now (see the height step).
+            clone.transform.localScale = Vector3.one;
             PrefabUtility.SaveAsPrefabAsset(clone, prefabPath, out bool ok);
             if (!ok) throw new Exception("Failed to save temp prefab.");
             UnityEngine.Object.DestroyImmediate(clone);
@@ -852,9 +888,13 @@ namespace DoEMod.Export
                 {"exportedAt", DateTime.UtcNow.ToString("o")},
                 {"rig", new Dictionary<string, object> {
                     {"height", Math.Round(height, 3)},
-                    {"headHeight", Math.Round(headHeight, 3)},
+                    // In prefab units (root at 1): headHeight * suggestedScale is the game's 1.5 m.
+                    {"headHeight", Math.Round(headHeight, 4)},
                     {"humanScale", Math.Round(humanScale, 4)},
-                    {"suggestedScale", Math.Round(suggestedScale, 4)},
+                    {"suggestedScale", Math.Round(suggestedScale, 6)},
+                    // The scale the avatar's root carried in the scene, already folded into
+                    // suggestedScale; 1 for a metre-authored rig. Recorded so a report can say so.
+                    {"rootScale", Math.Round(rootFactor, 6)},
                     {"gameHeadHeight", GameHeadHeight},
                     {"maxBoneInfluences", maxInfluences},
                     {"humanoidBones", bones},
@@ -1025,10 +1065,28 @@ namespace DoEMod.Export
                     endpoint  = null;
                 }
 
+                // A root with several children is not itself simulated. VRChat's Multi Child
+                // Type defaults to Ignore: the strands swing, the bone they hang from stays
+                // with the animation. Writing the root into every strand's chain had the mod
+                // rotate one avatar's Head toward fourteen hair tips a frame. `First` keeps the
+                // root in the first strand's chain; `Average` is treated as Ignore.
+                var rootKids = new List<Transform>();
+                for (int i = 0; i < root.childCount; i++)
+                    if (!ignore.Contains(root.GetChild(i))) rootKids.Add(root.GetChild(i));
+                var multiChild = isPhysBone ? (GetMember(c, "multiChildType")?.ToString() ?? "Ignore") : "Ignore";
+                var rootStays = rootKids.Count > 1;
+                var rootFollows = rootStays && multiChild == "First" ? rootKids[0] : null;
+                var hasEndpoint = endpoint != null && endpoint.Count == 3 &&
+                                  endpoint.Any(v => Math.Abs(Convert.ToSingle(v)) > 1e-6f);
+
                 var produced = 0;
-                foreach (var leafPath in LeafChains(root, ignore))
+                foreach (var fullPath in LeafChains(root, ignore))
                 {
-                    if (leafPath.Count < 2) continue;   // a single bone can't swing
+                    var leafPath = fullPath;
+                    if (rootStays && leafPath.Count > 1 && !(rootFollows != null && leafPath[1] == rootFollows))
+                        leafPath = leafPath.GetRange(1, leafPath.Count - 1);
+                    // A single bone can't swing unless an endpoint gives it a tip to swing toward.
+                    if (leafPath.Count < (hasEndpoint ? 1 : 2)) continue;
                     produced++;
                     chains.Add(new Dictionary<string, object>
                     {
@@ -1050,6 +1108,7 @@ namespace DoEMod.Export
                           (rootIsDefault ? " (unassigned, defaulted to own transform)" : "") +
                           (limitType != "None" ? $" [limit {limitType} x{maxAngleX:0}° z{maxAngleZ:0}°]" : "") + " " +
                           $"({childCount} child(ren)) → {produced} chain(s)" +
+                          (rootStays ? $" [root stays with the animation: Multi Child Type {multiChild}]" : "") +
                           (produced == 0
                               ? childCount == 0
                                   ? "  <-- root has no children; nothing to swing"

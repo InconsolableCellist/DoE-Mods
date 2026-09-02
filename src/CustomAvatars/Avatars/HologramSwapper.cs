@@ -41,8 +41,8 @@ namespace CustomAvatars.Avatars
             public Face.FaceDriver Face;
             public HandPoser Hands;
             public string AvatarName;
-            /// <summary>The avatar's own scale, before the wearer's fit is applied on top.</summary>
-            public float SuggestedScale = 1f;
+            /// <summary>The avatar's own scale (prefab root times suggestedScale), before the wearer's fit is applied on top.</summary>
+            public Vector3 BaseScale = Vector3.one;
             /// <summary>Whose mannequin this is; -1 when nobody owns it, as in the menu.</summary>
             public int ActorNumber = -1;
             /// <summary>Show your face and your fingers on it, rather than a peer's.</summary>
@@ -174,8 +174,8 @@ namespace CustomAvatars.Avatars
                 entry.Model.transform.SetParent(source.transform, false);
                 entry.Model.transform.localPosition = Vector3.zero;
                 entry.Model.transform.localRotation = Quaternion.identity;
-                entry.Model.transform.localScale = Vector3.one * manifest.rig.suggestedScale;
-                entry.SuggestedScale = manifest.rig.suggestedScale;
+                entry.BaseScale = AvatarBundle.RootScale(entry.Model, "mannequin") * manifest.rig.suggestedScale;
+                entry.Model.transform.localScale = entry.BaseScale;
 
                 foreach (var smr in entry.Model.GetComponentsInChildren<SkinnedMeshRenderer>(true))
                     if (Interop.Alive(smr)) smr.updateWhenOffscreen = true;
@@ -348,7 +348,7 @@ namespace CustomAvatars.Avatars
             {
                 var fit = entry.IsSelf ? _swaps.SelfHeightScale : _swaps.RemoteHeightScale(entry.ActorNumber);
                 if (!float.IsFinite(fit) || fit <= 0f) fit = 1f;
-                var want = Vector3.one * (entry.SuggestedScale * fit);
+                var want = entry.BaseScale * fit;
                 if ((entry.Model.transform.localScale - want).sqrMagnitude > 1e-8f)
                     entry.Model.transform.localScale = want;
             }

@@ -41,6 +41,11 @@ namespace CustomAvatars.Avatars
             public float humanScale;
             /// <summary>Multiplier that puts this avatar's head at the game's 1.5 m viewpoint.</summary>
             public float suggestedScale = 1f;
+            /// <summary>
+            /// The scale the avatar's root carried in the scene, already folded into
+            /// <see cref="suggestedScale"/> by exporters from 2026-09-02 on; 0 when absent.
+            /// </summary>
+            public float rootScale;
             public float gameHeadHeight;
             public int maxBoneInfluences;
             public Dictionary<string, string> humanoidBones;
@@ -134,7 +139,9 @@ namespace CustomAvatars.Avatars
 
                 m.BundlePath = Path.Combine(Path.GetDirectoryName(path) ?? ".", m.bundle);
                 m.rig ??= new RigInfo();
-                if (m.rig.suggestedScale <= 0.01f || m.rig.suggestedScale > 100f) m.rig.suggestedScale = 1f;
+                // A nonsense filter, not a limit: a centimetre rig legitimately needs 0.01
+                // and an inch rig 0.024, so the floor sits well under both.
+                if (m.rig.suggestedScale < 0.0001f || m.rig.suggestedScale > 100f) m.rig.suggestedScale = 1f;
                 m.faceTracking ??= new FaceTrackingInfo();
 
                 return m;

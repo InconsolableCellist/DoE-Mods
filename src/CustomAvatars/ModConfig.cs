@@ -56,12 +56,12 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<bool> SpringCollidersEnabled;
         public static MelonPreferences_Entry<float> SpringMaxAngleFallback;
 
-        public static MelonPreferences_Entry<float> SwapHandOffsetLeftX;
-        public static MelonPreferences_Entry<float> SwapHandOffsetLeftY;
-        public static MelonPreferences_Entry<float> SwapHandOffsetLeftZ;
-        public static MelonPreferences_Entry<float> SwapHandOffsetRightX;
-        public static MelonPreferences_Entry<float> SwapHandOffsetRightY;
-        public static MelonPreferences_Entry<float> SwapHandOffsetRightZ;
+        public static MelonPreferences_Entry<float> SwapHandTrimLeftX;
+        public static MelonPreferences_Entry<float> SwapHandTrimLeftY;
+        public static MelonPreferences_Entry<float> SwapHandTrimLeftZ;
+        public static MelonPreferences_Entry<float> SwapHandTrimRightX;
+        public static MelonPreferences_Entry<float> SwapHandTrimRightY;
+        public static MelonPreferences_Entry<float> SwapHandTrimRightZ;
 
         public static MelonPreferences_Entry<bool> SelfHideHead;
         public static MelonPreferences_Entry<float> SelfHeadBoneScale;
@@ -75,6 +75,7 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<bool> HandCurlFlipRight;
 
         public static MelonPreferences_Entry<float> ArmStretch;
+        public static MelonPreferences_Entry<float> ArmStretchUpperShare;
         public static MelonPreferences_Entry<float> ArmShoulderYieldDegrees;
         public static MelonPreferences_Entry<float> ArmTwistShare;
         public static MelonPreferences_Entry<float> ArmWristTwistLimitDegrees;
@@ -193,16 +194,20 @@ namespace CustomAvatars
             // back through the body without looking stiff.
             SpringMaxAngleFallback = Tuning.CreateEntry("SpringMaxAngleFallback", 75f);
 
-            // (-90, 0, 180) was measured in-headset against a real VRChat humanoid rig, and those
-            // are consistent enough to be a much better starting point than zero. Applied every
-            // frame, so edit and press F3 to dial it in live.
-            SwapHandOffsetLeftX = Tuning.CreateEntry("SwapHandOffsetLeftX", -90f, description:
-                "Wrist rotation offsets");
-            SwapHandOffsetLeftY = Tuning.CreateEntry("SwapHandOffsetLeftY", 0f);
-            SwapHandOffsetLeftZ = Tuning.CreateEntry("SwapHandOffsetLeftZ", 180f);
-            SwapHandOffsetRightX = Tuning.CreateEntry("SwapHandOffsetRightX", -90f);
-            SwapHandOffsetRightY = Tuning.CreateEntry("SwapHandOffsetRightY", 0f);
-            SwapHandOffsetRightZ = Tuning.CreateEntry("SwapHandOffsetRightZ", 180f);
+            // Extra wrist rotation on top of the one measured from the avatar's own hand bones
+            // (see ArmIK.HandFromTargetFrame). These replace SwapHandOffset*, whose (-90, 0, 180)
+            // was one rig's bone convention tuned in by hand and rolled every other rig's palms
+            // ninety degrees; that rotation is now derived per avatar, so the right trim for a
+            // rig with finger bones is zero. Applied every frame, so edit and press F3 to dial
+            // it in live — mainly for SwapArmTargetSource=Controllers, whose frame differs from
+            // the IK targets'.
+            SwapHandTrimLeftX = Tuning.CreateEntry("SwapHandTrimLeftX", 0f, description:
+                "Extra wrist rotation, degrees, on top of the one measured from the avatar's hand bones");
+            SwapHandTrimLeftY = Tuning.CreateEntry("SwapHandTrimLeftY", 0f);
+            SwapHandTrimLeftZ = Tuning.CreateEntry("SwapHandTrimLeftZ", 0f);
+            SwapHandTrimRightX = Tuning.CreateEntry("SwapHandTrimRightX", 0f);
+            SwapHandTrimRightY = Tuning.CreateEntry("SwapHandTrimRightY", 0f);
+            SwapHandTrimRightZ = Tuning.CreateEntry("SwapHandTrimRightZ", 0f);
 
             // Only ever applies to your own eyes; peers always see your whole head.
             SelfHideHead = Tuning.CreateEntry("SelfHideHead", true);
@@ -235,6 +240,10 @@ namespace CustomAvatars
             // person a long forearm is far less visible than a wrist pulled off the end of it.
             ArmStretch = Tuning.CreateEntry("ArmStretch", 0.5f, description:
                 "How much longer the arm may get to reach the hand, 0 to 1 (0.5 = half again)");
+            // A stretched forearm is the one thing you look at all day in first person; the
+            // upper arm is mostly out of view. Most of the stretch goes there.
+            ArmStretchUpperShare = Tuning.CreateEntry("ArmStretchUpperShare", 0.7f, description:
+                "How much of that stretch the upper arm takes, 0 to 1 (1 = all of it, the forearm keeps its shape)");
             // 0 turns it off.
             ArmShoulderYieldDegrees = Tuning.CreateEntry("ArmShoulderYieldDegrees", 25f, description:
                 "How far the collarbone may rotate toward a hand that's out of reach, in degrees");
@@ -388,8 +397,8 @@ namespace CustomAvatars
                 "solved normally and keep the copied pose.");
             SwapArmTargetSource = Dev.CreateEntry("SwapArmTargetSource", "IKTargets", description:
                 "\"IKTargets\" follows the game's smoothed hand targets; \"Controllers\" follows " +
-                "your controllers with no lag but a different orientation, so the wrist offsets " +
-                "above need retuning if you switch.");
+                "your controllers with no lag but a different orientation, so the SwapHandTrim " +
+                "entries need setting if you switch.");
             SwapForceVanillaIK = Dev.CreateEntry("SwapForceVanillaIK", false, description:
                 "Re-enable the IK the game deliberately turned off on your own body. It doesn't " +
                 "produce usable arms, so there's no reason to interfere.");

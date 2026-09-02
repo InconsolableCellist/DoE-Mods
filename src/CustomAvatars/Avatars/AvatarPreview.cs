@@ -132,7 +132,7 @@ namespace CustomAvatars.Avatars
             {
                 var local = AvatarPlayer.LocalAvatar;
                 var t = _instance.transform;
-                t.localScale = Vector3.one * manifest.rig.suggestedScale;
+                t.localScale = AvatarBundle.RootScale(_instance, "preview") * manifest.rig.suggestedScale;
 
                 if (!Interop.Alive(local)) { Core.Log.Warning("No local avatar — preview left at origin."); return; }
 

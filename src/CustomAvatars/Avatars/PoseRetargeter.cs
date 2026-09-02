@@ -192,7 +192,11 @@ namespace CustomAvatars.Avatars
             _targetRoot = model.transform;
 
             _links.Sort((a, b) => a.Depth.CompareTo(b.Depth));
+            TorsoTurnAtCapture = float.NaN;
             var aligned = AlignAtCapture(source, model, map);
+            var turned = "";
+            if (!float.IsNaN(TorsoTurnAtCapture) && Mathf.Abs(TorsoTurnAtCapture) > 5f)
+                turned = $", stood {Mathf.Abs(TorsoTurnAtCapture):0}° round from the game's rig (turned to match)";
 
             // A rig exported at a unit scale of 100 (or 70, or 0.01) keeps that scale on a
             // node between the model root and the hips. Nothing about rotations cares; the
@@ -211,7 +215,7 @@ namespace CustomAvatars.Avatars
             return _links.Count == 0
                 ? "no bones could be paired between the two rigs"
                 : $"{_links.Count} bone(s) paired" + (missing > 0 ? $", {missing} unpaired" : "") +
-                  (aligned > 0 ? $", {aligned} aligned at capture" : "") + rigScale;
+                  (aligned > 0 ? $", {aligned} aligned at capture" : "") + turned + rigScale;
         }
 
         /// <summary>
@@ -265,13 +269,108 @@ namespace CustomAvatars.Avatars
                 {
                     if (sourceDir.sqrMagnitude < 1e-8f || targetDir.sqrMagnitude < 1e-8f) continue;
 
-                    var correction = Quaternion.FromToRotation(targetDir.normalized, sourceDir.normalized);
+                    // One direction says where a bone points, not how it is rolled about its
+                    // own length. On the torso and the legs that roll is which way the body
+                    // FACES: they all run near-vertical, so pointing them at the bone below
+                    // leaves the avatar facing whichever way its prefab happened to, and the
+                    // delta keeps that for as long as it is worn. An inch-authored rig whose
+                    // rest pose faced the other way from the game's mannequin stood on the
+                    // pedestal with its head and arms (both aligned on two axes) toward you and
+                    // its chest and legs turned 180 degrees the other way. The line between the
+                    // hip joints, or between the shoulder joints, is a real skeletal axis both
+                    // rigs agree on, so it pins the roll the way the eyes pin the head's.
+                    Quaternion correction;
+                    var haveLateral = TryLateralAxis(byBone, link.Bone, out var sourceLateral, out var targetLateral) ||
+                                      TryHandLateral(source, model, map, link, out sourceLateral, out targetLateral);
+                    if (haveLateral && Usable(sourceDir, sourceLateral) && Usable(targetDir, targetLateral))
+                    {
+                        var sourceRot = Quaternion.LookRotation(sourceDir.normalized, sourceLateral);
+                        var targetRot = Quaternion.LookRotation(targetDir.normalized, targetLateral);
+                        correction = sourceRot * Quaternion.Inverse(targetRot);
+                        if (link.Bone == HumanBodyBones.Hips)
+                        {
+                            // For the log: how far round the avatar stood from the game's rig.
+                            var s = Vector3.ProjectOnPlane(sourceLateral, sourceDir);
+                            var t = Vector3.ProjectOnPlane(targetLateral, sourceDir);
+                            if (s.sqrMagnitude > 1e-8f && t.sqrMagnitude > 1e-8f)
+                                TorsoTurnAtCapture = Vector3.SignedAngle(t, s, sourceDir);
+                        }
+                    }
+                    else
+                    {
+                        correction = Quaternion.FromToRotation(targetDir.normalized, sourceDir.normalized);
+                    }
                     link.TargetRest = correction * link.TargetRest;
                     aligned++;
                 }
                 catch { }
             }
             return aligned;
+        }
+
+        /// <summary>
+        /// How far round the avatar's hips stood from the game rig's at capture, in degrees
+        /// about the spine; NaN when it couldn't be measured. Near 0 for a rig whose rest pose
+        /// faces the same way as the game's, near 180 for one that faced the other way.
+        /// Corrected either way; this is so the log can say which it was.
+        /// </summary>
+        public float TorsoTurnAtCapture { get; private set; } = float.NaN;
+
+        /// <summary>
+        /// A second axis for the bones whose first one runs up the body. The hip line for the
+        /// hips and the legs, the shoulder line for the spine and up (falling back to the hip
+        /// line when an arm is unpaired). Arms keep their one axis: the next joint down hides
+        /// their roll, and neither line says anything useful about them. Hands are handled by
+        /// <see cref="TryHandLateral"/>.
+        /// </summary>
+        private static bool TryLateralAxis(Dictionary<HumanBodyBones, Link> byBone, HumanBodyBones bone,
+                                           out Vector3 sourceLateral, out Vector3 targetLateral)
+        {
+            sourceLateral = targetLateral = Vector3.zero;
+            switch (bone)
+            {
+                case HumanBodyBones.Spine:
+                case HumanBodyBones.Chest:
+                case HumanBodyBones.UpperChest:
+                case HumanBodyBones.Neck:
+                    if (TryLine(byBone, HumanBodyBones.LeftUpperArm, HumanBodyBones.RightUpperArm, out sourceLateral, out targetLateral)) return true;
+                    return TryLine(byBone, HumanBodyBones.LeftUpperLeg, HumanBodyBones.RightUpperLeg, out sourceLateral, out targetLateral);
+                case HumanBodyBones.Hips:
+                case HumanBodyBones.LeftUpperLeg:
+                case HumanBodyBones.LeftLowerLeg:
+                case HumanBodyBones.RightUpperLeg:
+                case HumanBodyBones.RightLowerLeg:
+                    if (TryLine(byBone, HumanBodyBones.LeftUpperLeg, HumanBodyBones.RightUpperLeg, out sourceLateral, out targetLateral)) return true;
+                    return TryLine(byBone, HumanBodyBones.LeftUpperArm, HumanBodyBones.RightUpperArm, out sourceLateral, out targetLateral);
+                // A foot points at its toes; which way its sole faces is the roll about that
+                // line, and up the shin is the one direction both rigs agree on for it. Without
+                // it a foot could match its toe direction with the sole facing sideways or
+                // back, which on one mannequin read as feet twisted toward the floor.
+                case HumanBodyBones.LeftFoot:
+                    return TryLine(byBone, HumanBodyBones.LeftFoot, HumanBodyBones.LeftLowerLeg, out sourceLateral, out targetLateral);
+                case HumanBodyBones.RightFoot:
+                    return TryLine(byBone, HumanBodyBones.RightFoot, HumanBodyBones.RightLowerLeg, out sourceLateral, out targetLateral);
+                default:
+                    return false;
+            }
+        }
+
+        private static bool TryLine(Dictionary<HumanBodyBones, Link> byBone, HumanBodyBones left, HumanBodyBones right,
+                                    out Vector3 sourceLine, out Vector3 targetLine)
+        {
+            sourceLine = targetLine = Vector3.zero;
+            if (!byBone.TryGetValue(left, out var l) || !byBone.TryGetValue(right, out var r)) return false;
+            if (!Interop.Alive(l.Source) || !Interop.Alive(r.Source) || !Interop.Alive(l.Target) || !Interop.Alive(r.Target)) return false;
+            sourceLine = r.Source.position - l.Source.position;
+            targetLine = r.Target.position - l.Target.position;
+            return sourceLine.sqrMagnitude > 1e-8f && targetLine.sqrMagnitude > 1e-8f;
+        }
+
+        /// <summary>Two axes only pin a frame when they aren't close to parallel.</summary>
+        private static bool Usable(Vector3 forward, Vector3 hint)
+        {
+            var a = Vector3.Angle(forward, hint);
+            return a > 15f && a < 165f;
         }
 
         /// <summary>
@@ -292,7 +391,7 @@ namespace CustomAvatars.Avatars
             try
             {
                 if (!Interop.Alive(head.Source) || !Interop.Alive(head.Target)) return false;
-                if (!TryEyeMidpoint(source, model, map, out var srcEye, out var dstEye)) return false;
+                if (!TryEyeMidpoint(source, model, map, out var srcEye, out var dstEye, out var srcEyeLine, out var dstEyeLine)) return false;
 
                 // The neck if the avatar has one, the chest if it doesn't; either gives the
                 // direction the head sits along.
@@ -314,8 +413,28 @@ namespace CustomAvatars.Avatars
                 // axis is a real skeletal direction both rigs agree on, so pitch comes from
                 // that, and the eyes are left to do the one job they are reliable for: which
                 // way round the head faces.
-                var srcForward = Vector3.ProjectOnPlane(srcEye - head.Source.position, srcUp);
-                var dstForward = Vector3.ProjectOnPlane(dstEye - head.Target.position, dstUp);
+                //
+                // Better still, when both eyes are mapped: the line from the left eye to the
+                // right one. Which eye is which comes from the humanoid map, so the line's sign
+                // is certain, and right-across-up is forward on any rig. The eye midpoint
+                // failed on one avatar whose eye bones sat 2.7 units above the head bone and
+                // 0.16 in front of it while its neck leaned further forward than that: flattened
+                // against the neck the eyes came out BEHIND the head, and the mannequin stood
+                // with its head turned round to face its own back.
+                Vector3 srcForward, dstForward;
+                var srcAcross = Vector3.Cross(srcEyeLine, srcUp);
+                var dstAcross = Vector3.Cross(dstEyeLine, dstUp);
+                if (srcEyeLine.sqrMagnitude > 1e-8f && dstEyeLine.sqrMagnitude > 1e-8f &&
+                    srcAcross.sqrMagnitude > 1e-8f && dstAcross.sqrMagnitude > 1e-8f)
+                {
+                    srcForward = srcAcross;
+                    dstForward = dstAcross;
+                }
+                else
+                {
+                    srcForward = Vector3.ProjectOnPlane(srcEye - head.Source.position, srcUp);
+                    dstForward = Vector3.ProjectOnPlane(dstEye - head.Target.position, dstUp);
+                }
                 if (srcForward.sqrMagnitude < 1e-8f || dstForward.sqrMagnitude < 1e-8f) return false;
 
                 var srcRot = Quaternion.LookRotation(srcForward.normalized, srcUp.normalized);
@@ -331,10 +450,15 @@ namespace CustomAvatars.Avatars
         /// out of the middle of the face rather than out of one eye.
         /// </summary>
         private static bool TryEyeMidpoint(Animator source, GameObject model, Dictionary<string, string> map,
-                                           out Vector3 sourceMid, out Vector3 targetMid)
+                                           out Vector3 sourceMid, out Vector3 targetMid,
+                                           out Vector3 sourceLine, out Vector3 targetLine)
         {
             sourceMid = targetMid = Vector3.zero;
+            // Left eye to right eye, on each rig; zero unless both eyes were found.
+            sourceLine = targetLine = Vector3.zero;
             var found = 0;
+            Vector3 srcLeft = Vector3.zero, dstLeft = Vector3.zero, srcRight = Vector3.zero, dstRight = Vector3.zero;
+            bool haveLeft = false, haveRight = false;
             foreach (var eye in new[] { HumanBodyBones.LeftEye, HumanBodyBones.RightEye })
             {
                 try
@@ -347,12 +471,19 @@ namespace CustomAvatars.Avatars
                     sourceMid += src.position;
                     targetMid += dst.position;
                     found++;
+                    if (eye == HumanBodyBones.LeftEye) { srcLeft = src.position; dstLeft = dst.position; haveLeft = true; }
+                    else { srcRight = src.position; dstRight = dst.position; haveRight = true; }
                 }
                 catch { }
             }
             if (found == 0) return false;
             sourceMid /= found;
             targetMid /= found;
+            if (haveLeft && haveRight)
+            {
+                sourceLine = srcRight - srcLeft;
+                targetLine = dstRight - dstLeft;
+            }
             return true;
         }
 
@@ -361,6 +492,50 @@ namespace CustomAvatars.Avatars
         /// retargets them, so they are available to point at; if either rig is missing them the
         /// hand simply goes unaligned, as it did before.
         /// </summary>
+        /// <summary>
+        /// The line across the knuckles, little finger to index, on both rigs. A hand aligned on
+        /// its finger direction alone can match it with the palm facing any way round; this
+        /// pins the roll to the palm's actual plane, so a rig whose rest pose holds its palms
+        /// differently from the game's (or labels its hand bone's axes differently) still copies
+        /// the game's hand the right way up.
+        /// </summary>
+        private static bool TryHandLateral(Animator source, GameObject model, Dictionary<string, string> map,
+                                           Link link, out Vector3 sourceLateral, out Vector3 targetLateral)
+        {
+            sourceLateral = targetLateral = Vector3.zero;
+            HumanBodyBones index, little, ring;
+            if (link.Bone == HumanBodyBones.LeftHand)
+            {
+                index = HumanBodyBones.LeftIndexProximal; little = HumanBodyBones.LeftLittleProximal; ring = HumanBodyBones.LeftRingProximal;
+            }
+            else if (link.Bone == HumanBodyBones.RightHand)
+            {
+                index = HumanBodyBones.RightIndexProximal; little = HumanBodyBones.RightLittleProximal; ring = HumanBodyBones.RightRingProximal;
+            }
+            else return false;
+
+            foreach (var outer in new[] { little, ring })
+            {
+                try
+                {
+                    var srcIndex = source.GetBoneTransform(index);
+                    var srcOuter = source.GetBoneTransform(outer);
+                    if (!Interop.Alive(srcIndex) || !Interop.Alive(srcOuter)) continue;
+                    if (!map.TryGetValue(index.ToString(), out var indexPath) || string.IsNullOrEmpty(indexPath)) return false;
+                    if (!map.TryGetValue(outer.ToString(), out var outerPath) || string.IsNullOrEmpty(outerPath)) continue;
+                    var dstIndex = model.transform.Find(indexPath);
+                    var dstOuter = model.transform.Find(outerPath);
+                    if (!Interop.Alive(dstIndex) || !Interop.Alive(dstOuter)) continue;
+
+                    sourceLateral = srcIndex.position - srcOuter.position;
+                    targetLateral = dstIndex.position - dstOuter.position;
+                    return sourceLateral.sqrMagnitude > 1e-8f && targetLateral.sqrMagnitude > 1e-8f;
+                }
+                catch { }
+            }
+            return false;
+        }
+
         private static bool TryHandDirections(Animator source, GameObject model, Dictionary<string, string> map,
                                               Link link, out Vector3 sourceDir, out Vector3 targetDir)
         {
