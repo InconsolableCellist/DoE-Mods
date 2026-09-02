@@ -73,7 +73,8 @@ namespace LootOverhaul.Loot
         {
             foreach (var tag in Tags.Values)
             {
-                if (Interop.Alive(tag.Object) || tag.Claimed) continue;
+                if (tag.Claimed) continue;
+                if (Interop.Alive(tag.Object)) { DropBeam.Follow(tag); continue; }
                 tag.Object = FindObject(tag.ViewId);
                 if (tag.Object != null && tag.Beam == null && ModConfig.DropBeams.Value) tag.Beam = DropBeam.Attach(tag);
             }
@@ -86,22 +87,24 @@ namespace LootOverhaul.Loot
     /// </summary>
     public static class DropBeam
     {
+        private static float Height(LootItem item) => item.WeaponClass >= 3 ? 3.0f : item.WeaponClass == 2 ? 2.2f : 1.5f;
+
         public static GameObject Attach(LootTag tag)
         {
             if (!Interop.Alive(tag.Object)) return null;
             try
             {
+                // Not parented: a weapon tumbles as it lands and a child beam would tumble
+                // with it (0.2.0 looked like a tube around the knife). Follow() keeps it
+                // upright over the item every frame instead.
                 var beam = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
                 beam.name = $"LootBeam_{tag.ViewId}";
                 try { UnityEngine.Object.Destroy(beam.GetComponent<Collider>()); } catch { }
-                beam.transform.SetParent(tag.Object.transform, false);
-                beam.transform.localPosition = Vector3.zero;
-                beam.transform.localRotation = Quaternion.identity;
-                var height = tag.Item.WeaponClass >= 3 ? 3.0f : tag.Item.WeaponClass == 2 ? 2.2f : 1.5f;
-                var width = tag.Item.WeaponClass >= 3 ? 0.12f : 0.07f;
+                var height = Height(tag.Item);
+                var width = tag.Item.WeaponClass >= 3 ? 0.08f : 0.045f;
                 beam.transform.localScale = new Vector3(width, height * 0.5f, width);
-                beam.transform.position = tag.Object.transform.position + Vector3.up * (height * 0.5f);
                 beam.transform.rotation = Quaternion.identity;
+                beam.transform.position = tag.Object.transform.position + Vector3.up * (height * 0.5f + 0.1f);
 
                 var r = beam.GetComponent<Renderer>();
                 if (Interop.Alive(r))
@@ -132,6 +135,20 @@ namespace LootOverhaul.Loot
                 Core.Log.Warning($"Drop beam failed: {e.GetType().Name}: {e.Message}");
                 return null;
             }
+        }
+
+        /// <summary>Keep the beam upright over the item. Called every frame for every tag.</summary>
+        public static void Follow(LootTag tag)
+        {
+            if (!Interop.Alive(tag.Beam)) return;
+            if (!Interop.Alive(tag.Object)) { Detach(tag); return; }
+            try
+            {
+                var height = Height(tag.Item);
+                tag.Beam.transform.position = tag.Object.transform.position + Vector3.up * (height * 0.5f + 0.1f);
+                tag.Beam.transform.rotation = Quaternion.identity;
+            }
+            catch { }
         }
 
         public static void Detach(LootTag tag)
