@@ -35,6 +35,13 @@ namespace CustomAvatars.Avatars
             // The wrist as the modeller left it: the one orientation, relative to the forearm,
             // that is known to skin properly. Everything the twist code does is measured from it.
             public Quaternion HandRestLocal = Quaternion.identity;
+            // Where the hand sits on the end of the forearm, as the modeller left it. The
+            // wrist lock moves the hand bone off it every frame there is a miss, and nothing
+            // upstream puts it back, so the solver has to, or it measures the forearm as
+            // however long the last lock left it.
+            public Vector3 HandRestLocalPos;
+            // The arm's length at build, for catching a measurement that has gone wrong.
+            public float RestNatural;
             // From the hand target's frame to this rig's hand bone, measured from the bones at
             // build. What the bone is given every frame is the target's rotation times this.
             // See HandFromTargetFrame.
@@ -59,9 +66,32 @@ namespace CustomAvatars.Avatars
             public float CurrentYield;
             public Quaternion PreYieldLocal, YieldedLocal;
             public bool HasYield;
+
+            // Where the elbow was last asked to point, in the body's frame (x out to the
+            // right, y up, z forward), so the smoothing follows the torso when it turns.
+            public Vector3 Pole;
+            public bool HasPole;
+            // How far the elbow had to be rolled from where the retarget left it, and how hard
+            // the head-clearance rule leaned on the pole (0 = not at all).
+            public float LastRoll, LastHeadPush;
+            // True when the retarget's arm was too straight to define a bend plane and the
+            // pole's plane was used instead.
+            public bool BentFromPole;
+        }
+
+        /// <summary>
+        /// The torso's axes this frame, measured from the bones rather than assumed from any
+        /// one rig's conventions: the line between the two shoulder joints is "right", hips to
+        /// neck is "up", and forward is their cross product.
+        /// </summary>
+        private struct Body
+        {
+            public Vector3 Up, Right, Forward, Head;
+            public bool HasHead;
         }
 
         private Arm _left, _right;
+        private Transform _root, _hips, _neck, _head;
 
         public bool HasArms => _left != null || _right != null;
 
@@ -73,7 +103,15 @@ namespace CustomAvatars.Avatars
         public bool Anomalous => IsAnomalous(_left) || IsAnomalous(_right);
 
         /// <summary>True when either solver miss is over a centimetre — worth a line in the log.</summary>
-        public bool WorthLogging => (_left?.LastMiss ?? 0f) > 0.01f || (_right?.LastMiss ?? 0f) > 0.01f;
+        public bool WorthLogging => (_left?.LastMiss ?? 0f) > 0.01f || (_right?.LastMiss ?? 0f) > 0.01f ||
+                                    ReachWandered(_left) || ReachWandered(_right);
+
+        // The arm's length is measured from the bones every frame and must come out the same
+        // every time, give or take the fit scale. A reach that wanders is a bone that was
+        // left somewhere it shouldn't be, which is exactly what happened before the hand's
+        // rest position was restored each frame.
+        private static bool ReachWandered(Arm arm) =>
+            arm != null && arm.RestNatural > 0f && Mathf.Abs(arm.LastNatural - arm.RestNatural) > 0.05f;
 
         private static bool IsAnomalous(Arm arm) =>
             arm != null && arm.LastMiss > arm.LastExpectedMiss + 0.05f;
@@ -83,6 +121,25 @@ namespace CustomAvatars.Avatars
         {
             _left = BuildArm(model, manifest, "Left", leftTarget, sourceBone);
             _right = BuildArm(model, manifest, "Right", rightTarget, sourceBone);
+
+            _root = model.transform;
+            var map = manifest?.rig?.humanoidBones;
+            Transform Bone(params string[] names)
+            {
+                if (map == null) return null;
+                foreach (var name in names)
+                {
+                    if (map.TryGetValue(name, out var path) && !string.IsNullOrEmpty(path))
+                    {
+                        var t = model.transform.Find(path);
+                        if (Interop.Alive(t)) return t;
+                    }
+                }
+                return null;
+            }
+            _hips = Bone("Hips");
+            _neck = Bone("Neck", "Head", "UpperChest", "Chest");
+            _head = Bone("Head");
 
             var count = (_left != null ? 1 : 0) + (_right != null ? 1 : 0);
             if (count == 0) return "no arm bones could be resolved";
@@ -119,7 +176,10 @@ namespace CustomAvatars.Avatars
                 ForeRestScale = fore.localScale,
                 HandRestScale = hand.localScale,
                 HandRestLocal = hand.localRotation,
+                HandRestLocalPos = hand.localPosition,
             };
+            try { arm.RestNatural = Vector3.Distance(upper.position, fore.position) + Vector3.Distance(fore.position, hand.position); }
+            catch { }
 
             // The bone points at its child, so the child's local position is the bone's axis.
             var axis = hand.localPosition;
@@ -144,11 +204,50 @@ namespace CustomAvatars.Avatars
             return arm;
         }
 
+        /// <summary>Where the hand bone is right now, for the target watch in the swapper.</summary>
+        public Vector3? HandPosition(bool left)
+        {
+            var arm = left ? _left : _right;
+            if (arm == null || !Interop.Alive(arm.Hand)) return null;
+            try { return arm.Hand.position; } catch { return null; }
+        }
+
         /// <summary>Solve both arms. Call after the retarget has posed the body.</summary>
         public void Apply()
         {
-            Solve(_left);
-            Solve(_right);
+            var body = MeasureBody();
+            Solve(_left, body);
+            Solve(_right, body);
+        }
+
+        private Body MeasureBody()
+        {
+            var body = new Body();
+            Vector3 up = Vector3.zero, right = Vector3.zero;
+            try
+            {
+                if (_left != null && _right != null && Interop.Alive(_left.Upper) && Interop.Alive(_right.Upper))
+                    right = _right.Upper.position - _left.Upper.position;
+                if (Interop.Alive(_hips) && Interop.Alive(_neck))
+                    up = _neck.position - _hips.position;
+                if (Interop.Alive(_head)) { body.Head = _head.position; body.HasHead = true; }
+                if (Interop.Alive(_root))
+                {
+                    if (right.sqrMagnitude < 1e-8f) right = _root.right;
+                    if (up.sqrMagnitude < 1e-8f) up = _root.up;
+                }
+            }
+            catch { }
+            if (!Finite(up) || up.sqrMagnitude < 1e-8f) up = Vector3.up;
+            if (!Finite(right) || right.sqrMagnitude < 1e-8f) right = Vector3.right;
+            up.Normalize();
+            right = Vector3.ProjectOnPlane(right, up);
+            if (right.sqrMagnitude < 1e-8f) right = Vector3.ProjectOnPlane(Vector3.forward, up);
+            right.Normalize();
+            body.Up = up;
+            body.Right = right;
+            body.Forward = Vector3.Cross(right, up);
+            return body;
         }
 
         /// <summary>Put the bone scales back, before this solver is thrown away for a new one.</summary>
@@ -158,6 +257,7 @@ namespace CustomAvatars.Avatars
             {
                 if (arm == null) continue;
                 try { if (Interop.Alive(arm.Upper)) RestScales(arm); } catch { }
+                try { if (Interop.Alive(arm.Hand)) arm.Hand.localPosition = arm.HandRestLocalPos; } catch { }
             }
         }
 
@@ -181,10 +281,12 @@ namespace CustomAvatars.Avatars
                     catch { }
                 }
                 var locked = ModConfig.ArmLockHands.Value ? " locked" : "";
+                var head = arm.LastHeadPush > 0.001f ? $", head push {arm.LastHeadPush * 100f:0}%" : "";
                 return $"miss {arm.LastMiss * 100f:0.#}cm{locked} (geometry {arm.LastExpectedMiss * 100f:0.#}cm, " +
                        $"reach {arm.LastNatural * 100f:0.#}cm, needed {arm.LastNeeded * 100f:0.#}cm, " +
                        $"stretch x{arm.LastScale:0.00}{yield}{off}, " +
-                       $"wrist {arm.LastWristTwist:0}° fore {arm.LastForearmTake:0}°)";
+                       $"wrist {arm.LastWristTwist:0}° fore {arm.LastForearmTake:0}°, elbow roll {arm.LastRoll:0}°{head}" +
+                       $"{(arm.BentFromPole ? ", bent from the pole" : "")})";
             }
         }
 
@@ -299,8 +401,12 @@ namespace CustomAvatars.Avatars
 
             if (maxDegrees > 0.01f)
             {
-                var reach = Vector3.Distance(arm.Upper.position, arm.Fore.position) +
-                            Vector3.Distance(arm.Fore.position, arm.Hand.position);
+                // The arm's own length, with last frame's stretch divided back out. Measured
+                // with the stretch in, the collarbone saw no shortfall whenever the stretch
+                // had covered it, let go, and left the stretch doing the work it was meant
+                // to do first.
+                var reach = Vector3.Distance(arm.Upper.position, arm.Fore.position) / arm.CurrentUpperScale +
+                            Vector3.Distance(arm.Fore.position, arm.Hand.position) / arm.CurrentForeScale;
                 var distance = Vector3.Distance(arm.Upper.position, arm.Target.position);
                 var deficit = distance - reach;
                 if (deficit > 0f)
@@ -373,7 +479,7 @@ namespace CustomAvatars.Avatars
             if (!float.IsFinite(sf) || sf < 1f) sf = 1f;
         }
 
-        private static void Solve(Arm arm)
+        private static void Solve(Arm arm, in Body body)
         {
             if (arm == null) return;
             if (!Interop.Alive(arm.Upper) || !Interop.Alive(arm.Fore) ||
@@ -396,9 +502,20 @@ namespace CustomAvatars.Avatars
                     arm.Stretched = false;
                     arm.CurrentYield = 0f;
                     arm.HasYield = false;
+                    arm.HasPole = false;
                     RestScales(arm);
                     return;
                 }
+
+                // Put the hand back on the end of the forearm before measuring anything. The
+                // lock at the bottom moves the hand bone to the target whenever the solve
+                // misses, the retarget only writes rotations, so the offset would otherwise
+                // stay in the forearm's frame for good and be measured as forearm length from
+                // then on. In one session the reach read 147 cm on a 55 cm arm, and the arm
+                // flickered between two solutions at full draw because each frame's lock
+                // changed the length the next frame planned for. A big one-off miss (the
+                // first frames after a swap, a rescale) was enough to poison it permanently.
+                arm.Hand.localPosition = arm.HandRestLocalPos;
 
                 // Buy reach from the collarbone before resorting to stretching bones. Measured
                 // in a session: hands were missing their targets by up to 10 cm at full
@@ -413,6 +530,7 @@ namespace CustomAvatars.Avatars
                 var b = arm.Fore.position;
                 var c = arm.Hand.position;
                 var t = arm.Target.position;
+                var poleHint = PoleHint(arm, body);
 
                 // These positions were produced by whatever stretch we wrote last frame, so
                 // divide it back out to get the arm's own length. Measuring the bones rather
@@ -466,15 +584,33 @@ namespace CustomAvatars.Avatars
                 var current1 = Mathf.Acos(Mathf.Clamp((lcb * lcb - lab * lab - lat * lat) / (-2f * lab * lat), -1f, 1f));
                 var elbow1 = Mathf.Acos(Mathf.Clamp((lat * lat - lab * lab - lcb * lcb) / (-2f * lab * lcb), -1f, 1f));
 
-                // Bend about the plane the arm is already in, so the elbow keeps pointing the
-                // way the retargeted pose put it rather than snapping to an arbitrary side.
-                var axis = Vector3.Cross(c - a, b - a);
-                if (axis.sqrMagnitude < 1e-8f) axis = Vector3.Cross(c - a, arm.Upper.up);
-                if (axis.sqrMagnitude < 1e-8f) return;
-                axis.Normalize();
-
-                arm.Upper.rotation = Quaternion.AngleAxis((current1 - current0) * Mathf.Rad2Deg, axis) * arm.Upper.rotation;
-                arm.Fore.rotation = Quaternion.AngleAxis((elbow1 - elbow0) * Mathf.Rad2Deg, axis) * arm.Fore.rotation;
+                // Bend about the plane the arm is already in when there is one; the elbow
+                // roll below chooses the final plane either way. When the retargeted arm is
+                // straight there is no plane: the cross product is zero or noise, and the
+                // old fallback (the upper bone's own up axis) is zero too on any rig whose
+                // bone axis runs along the bone. The solve used to give up here, which left
+                // the arm in the vanilla animation's pose with no swing and no lock — the
+                // hand a foot off the bow at full draw, exactly when the vanilla arm is
+                // reaching and straight. Now the pole's plane is used instead, and the bend
+                // is only skipped if even that fails (hand on the shoulder), never the rest.
+                var ca = c - a;
+                var ba = b - a;
+                var axis = Vector3.Cross(ca, ba);
+                var sine = axis.magnitude / Mathf.Max(1e-9f, ca.magnitude * ba.magnitude);
+                arm.BentFromPole = false;
+                if (sine < 0.05f)   // within about 3° of straight
+                {
+                    arm.BentFromPole = true;
+                    axis = Vector3.Cross(ca, poleHint);
+                    if (axis.sqrMagnitude < 1e-10f) axis = Vector3.Cross(ca, body.Up);
+                    if (axis.sqrMagnitude < 1e-10f) axis = Vector3.Cross(ca, body.Right);
+                }
+                if (axis.sqrMagnitude >= 1e-10f)
+                {
+                    axis.Normalize();
+                    arm.Upper.rotation = Quaternion.AngleAxis((current1 - current0) * Mathf.Rad2Deg, axis) * arm.Upper.rotation;
+                    arm.Fore.rotation = Quaternion.AngleAxis((elbow1 - elbow0) * Mathf.Rad2Deg, axis) * arm.Fore.rotation;
+                }
 
                 // Now swing the whole arm so the hand lands on the target.
                 var handNow = arm.Hand.position;
@@ -484,6 +620,11 @@ namespace CustomAvatars.Avatars
                 // the number that says whether the solver is working: it should never be more
                 // than the geometric shortfall.
                 arm.LastMiss = Vector3.Distance(arm.Hand.position, t);
+
+                // With the hand on the target the elbow has one freedom left, its roll about
+                // the shoulder-to-hand line, and this is where it gets chosen. Nothing here can
+                // move the hand: both ends of that line stay where they are.
+                RollElbow(arm, body, a, t, poleHint);
 
                 // The target's orientation, said in this rig's own hand-bone convention.
                 var handRotation = arm.Target.rotation * arm.HandFromTarget;
@@ -499,6 +640,114 @@ namespace CustomAvatars.Avatars
                 if (ModConfig.ArmLockHands.Value) arm.Hand.position = t;
             }
             catch { /* one bad frame must not stop the other arm */ }
+        }
+
+        /// <summary>
+        /// Point the elbow somewhere deliberate.
+        ///
+        /// The bend above keeps whatever plane the retarget handed it, and the retarget copies
+        /// the vanilla third-person arm, which is the half of the pose nobody solves properly.
+        /// Most of the time that is harmless. With a hand at the cheek drawing a bow it is
+        /// not: the hand sits a few centimetres from the shoulder, the cross product that
+        /// defines the plane is nearly zero, its direction is noise, and the elbow, folded to
+        /// thirty degrees and sticking out a forearm's length at head height, whips through
+        /// the headset from frame to frame.
+        ///
+        /// So the plane is chosen here instead, from things that are actually known. A body-
+        /// relative rest direction (down, outward, a little back, measured from this rig's own
+        /// torso) says where an elbow hangs when nothing else is asking. The hand target's
+        /// finger direction says where the forearm is: with a straight wrist the elbow is a
+        /// forearm's length back along the fingers, so its component across the arm is a
+        /// strong hint that fades on its own when the fingers point along the arm. A hand at
+        /// the cheek with the fingers pointing at the face puts the elbow outward, which is
+        /// where a drawing elbow goes. The result is smoothed in the torso's frame so a hand
+        /// hovering near a degenerate pose glides rather than flips, and pushed off the head
+        /// if the circle the elbow lives on passes too close to it.
+        ///
+        /// Only the roll about the shoulder-to-hand line is touched. The hand is on that line,
+        /// so it does not move, and the wrist lock below still has the last word.
+        /// </summary>
+        /// <summary>
+        /// Where the elbow would like to point, before anything is projected or smoothed: the
+        /// body-relative rest direction plus the hint from the hand's finger direction.
+        /// </summary>
+        private static Vector3 PoleHint(Arm arm, in Body body)
+        {
+            var outward = arm.Side == "Left" ? -body.Right : body.Right;
+            var hint = -body.Up + outward * 0.6f - body.Forward * 0.4f;
+            try
+            {
+                var fingers = arm.Target.rotation * Vector3.forward;
+                hint += -fingers * Mathf.Max(0f, ModConfig.ArmPoleHandWeight.Value);
+            }
+            catch { }
+            return hint;
+        }
+
+        private static void RollElbow(Arm arm, in Body body, Vector3 a, Vector3 t, Vector3 poleHint)
+        {
+            arm.LastRoll = 0f;
+            arm.LastHeadPush = 0f;
+
+            var n = t - a;
+            if (n.sqrMagnitude < 1e-6f) return;   // hand on the shoulder: no line to roll about
+            n.Normalize();
+
+            var elbow = arm.Fore.position;
+            var elbowPerp = Vector3.ProjectOnPlane(elbow - a, n);
+            var radius = elbowPerp.magnitude;
+            if (radius < 1e-3f) return;           // straight arm: there is no elbow to point
+
+            var wanted = Vector3.ProjectOnPlane(poleHint, n);
+            if (wanted.sqrMagnitude < 1e-8f) wanted = elbowPerp;   // nothing to say: keep what we have
+            wanted.Normalize();
+
+            // The elbow lives on a circle about the arm's line. If the point on it we are about
+            // to choose is inside the head's clearance, lean toward the point furthest from the
+            // head, by as much as it is inside. Done to the wanted direction, before smoothing,
+            // so it cannot flicker.
+            var clearance = Mathf.Max(0f, ModConfig.ArmElbowHeadClearance.Value);
+            if (body.HasHead && clearance > 0f)
+            {
+                var center = a + n * Vector3.Dot(elbow - a, n);
+                var distance = Vector3.Distance(center + wanted * radius, body.Head);
+                if (distance < clearance)
+                {
+                    var away = Vector3.ProjectOnPlane(center - body.Head, n);
+                    if (away.sqrMagnitude > 1e-8f)
+                    {
+                        var push = 1f - distance / clearance;
+                        wanted = Vector3.Slerp(wanted, away.normalized, push);
+                        arm.LastHeadPush = push;
+                    }
+                }
+            }
+
+            // Smooth in the torso's frame, with a time constant rather than a per-frame factor
+            // so it feels the same at any frame rate. Rate 0 turns the smoothing off.
+            var local = new Vector3(Vector3.Dot(wanted, body.Right), Vector3.Dot(wanted, body.Up),
+                                    Vector3.Dot(wanted, body.Forward));
+            if (arm.HasPole && Finite(arm.Pole) && arm.Pole.sqrMagnitude > 1e-8f)
+            {
+                var rate = Mathf.Max(0f, ModConfig.ArmPoleFollowRate.Value);
+                if (rate > 0f)
+                {
+                    var dt = Mathf.Clamp(Time.deltaTime, 0f, 0.1f);
+                    local = Vector3.Slerp(arm.Pole, local, 1f - Mathf.Exp(-rate * dt));
+                }
+            }
+            arm.Pole = local;
+            arm.HasPole = true;
+
+            var pole = body.Right * local.x + body.Up * local.y + body.Forward * local.z;
+            var polePerp = Vector3.ProjectOnPlane(pole, n);
+            if (polePerp.sqrMagnitude < 1e-8f) return;
+
+            var roll = Vector3.SignedAngle(elbowPerp, polePerp, n);
+            if (!float.IsFinite(roll)) return;
+            arm.LastRoll = roll;
+            if (Mathf.Abs(roll) < 0.01f) return;
+            arm.Upper.rotation = Quaternion.AngleAxis(roll, n) * arm.Upper.rotation;
         }
 
         /// <summary>

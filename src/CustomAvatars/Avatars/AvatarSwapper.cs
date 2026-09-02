@@ -88,6 +88,23 @@ namespace CustomAvatars.Avatars
         public float SizeAtFit => _sizeAtFit;
         private float _nextArmDumpAt;
         private int _armDumpsLeft;
+        // Hand-target watch (self only): each of the game's hand IK targets in its controller's
+        // frame last frame, the offset it rests at, whether it is currently away from that,
+        // and the last time a jump was reported, so a jittering target can't flood the log.
+        private readonly Vector3[] _lastTargetPos = new Vector3[2];
+        private readonly Vector3[] _targetRest = new Vector3[2];
+        private readonly bool[] _hasLastTargetPos = new bool[2];
+        private readonly bool[] _targetRestSeeded = new bool[2];
+        private readonly bool[] _targetAway = new bool[2];
+        private readonly bool[] _fpsHandAway = new bool[2];
+        private float _nextTargetJumpLogAt;
+        // The first-person arm rig's hand bones — the hands you actually see in vanilla, and
+        // the thing the game snaps to a weapon's grip or a bow's string. Self only.
+        private readonly Transform[] _fpsHands = new Transform[2];
+        // The rotation that turns each hand target holder's parent into the standard target
+        // frame (Z along the fingers, Y out the back of the hand). Identity for the IK targets
+        // and controllers, measured from the knuckles when the parent is a first-person hand bone.
+        private readonly Quaternion[] _handFrameLocal = { Quaternion.identity, Quaternion.identity };
 
         /// <summary>
         /// How much the model had to be resized to put its head at yours. Peers are told this
@@ -277,16 +294,39 @@ namespace CustomAvatars.Avatars
                         // until you stop. The controllers themselves have no such lag.
                         // Controllers are a local thing. A peer has no controller transforms on
                         // this machine, only the smoothed targets their body already follows.
-                        var useControllers = isSelf &&
-                                             string.Equals(ModConfig.SwapArmTargetSource.Value, "Controllers",
-                                                           StringComparison.OrdinalIgnoreCase);
-                        var leftParent = useControllers ? player.LeftHand : player.IKTargetLeftHand;
-                        var rightParent = useControllers ? player.RightHand : player.IKTargetRightHand;
-                        Core.Log.Msg($"    arm targets: {(useControllers ? "controllers" : "IK targets")} " +
+                        // The first-person hands are a third choice, and for your own body
+                        // the truest one: they are the hands you see in vanilla, and the game
+                        // snaps them to a weapon's grip and holds them on a bow's string at
+                        // full draw, which neither the IK targets nor the controllers know
+                        // about. Their bones carry their own axis convention, so the target
+                        // frame is measured from their knuckles the same way ArmIK measures
+                        // the avatar's.
+                        var source = ModConfig.SwapArmTargetSource.Value ?? "";
+                        var useControllers = isSelf && string.Equals(source, "Controllers", StringComparison.OrdinalIgnoreCase);
+                        var useFpsHands = isSelf && string.Equals(source, "FpsHands", StringComparison.OrdinalIgnoreCase);
+                        if (isSelf) CacheFpsHands(player);
+                        if (useFpsHands && (!Interop.Alive(_fpsHands[0]) || !Interop.Alive(_fpsHands[1])))
+                        {
+                            Core.Log.Warning("    arm targets: FpsHands asked for, but the first-person hand bones were not found — using the IK targets");
+                            useFpsHands = false;
+                        }
+                        var leftParent = useFpsHands ? _fpsHands[0] : useControllers ? player.LeftHand : player.IKTargetLeftHand;
+                        var rightParent = useFpsHands ? _fpsHands[1] : useControllers ? player.RightHand : player.IKTargetRightHand;
+                        Core.Log.Msg($"    arm targets: {(useFpsHands ? "first-person hands" : useControllers ? "controllers" : "IK targets")} " +
                                      $"— `{Interop.Name(leftParent)}` / `{Interop.Name(rightParent)}`");
+
+                        _handFrameLocal[0] = _handFrameLocal[1] = Quaternion.identity;
+                        if (useFpsHands)
+                        {
+                            _handFrameLocal[0] = FpsHandFrame(_fpsHands[0], true, out var noteL);
+                            _handFrameLocal[1] = FpsHandFrame(_fpsHands[1], false, out var noteR);
+                            Core.Log.Msg($"      L frame {noteL}\n      R frame {noteR}");
+                            KeepFpsArmsAnimating();
+                        }
 
                         var lt = HandTarget(ref _leftHandTarget, "DFM_HandTarget_L", leftParent);
                         var rt = HandTarget(ref _rightHandTarget, "DFM_HandTarget_R", rightParent);
+                        UpdateHandOffsets();
                         _armIk = new ArmIK();
                         Core.Log.Msg($"    arm source: IKTargets — {_armIk.Build(_model, manifest, lt, rt, _retarget.SourceOf)}");
                         if (!_armIk.HasArms) _armIk = null;
@@ -536,6 +576,177 @@ namespace CustomAvatars.Avatars
             catch (Exception e) { Core.Log.Warning($"Could not fix renderer bounds: {e.Message}"); }
         }
 
+        /// <summary>
+        /// Catch the game moving a hand out from under us.
+        ///
+        /// Our hand goes exactly where its target is, so if the hand jumps and the arm log has
+        /// nothing to say, something upstream moved. Two things are watched. The game's hand
+        /// IK targets are not children of the controllers: they sit under Player_/IKTargets
+        /// and the game places them every frame, normally at a fixed offset from the
+        /// controller (about 13 cm on the rigs seen so far), so each is measured in its
+        /// controller's frame, where a target that is merely following the hand holds still.
+        /// And the first-person hand bones — the hands you see in vanilla — are measured
+        /// against the IK targets, because the game snaps those hands to weapons and strings
+        /// and the targets know nothing about it. Each departure and return is logged once,
+        /// with the arm's state, so the two can be told apart.
+        /// </summary>
+        private void WatchHandTargets()
+        {
+            if (!Interop.Alive(_player)) return;
+            for (var side = 0; side < 2; side++)
+            {
+                try
+                {
+                    var target = side == 0 ? _player.IKTargetLeftHand : _player.IKTargetRightHand;
+                    var controller = side == 0 ? _player.LeftHand : _player.RightHand;
+                    if (!Interop.Alive(target) || !Interop.Alive(controller)) continue;
+                    var name = side == 0 ? "L" : "R";
+                    var pos = target.position;
+                    var local = controller.InverseTransformPoint(pos);
+
+                    var jump = _hasLastTargetPos[side] ? Vector3.Distance(local, _lastTargetPos[side]) : 0f;
+                    _lastTargetPos[side] = local;
+                    _hasLastTargetPos[side] = true;
+
+                    // The resting offset is seeded only once the target is plausibly near the
+                    // controller (the first frames after a swap had it 1.5 m away, before the
+                    // game had placed anything), follows slowly while the target behaves, and
+                    // freezes while it is away so the excursion stays measurable.
+                    if (!_targetRestSeeded[side])
+                    {
+                        if (local.magnitude > 0.5f) continue;
+                        _targetRest[side] = local;
+                        _targetRestSeeded[side] = true;
+                    }
+                    var drift = Vector3.Distance(local, _targetRest[side]);
+                    if (drift > 1f) { _targetRest[side] = local; drift = 0f; }
+                    var away = _targetAway[side] ? drift > 0.05f : drift > 0.10f;   // hysteresis
+                    if (!away) _targetRest[side] = Vector3.Lerp(_targetRest[side], local, 0.02f);
+
+                    var fps = _fpsHands[side];
+                    var fpsOff = Interop.Alive(fps) ? Vector3.Distance(fps.position, pos) : -1f;
+                    var fpsAway = fpsOff >= 0f && (_fpsHandAway[side] ? fpsOff > 0.05f : fpsOff > 0.10f);
+
+                    var hand = _armIk?.HandPosition(side == 0);
+                    var where = $"target `{Interop.Name(target)}` @ ({pos.x:0.000}, {pos.y:0.000}, {pos.z:0.000}), " +
+                                $"{local.magnitude * 100f:0.#}cm from the controller, {drift * 100f:0.#}cm from where it rests relative to it" +
+                                (fpsOff >= 0f ? $", first-person hand {fpsOff * 100f:0.#}cm from it" : "") +
+                                (hand.HasValue ? $", our hand bone {Vector3.Distance(hand.Value, pos) * 100f:0.#}cm from it" : "");
+
+                    if (away != _targetAway[side])
+                    {
+                        _targetAway[side] = away;
+                        Core.Log.Msg(away
+                            ? $"hand target {name} LEFT its controller: {where}\n    arms: {_armIk.Describe()}"
+                            : $"hand target {name} back on its controller: {where}");
+                    }
+                    if (fpsAway != _fpsHandAway[side])
+                    {
+                        _fpsHandAway[side] = fpsAway;
+                        Core.Log.Msg(fpsAway
+                            ? $"first-person hand {name} LEFT the IK target: {where}\n    arms: {_armIk.Describe()}"
+                            : $"first-person hand {name} back on the IK target: {where}");
+                    }
+                    if (jump > 0.10f && Time.unscaledTime >= _nextTargetJumpLogAt)
+                    {
+                        _nextTargetJumpLogAt = Time.unscaledTime + 1f;
+                        Core.Log.Msg($"hand target {name} moved {jump * 100f:0.#}cm relative to the controller in one frame: {where}\n    arms: {_armIk.Describe()}");
+                    }
+                }
+                catch { }
+            }
+        }
+
+        /// <summary>The first-person arm rig's hand bones, found by name under its skeleton.</summary>
+        private void CacheFpsHands(AvatarPlayer player)
+        {
+            _fpsHands[0] = _fpsHands[1] = null;
+            try
+            {
+                var rigRoot = RootOf(player.Head);
+                if (!Interop.Alive(rigRoot)) return;
+                var armsModel = rigRoot.Find("FPS-Arms-Model");
+                if (!Interop.Alive(armsModel)) return;
+                var skeleton = armsModel.Find("root");
+                var under = Interop.Alive(skeleton) ? skeleton : armsModel;
+                _fpsHands[0] = FindNamed(under, "hand_l");
+                _fpsHands[1] = FindNamed(under, "hand_r");
+                if (!Interop.Alive(_fpsHands[0]) || !Interop.Alive(_fpsHands[1]))
+                    Core.Log.Warning($"    first-person hands: not both found under `{Interop.ScenePath(under)}`");
+            }
+            catch (Exception e) { Core.Log.Warning($"    first-person hands lookup failed: {e.GetType().Name}: {e.Message}"); }
+        }
+
+        private static Transform FindNamed(Transform root, string name)
+        {
+            if (!Interop.Alive(root)) return null;
+            if (root.name == name) return root;
+            for (var i = 0; i < root.childCount; i++)
+            {
+                var found = FindNamed(root.GetChild(i), name);
+                if (found != null) return found;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// The rotation, in a first-person hand bone's own space, that gives the standard hand
+        /// target frame: Z along the fingers, Y out the back of the hand. Measured from the
+        /// knuckles, the same construction ArmIK uses on the avatar, so the two agree by
+        /// definition. Identity if the knuckles can't be found, and the trims take over.
+        /// </summary>
+        private static Quaternion FpsHandFrame(Transform hand, bool isLeft, out string note)
+        {
+            try
+            {
+                var suffix = isLeft ? "_l" : "_r";
+                var middle = FindNamed(hand, "middle_01" + suffix);
+                var index = FindNamed(hand, "index_01" + suffix);
+                var little = FindNamed(hand, "pinky_01" + suffix);
+                if (Interop.Alive(middle) && Interop.Alive(index) && Interop.Alive(little))
+                {
+                    var fingers = middle.position - hand.position;
+                    var across = index.position - little.position;
+                    var angle = Vector3.Angle(fingers, across);
+                    if (fingers.sqrMagnitude > 1e-10f && across.sqrMagnitude > 1e-10f && angle > 15f && angle < 165f)
+                    {
+                        var back = isLeft ? Vector3.Cross(fingers, across) : Vector3.Cross(across, fingers);
+                        var frame = Quaternion.LookRotation(fingers.normalized, back.normalized);
+                        note = $"from the knuckles ({Interop.Name(middle)}, {Interop.Name(little)} to {Interop.Name(index)})";
+                        return Quaternion.Inverse(hand.rotation) * frame;
+                    }
+                }
+            }
+            catch { }
+            note = "could not be measured (no knuckle bones); the bone's own axes are used, set SwapHandTrim* to correct";
+            return Quaternion.identity;
+        }
+
+        /// <summary>
+        /// With their renderers hidden, an Animator on the first-person arms could stop
+        /// updating its bones as culled. When those bones are our targets they must keep moving.
+        /// </summary>
+        private void KeepFpsArmsAnimating()
+        {
+            try
+            {
+                var hand = _fpsHands[0];
+                if (!Interop.Alive(hand)) return;
+                var animators = hand.root.GetComponentsInChildren<Animator>(true);
+                var changed = 0;
+                foreach (var animator in animators)
+                {
+                    if (!Interop.Alive(animator)) continue;
+                    if (!Interop.ScenePath(animator.transform).Contains("FPS-Arms-Model")) continue;
+                    if (animator.cullingMode == AnimatorCullingMode.AlwaysAnimate) continue;
+                    animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+                    changed++;
+                }
+                if (changed > 0) Core.Log.Msg($"      set {changed} first-person arm Animator(s) to always animate");
+            }
+            catch (Exception e) { Core.Log.Warning($"      could not adjust the first-person arm Animator: {e.Message}"); }
+        }
+
         private static Transform HandTarget(ref GameObject holder, string name, Transform parent)
         {
             if (!Interop.Alive(parent)) return null;
@@ -556,13 +767,13 @@ namespace CustomAvatars.Avatars
             try
             {
                 if (Interop.Alive(_leftHandTarget))
-                    _leftHandTarget.transform.localRotation = Quaternion.Euler(
+                    _leftHandTarget.transform.localRotation = _handFrameLocal[0] * Quaternion.Euler(
                         ModConfig.SwapHandTrimLeftX.Value,
                         ModConfig.SwapHandTrimLeftY.Value,
                         ModConfig.SwapHandTrimLeftZ.Value);
 
                 if (Interop.Alive(_rightHandTarget))
-                    _rightHandTarget.transform.localRotation = Quaternion.Euler(
+                    _rightHandTarget.transform.localRotation = _handFrameLocal[1] * Quaternion.Euler(
                         ModConfig.SwapHandTrimRightX.Value,
                         ModConfig.SwapHandTrimRightY.Value,
                         ModConfig.SwapHandTrimRightZ.Value);
@@ -883,6 +1094,8 @@ namespace CustomAvatars.Avatars
             {
                 try { _armIk.Apply(); }
                 catch (Exception e) { Core.Log.Warning($"Arm IK failed, disabling: {e.Message}"); _armIk = null; }
+
+                if (IsSelf && _armIk != null) WatchHandTargets();
 
                 // Report the miss once a second while it is large. A hand that lands 30 cm from
                 // its target is not a tuning problem, and the numbers say which part is wrong:

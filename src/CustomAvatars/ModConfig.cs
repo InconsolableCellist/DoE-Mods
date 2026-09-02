@@ -80,6 +80,9 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<float> ArmTwistShare;
         public static MelonPreferences_Entry<float> ArmWristTwistLimitDegrees;
         public static MelonPreferences_Entry<bool> ArmLockHands;
+        public static MelonPreferences_Entry<float> ArmPoleHandWeight;
+        public static MelonPreferences_Entry<float> ArmPoleFollowRate;
+        public static MelonPreferences_Entry<float> ArmElbowHeadClearance;
         public static MelonPreferences_Entry<bool> LegIkEnabled;
         public static MelonPreferences_Entry<float> LegStretch;
         public static MelonPreferences_Entry<bool> LegLockFeet;
@@ -258,6 +261,18 @@ namespace CustomAvatars
             // The hand goes exactly where the controller is, even if the arm couldn't get it
             // there. False shows the solver's honest miss, for diagnosing it.
             ArmLockHands = Tuning.CreateEntry("ArmLockHands", true);
+            // Where the elbow points is chosen by the solver (see ArmIK.RollElbow): a body-
+            // relative rest direction plus a hint from the hand's finger direction, which is
+            // what puts a bow-drawing elbow out to the side instead of through the headset.
+            // 0 leaves only the rest direction; 1 weights the hint equally with it.
+            ArmPoleHandWeight = Tuning.CreateEntry("ArmPoleHandWeight", 1f, description:
+                "How much the hand's orientation steers the elbow, 0 to 2 (0 = elbows always hang the same way)");
+            // A time constant, per second. Higher follows faster; 0 is no smoothing at all.
+            ArmPoleFollowRate = Tuning.CreateEntry("ArmPoleFollowRate", 20f, description:
+                "How quickly the elbow direction follows a change, per second (0 = instantly)");
+            // 0 turns it off.
+            ArmElbowHeadClearance = Tuning.CreateEntry("ArmElbowHeadClearance", 0.15f, description:
+                "Keep the elbow at least this far from the head bone, in metres, by rolling it away");
             // The feet go where the game's own feet are — on the floor, stepping, or on the
             // trackers — instead of hanging off the head at a fixed leg length.
             LegIkEnabled = Tuning.CreateEntry("LegIkEnabled", true, description:
@@ -398,7 +413,9 @@ namespace CustomAvatars
             SwapArmTargetSource = Dev.CreateEntry("SwapArmTargetSource", "IKTargets", description:
                 "\"IKTargets\" follows the game's smoothed hand targets; \"Controllers\" follows " +
                 "your controllers with no lag but a different orientation, so the SwapHandTrim " +
-                "entries need setting if you switch.");
+                "entries need setting if you switch; \"FpsHands\" follows the game's own " +
+                "first-person hand bones, which it snaps to weapon grips and holds on a bow's " +
+                "string at full draw — the other two sources know nothing of that.");
             SwapForceVanillaIK = Dev.CreateEntry("SwapForceVanillaIK", false, description:
                 "Re-enable the IK the game deliberately turned off on your own body. It doesn't " +
                 "produce usable arms, so there's no reason to interfere.");

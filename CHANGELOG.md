@@ -2,6 +2,21 @@
 
 Versions are the mod's `Version` constant in `src/CustomAvatars/Core.cs`. This file was reconstructed from the git history on 2026-09-01.
 
+## 0.42.0 (2026-09-02)
+
+### Added
+- The elbow now points somewhere deliberate. The arm solver used to bend in whatever plane the vanilla body's arm happened to be in, and with a hand at the cheek drawing a bow that plane was noise: the elbow, folded tight and a forearm's length out at head height, whipped through the headset from frame to frame. Each arm now has a pole built from the avatar's own torso (down, outward, a little back, measured from its hips, neck and shoulder joints) blended with the hand's finger direction, which puts a drawing elbow out to the side where it belongs. The pole is smoothed in the torso's frame and rolled off the head when the elbow's circle passes too close to it. Only the roll about the shoulder-to-hand line is touched, so the hand cannot move. `ArmPoleHandWeight`, `ArmPoleFollowRate` and `ArmElbowHeadClearance` tune it; the arm log line reports the roll.
+- `SwapArmTargetSource = "FpsHands"` drives your arms from the game's own first-person hand bones. Those are the hands you see in vanilla, and the game snaps them to a weapon's grip and holds them on a bow's string at full draw; the IK targets and the controllers keep following your real hand past the string, which is why the draw hand used to leave the bow. The target frame is measured from that rig's knuckles the same way the avatar's is, and its Animator is set to keep animating while its meshes are hidden.
+- A hand-target watch on your own body logs when an IK target leaves its controller, when the first-person hand leaves the IK target, and any single-frame jump, each with the arm's state, so a hand that moves for no reason of ours can be told from one the solver moved.
+
+### Changed
+- `ArmStretchUpperShare` defaults to 1: all of the stretch goes to the upper arm and the forearm keeps its shape. A saved 0.7 from an older build still applies.
+- The collarbone yield measured the arm with last frame's stretch included, saw no shortfall whenever the stretch had covered it, and let go. It now measures the arm's own length, so the shoulder contributes first and the stretch covers only what is left.
+
+### Fixed
+- The arm no longer flickers between two solutions, or drags its wrist, at full draw. The solver measures bone lengths from the bones each frame, the wrist lock moves the hand bone off the end of the forearm whenever a solve misses, and nothing put it back, so every miss left the forearm measuring longer and the next solve planned for a forearm that did not exist. The reach read 147 cm on a 55 cm arm in one session. The hand's rest position is now restored before every solve, and the arm log fires whenever the measured reach drifts from its build-time value.
+- The hand no longer floats a foot off the bow at full draw. When the vanilla body's arm was straight, which it is whenever its animation reaches, the bend plane could not be found and the solve gave up for the frame with no bend, no swing and no lock, leaving the hand wherever the animation had put it. The bend now happens in the pole's plane instead, and the swing and the lock always run. The arm log says "bent from the pole" when that path was taken.
+
 ## 0.41.0 (2026-09-02)
 
 0.40.0 was the working build number between 0.39.0 and this release; everything below ships as 0.41.0.
