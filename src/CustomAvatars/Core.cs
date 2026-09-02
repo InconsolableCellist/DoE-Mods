@@ -83,14 +83,14 @@ namespace CustomAvatars
             _swaps = new AvatarSwapManager(_avatarLibrary);
             // Your size. Idle at AvatarSize 1; otherwise scales the play space and the game's
             // body together, and the avatar is re-fitted to wherever your head ends up.
-            _size = new PlayerSize();
+            _trackers = new Fbt.TrackerReader();
+            _size = new PlayerSize(_trackers);
             _size.Changed += size => _swaps.OnSelfSizeChanged(size);
             if (Math.Abs(PlayerSize.Wanted() - 1f) > 0.0005f)
-                LoggerInstance.Msg($"Size: AvatarSize is {PlayerSize.Wanted():0.00} — you will be that size once the rig is up. Home puts it back to 1.");
+                LoggerInstance.Msg($"Size: AvatarSize is {PlayerSize.Wanted():0.00} — you will be that size once you have spawned. Home puts it back to 1.");
             _avatarSync = new AvatarSync(_swaps, _avatarLibrary, _roster);
             _handSync = new HandSync(_swaps, _roster);
             _holograms = new HologramSwapper(_avatarLibrary, _swaps);
-            _trackers = new Fbt.TrackerReader();
             _fbt = new Fbt.FbtManager(_swaps, _roster, _trackers);
 
             if (ModConfig.FaceOscEnabled.Value)

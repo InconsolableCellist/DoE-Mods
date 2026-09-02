@@ -168,7 +168,9 @@ Everything scales together: your eye height, your reach, your hit boxes, the gam
 and your avatar, so the world reads as bigger or smaller and your feet stay on the floor.
 Friends running the mod see you at that size; the mannequins in the equipment room show you
 at it too. A moment after you stop pressing, the avatar is taken off and put back on (same
-chime as the T-pose) so it is fitted to your new size. **Home** puts you back to normal — and
+chime as the T-pose) so it is fitted to your new size. The size goes on a second after you
+spawn, never before: the game sets your height up at normal size first, then you shrink or
+grow, so the main menu is always normal size. **Home** puts you back to normal — and
 normal means the mod has let go completely, nothing is written, the game is exactly as it
 was. The size is remembered in the settings file as `AvatarSize` (1 = normal); editing it to
 1 there and pressing F3 is the same as Home.

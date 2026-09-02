@@ -1298,6 +1298,7 @@ namespace CustomAvatars.Avatars
                 var sized = Mathf.Abs(size - 1f) > 0.0005f ? $" (you are x{size:0.00}: {playerHeight / size:0.00} m at vanilla size)" : "";
                 Core.Log.Msg($"    height: you {playerHeight:0.00} m to the eyes{sized}, avatar {baseHeight:0.00} m " +
                              $"by its manifest{check} — scaling avatar x{_heightScale:0.000}{note}, once");
+                PlayerSize.LogChainNow("at the avatar fit");
 
                 if (Mathf.Abs(previous - _heightScale) > 0.002f)
                 {

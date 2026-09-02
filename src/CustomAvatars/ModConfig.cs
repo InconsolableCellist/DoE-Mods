@@ -122,6 +122,7 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<bool> HandPoseDebug;
 
         public static MelonPreferences_Entry<bool> FbtDebug;
+        public static MelonPreferences_Entry<bool> SizeDebug;
         public static MelonPreferences_Entry<bool> FbtDisableGrounder;
         public static MelonPreferences_Entry<bool> FbtAnchorHips;
 
@@ -334,6 +335,9 @@ namespace CustomAvatars
                 "Log raw finger-curl values every frame.");
             LogPhotonEvents = Dev.CreateEntry("LogPhotonEvents", true);
 
+            // Every transform between the headset and the rig root, at every size change and
+            // for eight seconds after. This is what found the spawn-while-scaled bug.
+            SizeDebug = Dev.CreateEntry("SizeDebug", false);
             FbtDebug = Dev.CreateEntry("FbtDebug", false, description:
                 "Log tracker poses and VRIK weights every frame while FBT is on.");
             // The grounder plants feet on the floor procedurally; real foot trackers and a

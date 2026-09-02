@@ -144,7 +144,13 @@ namespace CustomAvatars.Avatars
         {
             if (_refCount > 0) _refCount--;
             if (_refCount > 0) return;
-            if (_key != null) Loaded.Remove(_key);
+            // Only evict the cache entry if it is still THIS object. A handle that lost its
+            // prefab on a scene change is replaced in the cache by a fresh load; when the old
+            // handle's last holder let go it removed the NEW entry's key, the file was still
+            // loaded by the new one, and every swap for the next two seconds failed with
+            // "LoadFromFile returned null" until the mannequins happened to release it.
+            if (_key != null && Loaded.TryGetValue(_key, out var current) && ReferenceEquals(current, this))
+                Loaded.Remove(_key);
             UnloadNow();
         }
 

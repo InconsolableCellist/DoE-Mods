@@ -88,7 +88,98 @@ namespace CustomAvatars.Avatars
         private readonly HashSet<int> _scratch = new HashSet<int>();
         private float _nextPropScanAt;
 
-        public PlayerSize() { _instance = this; }
+        private readonly Fbt.TrackerReader _trackers;
+        private readonly List<float> _chainLogAt = new List<float>();
+        private float _lastChangeAt;
+
+        public PlayerSize(Fbt.TrackerReader trackers)
+        {
+            _instance = this;
+            _trackers = trackers;
+        }
+
+        /// <summary>Print the vertical chain now, from wherever asks (the avatar fit does).</summary>
+        public static void LogChainNow(string why) => _instance?.LogChain(why);
+
+        /// <summary>
+        /// Every transform between the headset and the rig root, with what the game has
+        /// done to it, next to the headset's real height from OpenVR. When the eyes end up
+        /// at the wrong height this says which node moved and by how much.
+        /// </summary>
+        private void LogChain(string why)
+        {
+            try
+            {
+                Transform head = null;
+                try { var p = AvatarPlayer.LocalAvatar; if (Interop.Alive(p)) head = p.Head; } catch { }
+                if (!Interop.Alive(head)) { try { head = XRRig.CenterEyeAnchor; } catch { head = null; } }
+
+                var real = _trackers != null && _trackers.TryHmdHeight(out var h) ? $"{h:0.000} m" : "?";
+                float floorY = float.NaN, ikHeadY = float.NaN, bodyY = float.NaN;
+                try
+                {
+                    var p = AvatarPlayer.LocalAvatar;
+                    if (Interop.Alive(p))
+                    {
+                        floorY = p.transform.position.y;
+                        var ik = p.IKTargetHead;
+                        if (Interop.Alive(ik)) ikHeadY = ik.position.y;
+                        var fb = p.FullBody;
+                        if (Interop.Alive(fb)) bodyY = fb.transform.position.y;
+                    }
+                }
+                catch { }
+
+                Core.Log.Msg($"Size chain ({why}) at x{_applied:0.00}: headset {real} above the tracking floor; " +
+                             $"Player_ y {floorY:0.000}, Model_ y {bodyY:0.000}, IKTargetHead y {ikHeadY:0.000}" +
+                             (float.IsNaN(floorY) || float.IsNaN(ikHeadY) ? "" : $" → eyes {ikHeadY - floorY:0.000} m above Player_"));
+
+                if (!ModConfig.SizeDebug.Value) return;
+                if (!Interop.Alive(head)) { Core.Log.Msg("    (no head transform to walk from)"); return; }
+                var guard = 0;
+                for (var t = head; Interop.Alive(t) && guard++ < 16; t = t.parent)
+                {
+                    var lp = t.localPosition;
+                    var ls = t.localScale;
+                    Core.Log.Msg($"    `{t.name}`: local y {lp.y:0.000} (x {lp.x:0.00}, z {lp.z:0.00}), " +
+                                 $"local scale {ls.x:0.###}, world y {t.position.y:0.000}" +
+                                 (Interop.Alive(t.parent) ? "" : "   <- root"));
+                }
+
+                if (_control != null)
+                {
+                    try
+                    {
+                        Core.Log.Msg($"    VRPlayerControl: suspension {_control.suspension:0.###} speed {_control.suspensionSpeed:0.###}, " +
+                                     $"eyeAndHeadOffset {Interop.Vec(_control.eyeAndHeadOffset)}, groundDistance {_control.groundDistance:0.###}, " +
+                                     $"groundCastOffset {_control.groundCastOffset:0.###}, colliderBlend {_control.colliderBlend:0.###}");
+                    }
+                    catch (Exception e) { Core.Log.Msg($"    VRPlayerControl fields not readable: {e.Message}"); }
+                }
+            }
+            catch (Exception e) { Core.Log.Msg($"Size chain: {e.Message}"); }
+        }
+
+        private void ScheduleChainLogs()
+        {
+            _chainLogAt.Clear();
+            if (!ModConfig.SizeDebug.Value) return;
+            var now = Time.unscaledTime;
+            _lastChangeAt = now;
+            _chainLogAt.Add(now + 0.25f);
+            _chainLogAt.Add(now + 1f);
+            _chainLogAt.Add(now + 3f);
+            _chainLogAt.Add(now + 8f);
+        }
+
+        private void TickChainLogs()
+        {
+            if (_chainLogAt.Count == 0) return;
+            var now = Time.unscaledTime;
+            if (now < _chainLogAt[0]) return;
+            _chainLogAt.RemoveAt(0);
+            LogChain($"{now - _lastChangeAt:0.0}s after the last change");
+        }
 
         public bool Engaged => _engaged;
         public bool Fused => _fused;
@@ -105,7 +196,7 @@ namespace CustomAvatars.Avatars
         {
             if (_fused) return "OFF for this session — the game fought for the scale (see log)";
             var wanted = Wanted();
-            if (!_engaged) return Mathf.Abs(wanted - 1f) < 0.0005f ? "x1.00 (vanilla)" : $"x{wanted:0.00} — waiting for the rig";
+            if (!_engaged) return Mathf.Abs(wanted - 1f) < 0.0005f ? "x1.00 (vanilla)" : $"x{wanted:0.00} — applies once you have spawned";
             return $"x{_applied:0.00}" + (Mathf.Abs(wanted - _applied) > 0.0005f ? $" → x{wanted:0.00}" : "");
         }
 
@@ -118,12 +209,33 @@ namespace CustomAvatars.Avatars
             if (_dead) return;
             try
             {
+                TickChainLogs();
+                var body = LocalBody();
+                TrackBody(body);
                 var wanted = Wanted();
                 if (!_engaged)
                 {
                     // The vanilla path: no reference held, nothing written, no opinion.
                     if (Mathf.Abs(wanted - 1f) < 0.0005f || _fused) return;
-                    if (!Engage()) return;
+                    // Never be scaled while the game spawns you. The first field test had
+                    // AvatarSize 0.9 from startup, so the rig was already at x0.9 when the
+                    // lobby loaded and the game set your height up: your eyes stayed at full
+                    // height while everything else shrank, and Home then overshot by a metre.
+                    // Scaling AFTER the spawn was exact in the same session. So the body has
+                    // to exist and sit still for a moment first, and it is let go the moment
+                    // it disappears, so every spawn is calibrated at vanilla size.
+                    if (!BodySettled(body)) { NoteWaiting(wanted, body); return; }
+                    if (!Engage(body)) return;
+                }
+                else if (!Interop.Alive(body))
+                {
+                    Release("your player object went away; vanilla until you have spawned again", announce: false);
+                    return;
+                }
+                else if (body.Pointer != _sizedBodyPtr)
+                {
+                    Release("a new body spawned; vanilla until it has settled", announce: false);
+                    return;
                 }
 
                 if (Mathf.Abs(wanted - _applied) > 0.0005f) Apply(wanted);
@@ -180,7 +292,7 @@ namespace CustomAvatars.Avatars
         /// by name: <c>XRRig.Transform</c> is <c>[CameraRig]</c>, and the scene root above it
         /// is the object that owns your colliders, arms and holsters.
         /// </summary>
-        private bool Engage()
+        private bool Engage(Transform body)
         {
             Transform cameraRig = null;
             try { cameraRig = XRRig.Transform; } catch { }
@@ -195,7 +307,9 @@ namespace CustomAvatars.Avatars
             _rigRest = SaneRest(root.localScale);
             _rigPath = Interop.ScenePath(root);
             _applied = 1f;
-            _body = null;
+            _body = body;
+            _bodyRest = SaneRest(body.localScale);
+            _sizedBodyPtr = body.Pointer;
 
             try { _camera = XRRig.Camera; } catch { _camera = null; }
             _baseNearClip = Interop.Alive(_camera) ? _camera.nearClipPlane : 0f;
@@ -211,6 +325,9 @@ namespace CustomAvatars.Avatars
                          $"camera `{Interop.Name(_camera)}` near clip {_baseNearClip:0.###} m, " +
                          $"{_propRoots.Count} hand(s) that can hold things" +
                          (_haveLocomotionBase ? ", locomotion reachable" : ", locomotion NOT reachable"));
+            Core.Log.Msg($"Size: body `{Interop.ScenePath(body)}` at rest scale {Interop.Vec(_bodyRest)}, " +
+                         $"settled {Time.unscaledTime - _bodySeenAt:0.0} s ago");
+            LogChain("before anything is written");
             return true;
         }
 
@@ -227,6 +344,8 @@ namespace CustomAvatars.Avatars
             Core.Log.Msg($"*** Size: x{size:0.00} — play space and body scaled" +
                          (Interop.Alive(_body) ? "" : " (no body yet; it is sized when it appears)") + ".");
             LogPlayerCapsules();
+            LogChain("just applied");
+            ScheduleChainLogs();
 
             try { Changed?.Invoke(size); }
             catch (Exception e) { Core.Log.Warning($"Size change handler threw: {e.Message}"); }
@@ -259,7 +378,47 @@ namespace CustomAvatars.Avatars
             ApplyBody(sizeChanged: false);
         }
 
-        private void Release(string why)
+        // ---- the body's comings and goings ------------------------------------------------
+
+        private const float SpawnSettleSeconds = 1.0f;
+        private IntPtr _seenBodyPtr, _sizedBodyPtr, _waitLoggedFor;
+        private float _bodySeenAt;
+
+        private static Transform LocalBody()
+        {
+            try
+            {
+                var player = AvatarPlayer.LocalAvatar;
+                if (!Interop.Alive(player)) return null;
+                var full = player.FullBody;
+                return Interop.Alive(full) ? full.transform : null;
+            }
+            catch { return null; }
+        }
+
+        /// <summary>Remember when the current body object first appeared.</summary>
+        private void TrackBody(Transform body)
+        {
+            if (!Interop.Alive(body)) { _seenBodyPtr = IntPtr.Zero; return; }
+            if (body.Pointer == _seenBodyPtr) return;
+            _seenBodyPtr = body.Pointer;
+            _bodySeenAt = Time.unscaledTime;
+        }
+
+        private bool BodySettled(Transform body) =>
+            Interop.Alive(body) && Time.unscaledTime - _bodySeenAt >= SpawnSettleSeconds;
+
+        private void NoteWaiting(float wanted, Transform body)
+        {
+            var key = Interop.Alive(body) ? body.Pointer : IntPtr.Zero;
+            if (key == _waitLoggedFor) return;
+            _waitLoggedFor = key;
+            Core.Log.Msg(key == IntPtr.Zero
+                ? $"Size: x{wanted:0.00} waits until you have spawned — the game sets your height up at vanilla size first."
+                : $"Size: x{wanted:0.00} applies in {SpawnSettleSeconds:0.#} s, once the new body has settled.");
+        }
+
+        private void Release(string why, bool announce = true)
         {
             try { if (Interop.Alive(_rig)) SetRigScale(_rigRest); } catch { }
             try { if (Interop.Alive(_body)) _body.localScale = _bodyRest; } catch { }
@@ -282,6 +441,10 @@ namespace CustomAvatars.Avatars
             _engaged = false;
 
             Core.Log.Msg($"Size: x1.00 — `{path}` and your body are back at the scale the game had them ({why}).");
+            LogChain("just released");
+            ScheduleChainLogs();
+            _sizedBodyPtr = IntPtr.Zero;
+            if (!announce) return;
             try { Changed?.Invoke(1f); }
             catch (Exception e) { Core.Log.Warning($"Size change handler threw: {e.Message}"); }
         }
@@ -379,21 +542,13 @@ namespace CustomAvatars.Avatars
             catch { body = null; }
 
             // No body is nothing to do. This exact case was what the old drift check counted
-            // as "the game reset the scale", 751 times.
-            if (!Interop.Alive(body)) { _body = null; return; }
-
-            var fresh = !Interop.Alive(_body) || _body.Pointer != body.Pointer;
-            if (fresh)
-            {
-                _body = body;
-                _bodyRest = SaneRest(body.localScale);
-                Core.Log.Msg($"Size: body `{Interop.ScenePath(body)}` at rest scale {Interop.Vec(_bodyRest)}" +
-                             (Mathf.Abs(_applied - 1f) > 0.0005f ? $", sizing it x{_applied:0.00}" : ""));
-            }
+            // as "the game reset the scale", 751 times. (Tick releases before a body can
+            // change under us, so the one here is the one Engage measured.)
+            if (!Interop.Alive(body) || body.Pointer != _sizedBodyPtr) return;
 
             var want = _bodyRest * _applied;
             if ((body.localScale - want).sqrMagnitude <= 1e-6f) return;
-            if (!fresh && !sizeChanged)
+            if (!sizeChanged)
             {
                 Trip("body", body.localScale);
                 if (!_engaged) return;

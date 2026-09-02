@@ -148,14 +148,22 @@ namespace CustomAvatars.Avatars
             var manifest = _library.Get(_selfWanted);
             if (manifest == null) { _selfWanted = null; return; }
 
+            // A swap that failed (bundle not loadable, body not built) is retried once a
+            // second, not once a frame: the failure logs an error each time, and 162 of them
+            // in two seconds buried the line that explained it.
+            if (UnityEngine.Time.unscaledTime < _nextHealAt) return;
+
             var wasActive = _self.IsActive;
             if (wasActive) Core.Log.Msg($"Re-applying `{_selfWanted}` — the player object was replaced.");
             _self.Revert("player object replaced");
             _self.Apply(local, manifest, isSelf: true);
+            if (!_self.IsActive) { _nextHealAt = UnityEngine.Time.unscaledTime + 1f; return; }
             // Peers only hear about the avatar when we tell them, and coming back from a scene
             // change is exactly when a friend who joined meanwhile has heard nothing.
             SelfAvatarChanged?.Invoke();
         }
+
+        private float _nextHealAt;
 
         /// <summary>
         /// F4 twice, as one step: take the avatar off and put it straight back on.

@@ -124,6 +124,28 @@ namespace CustomAvatars.Fbt
         }
 
         /// <summary>
+        /// The headset's height above the tracking floor, in real metres, straight from
+        /// OpenVR — no Unity transform anywhere in the chain, so nothing the game or the mod
+        /// does to the rig can change it. The reference the size diagnostics compare against.
+        /// </summary>
+        public bool TryHmdHeight(out float metres)
+        {
+            metres = 0f;
+            var sys = System;
+            if (sys == null) return false;
+            try
+            {
+                _poses ??= new Il2CppStructArray<TrackedDevicePose_t>((int)OpenVR.k_unMaxTrackedDeviceCount);
+                sys.GetDeviceToAbsoluteTrackingPose(Universe(), 0f, _poses);
+                var hmd = ReadDevice(sys, null, OpenVR.k_unTrackedDeviceIndex_Hmd);
+                if (!hmd.PoseValid) return false;
+                metres = hmd.LocalPos.y;
+                return true;
+            }
+            catch { return false; }
+        }
+
+        /// <summary>
         /// Refresh <see cref="Trackers"/>. Returns false when OpenVR or the rig isn't up —
         /// callers treat that the same as zero trackers.
         /// </summary>
