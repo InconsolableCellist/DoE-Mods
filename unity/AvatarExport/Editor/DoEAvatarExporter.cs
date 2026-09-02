@@ -179,6 +179,11 @@ namespace DoEMod.Export
     {
         const string ExportDirName = "DoEExport";
         const string TempAssetDir = "Assets/DoEExport_Temp";
+
+        // Meshes the armature linker had to copy to rewrite their bindposes. They start life
+        // in memory only; a bundle build saves them into the temp folder so the prefab can
+        // reference them, and Cleanup destroys whichever are still loose.
+        static readonly List<Mesh> GeneratedMeshes = new List<Mesh>();
         static readonly string[] Visemes =
             { "sil","pp","ff","th","dd","kk","ch","ss","nn","rr","aa","e","ih","oh","ou" };
 
@@ -306,7 +311,7 @@ namespace DoEMod.Export
             // garment's have been merged into them.
             int linksApplied = 0;
             if (ApplyArmatureLinks)
-                linksApplied = ArmatureLinker.Apply(clone, StripInactive, report);
+                linksApplied = ArmatureLinker.Apply(clone, StripInactive, report, GeneratedMeshes);
 
             // --- 1b. Capture PhysBone dynamics BEFORE stripping --------------------
             // The strip pass destroys VRCPhysBone/VRCPhysBoneCollider, which is correct — they
@@ -775,6 +780,12 @@ namespace DoEMod.Export
             // --- 4. Temp prefab + bundle build ------------------------------------
             if (!AssetDatabase.IsValidFolder(TempAssetDir))
                 AssetDatabase.CreateFolder("Assets", "DoEExport_Temp");
+            // A copied mesh the prefab points at has to be an asset before the prefab is saved,
+            // or the reference is dropped on the floor and the garment ships with no mesh.
+            for (int i = 0; i < GeneratedMeshes.Count; i++)
+                if (GeneratedMeshes[i] != null && !AssetDatabase.Contains(GeneratedMeshes[i]))
+                    AssetDatabase.CreateAsset(GeneratedMeshes[i],
+                        $"{TempAssetDir}/{Sanitize(GeneratedMeshes[i].name)}_{i}.asset");
             string prefabPath = $"{TempAssetDir}/{avatarName}.prefab";
             PrefabUtility.SaveAsPrefabAsset(clone, prefabPath, out bool ok);
             if (!ok) throw new Exception("Failed to save temp prefab.");
@@ -1156,6 +1167,10 @@ namespace DoEMod.Export
 
         static void Cleanup()
         {
+            foreach (var mesh in GeneratedMeshes)
+                if (mesh != null && !AssetDatabase.Contains(mesh))
+                    UnityEngine.Object.DestroyImmediate(mesh);
+            GeneratedMeshes.Clear();
             if (AssetDatabase.IsValidFolder(TempAssetDir))
                 AssetDatabase.DeleteAsset(TempAssetDir);
             AssetDatabase.RemoveUnusedAssetBundleNames();

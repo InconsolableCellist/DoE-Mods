@@ -11,19 +11,31 @@
 // is pure hierarchy and skinning, and it can be applied by reading the rule and doing what it
 // says.
 //
-// What it does per rule: align the prop armature root onto its target, walk both trees matching
-// bones by name (minus the author's suffix), repoint every SkinnedMeshRenderer bone reference
-// from the prop bone to the avatar bone, carry non-matching children (skirt bones, jiggle
-// chains) across, and delete the emptied prop bones.
+// What it does per rule: walk both trees from the prop root matching bones by name (minus the
+// author's suffix), snap each matched garment bone onto its avatar bone the way VRCFury does,
+// repoint every SkinnedMeshRenderer bone reference from the garment bone to the avatar bone,
+// carry non-matching children (skirt bones, jiggle chains) across, and delete the emptied
+// garment bones.
+//
+// The one thing a plain repoint gets wrong is scale. A garment rig is very often authored at a
+// different unit scale from the avatar's — the Blender-export shape, armature at 100 with bone
+// offsets a hundredth of the size, against an avatar at 1 — and a mesh's bindposes are baked
+// against its own bones' world scale. Hand that mesh a bone at scale 1 and it renders at a
+// hundredth of its size, huddled at the joint. VRCFury answers this with a scaling factor: the
+// ratio of the two roots' scales, snapped to a power of ten, kept on the merged bones. We keep
+// the same factor on the snapped bones, then fold whatever still separates the garment bone
+// from the avatar bone into the mesh's bindposes, so the rewrite is exact: the mesh looks in
+// game exactly as it would skinned to the snapped garment rig. That also makes "keep offsets"
+// links exact instead of approximate.
 //
 // Runs BEFORE the dynamics capture, deliberately. Dynamics are recorded as paths relative to
 // the avatar root, so a skirt bone captured pre-link is stored at a path that no longer exists
 // post-link. Linking first means the captured paths are the shipped ones.
 //
 // VRCFury is read reflectively — it has reshaped ArmatureLink's serialised fields more than
-// once (`linkTo` was a path string before it was a list; `linkMode` and `removeBoneSuffix` came
-// and went). Probing field names and falling back survives that and needs no compile-time
-// dependency, the same trade FaceOverrideGenerator makes for controllers.
+// once (`linkTo` was a path string before it was a list; `keepBoneOffsets` became a tri-state
+// and then three `align*` booleans). Probing field names and falling back survives that and
+// needs no compile-time dependency, the same trade FaceOverrideGenerator makes for controllers.
 
 #if UNITY_EDITOR
 using System;
@@ -38,11 +50,14 @@ namespace DoEMod.Export
     public static class ArmatureLinker
     {
         // A matched pair whose world transforms disagree by more than this will deform: the mesh
-        // was bound against the prop bone's pose, and we are handing it the avatar's. Roughly a
-        // millimetre, and a degree — below authoring noise, above nothing.
+        // was bound against the prop bone's pose, and we are snapping it to the avatar's. Roughly
+        // a millimetre, a degree, and half a percent — below authoring noise, above nothing.
         const float PositionTolerance = 0.001f;
         const float AngleTolerance = 1.0f;
         const float ScaleTolerance = 0.005f;
+
+        // Below this, a bindpose correction is floating-point noise and the mesh is left alone.
+        const float MatrixTolerance = 1e-4f;
 
         const BindingFlags F = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
 
@@ -67,7 +82,11 @@ namespace DoEMod.Export
             public Transform Prop;           // garment armature root
             public Transform Target;         // avatar bone it links onto
             public string Suffix = "";
-            public bool KeepOffsets;
+            public bool AlignPosition = true;
+            public bool AlignRotation = true;
+            public bool AlignScale = true;
+            public float ScaleFactor = 1f;   // garment world scale / avatar world scale, kept on snapped bones
+            public string ScaleNote = "";
             public bool RecursiveMatch = true;
             public string LinkMode = "";
             public string TargetNote = "";   // how Target was resolved, for the report
@@ -76,8 +95,11 @@ namespace DoEMod.Export
         /// <summary>
         /// Applies every VRCFury Armature Link on the clone. Returns the number of rules applied;
         /// everything interesting, including refusals, goes into <paramref name="report"/>.
+        /// Meshes whose bindposes had to be rewritten are fresh in-memory copies, appended to
+        /// <paramref name="generatedMeshes"/>: the caller must save them as assets before the
+        /// prefab is, or destroy them.
         /// </summary>
-        public static int Apply(GameObject clone, bool skipInactive, StringBuilder report)
+        public static int Apply(GameObject clone, bool skipInactive, StringBuilder report, List<Mesh> generatedMeshes)
         {
             var animator = clone.GetComponent<Animator>();
             var rules = Collect(clone, animator, skipInactive, report);
@@ -85,7 +107,7 @@ namespace DoEMod.Export
 
             int applied = 0;
             foreach (var rule in rules)
-                if (ApplyRule(clone, rule, report))
+                if (ApplyRule(clone, rule, report, generatedMeshes))
                     applied++;
 
             report.AppendLine($"Armature links: applied {applied} of {rules.Count} rule(s).");
@@ -148,10 +170,7 @@ namespace DoEMod.Export
         /// </summary>
         static IEnumerable<object> Features(Component component)
         {
-            var typeName = component.GetType().Name;
-            if (typeName.IndexOf("VRCFury", StringComparison.OrdinalIgnoreCase) < 0 &&
-                typeName.IndexOf("ArmatureLink", StringComparison.OrdinalIgnoreCase) < 0)
-                yield break;
+            if (!IsVrcFury(component)) yield break;
 
             yield return component;
 
@@ -162,6 +181,13 @@ namespace DoEMod.Export
             if (GetMember(config, "features") is System.Collections.IEnumerable features)
                 foreach (var f in features)
                     if (f != null) yield return f;
+        }
+
+        static bool IsVrcFury(Component component)
+        {
+            var typeName = component.GetType().Name;
+            return typeName.IndexOf("VRCFury", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   typeName.IndexOf("ArmatureLink", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         static Rule Build(Component owner, object feature, GameObject clone, Animator animator, StringBuilder report)
@@ -180,8 +206,8 @@ namespace DoEMod.Export
                 Prop = prop,
                 RecursiveMatch = GetMember(feature, "recursiveMatch") as bool? ?? true,
                 LinkMode = GetMember(feature, "linkMode")?.ToString() ?? "",
-                KeepOffsets = ReadKeepOffsets(feature),
             };
+            ReadAlignment(feature, rule);
 
             rule.Target = ResolveTarget(feature, clone, animator, out var note);
             rule.TargetNote = note;
@@ -193,6 +219,7 @@ namespace DoEMod.Export
             }
 
             rule.Suffix = ReadSuffix(feature, rule.Prop, rule.Target);
+            rule.ScaleFactor = ReadScaleFactor(feature, rule.Prop, rule.Target, out rule.ScaleNote);
             return rule;
         }
 
@@ -288,23 +315,80 @@ namespace DoEMod.Export
         }
 
         /// <summary>
-        /// Whether to preserve the garment armature's own placement. VRCFury spells this as a
-        /// tri-state (Auto/Yes/No) whose Auto means "no" for the linking modes we support, and
-        /// as a plain bool in older builds.
+        /// Whether each matched garment bone is snapped onto its avatar bone, or keeps its own
+        /// placement. Current VRCFury has one switch per component (position / rotation /
+        /// scale). Before that it was a tri-state `keepBoneOffsets2` whose Auto means "snap"
+        /// for the merging modes we support, and before that a plain bool.
         /// </summary>
-        static bool ReadKeepOffsets(object feature)
+        static void ReadAlignment(object feature, Rule rule)
         {
-            var v = GetMember(feature, "keepBoneOffsets");
-            if (v == null) return false;
-            if (v is bool b) return b;
-            var name = v.ToString();
-            return name.Equals("Yes", StringComparison.OrdinalIgnoreCase) ||
-                   name.Equals("True", StringComparison.OrdinalIgnoreCase);
+            var pos = GetMember(feature, "alignPosition") as bool?;
+            var rot = GetMember(feature, "alignRotation") as bool?;
+            var scl = GetMember(feature, "alignScale") as bool?;
+            if (pos.HasValue || rot.HasValue || scl.HasValue)
+            {
+                rule.AlignPosition = pos ?? true;
+                rule.AlignRotation = rot ?? true;
+                rule.AlignScale = scl ?? true;
+                return;
+            }
+
+            var v = GetMember(feature, "keepBoneOffsets2") ?? GetMember(feature, "keepBoneOffsets");
+            bool keep;
+            if (v == null) keep = false;
+            else if (v is bool b) keep = b;
+            else
+            {
+                var name = v.ToString();
+                keep = name.Equals("Yes", StringComparison.OrdinalIgnoreCase) ||
+                       name.Equals("True", StringComparison.OrdinalIgnoreCase);
+            }
+            rule.AlignPosition = rule.AlignRotation = rule.AlignScale = !keep;
+        }
+
+        /// <summary>
+        /// The world-scale ratio between the garment rig and the avatar's, which the snapped
+        /// bones keep so the mesh's bindposes still mean what they meant. VRCFury takes the
+        /// ratio of the two roots' scales and snaps it to a power of ten — the difference
+        /// between "this rig is in centimetres" and "this rig is 2% too big", where the second
+        /// is authoring noise that snapping corrects.
+        ///
+        /// The link's own `skinRewriteScalingFactor` is a multiplier on top of that, not a
+        /// replacement: current VRCFury stores 1 by default, and a rig at 100 with the field
+        /// at 1 links correctly in VRChat, so 1 cannot mean "shrink a hundredfold". Older
+        /// builds stored 0 for automatic. A value that merely restates the unit ratio is an
+        /// author who typed the ratio in by hand, and is not applied twice.
+        /// </summary>
+        static float ReadScaleFactor(object feature, Transform prop, Transform target, out string note)
+        {
+            note = "";
+            float propScale = Mathf.Abs(prop.lossyScale.x), avatarScale = Mathf.Abs(target.lossyScale.x);
+            if (propScale < 1e-6f || avatarScale < 1e-6f) return 1f;
+
+            float ratio = propScale / avatarScale;
+            float factor = ratio;
+            if (GetMember(feature, "scalingFactorPowersOf10Only") as bool? ?? true)
+                factor = Mathf.Pow(10f, Mathf.Round(Mathf.Log10(ratio)));
+
+            if (Mathf.Abs(factor - 1f) > ScaleTolerance)
+                note = $"garment rig is at world scale {propScale:0.###} against the avatar's {avatarScale:0.###}: " +
+                       $"keeping a x{factor:0.###} factor on the merged bones and folding it into the bindposes";
+
+            var explicitFactor = GetMember(feature, "skinRewriteScalingFactor") as float? ?? 0f;
+            if (explicitFactor > 0f && !RelativeDiffers(explicitFactor, 1f)) return factor;
+            if (explicitFactor > 0f && !RelativeDiffers(explicitFactor, factor)) return factor;
+            if (explicitFactor > 0f)
+            {
+                factor *= explicitFactor;
+                note += (note.Length > 0 ? "; " : "") +
+                        $"the link's own scaling factor x{explicitFactor:0.###} on top, x{factor:0.###} in all";
+            }
+            return factor;
         }
 
         // --- Applying one rule ---------------------------------------------------
 
-        static bool ApplyRule(GameObject clone, Rule rule, StringBuilder report)
+        static bool ApplyRule(GameObject clone, Rule rule, StringBuilder report, List<Mesh> generatedMeshes)
         {
             var propPath = Path(clone.transform, rule.Prop);
             var targetPath = Path(clone.transform, rule.Target);
@@ -326,27 +410,29 @@ namespace DoEMod.Export
                 return false;
             }
 
-            // Align first: the rewrite below hands the mesh the avatar's bone in place of the one
-            // its bindposes were baked against, so the two have to be in the same place.
-            if (!rule.KeepOffsets)
-            {
-                rule.Prop.position = rule.Target.position;
-                rule.Prop.rotation = rule.Target.rotation;
-                rule.Prop.localScale = MatchLossyScale(rule.Prop, rule.Target);
-            }
+            if (rule.ScaleNote.Length > 0) report.AppendLine($"      {rule.ScaleNote}");
+            if (!rule.AlignPosition || !rule.AlignRotation || !rule.AlignScale)
+                report.AppendLine("      keeping the garment's own bone offsets" +
+                                  $" (position {(rule.AlignPosition ? "snapped" : "kept")}, " +
+                                  $"rotation {(rule.AlignRotation ? "snapped" : "kept")}, " +
+                                  $"scale {(rule.AlignScale ? "snapped" : "kept")}).");
 
             var map = new Dictionary<Transform, Transform>();
             var moves = new List<KeyValuePair<Transform, Transform>>();   // unmatched child -> its prop parent
             var mismatches = new List<string>();
 
-            Match(rule, rule.Prop, rule.Target, map, moves, mismatches, clone);
+            // Matching also snaps each garment bone onto its avatar bone, top-down, so by the
+            // time the skins are rewritten the two rigs coincide (up to the scale factor) and
+            // every unmatched child is already sitting where it belongs relative to the avatar.
+            Match(rule, rule.Prop, rule.Target, map, moves, mismatches);
 
             // A merged bone carrying anything else — a PhysBone, a light, a mesh — is not ours to
             // delete; it survives, reparented onto the avatar bone. Decide that before moving
             // anything, because it changes where the unmatched children belong: a PhysBone on the
             // garment's chest wants its breast bones still under it, not hoisted to the avatar's.
-            var kept = new HashSet<Transform>(
-                map.Keys.Where(t => t.GetComponents<Component>().Length > 1));
+            // VRCFury's own components don't count: they are stripped a few steps later, and the
+            // link's owner is usually the prop root itself.
+            var kept = new HashSet<Transform>(map.Keys.Where(CarriesSomething));
 
             foreach (var move in moves)
             {
@@ -355,25 +441,11 @@ namespace DoEMod.Export
                 if (move.Key.parent != newParent) move.Key.SetParent(newParent, worldPositionStays: true);
             }
 
-            int rewrittenBones = 0, rewrittenRoots = 0;
+            int rewrittenBones = 0, rewrittenRoots = 0, reboundMeshes = 0;
             foreach (var smr in clone.GetComponentsInChildren<SkinnedMeshRenderer>(true))
             {
-                var bones = smr.bones;
-                if (bones != null)
-                {
-                    var changed = false;
-                    for (int i = 0; i < bones.Length; i++)
-                        if (bones[i] != null && map.TryGetValue(bones[i], out var replacement))
-                        {
-                            bones[i] = replacement; changed = true; rewrittenBones++;
-                        }
-                    if (changed) smr.bones = bones;
-                }
-
-                if (smr.rootBone != null && map.TryGetValue(smr.rootBone, out var newRoot))
-                {
-                    smr.rootBone = newRoot; rewrittenRoots++;
-                }
+                if (RewriteSkin(smr, map, generatedMeshes, ref rewrittenBones, ref rewrittenRoots))
+                    reboundMeshes++;
             }
 
             // Deepest-first, so a kept bone is lifted onto the avatar before the parent it was
@@ -393,8 +465,9 @@ namespace DoEMod.Export
             }
 
             report.AppendLine($"      merged {map.Count} bone(s), moved {moves.Count} unmatched child(ren), " +
-                              $"rewrote {rewrittenBones} skin reference(s) and {rewrittenRoots} root bone(s), " +
-                              $"deleted {removed} emptied bone(s)" +
+                              $"rewrote {rewrittenBones} skin reference(s) and {rewrittenRoots} root bone(s)" +
+                              (reboundMeshes > 0 ? $", re-bound {reboundMeshes} mesh(es)" : "") +
+                              $", deleted {removed} emptied bone(s)" +
                               (kept.Count > 0 ? $", kept {kept.Count} carrying components or children" : "") + ".");
 
             if (mismatches.Count > 0)
@@ -409,23 +482,101 @@ namespace DoEMod.Export
             return true;
         }
 
+        static bool CarriesSomething(Transform t) =>
+            t.GetComponents<Component>().Any(c => c != null && !(c is Transform) && !IsVrcFury(c));
+
         static void Match(Rule rule, Transform prop, Transform target,
                           Dictionary<Transform, Transform> map,
                           List<KeyValuePair<Transform, Transform>> moves,
-                          List<string> mismatches, GameObject clone)
+                          List<string> mismatches)
         {
             map[prop] = target;
 
-            if (Differs(prop, target))
-                mismatches.Add($"`{prop.name}` -> `{target.name}`: {Delta(prop, target)}");
+            var expectedScale = target.lossyScale * rule.ScaleFactor;
+            var delta = Delta(rule, prop, target, expectedScale);
+            if (delta != null) mismatches.Add($"`{prop.name}` -> `{target.name}`: {delta}");
+
+            Snap(rule, prop, target, expectedScale);
 
             foreach (var child in prop.Cast<Transform>().ToList())
             {
                 var wanted = StripSuffix(child.name, rule.Suffix);
                 var match = rule.RecursiveMatch ? FindChild(target, wanted) : null;
-                if (match != null) Match(rule, child, match, map, moves, mismatches, clone);
+                if (match != null) Match(rule, child, match, map, moves, mismatches);
                 else moves.Add(new KeyValuePair<Transform, Transform>(child, prop));
             }
+        }
+
+        /// <summary>
+        /// Puts the garment bone where the avatar bone is, on whichever components the rule
+        /// aligns. Scale is matched to the avatar's times the rig's unit factor, never to the
+        /// avatar's alone: the mesh's bindposes assume the garment's own scale, and collapsing
+        /// it collapses every child offset with it.
+        /// </summary>
+        static void Snap(Rule rule, Transform prop, Transform target, Vector3 expectedScale)
+        {
+            if (rule.AlignPosition) prop.position = target.position;
+            if (rule.AlignRotation) prop.rotation = target.rotation;
+            if (rule.AlignScale) prop.localScale = MatchLossyScale(prop, expectedScale);
+        }
+
+        /// <summary>
+        /// Repoints one renderer's bones from garment to avatar. Where the garment bone and
+        /// the avatar bone it hands over to don't coincide — the unit-scale factor, or offsets
+        /// the rule keeps — the difference is folded into the bindposes, on a copy of the mesh,
+        /// so the skinned result is what the garment rig would have rendered. Returns whether a
+        /// mesh copy was made.
+        /// </summary>
+        static bool RewriteSkin(SkinnedMeshRenderer smr, Dictionary<Transform, Transform> map,
+                                List<Mesh> generatedMeshes, ref int rewrittenBones, ref int rewrittenRoots)
+        {
+            var bones = smr.bones;
+            var corrections = new Dictionary<int, Matrix4x4>();
+            var changed = false;
+
+            if (bones != null)
+            {
+                for (int i = 0; i < bones.Length; i++)
+                {
+                    if (bones[i] == null || !map.TryGetValue(bones[i], out var replacement)) continue;
+                    var correction = replacement.worldToLocalMatrix * bones[i].localToWorldMatrix;
+                    if (!IsIdentity(correction)) corrections[i] = correction;
+                    bones[i] = replacement; changed = true; rewrittenBones++;
+                }
+            }
+
+            var rebound = false;
+            if (corrections.Count > 0 && smr.sharedMesh != null)
+            {
+                // One copy per renderer, made the first time a rule touches it; a later rule
+                // (the other arm of a pair) edits that same copy rather than copying the copy.
+                var mesh = smr.sharedMesh;
+                if (!generatedMeshes.Contains(mesh))
+                {
+                    mesh = UnityEngine.Object.Instantiate(smr.sharedMesh);
+                    mesh.name = smr.sharedMesh.name + " (linked)";
+                    smr.sharedMesh = mesh;
+                    generatedMeshes.Add(mesh);
+                }
+                var bindposes = mesh.bindposes;
+                foreach (var kv in corrections)
+                    if (kv.Key < bindposes.Length) bindposes[kv.Key] = kv.Value * bindposes[kv.Key];
+                mesh.bindposes = bindposes;
+                rebound = true;
+            }
+
+            if (changed) smr.bones = bones;
+
+            if (smr.rootBone != null && map.TryGetValue(smr.rootBone, out var newRoot))
+            {
+                // localBounds live in the root bone's space; carry them across the same way, or
+                // a rig at scale 100 ships a bounding box a hundredth of the mesh and gets culled.
+                var correction = newRoot.worldToLocalMatrix * smr.rootBone.localToWorldMatrix;
+                if (!IsIdentity(correction)) smr.localBounds = TransformBounds(smr.localBounds, correction);
+                smr.rootBone = newRoot; rewrittenRoots++;
+            }
+
+            return rebound;
         }
 
         static Transform FindChild(Transform parent, string name)
@@ -447,26 +598,64 @@ namespace DoEMod.Export
 
         // --- Small helpers -------------------------------------------------------
 
-        static bool Differs(Transform a, Transform b) =>
-            Vector3.Distance(a.position, b.position) > PositionTolerance ||
-            Quaternion.Angle(a.rotation, b.rotation) > AngleTolerance ||
-            (a.lossyScale - b.lossyScale).magnitude > ScaleTolerance;
+        /// <summary>
+        /// How far the garment bone is from where the snap will put it, or null when it is
+        /// close enough. Only the components the rule snaps count: an offset the rule keeps is
+        /// folded into the bindposes exactly and deforms nothing.
+        /// </summary>
+        static string Delta(Rule rule, Transform prop, Transform target, Vector3 expectedScale)
+        {
+            float distance = Vector3.Distance(prop.position, target.position);
+            float angle = Quaternion.Angle(prop.rotation, target.rotation);
+            var scale = prop.lossyScale;
+            bool scaleOff = RelativeDiffers(scale.x, expectedScale.x) ||
+                            RelativeDiffers(scale.y, expectedScale.y) ||
+                            RelativeDiffers(scale.z, expectedScale.z);
 
-        static string Delta(Transform a, Transform b) =>
-            $"{Vector3.Distance(a.position, b.position) * 100f:0.##} cm, " +
-            $"{Quaternion.Angle(a.rotation, b.rotation):0.#}°, " +
-            $"scale {a.lossyScale.x:0.###} vs {b.lossyScale.x:0.###}";
+            bool differs = (rule.AlignPosition && distance > PositionTolerance) ||
+                           (rule.AlignRotation && angle > AngleTolerance) ||
+                           (rule.AlignScale && scaleOff);
+            if (!differs) return null;
 
-        /// <summary>The local scale that gives <paramref name="t"/> the same world scale as the target.</summary>
-        static Vector3 MatchLossyScale(Transform t, Transform target)
+            return $"{distance * 100f:0.##} cm, {angle:0.#}°, scale {scale.x:0.###} vs {expectedScale.x:0.###}";
+        }
+
+        static bool RelativeDiffers(float a, float expected) =>
+            Mathf.Abs(expected) < 1e-6f ? Mathf.Abs(a) > ScaleTolerance
+                                        : Mathf.Abs(a / expected - 1f) > ScaleTolerance;
+
+        static bool IsIdentity(Matrix4x4 m)
+        {
+            for (int r = 0; r < 4; r++)
+                for (int c = 0; c < 4; c++)
+                    if (Mathf.Abs(m[r, c] - (r == c ? 1f : 0f)) > MatrixTolerance) return false;
+            return true;
+        }
+
+        static Bounds TransformBounds(Bounds b, Matrix4x4 m)
+        {
+            var min = b.min; var max = b.max;
+            var result = new Bounds(m.MultiplyPoint3x4(min), Vector3.zero);
+            for (int i = 1; i < 8; i++)
+            {
+                var corner = new Vector3((i & 1) != 0 ? max.x : min.x,
+                                         (i & 2) != 0 ? max.y : min.y,
+                                         (i & 4) != 0 ? max.z : min.z);
+                result.Encapsulate(m.MultiplyPoint3x4(corner));
+            }
+            return result;
+        }
+
+        /// <summary>The local scale that gives <paramref name="t"/> the world scale <paramref name="wanted"/>.</summary>
+        static Vector3 MatchLossyScale(Transform t, Vector3 wanted)
         {
             var parent = t.parent;
-            if (parent == null) return target.lossyScale;
+            if (parent == null) return wanted;
             var p = parent.lossyScale;
             return new Vector3(
-                Mathf.Approximately(p.x, 0f) ? t.localScale.x : target.lossyScale.x / p.x,
-                Mathf.Approximately(p.y, 0f) ? t.localScale.y : target.lossyScale.y / p.y,
-                Mathf.Approximately(p.z, 0f) ? t.localScale.z : target.lossyScale.z / p.z);
+                Mathf.Approximately(p.x, 0f) ? t.localScale.x : wanted.x / p.x,
+                Mathf.Approximately(p.y, 0f) ? t.localScale.y : wanted.y / p.y,
+                Mathf.Approximately(p.z, 0f) ? t.localScale.z : wanted.z / p.z);
         }
 
         static int Depth(Transform t)

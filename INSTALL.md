@@ -241,6 +241,11 @@ The garment is skinned to its own armature and the VRCFury Armature Link that jo
 avatar wasn't applied. The exporter bakes those links now, so a re-export fixes it — the export
 report lists each link it applied, and names any it refused.
 
+**Clothing is tiny, bunched up at a joint (an elbow, the hips)**
+The garment's armature is at a different scale from the avatar's — a rig exported at 100 onto
+an avatar at 1 is common — and an older exporter collapsed it. Re-export; the report now says
+`keeping a x100 factor on the merged bones` under that link.
+
 ---
 
 ## What this mod does and doesn't touch
