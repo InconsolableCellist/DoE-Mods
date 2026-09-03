@@ -11,22 +11,23 @@ using Interop = LootOverhaul.Recon.Interop;
 namespace LootOverhaul.Loot
 {
     /// <summary>
-    /// Milestone L3: the Loot Broker, a stall in the lobby. Left panel sells bag items for
-    /// mod gold at the game's salvage value; right panel is the loadout screen for modded
-    /// play — three slots, each filled from the vanilla armory or the bag, or cleared back to
-    /// vanilla. Placed from config (press = in the lobby to move it to where you stand),
-    /// built once, kept across scene loads, shown only in the lobby with the gate open.
+    /// Milestone L3: the Loot Broker, a stall in the lobby that buys bag items for mod gold
+    /// at the game's salvage value. Equipping moved into the game's own fabricator (see
+    /// <see cref="FabricatorBridge"/>), so the booth is a sell counter and, later, a shop.
+    /// Placed from config (press = in the lobby to move it to where you stand), built once,
+    /// kept across scene loads, shown only in the lobby with the gate open.
     /// </summary>
     public static class Booth
     {
         private const int RowsPerPage = 6;
-        private const float RowHeight = 0.11f;
-        private const float PanelWidth = 1.0f;
+        private const float RowHeight = 0.12f;
+        private const float PanelWidth = 1.25f;
+        private const float BtnScale = 0.34f;
+        private static float BtnW => UiKit.ButtonSize.x * BtnScale;
 
         private static GameObject _root;
-        private static Transform _sell, _gear;
-        private static int _sellPage, _gearPage;
-        private static int _choosing = -1;   // slot being picked for, or -1 for the slot overview
+        private static Transform _sell;
+        private static int _sellPage;
 
         public static bool IsShown => Interop.Alive(_root) && _root.activeSelf;
 
@@ -78,14 +79,10 @@ namespace LootOverhaul.Loot
             _root = new GameObject("LootOverhaul_Booth");
             UnityEngine.Object.DontDestroyOnLoad(_root);
             var sell = new GameObject("Sell"); sell.transform.SetParent(_root.transform, false);
-            var gear = new GameObject("Gear"); gear.transform.SetParent(_root.transform, false);
-            _sell = sell.transform; _gear = gear.transform;
-            // Two panels side by side at counter height, angled slightly toward the visitor.
-            _sell.localPosition = new Vector3(-0.56f, 1.25f, 0f);
-            _sell.localRotation = Quaternion.Euler(0f, -12f, 0f);
-            _gear.localPosition = new Vector3(0.56f, 1.25f, 0f);
-            _gear.localRotation = Quaternion.Euler(0f, 12f, 0f);
-            UiKit.Text(_root.transform, new Vector3(-0.5f, 2.05f, 0f), 1.0f, 0.12f, 3.0f, "<b>LOOT BROKER</b>", TextAlignmentOptions.Center);
+            _sell = sell.transform;
+            _sell.localPosition = new Vector3(0f, 1.3f, 0f);
+            UiKit.Text(_root.transform, new Vector3(0f, 2.0f, 0f), 1.2f, 0.15f, 0.9f, "<b>LOOT BROKER</b>", TextAlignmentOptions.Center);
+            UiKit.Text(_root.transform, new Vector3(0f, 1.9f, 0f), 1.2f, 0.06f, 0.3f, "buys anything you dug up   ·   equip loot at any fabricator", TextAlignmentOptions.Center);
         }
 
         private static void PlaceFromConfig()
@@ -95,11 +92,7 @@ namespace LootOverhaul.Loot
             _root.transform.rotation = Quaternion.Euler(0f, ModConfig.BoothYaw.Value + 180f, 0f);
         }
 
-        private static void Rebuild()
-        {
-            BuildSell();
-            BuildGear();
-        }
+        private static void Rebuild() => BuildSell();
 
         // ---- sell counter -------------------------------------------------------------------
 
@@ -113,40 +106,43 @@ namespace LootOverhaul.Loot
             var pages = Math.Max(1, (items.Count + RowsPerPage - 1) / RowsPerPage);
             _sellPage = Math.Max(0, Math.Min(_sellPage, pages - 1));
 
-            var height = 0.32f + RowsPerPage * RowHeight;
+            var height = 0.36f + RowsPerPage * RowHeight;
             UiKit.Backdrop(_sell, new Vector3(0f, 0f, 0.01f), PanelWidth, height, new Color(0.08f, 0.06f, 0.04f, 1f));
             var top = height * 0.5f;
-            UiKit.Text(_sell, new Vector3(-PanelWidth * 0.5f + 0.03f, top - 0.06f, 0f), PanelWidth - 0.06f, 0.08f, 1.6f,
-                $"<b>SELL</b>   {inv.Items.Count} item(s)   you have <color=#F5C542>{inv.Gold} gold</color>");
-            UiKit.Text(_sell, new Vector3(-PanelWidth * 0.5f + 0.03f, top - 0.15f, 0f), PanelWidth - 0.06f, 0.06f, 1.0f,
-                $"<size=90%>Prices are the game's salvage value × {ModConfig.SellMultiplier.Value:0.##}. Equipped items must be unequipped first.</size>");
+            var left = -PanelWidth * 0.5f + 0.04f;
+            UiKit.Text(_sell, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f,
+                $"<b>SELL</b>   {inv.Items.Count} item(s) in your bag   you have <color=#F5C542>{inv.Gold} gold</color>");
+            UiKit.Text(_sell, new Vector3(left, top - 0.10f, 0f), PanelWidth - 0.08f, 0.05f, 0.3f,
+                $"The broker pays the game's salvage value × {ModConfig.SellMultiplier.Value:0.##}. Weapons you have equipped at a fabricator stay yours until you unequip them.");
 
-            var y0 = top - 0.28f;
+            var y0 = top - 0.22f;
             var start = _sellPage * RowsPerPage;
+            var sellX = PanelWidth * 0.5f - 0.04f - BtnW * 0.5f;
+            var textW = sellX - BtnW * 0.5f - 0.02f - (left + 0.16f);
             for (var i = 0; i < RowsPerPage && start + i < items.Count; i++)
             {
                 var item = items[start + i];
                 var row = new GameObject($"SellRow_{i}"); row.transform.SetParent(_sell, false);
                 row.transform.localPosition = new Vector3(0f, y0 - i * RowHeight, 0f);
-                UiKit.WeaponPreview(row.transform, new Vector3(-0.43f, 0f, -0.02f), item, 0.12f);
-                var equipped = item.EquippedSlot >= 0 ? $"  <color=#F5C542>[{Loadout.SlotNames[item.EquippedSlot]}]</color>" : "";
-                UiKit.Text(row.transform, new Vector3(-0.34f, 0.022f, 0f), 0.62f, 0.05f, 1.2f, $"{item.ColoredName}{equipped}");
-                UiKit.Text(row.transform, new Vector3(-0.34f, -0.026f, 0f), 0.62f, 0.045f, 0.95f,
-                    $"<size=90%>{LootTables.TypeName(item.PropType)} t{item.WeaponTier + 1}   wt {item.Weight:0.#}</size>   <color=#F5C542>{SellPrice(item)} gold</color>");
+                UiKit.WeaponPreview(row.transform, new Vector3(left + 0.07f, 0f, -0.03f), item, 0.28f);
+                var equipped = item.EquippedSlot >= 0 ? $"   <color=#F5C542>equipped: {Loadout.SlotNames[item.EquippedSlot]}</color>" : "";
+                UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), textW, 0.05f, 0.38f, $"{item.ColoredName}{equipped}");
+                UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), textW, 0.045f, 0.3f,
+                    $"<color=#9A9A9A>{LootTables.TypeName(item.PropType)}  tier {item.WeaponTier + 1}   wt {item.Weight:0.#}</color>   <color=#F5C542>{SellPrice(item)} gold</color>");
                 var captured = item;
                 if (item.EquippedSlot < 0)
-                    UiKit.Button(row.transform, new Vector3(0.40f, 0f, 0f), "SELL", () => Sell(captured), 0.5f);
+                    UiKit.Button(row.transform, new Vector3(sellX, 0f, 0f), "SELL", () => Sell(captured), BtnScale);
             }
 
             var bottom = -top + 0.06f;
-            UiKit.Text(_sell, new Vector3(-0.08f, bottom, 0f), 0.3f, 0.06f, 1.1f, $"page {_sellPage + 1} / {pages}", TextAlignmentOptions.Center);
+            UiKit.Text(_sell, new Vector3(0f, bottom, 0f), 0.3f, 0.06f, 0.35f, $"page {_sellPage + 1} / {pages}", TextAlignmentOptions.Center);
             if (pages > 1)
             {
-                UiKit.Button(_sell, new Vector3(-0.30f, bottom, 0f), "<", () => { _sellPage--; BuildSell(); }, 0.45f);
-                UiKit.Button(_sell, new Vector3(0.14f, bottom, 0f), ">", () => { _sellPage++; BuildSell(); }, 0.45f);
+                UiKit.Button(_sell, new Vector3(-0.2f - BtnW * 0.5f, bottom, 0f), "<", () => { _sellPage--; BuildSell(); }, BtnScale);
+                UiKit.Button(_sell, new Vector3(0.2f + BtnW * 0.5f, bottom, 0f), ">", () => { _sellPage++; BuildSell(); }, BtnScale);
             }
             if (items.Count == 0)
-                UiKit.Text(_sell, new Vector3(-0.3f, y0 - RowHeight, 0f), 0.6f, 0.06f, 1.2f, "Nothing to sell.", TextAlignmentOptions.Center);
+                UiKit.Text(_sell, new Vector3(0f, y0 - RowHeight, 0f), 0.8f, 0.06f, 0.4f, "Nothing to sell. Bring me something shiny.", TextAlignmentOptions.Center);
         }
 
         public static int SellPrice(LootItem item) => Math.Max(1, (int)Math.Round(item.Value * ModConfig.SellMultiplier.Value));
@@ -167,83 +163,6 @@ namespace LootOverhaul.Loot
             BagPanel.Refresh();
         }
 
-        // ---- loadout picker -----------------------------------------------------------------
 
-        private static void BuildGear()
-        {
-            if (!Interop.Alive(_gear)) return;
-            UiKit.DestroyChildren(_gear);
-            var height = 0.32f + RowsPerPage * RowHeight;
-            UiKit.Backdrop(_gear, new Vector3(0f, 0f, 0.01f), PanelWidth, height, new Color(0.04f, 0.06f, 0.09f, 1f));
-            var top = height * 0.5f;
-
-            if (_choosing < 0)
-            {
-                var inv = BagManager.Inventory;
-                UiKit.Text(_gear, new Vector3(-PanelWidth * 0.5f + 0.03f, top - 0.06f, 0f), PanelWidth - 0.06f, 0.08f, 1.6f,
-                    "<b>BATTLE LOADOUT</b>   what you carry into the dungeon");
-                UiKit.Text(_gear, new Vector3(-PanelWidth * 0.5f + 0.03f, top - 0.15f, 0f), PanelWidth - 0.06f, 0.06f, 1.0f,
-                    "<size=90%>Each slot takes a weapon from your armory or your bag. VANILLA hands the slot back to the game.</size>");
-                for (var slot = 0; slot < 3; slot++)
-                {
-                    var y = top - 0.32f - slot * 0.19f;
-                    var row = new GameObject($"Slot_{slot}"); row.transform.SetParent(_gear, false);
-                    row.transform.localPosition = new Vector3(0f, y, 0f);
-                    var item = inv.Loadout[slot];
-                    UiKit.Text(row.transform, new Vector3(-0.46f, 0.03f, 0f), 0.5f, 0.05f, 1.3f, $"<b>{Loadout.SlotNames[slot]}</b>");
-                    if (item != null)
-                    {
-                        UiKit.WeaponPreview(row.transform, new Vector3(-0.02f, 0.0f, -0.02f), item, 0.11f);
-                        UiKit.Text(row.transform, new Vector3(-0.46f, -0.03f, 0f), 0.6f, 0.05f, 1.0f, $"{item.ColoredName}  <size=80%>[{item.Source}]</size>");
-                    }
-                    else
-                        UiKit.Text(row.transform, new Vector3(-0.46f, -0.03f, 0f), 0.6f, 0.05f, 1.0f, "<color=#9A9A9A>vanilla loadout</color>");
-                    var s = slot;
-                    UiKit.Button(row.transform, new Vector3(0.26f, 0f, 0f), "CHOOSE", () => { _choosing = s; _gearPage = 0; BuildGear(); }, 0.5f);
-                    if (item != null)
-                        UiKit.Button(row.transform, new Vector3(0.42f, 0f, 0f), "VANILLA", () => { Loadout.Set(s, null); BuildGear(); BuildSell(); }, 0.45f);
-                }
-                UiKit.Text(_gear, new Vector3(-PanelWidth * 0.5f + 0.03f, -top + 0.08f, 0f), PanelWidth - 0.06f, 0.06f, 0.9f,
-                    "<size=85%>Applied after every spawn. Dungeon hazard weapons override this, as in the base game.</size>");
-                return;
-            }
-
-            // Candidate list for one slot: armory first, then bag, filtered by what the holster accepts.
-            var slotIdx = _choosing;
-            var candidates = new List<LootItem>();
-            foreach (var a in Loadout.ArmoryItems()) if (Loadout.Accepts(slotIdx, a.PropType)) candidates.Add(a);
-            foreach (var b in BagManager.Inventory.Items) if (Loadout.Accepts(slotIdx, b.PropType)) candidates.Add(b);
-            var pages = Math.Max(1, (candidates.Count + RowsPerPage - 1) / RowsPerPage);
-            _gearPage = Math.Max(0, Math.Min(_gearPage, pages - 1));
-
-            UiKit.Text(_gear, new Vector3(-PanelWidth * 0.5f + 0.03f, top - 0.06f, 0f), PanelWidth - 0.06f, 0.08f, 1.6f,
-                $"<b>{Loadout.SlotNames[slotIdx]}</b>   {candidates.Count} candidate(s)");
-            UiKit.Button(_gear, new Vector3(0.42f, top - 0.06f, 0f), "BACK", () => { _choosing = -1; BuildGear(); }, 0.5f);
-
-            var y0 = top - 0.24f;
-            var start = _gearPage * RowsPerPage;
-            for (var i = 0; i < RowsPerPage && start + i < candidates.Count; i++)
-            {
-                var item = candidates[start + i];
-                var row = new GameObject($"Cand_{i}"); row.transform.SetParent(_gear, false);
-                row.transform.localPosition = new Vector3(0f, y0 - i * RowHeight, 0f);
-                UiKit.WeaponPreview(row.transform, new Vector3(-0.43f, 0f, -0.02f), item, 0.12f);
-                string stats = "";
-                try { stats = Interop.OneLine(WeaponCodec.ToModule(item).GetStatsText()); } catch { }
-                UiKit.Text(row.transform, new Vector3(-0.34f, 0.022f, 0f), 0.62f, 0.05f, 1.2f, $"{item.ColoredName}  <size=80%>[{item.Source}]</size>");
-                UiKit.Text(row.transform, new Vector3(-0.34f, -0.026f, 0f), 0.62f, 0.045f, 0.95f, $"<size=90%>{stats}</size>");
-                var captured = item;
-                UiKit.Button(row.transform, new Vector3(0.40f, 0f, 0f), "USE", () => { Loadout.Set(slotIdx, captured); _choosing = -1; BuildGear(); BuildSell(); }, 0.5f);
-            }
-            var bottom = -top + 0.06f;
-            UiKit.Text(_gear, new Vector3(-0.08f, bottom, 0f), 0.3f, 0.06f, 1.1f, $"page {_gearPage + 1} / {pages}", TextAlignmentOptions.Center);
-            if (pages > 1)
-            {
-                UiKit.Button(_gear, new Vector3(-0.30f, bottom, 0f), "<", () => { _gearPage--; BuildGear(); }, 0.45f);
-                UiKit.Button(_gear, new Vector3(0.14f, bottom, 0f), ">", () => { _gearPage++; BuildGear(); }, 0.45f);
-            }
-            if (candidates.Count == 0)
-                UiKit.Text(_gear, new Vector3(-0.3f, y0 - RowHeight, 0f), 0.6f, 0.06f, 1.2f, "Nothing fits this slot.", TextAlignmentOptions.Center);
-        }
     }
 }

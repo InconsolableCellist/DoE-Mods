@@ -36,7 +36,21 @@ gate rule is the same: private room, every occupant on the identical version and
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
 
-## 0.4 — milestone L3, the booth
+## 0.5 — loot in the game's own fabricator; the booth is a sell counter
+
+Equipping moved into the vanilla fabricator, which is where you already choose your three
+weapons. With the gate open, every bag weapon appears in the fabricator's gear list with a
+`[LOOT]` prefix on its name, and its hologram, stats and equip buttons work as for any
+weapon. Equip writes go to the inventory file instead of the profile; the holster fill
+resolves them natively on every spawn, so the chosen weapon is simply there, in the lobby
+and in the dungeon. Equipping a vanilla weapon into a slot clears the loot choice. Trashing
+a `[LOOT]` weapon at the fabricator removes it from the bag. Storing it in the armory is
+refused silently. The watchdog summary at quit must still say no profile write happened.
+
+The booth now only sells. `=` still places it. UI text is sized for VR now, buttons are
+laid out from their measured width, and weapon previews are larger.
+
+## 0.4 — milestone L3, the booth (superseded by 0.5)
 
 The Loot Broker stands in the lobby, built one second after the gate opens there. Its
 position comes from `[LootOverhaul] BoothX/Y/Z/Yaw`; the defaults put it 2.5 m in front of

@@ -6,7 +6,7 @@ using LootOverhaul.Loot;
 using LootOverhaul.Net;
 using LootOverhaul.Recon;
 
-[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.4.0", "dan")]
+[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.5.0", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace LootOverhaul
@@ -24,7 +24,7 @@ namespace LootOverhaul
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.4.0";
+        public const string Version = "0.5.0";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -40,7 +40,7 @@ namespace LootOverhaul
             try { MelonPreferences.Save(); }
             catch (Exception e) { LoggerInstance.Warning($"Could not write MelonPreferences.cfg: {e.Message}"); }
 
-            LoggerInstance.Msg($"LootOverhaul {Version} — L1-L3: drops, loot tags, bag-on-pickup, bag panel, booth. Recon hooks {(ModConfig.ReconEnabled.Value ? "on" : "off")}.");
+            LoggerInstance.Msg($"LootOverhaul {Version} — L1-L3: drops, loot tags, bag-on-pickup, bag panel, sell booth, loot in the fabricator. Recon hooks {(ModConfig.ReconEnabled.Value ? "on" : "off")}.");
             LoggerInstance.Msg($"Data folder: {ModPaths.Root}; recon transcripts in {ModPaths.ReconDir}");
 
             SelfCheck.LogSelfHash(LoggerInstance);
@@ -58,7 +58,7 @@ namespace LootOverhaul
             LootNet.Init(_roster);
             DropRoller.Install();
             BagPickup.Install();
-            Loadout.Install();
+            FabricatorBridge.Install();
 
             if (ModConfig.ReconEnabled.Value)
             {
@@ -81,7 +81,6 @@ namespace LootOverhaul
             ModGate.Evaluate(_roster);
             ModNet.Pump();
             LootRegistry.Tick();
-            Loadout.Tick();
             if (_templateCaptureAt > 0f && UnityEngine.Time.unscaledTime >= _templateCaptureAt)
             {
                 _templateCaptureAt = -1f;
@@ -128,6 +127,7 @@ namespace LootOverhaul
                 ReconLog.Section("Loot loop counters");
                 ReconLog.Line($"- kills rolled on this master: {DropRoller.RollsSeen}, drops: {DropRoller.Dropped}, pickups cancelled into claims: {BagPickup.Cancelled}");
                 ReconLog.Line($"- loadout: {Loadout.Describe()}");
+                ReconLog.Line($"- fabricator bridge: {FabricatorBridge.Describe()}");
                 EventTally.Report("quit");
                 ProfileWatch.Report();
                 ReconLog.Close();

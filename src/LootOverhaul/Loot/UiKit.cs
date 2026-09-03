@@ -24,6 +24,8 @@ namespace LootOverhaul.Loot
         private static TMP_FontAsset _font;
         private static Material _fontMaterial;
         private static GameObject _templateRoot;
+        /// <summary>World size of the button template at scale 1, measured at capture. Layouts use it.</summary>
+        public static Vector2 ButtonSize = new Vector2(0.52f, 0.06f);
 
         public static bool Ready => Interop.Alive(_buttonTemplate) && Interop.Alive(_font);
 
@@ -62,7 +64,17 @@ namespace LootOverhaul.Loot
                         else
                         {
                             _buttonTemplate = clone;
-                            Core.Log.Msg($"UI: button template captured from `{Interop.ScenePath(source.transform)}` ({stripped} inherited listener(s) off).");
+                            try
+                            {
+                                // Measure on the live source (the template root is inactive, so bounds there are empty).
+                                var rs = source.GetComponentsInChildren<Renderer>();
+                                var b = new Bounds(source.transform.position, Vector3.zero);
+                                var first = true;
+                                foreach (var r in rs) { if (!Interop.Alive(r)) continue; if (first) { b = r.bounds; first = false; } else b.Encapsulate(r.bounds); }
+                                if (!first) ButtonSize = new Vector2(Mathf.Max(0.05f, b.size.x), Mathf.Max(0.02f, b.size.y));
+                            }
+                            catch { }
+                            Core.Log.Msg($"UI: button template captured from `{Interop.ScenePath(source.transform)}` ({stripped} inherited listener(s) off), size {ButtonSize.x:0.00}×{ButtonSize.y:0.00} m.");
                         }
                     }
                     catch (Exception e) { Core.Log.Warning($"Button template clone failed: {e.GetType().Name}: {e.Message}"); }
@@ -152,12 +164,14 @@ namespace LootOverhaul.Loot
                 if (tmp == null) { UnityEngine.Object.Destroy(go); return null; }
                 if (Interop.Alive(_font)) tmp.font = _font;
                 if (Interop.Alive(_fontMaterial)) tmp.fontSharedMaterial = _fontMaterial;
+                // 3D TextMeshPro: fontSize 1 ≈ 0.1 m glyphs. 0.35 is a readable 3.5 cm line at arm's length.
                 tmp.fontSize = size;
                 tmp.alignment = align;
                 tmp.enableWordWrapping = false;
-                tmp.overflowMode = TextOverflowModes.Truncate;
+                tmp.overflowMode = TextOverflowModes.Overflow;
                 tmp.richText = true;
-                tmp.rectTransform.sizeDelta = new Vector2(width, height);
+                tmp.rectTransform.sizeDelta = new Vector2(width, Mathf.Max(height, size * 0.14f));
+                tmp.rectTransform.pivot = new Vector2(align == TextAlignmentOptions.Center ? 0.5f : 0f, 0.5f);
                 tmp.text = text;
                 return tmp;
             }

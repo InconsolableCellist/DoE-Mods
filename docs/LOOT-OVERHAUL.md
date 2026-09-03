@@ -360,7 +360,16 @@ and every two-player question (who sees the spawn, non-master `OnKilled`, claims
   mod gold, three-slot loadout picker from armory or bag, re-applied after each holster fill
   via `AvatarPlayer.ResetWeapon` + `AssignWeapon` with the watchdog armed. Untested; the two
   things to confirm are that `AssignWeapon` makes no profile write and that it replaces the
-  vanilla weapon rather than adding a second. Next: shop (L5), armor (L6).
+  vanilla weapon rather than adding a second.
+  **Playtest 2026-09-02 19:08:** `AssignWeapon` made no profile write and spawned the weapon,
+  but it also registers the weapon in `Holster.hazardWeapons`, which then tripped the mod's
+  own hazard check and blocked later re-applies (the "old weapon first, then the new one"
+  symptom). UI: 3D TextMeshPro `fontSize` is ~0.1 m per unit, so 1.6 with a 0.08 m rect
+  truncated every label to nothing; the fabricator button is ~0.5 m wide at scale 1.
+- **0.5 (2026-09-02):** pivot to the vanilla fabricator (`FabricatorBridge`), booth reduced
+  to a sell counter, UI sizing fixed. Untested. Next: verify the bridge in the lobby
+  (bag weapons listed with `[LOOT]`, equip works, no profile write), then junk loot
+  types and the shop.
 
 ## Verify first (one UnityExplorer/recon session, no headset-heavy iteration)
 
@@ -423,11 +432,14 @@ change them here first.
    shields exist. The holster's hazard-modifier path, which replaces weapons for some dungeon
    modifiers, must win over the re-apply.
 
-6. **Booth first, fabricator injection second.** Version 1 uses our own pedestal, built from
-   the public hologram mesh and material calls plus cloned interactable buttons, with three
-   verbs: sell, equip, drop. Once that works, surfacing bag items in the vanilla fabricator's
-   gear list with its write paths intercepted is the version 2 merge, after which the booth
-   shrinks to a shop and sell counter.
+6. **Equip at the vanilla fabricator; the booth sells.** (Revised 2026-09-02 after the first
+   booth playtest: a second picker was the wrong shape, and the player already knows the
+   fabricator's slot-then-list-then-stats flow.) Bag weapons are injected into the
+   fabricator's gear list as a *copy* of the armory list with a `[LOOT]` name prefix; the
+   equip write, the holster lookups and the loadout read are bridged to the local file;
+   armory adds are refused and trash removes from the bag; injection is suspended inside
+   every profile mutator and the save so the game only ever mutates its own data. The
+   booth is a sell counter and, later, the shop.
 
 7. **Separate mod, own identity.** `LootOverhaul.dll` is independent of CustomAvatars: its own
    Photon player properties (`lo.ver`, `lo.sha`, `lo.caps`), its own event-code block
