@@ -36,6 +36,22 @@ gate rule is the same: private room, every occupant on the identical version and
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
 
+## 0.9.2 — the enchanting table (self-testing)
+
+The broker's BUY panel has an ENCHANT page. Pick an unequipped bag weapon, see its perks,
+element and free slots (Common 1, Unique 2, Rare 2, Legendary 3), and add a perk valid for
+its type or an element (fire, ice, poison) for gold plus a reagent from your junk: a curio
+for Common/Unique, an artifact for Rare/Legendary. The result is a new weapon record on the
+game's own "manual" module, which carries chosen perks explicitly and which the game already
+networks for mythics.
+
+How the game names a manual module is the one unknown, so the table **self-tests** when the
+lobby gate opens: it builds a manual module from a generated sword under six naming
+conventions and keeps the first the game serialises with the manual packet length. Until
+one passes the page reads "table is cold" and the transcript's `Enchanting self-test`
+section shows what each candidate produced, plus the real module names of a random and a
+mythic module. That section is the thing to read after the next run.
+
 ## 0.9.1 — tonics, and lock-step with the game's gating
 
 - **Tonics.** The broker's BUY panel has a TONICS page: one-run brews on the game's own

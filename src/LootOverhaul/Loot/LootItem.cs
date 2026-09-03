@@ -41,6 +41,12 @@ namespace LootOverhaul.Loot
         public int[] NameIDs;
         /// <summary>The DTO's own <c>name</c> field, carried verbatim.</summary>
         public string DtoName;
+        /// <summary>Manual (enchanted) weapons carry their perks and element explicitly (PlayerData.ManualWeaponDTO).</summary>
+        public bool Manual;
+        public int PerkA, PerkB, PerkC;
+        public int DamageMin;
+        public int DamageType = -1;
+        public bool Superior;
         /// <summary>The DTO's module name / type, so a mythic or manual weapon rebuilds through the right subclass.</summary>
         public string ModuleName;
         public int ModuleType;

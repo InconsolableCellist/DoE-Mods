@@ -493,6 +493,10 @@ and recipes → scrolls that retune a bracelet → hazard contracts.
   (Unlocks: armory types, owned staff styles, unlocked perks), no seasonal generation.
   Deployed, untested. First run must confirm the multipliers are felt (the snapshot lines
   show before/after) and that `GetUnlockedPerks` names match the exosuit field names.
+- **0.9.2 (2026-09-02):** enchanting on the game's manual weapon module, with a lobby-time
+  self-test over six module-naming candidates (no "Manual" literal exists in the game's
+  strings; mythic modules are named like `Sword_Mythic`). Deployed, untested. Read the
+  `Enchanting self-test` transcript section first.
 
 ## Verify first (one UnityExplorer/recon session, no headset-heavy iteration)
 

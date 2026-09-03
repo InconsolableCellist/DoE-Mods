@@ -6,7 +6,7 @@ using LootOverhaul.Loot;
 using LootOverhaul.Net;
 using LootOverhaul.Recon;
 
-[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.9.1", "dan")]
+[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.9.2", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace LootOverhaul
@@ -24,7 +24,7 @@ namespace LootOverhaul
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.9.1";
+        public const string Version = "0.9.2";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -89,7 +89,7 @@ namespace LootOverhaul
             if (_templateCaptureAt > 0f && UnityEngine.Time.unscaledTime >= _templateCaptureAt)
             {
                 _templateCaptureAt = -1f;
-                try { UiKit.CaptureTemplates(); Booth.ShowIfLobby(Il2Cpp.GameManager.LOBBY_SCENE); if (ModConfig.ReconEnabled.Value) Buffs.Snapshot("lobby"); }
+                try { UiKit.CaptureTemplates(); Booth.ShowIfLobby(Il2Cpp.GameManager.LOBBY_SCENE); if (ModConfig.ReconEnabled.Value) Buffs.Snapshot("lobby"); Enchanting.SelfTest(); }
                 catch (Exception e) { LoggerInstance.Warning($"Template capture / booth threw: {e.GetType().Name}: {e.Message}"); }
             }
 
@@ -139,6 +139,7 @@ namespace LootOverhaul
                 ReconLog.Line($"- fabricator bridge: {FabricatorBridge.Describe()}");
                 ReconLog.Line($"- shop: {Shop.Bought} bought, {Shop.Restocks} restock(s)");
                 ReconLog.Line($"- buffs active at quit: {Buffs.DescribeActive()}");
+                ReconLog.Line($"- enchanting: {Enchanting.SelfTestReport}");
                 Buffs.Snapshot("quit");
                 EventTally.Report("quit");
                 ProfileWatch.Report();

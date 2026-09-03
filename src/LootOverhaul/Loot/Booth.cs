@@ -28,8 +28,9 @@ namespace LootOverhaul.Loot
 
         private static GameObject _root;
         private static Transform _sell, _buy;
-        private static int _sellPage, _tonicPage;
-        private static bool _showTonics;
+        private static int _sellPage, _tonicPage, _enchantPage;
+        private static int _buyMode;            // 0 weapons, 1 tonics, 2 enchant
+        private static string _enchantTarget;   // bag item id being enchanted, or null for the list
 
         public static bool IsShown => Interop.Alive(_root) && _root.activeSelf;
 
@@ -173,11 +174,13 @@ namespace LootOverhaul.Loot
             var top = height * 0.5f;
             var left = -PanelWidth * 0.5f + 0.04f;
             var minutesLeft = Math.Max(0, ModConfig.ShopRefreshMinutes.Value - (int)(DateTime.UtcNow - inv.ShopGeneratedAt).TotalMinutes);
-            if (_showTonics) { BuildTonics(top, left); return; }
+            if (_buyMode == 1) { BuildTonics(top, left); return; }
+            if (_buyMode == 2) { BuildEnchant(top, left); return; }
             UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f,
                 $"<b>WEAPONS</b>   {stock.Count} in stock   <color=#9A9A9A>new stock in {minutesLeft} min</color>");
             UiKit.Button(_buy, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f, top - 0.05f, 0f), $"RESTOCK ({Shop.RestockPrice(inv)})", () => { if (Shop.Restock()) Rebuild(); }, BtnScale);
-            UiKit.Button(_buy, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 1.5f - 0.02f, top - 0.05f, 0f), "TONICS", () => { _showTonics = true; BuildBuy(); }, BtnScale);
+            UiKit.Button(_buy, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 1.5f - 0.02f, top - 0.05f, 0f), "TONICS", () => { _buyMode = 1; BuildBuy(); }, BtnScale);
+            UiKit.Button(_buy, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 2.5f - 0.04f, top - 0.05f, 0f), "ENCHANT", () => { _buyMode = 2; _enchantTarget = null; BuildBuy(); }, BtnScale);
 
             var y0 = top - 0.19f;
             var buyX = PanelWidth * 0.5f - 0.04f - BtnW * 0.5f;
@@ -209,7 +212,7 @@ namespace LootOverhaul.Loot
             var offered = Buffs.Offered();
             UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f,
                 $"<b>TONICS</b>   one run each   <color=#9A9A9A>{offered.Count} brew(s) you have earned</color>");
-            UiKit.Button(_buy, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f, top - 0.05f, 0f), "WEAPONS", () => { _showTonics = false; BuildBuy(); }, BtnScale);
+            UiKit.Button(_buy, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f, top - 0.05f, 0f), "WEAPONS", () => { _buyMode = 0; BuildBuy(); }, BtnScale);
             if (offered.Count == 0)
             {
                 UiKit.Text(_buy, new Vector3(0f, top - 0.4f, 0f), 1.1f, 0.06f, 0.36f, "Unlock a perk at the exosuit station and the broker will brew for it.", TextAlignmentOptions.Center);
@@ -244,6 +247,74 @@ namespace LootOverhaul.Loot
                 UiKit.Button(_buy, new Vector3(-0.22f - BtnW * 0.5f, bottom, 0f), "<", () => { _tonicPage--; BuildBuy(); }, BtnScale);
                 UiKit.Button(_buy, new Vector3(0.22f + BtnW * 0.5f, bottom, 0f), ">", () => { _tonicPage++; BuildBuy(); }, BtnScale);
             }
+        }
+
+        private static void BuildEnchant(float top, float left)
+        {
+            var inv = BagManager.Inventory;
+            UiKit.Button(_buy, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f, top - 0.05f, 0f), _enchantTarget == null ? "WEAPONS" : "BACK",
+                () => { if (_enchantTarget == null) _buyMode = 0; else _enchantTarget = null; BuildBuy(); }, BtnScale);
+            if (!Enchanting.Ready)
+            {
+                UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f, "<b>ENCHANT</b>   <color=#9A9A9A>table is cold</color>");
+                UiKit.Text(_buy, new Vector3(0f, top - 0.4f, 0f), 1.1f, 0.06f, 0.34f, $"The game has not yet accepted a hand-built weapon module ({Enchanting.SelfTestReport}).", TextAlignmentOptions.Center);
+                return;
+            }
+            var target = _enchantTarget == null ? null : inv.Find(_enchantTarget);
+            if (target == null)
+            {
+                var weapons = new List<LootItem>();
+                foreach (var w in inv.Items) if (w.IsWeapon && w.EquippedSlot < 0) weapons.Add(w);
+                weapons.Sort((a, b) => b.WeaponClass != a.WeaponClass ? b.WeaponClass.CompareTo(a.WeaponClass) : b.Value.CompareTo(a.Value));
+                var pages = Math.Max(1, (weapons.Count + RowsPerPage - 1) / RowsPerPage);
+                _enchantPage = Math.Max(0, Math.Min(_enchantPage, pages - 1));
+                UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f, $"<b>ENCHANT</b>   pick a weapon   <color=#9A9A9A>gold + a curio or artifact</color>");
+                var y0 = top - 0.19f;
+                var start = _enchantPage * RowsPerPage;
+                var bx = PanelWidth * 0.5f - 0.04f - BtnW * 0.5f;
+                for (var i = 0; i < RowsPerPage && start + i < weapons.Count; i++)
+                {
+                    var item = weapons[start + i];
+                    Enchanting.ReadRolledPerks(item);
+                    var row = new GameObject($"EnchRow_{i}"); row.transform.SetParent(_buy, false);
+                    row.transform.localPosition = new Vector3(0f, y0 - i * RowHeight, 0f);
+                    UiKit.Preview(row.transform, new Vector3(left + 0.07f, 0f, -0.03f), item, 0.11f);
+                    UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), 0.7f, 0.05f, 0.38f, $"{item.ColoredName}");
+                    UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), 0.7f, 0.045f, 0.3f,
+                        $"<color=#9A9A9A>slots {Enchanting.UsedSlots(item)}/{Enchanting.Slots(item.WeaponClass)}   element {(item.DamageType < 0 ? "none" : Enchanting.Elements[Math.Min(2, item.DamageType)])}   {Enchanting.Price(item)} gold + {LootTables.JunkTierName(Enchanting.ReagentTier(item))}</color>");
+                    var captured = item;
+                    UiKit.Button(row.transform, new Vector3(bx, 0f, 0f), "SELECT", () => { _enchantTarget = captured.Id; BuildBuy(); }, BtnScale);
+                }
+                var bottom = -top + 0.06f;
+                UiKit.Text(_buy, new Vector3(0f, bottom, 0f), 0.3f, 0.06f, 0.35f, $"page {_enchantPage + 1} / {pages}", TextAlignmentOptions.Center);
+                if (pages > 1)
+                {
+                    UiKit.Button(_buy, new Vector3(-0.22f - BtnW * 0.5f, bottom, 0f), "<", () => { _enchantPage--; BuildBuy(); }, BtnScale);
+                    UiKit.Button(_buy, new Vector3(0.22f + BtnW * 0.5f, bottom, 0f), ">", () => { _enchantPage++; BuildBuy(); }, BtnScale);
+                }
+                if (weapons.Count == 0) UiKit.Text(_buy, new Vector3(0f, y0 - RowHeight, 0f), 0.8f, 0.06f, 0.4f, "No unequipped weapons in the bag.", TextAlignmentOptions.Center);
+                return;
+            }
+
+            Enchanting.ReadRolledPerks(target);
+            UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f, $"<b>ENCHANT</b>   {target.ColoredName}");
+            var reagent = Enchanting.FindReagent(inv, Enchanting.ReagentTier(target));
+            UiKit.Text(_buy, new Vector3(left, top - 0.105f, 0f), PanelWidth - 0.08f, 0.05f, 0.3f,
+                $"<color=#9A9A9A>has: {Enchanting.PerkName(target.PerkA)} {Enchanting.PerkName(target.PerkB)} {Enchanting.PerkName(target.PerkC)}   element {(target.DamageType < 0 ? "none" : Enchanting.Elements[Math.Min(2, target.DamageType)])}   " +
+                $"price {Enchanting.Price(target)} gold + {(reagent == null ? "<color=#B04040>no reagent</color>" : reagent.Name)}</color>");
+            var options = Enchanting.Options(target);
+            var y1 = top - 0.2f;
+            var col = 0; var rowI = 0;
+            foreach (var (label, perkId, element) in options)
+            {
+                var x = left + BtnW * 0.5f + col * (BtnW + 0.02f);
+                var y = y1 - rowI * 0.075f;
+                var pid = perkId; var el = element;
+                UiKit.Button(_buy, new Vector3(x, y, 0f), (element >= 0 ? "+ " : "") + label, () => { var r = Enchanting.Enchant(target, pid, el); if (r != null) _enchantTarget = r.Id; BuildBuy(); }, BtnScale * 0.9f);
+                col++; if (col >= 3) { col = 0; rowI++; }
+                if (rowI > 7) break;
+            }
+            if (options.Count == 0) UiKit.Text(_buy, new Vector3(0f, y1 - 0.1f, 0f), 0.8f, 0.06f, 0.4f, "Nothing more can be added to this weapon.", TextAlignmentOptions.Center);
         }
 
         public static int SellPrice(LootItem item) => Math.Max(1, (int)Math.Round(item.Value * ModConfig.SellMultiplier.Value));

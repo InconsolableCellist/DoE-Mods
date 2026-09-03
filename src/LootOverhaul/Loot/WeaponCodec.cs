@@ -46,6 +46,17 @@ namespace LootOverhaul.Loot
 
         public static WeaponModule ToModule(LootItem item)
         {
+            if (item.Manual)
+            {
+                var m = new PlayerData.ManualWeaponDTO
+                {
+                    prefabName = item.PrefabName, genV = item.GenV, weaponClass = item.WeaponClass, weaponTier = item.WeaponTier,
+                    randomSeed = item.RandomSeed, guid = item.WeaponGuid, weaponStyle = item.WeaponStyle, nameIDs = ToIl2Cpp(item.NameIDs),
+                    name = item.DtoName, moduleName = item.ModuleName, moduleType = item.ModuleType,
+                    perkA = item.PerkA, perkB = item.PerkB, perkC = item.PerkC, damageMin = item.DamageMin, damageType = item.DamageType, superior = item.Superior,
+                };
+                return new WeaponModule(m);
+            }
             var dto = new PlayerData.WeaponModuleDTO
             {
                 prefabName = item.PrefabName,
@@ -70,6 +81,7 @@ namespace LootOverhaul.Loot
             S(i.WeaponStyle), i.NameIDs == null ? "" : string.Join(",", i.NameIDs), i.DtoName ?? "", i.ModuleName ?? "",
             S(i.ModuleType), S(i.PropType), i.Name ?? "", i.ColoredName ?? "", S(i.Value), i.Weight.ToString("R", CultureInfo.InvariantCulture),
             S(i.FoundInRealm), i.FoundBy ?? "", i.Kind ?? "weapon", i.BuffStat ?? "", i.BuffMult.ToString("R", CultureInfo.InvariantCulture),
+            i.Manual ? "1" : "0", S(i.PerkA), S(i.PerkB), S(i.PerkC), S(i.DamageMin), S(i.DamageType), i.Superior ? "1" : "0",
         });
 
         public static LootItem Decode(string s)
@@ -85,6 +97,7 @@ namespace LootOverhaul.Loot
             };
             if (p.Length > 19 && p[19].Length > 0) item.Kind = p[19];
             if (p.Length > 21) { item.BuffStat = p[20].Length > 0 ? p[20] : null; float.TryParse(p[21], System.Globalization.NumberStyles.Float, CultureInfo.InvariantCulture, out item.BuffMult); }
+            if (p.Length > 28) { item.Manual = p[22] == "1"; item.PerkA = I(p[23]); item.PerkB = I(p[24]); item.PerkC = I(p[25]); item.DamageMin = I(p[26]); item.DamageType = I(p[27]); item.Superior = p[28] == "1"; }
             if (p[8].Length > 0)
             {
                 var ids = p[8].Split(',');
