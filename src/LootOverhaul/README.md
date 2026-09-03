@@ -36,6 +36,17 @@ gate rule is the same: private room, every occupant on the identical version and
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
 
+## 0.9.5 — hover labels, bag panel spacing
+
+- Floor labels show only while you look at the item (within about four metres, a narrow
+  cone) or reach a hand toward it (`DropLabelsOnHover`, on by default).
+- Bag panel: sort buttons spaced for their glow, tonic rows shortened so DROP and DRINK no
+  longer sit on the text, and any line too long for its space is cut rather than drawn under
+  the buttons.
+- Confirmed on the 2026-09-03 run: the enchanting self-test passed with the name `manual`
+  (Enchant tab opens by itself now), tonics apply (Arms_Distance 1.3 → 1.495 on a Minor
+  Long Arm Liniment), and the stick-hold gesture opens the bag.
+
 ## 0.9.4 — a bigger bag, and the real button width
 
 - **Bigger bag.** The sell panel's bottom line offers the next bag upgrade for mod gold:

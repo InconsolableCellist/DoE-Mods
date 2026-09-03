@@ -509,6 +509,12 @@ and recipes → scrolls that retune a bracelet → hazard contracts.
   (the run measured 0.05 m for a 0.5 m button). Deployed, untested. Gesture: SteamVR
   actions became readable 10 s in on the 0.9.2 run; whether the stick-hold opened the bag
   is unknown (the bag was never opened that session).
+  **Runs 2026-09-03 00:20 / 00:29:** enchanting self-test passes with module name `manual`
+  (packet 11; stats show the chosen element and perks); tonic bought and drunk, exosuit
+  value multiplied (1.3 → 1.495); stick-hold gesture opens the bag; bag panel had overlap
+  (sort buttons touching, DROP/DRINK over text). No profile write.
+- **0.9.5 (2026-09-03):** hover-only floor labels, bag panel spacing, TMP truncation.
+  Deployed, untested.
 
 ## Verify first (one UnityExplorer/recon session, no headset-heavy iteration)
 

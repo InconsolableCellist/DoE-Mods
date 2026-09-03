@@ -171,7 +171,8 @@ namespace LootOverhaul.Loot
                 tmp.fontSize = size;
                 tmp.alignment = align;
                 tmp.enableWordWrapping = false;
-                tmp.overflowMode = TextOverflowModes.Overflow;
+                // Truncate to the rect: a line that overflows runs under the buttons to its right.
+                tmp.overflowMode = TextOverflowModes.Truncate;
                 tmp.richText = true;
                 tmp.rectTransform.sizeDelta = new Vector2(width, Mathf.Max(height, size * 0.14f));
                 tmp.rectTransform.pivot = new Vector2(align == TextAlignmentOptions.Center ? 0.5f : 0f, 0.5f);

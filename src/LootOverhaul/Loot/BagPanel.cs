@@ -125,7 +125,7 @@ namespace LootOverhaul.Loot
 
             // Sort + close buttons, laid out from the measured button width.
             var by = top - 0.19f;
-            var gap = BtnW + 0.02f;
+            var gap = BtnW * 1.2f + 0.03f;   // the glow draws wider than the frame
             var x = left + BtnW * 0.5f;
             UiKit.Button(_content, new Vector3(x, by, 0f), _sort == Sort.Newest ? "• NEW" : "NEW", () => { _sort = Sort.Newest; _page = 0; Rebuild(); }, BtnScale); x += gap;
             UiKit.Button(_content, new Vector3(x, by, 0f), _sort == Sort.Value ? "• VALUE" : "VALUE", () => { _sort = Sort.Value; _page = 0; Rebuild(); }, BtnScale); x += gap;
@@ -137,6 +137,7 @@ namespace LootOverhaul.Loot
             var start = _page * RowsPerPage;
             var dropX = Width * 0.5f - 0.04f - BtnW * 0.5f;
             var textW = dropX - BtnW * 0.5f - 0.02f - (left + 0.16f);
+            var twoBtnTextW = textW - BtnW * 1.2f - 0.03f;
             for (var i = 0; i < RowsPerPage && start + i < items.Count; i++)
             {
                 var item = items[start + i];
@@ -158,18 +159,19 @@ namespace LootOverhaul.Loot
                 else if (item.IsBuff)
                 {
                     var d = Buffs.Find(item.BuffStat);
-                    second = $"<color=#9A9A9A>tonic   {(d == null ? item.BuffStat : d.Flavor)} ×{item.BuffMult:0.00} for one run   wt {item.Weight:0.#}</color>";
+                    second = $"<color=#9A9A9A>tonic · {(d == null ? item.BuffStat : d.Flavor)} ×{item.BuffMult:0.00}</color>";
                 }
                 else
                     second = $"<color=#9A9A9A>{LootTables.JunkTierName(item.WeaponClass)}   wt {item.Weight:0.#}   value {item.Value}</color>";
-                UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), textW, 0.05f, 0.38f, $"{item.ColoredName}{equipped}");
-                UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), textW, 0.045f, 0.3f, second);
+                var rowTextW = item.IsBuff ? twoBtnTextW : textW;
+                UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), rowTextW, 0.05f, 0.38f, $"{item.ColoredName}{equipped}");
+                UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), rowTextW, 0.045f, 0.3f, second);
 
                 var captured = item;
                 if (item.IsBuff)
                 {
                     UiKit.Button(row.transform, new Vector3(dropX, 0f, 0f), "DRINK", () => Buffs.Drink(captured), BtnScale);
-                    UiKit.Button(row.transform, new Vector3(dropX - BtnW - 0.02f, 0f, 0f), "DROP", () => BagManager.Drop(captured), BtnScale);
+                    UiKit.Button(row.transform, new Vector3(dropX - BtnW * 1.2f - 0.03f, 0f, 0f), "DROP", () => BagManager.Drop(captured), BtnScale);
                 }
                 else if (item.EquippedSlot < 0)
                     UiKit.Button(row.transform, new Vector3(dropX, 0f, 0f), "DROP", () => BagManager.Drop(captured), BtnScale);

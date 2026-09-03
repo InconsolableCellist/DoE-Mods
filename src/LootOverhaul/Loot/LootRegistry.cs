@@ -214,10 +214,28 @@ namespace LootOverhaul.Loot
             {
                 var pos = tag.Object.transform.position + Vector3.up * 0.35f;
                 label.transform.position = pos;
-                Vector3 eye;
-                try { eye = AvatarPlayer.LocalAvatar.Head.position; } catch { eye = pos + Vector3.forward; }
+                Vector3 eye, fwd; Vector3? hand = null;
+                try
+                {
+                    var head = AvatarPlayer.LocalAvatar.Head;
+                    eye = head.position; fwd = head.forward;
+                    try { var h = AvatarPlayer.LocalAvatar.RightHand; if (Interop.Alive(h)) hand = h.position; } catch { }
+                }
+                catch { eye = pos + Vector3.forward; fwd = -Vector3.forward; }
                 var toEye = pos - eye; toEye.y = 0f;
                 if (toEye.sqrMagnitude > 0.0001f) label.transform.rotation = Quaternion.LookRotation(toEye, Vector3.up);
+
+                // Hover-only: visible while you look roughly at it within a few metres, or a hand is near it.
+                if (ModConfig.DropLabelsOnHover.Value)
+                {
+                    var toItem = tag.Object.transform.position - eye;
+                    var dist = toItem.magnitude;
+                    var looking = dist < 4f && dist > 0.01f && Vector3.Angle(fwd, toItem) < Mathf.Lerp(18f, 8f, dist / 4f);
+                    var reaching = hand.HasValue && (hand.Value - tag.Object.transform.position).sqrMagnitude < 0.6f * 0.6f;
+                    var show = looking || reaching;
+                    if (label.activeSelf != show) label.SetActive(show);
+                }
+                else if (!label.activeSelf) label.SetActive(true);
             }
             catch { }
         }

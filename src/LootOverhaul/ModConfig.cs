@@ -28,6 +28,8 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<bool> DropBeams;
         /// <summary>Floating rarity-coloured name over floor loot.</summary>
         public static MelonPreferences_Entry<bool> DropLabels;
+        /// <summary>Show the floor label only while you look at the item or reach for it.</summary>
+        public static MelonPreferences_Entry<bool> DropLabelsOnHover;
         /// <summary>The coin pile's own sparkle, borrowed and placed over floor loot.</summary>
         public static MelonPreferences_Entry<bool> DropSparkles;
         /// <summary>An invisible pointer target over each panel so the laser shows across the whole window.</summary>
@@ -75,6 +77,7 @@ namespace LootOverhaul
             LegendaryPityKills = Main.CreateEntry("LegendaryPityKills", 120);
             DropBeams = Main.CreateEntry("DropBeams", false);
             DropLabels = Main.CreateEntry("DropLabels", true);
+            DropLabelsOnHover = Main.CreateEntry("DropLabelsOnHover", true);
             DropSparkles = Main.CreateEntry("DropSparkles", true);
             PanelLaser = Main.CreateEntry("PanelLaser", true);
             BagGesture = Main.CreateEntry("BagGesture", "stick-hold",
