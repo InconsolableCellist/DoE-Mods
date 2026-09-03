@@ -36,6 +36,19 @@ gate rule is the same: private room, every occupant on the identical version and
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
 
+## 0.9.3 — fixes from the 0.9.2 run
+
+- The broker's BUY panel now has a tab row (WEAPONS · TONICS · ENCHANT) under the header
+  instead of three buttons stacked on one spot.
+- The enchanting self-test tries `manual` first: the run showed random modules are named
+  `random` and mythics `mythic`.
+- Tonics now exist for every exosuit stat (Long Arm Liniment, Antidote Tonic, Mystic
+  Draught, Marathon Brew for your current four), so the page is never empty once a perk is
+  unlocked. Reduction stats (antidote, antifreeze) divide instead of multiply.
+- Junk bodies: the hockey puck (a flat disc that sinks into the floor) and the Christmas
+  ornament (a breakable, not grabbable) are retired. Previews are clamped so a bad mesh
+  bound can no longer draw a spear across the booth.
+
 ## 0.9.2 — the enchanting table (self-testing)
 
 The broker's BUY panel has an ENCHANT page. Pick an unequipped bag weapon, see its perks,

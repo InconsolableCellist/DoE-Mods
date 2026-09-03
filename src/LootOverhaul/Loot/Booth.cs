@@ -174,15 +174,14 @@ namespace LootOverhaul.Loot
             var top = height * 0.5f;
             var left = -PanelWidth * 0.5f + 0.04f;
             var minutesLeft = Math.Max(0, ModConfig.ShopRefreshMinutes.Value - (int)(DateTime.UtcNow - inv.ShopGeneratedAt).TotalMinutes);
+            BuyTabs(top, left);
             if (_buyMode == 1) { BuildTonics(top, left); return; }
             if (_buyMode == 2) { BuildEnchant(top, left); return; }
             UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f,
                 $"<b>WEAPONS</b>   {stock.Count} in stock   <color=#9A9A9A>new stock in {minutesLeft} min</color>");
-            UiKit.Button(_buy, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f, top - 0.05f, 0f), $"RESTOCK ({Shop.RestockPrice(inv)})", () => { if (Shop.Restock()) Rebuild(); }, BtnScale);
-            UiKit.Button(_buy, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 1.5f - 0.02f, top - 0.05f, 0f), "TONICS", () => { _buyMode = 1; BuildBuy(); }, BtnScale);
-            UiKit.Button(_buy, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 2.5f - 0.04f, top - 0.05f, 0f), "ENCHANT", () => { _buyMode = 2; _enchantTarget = null; BuildBuy(); }, BtnScale);
+            UiKit.Button(_buy, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f, top - 0.05f, 0f), $"RESTOCK {Shop.RestockPrice(inv)}g", () => { if (Shop.Restock()) Rebuild(); }, BtnScale);
 
-            var y0 = top - 0.19f;
+            var y0 = top - 0.27f;
             var buyX = PanelWidth * 0.5f - 0.04f - BtnW * 0.5f;
             var textW = buyX - BtnW * 0.5f - 0.02f - (left + 0.16f);
             for (var i = 0; i < RowsPerPage && i < stock.Count; i++)
@@ -206,22 +205,32 @@ namespace LootOverhaul.Loot
                 UiKit.Text(_buy, new Vector3(0f, y0 - RowHeight, 0f), 0.8f, 0.06f, 0.4f, "Sold out. Restock, or come back later.", TextAlignmentOptions.Center);
         }
 
+        /// <summary>The mode tabs on their own row: measured widths lie about the glow, so space them generously.</summary>
+        private static void BuyTabs(float top, float left)
+        {
+            var y = top - 0.15f;
+            var gap = Mathf.Max(BtnW, 0.24f) + 0.06f;
+            var x = left + Mathf.Max(BtnW, 0.24f) * 0.5f;
+            UiKit.Button(_buy, new Vector3(x, y, 0f), _buyMode == 0 ? "• WEAPONS" : "WEAPONS", () => { _buyMode = 0; BuildBuy(); }, BtnScale); x += gap;
+            UiKit.Button(_buy, new Vector3(x, y, 0f), _buyMode == 1 ? "• TONICS" : "TONICS", () => { _buyMode = 1; BuildBuy(); }, BtnScale); x += gap;
+            UiKit.Button(_buy, new Vector3(x, y, 0f), _buyMode == 2 ? "• ENCHANT" : "ENCHANT", () => { _buyMode = 2; _enchantTarget = null; BuildBuy(); }, BtnScale);
+        }
+
         private static void BuildTonics(float top, float left)
         {
             var inv = BagManager.Inventory;
             var offered = Buffs.Offered();
             UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f,
                 $"<b>TONICS</b>   one run each   <color=#9A9A9A>{offered.Count} brew(s) you have earned</color>");
-            UiKit.Button(_buy, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f, top - 0.05f, 0f), "WEAPONS", () => { _buyMode = 0; BuildBuy(); }, BtnScale);
             if (offered.Count == 0)
             {
                 UiKit.Text(_buy, new Vector3(0f, top - 0.4f, 0f), 1.1f, 0.06f, 0.36f, "Unlock a perk at the exosuit station and the broker will brew for it.", TextAlignmentOptions.Center);
                 return;
             }
-            var rows = 5;
+            var rows = 4;
             var pages = Math.Max(1, (offered.Count + rows - 1) / rows);
             _tonicPage = Math.Max(0, Math.Min(_tonicPage, pages - 1));
-            var y0 = top - 0.19f;
+            var y0 = top - 0.28f;
             var start = _tonicPage * rows;
             for (var i = 0; i < rows && start + i < offered.Count; i++)
             {
@@ -237,7 +246,7 @@ namespace LootOverhaul.Loot
                     var tier = t;
                     var price = Shop.TonicPrice(def, tier);
                     UiKit.Button(row.transform, new Vector3(x, 0f, 0f), $"{Buffs.TierNames[tier].ToUpperInvariant()} {price}g", () => { if (Shop.BuyTonic(captured, tier)) BuildBuy(); }, BtnScale * 0.85f);
-                    x -= BtnW * 0.85f + 0.015f;
+                    x -= Mathf.Max(BtnW, 0.24f) * 0.85f + 0.05f;
                 }
             }
             var bottom = -top + 0.06f;
@@ -252,8 +261,8 @@ namespace LootOverhaul.Loot
         private static void BuildEnchant(float top, float left)
         {
             var inv = BagManager.Inventory;
-            UiKit.Button(_buy, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f, top - 0.05f, 0f), _enchantTarget == null ? "WEAPONS" : "BACK",
-                () => { if (_enchantTarget == null) _buyMode = 0; else _enchantTarget = null; BuildBuy(); }, BtnScale);
+            if (_enchantTarget != null)
+                UiKit.Button(_buy, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f, top - 0.05f, 0f), "BACK", () => { _enchantTarget = null; BuildBuy(); }, BtnScale);
             if (!Enchanting.Ready)
             {
                 UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f, "<b>ENCHANT</b>   <color=#9A9A9A>table is cold</color>");
@@ -269,7 +278,7 @@ namespace LootOverhaul.Loot
                 var pages = Math.Max(1, (weapons.Count + RowsPerPage - 1) / RowsPerPage);
                 _enchantPage = Math.Max(0, Math.Min(_enchantPage, pages - 1));
                 UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f, $"<b>ENCHANT</b>   pick a weapon   <color=#9A9A9A>gold + a curio or artifact</color>");
-                var y0 = top - 0.19f;
+                var y0 = top - 0.27f;
                 var start = _enchantPage * RowsPerPage;
                 var bx = PanelWidth * 0.5f - 0.04f - BtnW * 0.5f;
                 for (var i = 0; i < RowsPerPage && start + i < weapons.Count; i++)
@@ -299,16 +308,16 @@ namespace LootOverhaul.Loot
             Enchanting.ReadRolledPerks(target);
             UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f, $"<b>ENCHANT</b>   {target.ColoredName}");
             var reagent = Enchanting.FindReagent(inv, Enchanting.ReagentTier(target));
-            UiKit.Text(_buy, new Vector3(left, top - 0.105f, 0f), PanelWidth - 0.08f, 0.05f, 0.3f,
+            UiKit.Text(_buy, new Vector3(left, top - 0.22f, 0f), PanelWidth - 0.08f, 0.05f, 0.3f,
                 $"<color=#9A9A9A>has: {Enchanting.PerkName(target.PerkA)} {Enchanting.PerkName(target.PerkB)} {Enchanting.PerkName(target.PerkC)}   element {(target.DamageType < 0 ? "none" : Enchanting.Elements[Math.Min(2, target.DamageType)])}   " +
                 $"price {Enchanting.Price(target)} gold + {(reagent == null ? "<color=#B04040>no reagent</color>" : reagent.Name)}</color>");
             var options = Enchanting.Options(target);
-            var y1 = top - 0.2f;
+            var y1 = top - 0.28f;
             var col = 0; var rowI = 0;
             foreach (var (label, perkId, element) in options)
             {
-                var x = left + BtnW * 0.5f + col * (BtnW + 0.02f);
-                var y = y1 - rowI * 0.075f;
+                var x = left + Mathf.Max(BtnW, 0.24f) * 0.5f + col * (Mathf.Max(BtnW, 0.24f) + 0.06f);
+                var y = y1 - rowI * 0.08f;
                 var pid = perkId; var el = element;
                 UiKit.Button(_buy, new Vector3(x, y, 0f), (element >= 0 ? "+ " : "") + label, () => { var r = Enchanting.Enchant(target, pid, el); if (r != null) _enchantTarget = r.Id; BuildBuy(); }, BtnScale * 0.9f);
                 col++; if (col >= 3) { col = 0; rowI++; }

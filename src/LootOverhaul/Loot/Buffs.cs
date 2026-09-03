@@ -26,25 +26,48 @@ namespace LootOverhaul.Loot
             public float[] Mults = { 1.15f, 1.30f, 1.50f };
             public int[] Prices = { 60, 160, 400 };
             public float Weight = 0.4f;
+            public bool Invert;
         }
 
+        // One brew per exosuit stat, so whatever perks a player has unlocked, something is on offer.
+        // Invert = the stat is a reduction factor (Antidote sits at 0.8 with the perk), so the tonic divides.
         public static readonly Def[] Catalogue =
         {
-            new Def { Stat = "Chest_Armor",      Name = "Ironskin Tonic",   Flavor = "take less damage" },
-            new Def { Stat = "Chest_Vitality",   Name = "Hearty Draught",   Flavor = "more health" },
-            new Def { Stat = "Chest_Heal",       Name = "Mending Tonic",    Flavor = "heal faster" },
-            new Def { Stat = "Chest_Resilience", Name = "Stalwart Brew",    Flavor = "shrug off blows" },
-            new Def { Stat = "Arms_Power",       Name = "Bruiser's Brew",   Flavor = "hit harder" },
-            new Def { Stat = "Arms_Critical",    Name = "Keen Edge Oil",    Flavor = "more criticals" },
-            new Def { Stat = "Arms_Might",       Name = "Ogre Blood",       Flavor = "mightier swings" },
-            new Def { Stat = "Arms_Farshot",     Name = "Hawkeye Drops",    Flavor = "shoot farther" },
-            new Def { Stat = "Legs_Haste",       Name = "Quicksilver",      Flavor = "move faster" },
-            new Def { Stat = "Legs_Swift",       Name = "Fleetfoot Salve",  Flavor = "swifter" },
-            new Def { Stat = "Legs_Jump",        Name = "Springheel",       Flavor = "jump higher" },
-            new Def { Stat = "Legs_Endurance",   Name = "Marathon Brew",    Flavor = "tire slower" },
-            new Def { Stat = "Mind_Fortune",     Name = "Lucky Coin Tea",   Flavor = "better fortune" },
-            new Def { Stat = "Mind_Lucky",       Name = "Rabbit's Foot",    Flavor = "luckier" },
-            new Def { Stat = "Mind_Perception",  Name = "Owl's Eye",        Flavor = "see more" },
+            new Def { Stat = "Arms_Critical",     Name = "Keen Edge Oil",      Flavor = "more criticals" },
+            new Def { Stat = "Arms_Distance",     Name = "Long Arm Liniment",  Flavor = "reach farther" },
+            new Def { Stat = "Arms_Farshot",      Name = "Hawkeye Drops",      Flavor = "shoot farther" },
+            new Def { Stat = "Arms_Impale",       Name = "Skewer Salve",       Flavor = "impale more often" },
+            new Def { Stat = "Arms_Knockback",    Name = "Ram's Draught",      Flavor = "knock foes back" },
+            new Def { Stat = "Arms_Might",        Name = "Ogre Blood",         Flavor = "mightier swings" },
+            new Def { Stat = "Arms_Pierce",       Name = "Needle Tincture",    Flavor = "pierce deeper" },
+            new Def { Stat = "Arms_Power",        Name = "Bruiser's Brew",     Flavor = "hit harder" },
+            new Def { Stat = "Arms_Pullback",     Name = "Bowstring Balm",     Flavor = "draw faster" },
+            new Def { Stat = "Arms_Stun",         Name = "Thunderclap Syrup",  Flavor = "stun more" },
+            new Def { Stat = "Chest_Antidote",    Name = "Antidote Tonic",     Flavor = "poison bites less", Invert = true },
+            new Def { Stat = "Chest_Armor",       Name = "Ironskin Tonic",     Flavor = "take less damage" },
+            new Def { Stat = "Chest_Blast",       Name = "Powderkeg Brew",     Flavor = "bigger blasts" },
+            new Def { Stat = "Chest_Dispel",      Name = "Cleansing Draught",  Flavor = "dispel better" },
+            new Def { Stat = "Chest_Heal",        Name = "Mending Tonic",      Flavor = "heal faster" },
+            new Def { Stat = "Chest_Resilience",  Name = "Stalwart Brew",      Flavor = "shrug off blows" },
+            new Def { Stat = "Chest_Ricochet",    Name = "Mirror Elixir",      Flavor = "more ricochets" },
+            new Def { Stat = "Chest_Vitality",    Name = "Hearty Draught",     Flavor = "more health" },
+            new Def { Stat = "Chest_Antifreeze",  Name = "Ember Tea",          Flavor = "cold bites less", Invert = true },
+            new Def { Stat = "Legs_Absorb",       Name = "Cushion Cordial",    Flavor = "absorb falls" },
+            new Def { Stat = "Legs_Airtime",      Name = "Feather Tonic",      Flavor = "hang in the air" },
+            new Def { Stat = "Legs_Endurance",    Name = "Marathon Brew",      Flavor = "tire slower" },
+            new Def { Stat = "Legs_Haste",        Name = "Quicksilver",        Flavor = "move faster" },
+            new Def { Stat = "Legs_Jump",         Name = "Springheel",         Flavor = "jump higher" },
+            new Def { Stat = "Legs_Leap",         Name = "Grasshopper Gin",    Flavor = "leap farther" },
+            new Def { Stat = "Legs_Shockwave",    Name = "Stomp Syrup",        Flavor = "bigger stomps" },
+            new Def { Stat = "Legs_Swift",        Name = "Fleetfoot Salve",    Flavor = "swifter" },
+            new Def { Stat = "Mind_Crafter",      Name = "Tinker's Tea",       Flavor = "craft cheaper" },
+            new Def { Stat = "Mind_Fortune",      Name = "Lucky Coin Tea",     Flavor = "better fortune" },
+            new Def { Stat = "Mind_Lucky",        Name = "Rabbit's Foot",      Flavor = "luckier" },
+            new Def { Stat = "Mind_Mystify",      Name = "Mystic Draught",     Flavor = "mystify more" },
+            new Def { Stat = "Mind_Perception",   Name = "Owl's Eye",          Flavor = "see more" },
+            new Def { Stat = "Mind_Predator",     Name = "Wolf's Blood",       Flavor = "hunt better" },
+            new Def { Stat = "Mind_Stillness",    Name = "Still Water",        Flavor = "steadier" },
+            new Def { Stat = "Mind_Grounded",     Name = "Root Tea",           Flavor = "stand firm" },
         };
         public static readonly string[] TierNames = { "Minor", "Major", "Grand" };
 
@@ -153,7 +176,8 @@ namespace LootOverhaul.Loot
                     // A stat at 0 means the perk is not equipped; a multiplier does nothing there,
                     // so give it a floor so the tonic is felt (the game's own level 1 is ~1.05–1.2).
                     var baseValue = before <= 0f ? 1f : before;
-                    var after = baseValue * kv.Value;
+                    var def = Find(kv.Key);
+                    var after = def != null && def.Invert ? baseValue / kv.Value : baseValue * kv.Value;
                     p.SetValue(exo, after);
                     parts.Add($"{kv.Key} {before:0.###}->{after:0.###}");
                 }

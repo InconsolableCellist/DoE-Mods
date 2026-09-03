@@ -260,10 +260,12 @@ namespace LootOverhaul.Loot
                 go.transform.localRotation = Quaternion.Euler(0f, 0f, -35f);
                 var longest = 1f;
                 try { var b = mesh.bounds.size; longest = Mathf.Max(b.x, Mathf.Max(b.y, b.z)); } catch { }
-                if (longest < 0.01f) longest = 1f;
-                go.transform.localScale = Vector3.one * (fit / longest);
+                // Some generated meshes report tiny bounds; a bad number here drew a spear across the whole booth.
+                if (longest < 0.15f || longest > 5f) longest = 1f;
+                var factor = Mathf.Clamp(fit / longest, 0.04f, 0.5f);
+                go.transform.localScale = Vector3.one * factor;
                 // Centre the mesh on the anchor rather than on its origin (a spear's origin is at the grip).
-                try { go.transform.localPosition = localPos - go.transform.localRotation * (mesh.bounds.center * (fit / longest)); } catch { }
+                try { go.transform.localPosition = localPos - go.transform.localRotation * (mesh.bounds.center * factor); } catch { }
                 var mf = go.AddComponent(Il2CppType.Of<MeshFilter>()).TryCast<MeshFilter>();
                 var mr = go.AddComponent(Il2CppType.Of<MeshRenderer>()).TryCast<MeshRenderer>();
                 if (mf == null || mr == null) { UnityEngine.Object.Destroy(go); return null; }

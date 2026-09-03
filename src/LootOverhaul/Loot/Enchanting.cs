@@ -198,10 +198,12 @@ namespace LootOverhaul.Loot
                 catch (Exception e) { mythicSample = $"mythic sample failed: {e.GetType().Name}"; }
                 ReconLog.Line(mythicSample);
 
+                // Recon 2026-09-02: random modules are named `random`, mythics `mythic` — lowercase
+                // serialized-type names. So `manual` first; the rest are fallbacks.
                 var candidates = new[]
                 {
-                    ("{0}", "base name unchanged"), ("{0}_Manual", "base + _Manual"), ("{1}_Manual", "prefab + _Manual"),
-                    ("Manual", "just Manual"), ("{0}Manual", "base + Manual"), ("Manual_{0}", "Manual_ + base"),
+                    ("manual", "manual (lowercase)"), ("Manual", "Manual"), ("{1}_manual", "prefab + _manual"),
+                    ("{0}", "base name unchanged"), ("{0}_Manual", "base + _Manual"), ("MANUAL", "MANUAL"),
                 };
                 string winner = null;
                 foreach (var (fmt, label) in candidates)
@@ -218,10 +220,8 @@ namespace LootOverhaul.Loot
                         var wm2 = new WeaponModule(m);
                         var prefab = WeaponModule.GetWeaponPrefabData(wm2, out var data);
                         var len = data == null ? -1 : data.Length;
-                        string perkA = "?", dmgType = "?";
-                        try { perkA = wm2.GetData(WeaponModule.Keys.PerkA)?.ToString(); dmgType = wm2.GetData(WeaponModule.Keys.DamageType)?.ToString(); } catch { }
                         var stats = Interop.OneLine(wm2.GetStatsText());
-                        ReconLog.Line($"- {label} (`{m.moduleName}`): packet={len} perkA={perkA} damageType={dmgType} display=`{Interop.OneLine(wm2.GetDisplayName(false))}` stats=`{stats}`");
+                        ReconLog.Line($"- {label} (`{m.moduleName}`): packet={len} display=`{Interop.OneLine(wm2.GetDisplayName(false))}` stats=`{stats}`");
                         if (winner == null && len == ManualPacketLength) winner = fmt;
                     }
                     catch (Exception e) { ReconLog.Line($"- {label}: threw {e.GetType().Name}: {e.Message}"); }

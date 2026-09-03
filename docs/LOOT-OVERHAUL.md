@@ -497,6 +497,15 @@ and recipes → scrolls that retune a bracelet → hazard contracts.
   self-test over six module-naming candidates (no "Manual" literal exists in the game's
   strings; mythic modules are named like `Sword_Mythic`). Deployed, untested. Read the
   `Enchanting self-test` transcript section first.
+  **Run 2026-09-02 23:42:** module names are `random` / `mythic` (lowercase serialized-type
+  names), packets 5 / 8; none of six capitalised candidates gave 11. Unlocked perks come
+  back as exosuit field names (`Arms_Distance`, `Mind_Mystify`, `Legs_Endurance`,
+  `Chest_Antidote`) — gating works. Exosuit base values are 1.0 (Antidote 0.8, Distance 1.3
+  with its perk). Hockey_Puck sinks and cannot be grabbed; Xmas_Ornament is a breakable.
+  A `loot goblin` enemy appeared in a normal run and dropped a Common longsword.
+- **0.9.3 (2026-09-03):** `manual` candidate first, tab row at the booth, full tonic
+  catalogue with inverted reduction stats, two junk bodies retired, preview clamp.
+  Deployed, untested.
 
 ## Verify first (one UnityExplorer/recon session, no headset-heavy iteration)
 
