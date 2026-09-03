@@ -200,7 +200,32 @@ namespace LootOverhaul.Loot
                 r.receiveShadows = false;
             }
             catch { }
+            if (ModConfig.PanelLaser.Value) LaserCatcher(parent, localPos + new Vector3(0f, 0f, 0.005f), width, height);
             return quad;
+        }
+
+        /// <summary>
+        /// An invisible pointable the size of the panel: a button clone with its renderers off
+        /// and no action, so the game's laser shows wherever you aim on the window, not only
+        /// over the buttons. Real buttons sit in front of it and win the raycast.
+        /// </summary>
+        private static void LaserCatcher(Transform parent, Vector3 localPos, float width, float height)
+        {
+            if (!Interop.Alive(_buttonTemplate)) return;
+            try
+            {
+                var go = UnityEngine.Object.Instantiate(_buttonTemplate, parent);
+                go.name = "LaserCatcher";
+                go.transform.localPosition = localPos;
+                go.transform.localRotation = Quaternion.identity;
+                var baseScale = _buttonTemplate.transform.localScale;
+                go.transform.localScale = new Vector3(baseScale.x * width / ButtonSize.x, baseScale.y * height / ButtonSize.y, baseScale.z);
+                go.SetActive(true);
+                foreach (var r in go.GetComponentsInChildren<Renderer>(true)) if (Interop.Alive(r)) r.enabled = false;
+                var btn = go.GetComponent<InteractableButton>();
+                if (Interop.Alive(btn)) { btn.onPressedSound = null; btn.onHoverSound = null; btn.scaleOnHoverAndPress = false; }
+            }
+            catch (Exception e) { Core.Log.Warning($"Laser catcher failed: {e.GetType().Name}: {e.Message}"); }
         }
 
         /// <summary>

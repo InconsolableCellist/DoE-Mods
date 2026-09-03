@@ -58,19 +58,26 @@ namespace LootOverhaul.Loot
         // Prefab names are the pool keys seen in the game's strings; which of them the
         // networked pool will actually instantiate is learned at runtime (SpawnLoot logs a
         // failure and the roller stops picking that prefab for the session).
+        // Names match the model they ride on. `Bone` and `Bones` refused to spawn (2026-09-02);
+        // Wolf_Treat spawned. Dice and the two trophies are unconfirmed — the `-` probe tests
+        // more candidates and the roller retires any prefab that refuses.
         public static readonly Junk[] JunkTable =
         {
-            new Junk("Gnawed Bone",        "Bone",              0, 3,   12,  0.5f),
-            new Junk("Bone Dice",          "Dice",              0, 5,   20,  0.2f),
-            new Junk("Dog Treat",          "Wolf_Treat",        0, 2,   8,   0.3f),
-            new Junk("Pile of Bones",      "Bones",             0, 4,   15,  1.0f),
-            new Junk("Weighted Dice",      "Dice",              1, 25,  70,  0.2f),
-            new Junk("Carved Bone Idol",   "Bone",              1, 30,  90,  0.6f),
-            new Junk("Silver Mug",         "Wolf_Treat",        1, 40,  110, 0.8f),
-            new Junk("Skull Crown",        "Trophy_SkullCrown", 1, 60,  160, 1.5f),
-            new Junk("Religious Icon",     "Trophy_NovaGuild",  2, 150, 400, 1.2f),
-            new Junk("Gilded Skull",       "Trophy_SkullCrown", 2, 200, 500, 1.5f),
-            new Junk("Gold Chalice",       "Dice",              2, 250, 600, 1.0f),
+            // trinkets (grey)
+            new Junk("Dog Treat",           "Wolf_Treat",        0, 2,   8,   0.3f),
+            new Junk("Stale Jerky",         "Wolf_Treat",        0, 3,   10,  0.3f),
+            new Junk("Bone Dice",           "Dice",              0, 5,   20,  0.2f),
+            new Junk("Chipped Dice",        "Dice",              0, 4,   14,  0.2f),
+            // curios (white)
+            new Junk("Weighted Dice",       "Dice",              1, 25,  70,  0.2f),
+            new Junk("Ivory Dice",          "Dice",              1, 40,  110, 0.2f),
+            new Junk("Marrow Charm",        "Wolf_Treat",        1, 30,  80,  0.4f),
+            new Junk("Skull Crown",         "Trophy_SkullCrown", 1, 60,  160, 1.5f),
+            new Junk("Guild Trophy",        "Trophy_NovaGuild",  1, 50,  140, 1.2f),
+            // artifacts (gold)
+            new Junk("Gilded Skull Crown",  "Trophy_SkullCrown", 2, 200, 500, 1.5f),
+            new Junk("Religious Icon",      "Trophy_NovaGuild",  2, 150, 400, 1.2f),
+            new Junk("Gambler's Relic",     "Dice",              2, 180, 450, 0.2f),
         };
 
         public static string JunkTierName(int tier) => tier switch { 0 => "trinket", 1 => "curio", _ => "artifact" };

@@ -6,7 +6,7 @@ using LootOverhaul.Loot;
 using LootOverhaul.Net;
 using LootOverhaul.Recon;
 
-[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.7.0", "dan")]
+[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.8.0", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace LootOverhaul
@@ -24,7 +24,7 @@ namespace LootOverhaul
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.7.0";
+        public const string Version = "0.8.0";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -67,7 +67,7 @@ namespace LootOverhaul
                 GameplayHooks.Install();
             }
             Hooks.Report();
-            LoggerInstance.Msg("Hotkeys: [ = open/close the bag panel, ] = drop the last bagged item, = (equals) = place the booth where you stand (lobby).");
+            LoggerInstance.Msg("Hotkeys: [ = open/close the bag panel (or the VR gesture, see BagGesture), ] = drop the last bagged item, = (equals) = place the booth where you stand (lobby), - (minus) = junk prefab probe.");
             if (ModConfig.ReconEnabled.Value)
             {
                 LoggerInstance.Msg("Recon hotkeys: Insert = generator survey, Delete = spawn a test weapon (private room), Backslash (\\) = lobby survey + marker cubes, Scroll Lock = cloned button + pointer test.");
@@ -81,6 +81,9 @@ namespace LootOverhaul
             ModGate.Evaluate(_roster);
             ModNet.Pump();
             LootRegistry.Tick();
+            BagPickup.Tick();
+            Claims.Tick();
+            BagGesture.Tick();
             if (_templateCaptureAt > 0f && UnityEngine.Time.unscaledTime >= _templateCaptureAt)
             {
                 _templateCaptureAt = -1f;
@@ -94,6 +97,7 @@ namespace LootOverhaul
                 if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.LeftBracket)) BagPanel.Toggle();
                 else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.RightBracket)) BagManager.DropLast();
                 else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Equals)) Booth.PlaceHere();
+                else if (ModConfig.ReconEnabled.Value && UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Minus)) GeneratorProbe.JunkProbe();
                 if (!ModConfig.ReconEnabled.Value) return;
                 if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Insert)) GeneratorProbe.Survey();
                 else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Delete)) GeneratorProbe.SpawnTest();

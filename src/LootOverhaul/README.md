@@ -36,6 +36,29 @@ gate rule is the same: private room, every occupant on the identical version and
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
 
+## 0.8 — playtest fixes
+
+- **Open the bag in VR.** `BagGesture = back-grip` (default): reach your right hand behind
+  and below you, squeeze the grip and push the right stick up for half a second. Or
+  `stick-hold`: right stick held up. Reads the game's own SteamVR actions, so it works on
+  the OpenVR rig; elsewhere it logs once and the `[` key remains.
+- **Loot marking.** The beam is off (also switched off in your existing settings file);
+  the coin pile's own sparkle is borrowed and placed over each drop, plus the floating name.
+- **Laser across the whole window.** An invisible pointer target sits behind each panel so
+  the laser shows wherever you aim on it (`PanelLaser`).
+- **Hand freeze.** The drop-back now happens one frame after the game's pickup, the hand's
+  memory of the prop is cleared, and the claimed object is hidden at once but destroyed
+  1.5 s later. If the hand still freezes, the next suspect is the CustomAvatars hand rig.
+- **Drop rates** now 3.5% base for weapons (was 8), 35% for junk (was 18); both were also
+  written into your settings file since MelonPreferences keeps old values. Shop prices
+  × 2.5.
+- **Junk names match their models.** `Bone` and `Bones` refused to spawn; the table now
+  uses dice, the dog treat and the two lobby trophies with names to suit (bone dice,
+  weighted dice, marrow charm, skull crown, guild trophy, religious icon, gilded skull
+  crown, gambler's relic). Press **-** (minus) in a private room to try further candidate
+  props one at a time; each is described in the transcript with its size and components.
+- The junk button now reads `SELL n JUNK · value g`. Junk items are also listed as rows.
+
 ## 0.7 — the shop
 
 The broker's right-hand panel sells weapons. Six (`ShopSlots`) generated at your loot

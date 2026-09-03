@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using Il2CppPhoton.Pun;
+using UnityEngine;
 using LootOverhaul.Gate;
 using LootOverhaul.Net;
 
@@ -110,6 +112,36 @@ namespace LootOverhaul.Loot
     /// </summary>
     public static class Claims
     {
+        // Destroying the object in the same frame the hand let go of it is the other half of
+        // the frozen-hand story: hide it at once, destroy it a moment later.
+        private static readonly List<(GameObject go, float at)> Doomed = new List<(GameObject, float)>();
+
+        public static void Tick()
+        {
+            if (Doomed.Count == 0) return;
+            var now = UnityEngine.Time.unscaledTime;
+            for (var i = Doomed.Count - 1; i >= 0; i--)
+            {
+                if (now < Doomed[i].at) continue;
+                var go = Doomed[i].go;
+                Doomed.RemoveAt(i);
+                try { if (go != null && go.Pointer != IntPtr.Zero) PhotonNetwork.Destroy(go); }
+                catch (Exception e) { Core.Log.Warning($"Delayed destroy of claimed loot failed: {e.GetType().Name}: {e.Message}"); }
+            }
+        }
+
+        public static void HideNow(GameObject go)
+        {
+            try
+            {
+                if (go == null) return;
+                foreach (var r in go.GetComponentsInChildren<Renderer>()) if (r != null) r.enabled = false;
+                foreach (var c in go.GetComponentsInChildren<Collider>()) if (c != null) c.enabled = false;
+                go.transform.position += Vector3.down * 50f;
+            }
+            catch { }
+        }
+
         public static void Request(LootTag tag)
         {
             if (tag.ClaimPending || tag.Claimed) return;
@@ -127,12 +159,8 @@ namespace LootOverhaul.Loot
             }
             tag.Claimed = true;
             LootNet.SendGranted(viewId, actor);
-            try
-            {
-                var obj = tag.Object ?? LootRegistry.FindObject(viewId);
-                if (obj != null) PhotonNetwork.Destroy(obj);
-            }
-            catch (Exception e) { Core.Log.Warning($"Could not destroy claimed loot view {viewId}: {e.GetType().Name}: {e.Message}"); }
+            var obj = tag.Object ?? LootRegistry.FindObject(viewId);
+            if (obj != null) { HideNow(obj); Doomed.Add((obj, UnityEngine.Time.unscaledTime + 1.5f)); }
             OnGranted(viewId, actor);
         }
 
@@ -140,6 +168,7 @@ namespace LootOverhaul.Loot
         {
             if (!LootRegistry.TryGet(viewId, out var tag)) return;
             var mine = actor == PhotonNetwork.LocalPlayer.ActorNumber;
+            if (!PhotonNetwork.IsMasterClient) HideNow(tag.Object ?? LootRegistry.FindObject(viewId));
             LootRegistry.Remove(viewId);
             if (mine) BagManager.Bag(tag.Item);
             else Core.Log.Msg($"Loot view {viewId} ({tag.Item.Name}) taken by actor {actor}.");

@@ -15,6 +15,7 @@ namespace LootOverhaul.Loot
         public GameObject Object;   // may be null on a client that only heard the broadcast
         public GameObject Beam;
         public GameObject Label;
+        public GameObject Sparkle;
         public bool ClaimPending;
         public bool Claimed;
     }
@@ -49,6 +50,7 @@ namespace LootOverhaul.Loot
             if (!Interop.Alive(tag.Object)) return;
             if (ModConfig.DropBeams.Value && tag.Beam == null) tag.Beam = DropBeam.Attach(tag);
             if (ModConfig.DropLabels.Value && tag.Label == null) tag.Label = DropLabel.Attach(tag);
+            if (ModConfig.DropSparkles.Value && tag.Sparkle == null) tag.Sparkle = DropSparkle.Attach(tag);
         }
 
         public static void Remove(int viewId)
@@ -57,11 +59,12 @@ namespace LootOverhaul.Loot
             Tags.Remove(viewId);
             DropBeam.Detach(tag);
             DropLabel.Detach(tag);
+            DropSparkle.Detach(tag);
         }
 
         public static void Clear(string why)
         {
-            foreach (var tag in Tags.Values) { DropBeam.Detach(tag); DropLabel.Detach(tag); }
+            foreach (var tag in Tags.Values) { DropBeam.Detach(tag); DropLabel.Detach(tag); DropSparkle.Detach(tag); }
             if (Tags.Count > 0) Core.Log.Msg($"Loot registry cleared ({Tags.Count} tag(s)): {why}");
             Tags.Clear();
         }
@@ -83,7 +86,7 @@ namespace LootOverhaul.Loot
             foreach (var tag in Tags.Values)
             {
                 if (tag.Claimed) continue;
-                if (Interop.Alive(tag.Object)) { DropBeam.Follow(tag); DropLabel.Follow(tag); continue; }
+                if (Interop.Alive(tag.Object)) { DropBeam.Follow(tag); DropLabel.Follow(tag); DropSparkle.Follow(tag); continue; }
                 tag.Object = FindObject(tag.ViewId);
                 if (tag.Object != null) Decorate(tag);
             }
@@ -223,6 +226,100 @@ namespace LootOverhaul.Loot
         {
             try { if (Interop.Alive(tag.Label)) UnityEngine.Object.Destroy(tag.Label); } catch { }
             tag.Label = null;
+        }
+    }
+
+    /// <summary>
+    /// The coin pile's own particle sparkle, cloned locally over each loot item. Found by
+    /// looking for a particle system on any `Coin_Pile*` prefab in the game's networked
+    /// pool, or on a live coin pile in the scene; the template is kept across scenes.
+    /// </summary>
+    public static class DropSparkle
+    {
+        private static GameObject _template;
+        private static bool _searched;
+
+        private static GameObject Template()
+        {
+            if (Interop.Alive(_template)) return _template;
+            try
+            {
+                ParticleSystem found = null; string from = null;
+                try
+                {
+                    var pool = NetworkObjectPool.UnpooledPrefabs;
+                    if (pool != null)
+                        foreach (var kv in pool)
+                        {
+                            if (kv.Key == null || !kv.Key.StartsWith("Coin_Pile") || !Interop.Alive(kv.Value)) continue;
+                            var ps = kv.Value.GetComponentsInChildren<ParticleSystem>(true);
+                            if (ps != null && ps.Length > 0) { found = ps[0]; from = kv.Key; break; }
+                        }
+                }
+                catch { }
+                if (found == null)
+                {
+                    foreach (var c in UnityEngine.Object.FindObjectsOfType<Coins>())
+                    {
+                        if (!Interop.Alive(c)) continue;
+                        var ps = c.GetComponentsInChildren<ParticleSystem>(true);
+                        if (ps != null && ps.Length > 0) { found = ps[0]; from = c.name; break; }
+                    }
+                }
+                if (found == null)
+                {
+                    if (!_searched) { _searched = true; Core.Log.Msg("Drop sparkle: no coin-pile particle found yet; will look again later."); }
+                    return null;
+                }
+                var root = new GameObject("LootOverhaul_SparkleTemplate");
+                UnityEngine.Object.DontDestroyOnLoad(root);
+                root.SetActive(false);
+                var clone = UnityEngine.Object.Instantiate(found.gameObject, root.transform);
+                clone.name = "Sparkle";
+                _template = root;
+                Core.Log.Msg($"Drop sparkle: borrowed `{found.name}` from `{from}`.");
+                return _template;
+            }
+            catch (Exception e)
+            {
+                Core.Log.Warning($"Drop sparkle template failed: {e.GetType().Name}: {e.Message}");
+                return null;
+            }
+        }
+
+        public static GameObject Attach(LootTag tag)
+        {
+            if (!Interop.Alive(tag.Object)) return null;
+            var template = Template();
+            if (template == null) return null;
+            try
+            {
+                var src = template.transform.GetChild(0).gameObject;
+                var go = UnityEngine.Object.Instantiate(src);
+                go.name = $"LootSparkle_{tag.ViewId}";
+                go.transform.position = tag.Object.transform.position + Vector3.up * 0.15f;
+                go.SetActive(true);
+                foreach (var ps in go.GetComponentsInChildren<ParticleSystem>(true)) { try { ps.Play(true); } catch { } }
+                return go;
+            }
+            catch (Exception e)
+            {
+                Core.Log.Warning($"Drop sparkle failed: {e.GetType().Name}: {e.Message}");
+                return null;
+            }
+        }
+
+        public static void Follow(LootTag tag)
+        {
+            if (!Interop.Alive(tag.Sparkle)) return;
+            if (!Interop.Alive(tag.Object)) { Detach(tag); return; }
+            try { tag.Sparkle.transform.position = tag.Object.transform.position + Vector3.up * 0.15f; } catch { }
+        }
+
+        public static void Detach(LootTag tag)
+        {
+            try { if (Interop.Alive(tag.Sparkle)) UnityEngine.Object.Destroy(tag.Sparkle); } catch { }
+            tag.Sparkle = null;
         }
     }
 }

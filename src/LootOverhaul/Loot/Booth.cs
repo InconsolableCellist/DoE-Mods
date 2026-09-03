@@ -124,7 +124,7 @@ namespace LootOverhaul.Loot
             var junkCount = 0; var junkValue = 0;
             foreach (var j in inv.Items) if (!j.IsWeapon) { junkCount++; junkValue += SellPrice(j); }
             if (junkCount > 0)
-                UiKit.Button(_sell, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f, top - 0.05f, 0f), $"SELL ALL JUNK ({junkValue})", SellAllJunk, BtnScale);
+                UiKit.Button(_sell, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f, top - 0.05f, 0f), $"SELL {junkCount} JUNK · {junkValue}g", SellAllJunk, BtnScale);
 
             var y0 = top - 0.19f;
             var start = _sellPage * RowsPerPage;

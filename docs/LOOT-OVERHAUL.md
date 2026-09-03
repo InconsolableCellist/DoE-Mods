@@ -378,8 +378,16 @@ and every two-player question (who sees the spawn, non-master `OnKilled`, claims
   Untested. Next: confirm which junk prefabs spawn, then the shop.
 - **0.7 (2026-09-02):** the shop — per-player generated stock at the loot tier, priced at
   the game's cost figure, free refresh hourly or paid restock, buy into the bag. Built,
-  not yet deployed (game was running) and untested. Next: two-player session, artifacts
-  with a story, a controller gesture for the bag.
+  not yet deployed (game was running) and untested.
+  **0.6 playtest 2026-09-02 22:04:** game loot tier 2 at level 15; 5 weapon drops / 2 junk in
+  21 kills (too many weapons); `Bone`/`Bones` prefabs refused, `Wolf_Treat` spawned; hand
+  still froze on pickup; beam still on (MelonPreferences keeps old values — new defaults
+  never reach an existing file).
+- **0.8 (2026-09-02):** VR bag gesture via the game's SteamVR actions (`othergate_Thumbstick`,
+  `othergate_HandTrigger`), coin-pile sparkle instead of the beam, laser catcher behind
+  panels, pickup drop-back deferred a frame + hand memory cleared + delayed destroy, drop
+  rates 3.5% / 35%, junk names matched to models, `-` junk prefab probe, shop × 2.5.
+  Deployed, untested. Next: two-player session (when possible), artifacts, own junk models.
 
 ## Verify first (one UnityExplorer/recon session, no headset-heavy iteration)
 

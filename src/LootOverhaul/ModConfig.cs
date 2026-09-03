@@ -28,6 +28,13 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<bool> DropBeams;
         /// <summary>Floating rarity-coloured name over floor loot.</summary>
         public static MelonPreferences_Entry<bool> DropLabels;
+        /// <summary>The coin pile's own sparkle, borrowed and placed over floor loot.</summary>
+        public static MelonPreferences_Entry<bool> DropSparkles;
+        /// <summary>An invisible pointer target over each panel so the laser shows across the whole window.</summary>
+        public static MelonPreferences_Entry<bool> PanelLaser;
+        /// <summary>How the bag opens in VR: "back-grip" (right hand behind you, grip + stick up), "stick-hold" (right stick held up), or "off".</summary>
+        public static MelonPreferences_Entry<string> BagGesture;
+        public static MelonPreferences_Entry<float> BagGestureHoldSeconds;
         /// <summary>Rarity weights for weapon drops, relative. Bosses and pity push upward from here.</summary>
         public static MelonPreferences_Entry<float> WeightCommon, WeightUnique, WeightRare, WeightLegendary;
         /// <summary>Chance, 0–1, that a real kill drops a trinket instead of nothing (rolled after the weapon roll fails).</summary>
@@ -62,20 +69,25 @@ namespace LootOverhaul
             Main = MelonPreferences.CreateCategory("LootOverhaul");
             Enabled = Main.CreateEntry("Enabled", true);
             EnemyDropsEnabled = Main.CreateEntry("EnemyDropsEnabled", true);
-            BaseDropChance = Main.CreateEntry("BaseDropChance", 0.08f);
+            BaseDropChance = Main.CreateEntry("BaseDropChance", 0.035f);
             BagWeightCapacity = Main.CreateEntry("BagWeightCapacity", 60f);
             BossDropChance = Main.CreateEntry("BossDropChance", 1.0f);
             LegendaryPityKills = Main.CreateEntry("LegendaryPityKills", 120);
             DropBeams = Main.CreateEntry("DropBeams", false);
             DropLabels = Main.CreateEntry("DropLabels", true);
+            DropSparkles = Main.CreateEntry("DropSparkles", true);
+            PanelLaser = Main.CreateEntry("PanelLaser", true);
+            BagGesture = Main.CreateEntry("BagGesture", "back-grip",
+                description: "back-grip = reach behind your back with the right hand, squeeze grip and push the stick up; stick-hold = hold the right stick up; off.");
+            BagGestureHoldSeconds = Main.CreateEntry("BagGestureHoldSeconds", 0.5f);
             WeightCommon = Main.CreateEntry("WeightCommon", 70f);
             WeightUnique = Main.CreateEntry("WeightUnique", 22f);
             WeightRare = Main.CreateEntry("WeightRare", 7f);
             WeightLegendary = Main.CreateEntry("WeightLegendary", 1f);
-            JunkDropChance = Main.CreateEntry("JunkDropChance", 0.18f);
+            JunkDropChance = Main.CreateEntry("JunkDropChance", 0.35f);
             TierUpChance = Main.CreateEntry("TierUpChance", 0.12f);
             SellMultiplier = Main.CreateEntry("SellMultiplier", 1.0f);
-            ShopPriceMultiplier = Main.CreateEntry("ShopPriceMultiplier", 1.0f);
+            ShopPriceMultiplier = Main.CreateEntry("ShopPriceMultiplier", 2.5f);
             ShopSlots = Main.CreateEntry("ShopSlots", 6);
             ShopRefreshMinutes = Main.CreateEntry("ShopRefreshMinutes", 60);
             LoadoutEnabled = Main.CreateEntry("LoadoutEnabled", true);

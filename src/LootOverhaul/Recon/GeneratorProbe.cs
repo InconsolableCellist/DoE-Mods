@@ -206,6 +206,44 @@ namespace LootOverhaul.Recon
             finally { ProfileWatch.Probe = null; }
         }
 
+        private static readonly string[] JunkCandidates =
+        {
+            "Dice", "Wolf_Treat", "Trophy_SkullCrown", "Trophy_NovaGuild", "Trophy_Chest", "Trophy_Zombie",
+            "Chalice", "Chalice_01", "Goblet", "Mug", "Cup", "Skull", "Horn", "Candle", "Book", "Bottle",
+            "Gem_White", "Crystal", "Key_01_Skull", "Bone", "Bones", "Coin_Pile_01",
+        };
+        private static int _junkCursor;
+
+        /// <summary>Minus key: try the next candidate prop name through the networked pool and describe what came out.</summary>
+        public static void JunkProbe()
+        {
+            if (!ModGate.Active) { ReconLog.Headline($"Junk probe refused: gate is inert ({ModGate.Reason})."); return; }
+            var name = JunkCandidates[_junkCursor++ % JunkCandidates.Length];
+            ReconLog.Section($"Junk prefab probe: `{name}`");
+            try
+            {
+                var local = AvatarPlayer.LocalAvatar;
+                if (!Interop.Alive(local)) { ReconLog.Headline("No local avatar."); return; }
+                var head = local.Head;
+                var pos = head.position + head.forward * 0.8f;
+                var go = PhotonNetwork.Instantiate(name, pos, Quaternion.identity, 0, null);
+                if (!Interop.Alive(go)) { ReconLog.Headline($"`{name}`: pool refused (null)."); return; }
+                var comps = new List<string>();
+                foreach (var c in go.GetComponents<Component>()) if (Interop.Alive(c)) comps.Add(c.GetIl2CppType().Name);
+                var size = "?";
+                try
+                {
+                    var rs = go.GetComponentsInChildren<Renderer>();
+                    if (rs.Length > 0) { var b = rs[0].bounds; foreach (var r in rs) b.Encapsulate(r.bounds); size = $"{b.size.x:0.00}×{b.size.y:0.00}×{b.size.z:0.00} m"; }
+                }
+                catch { }
+                var prop = go.GetComponent<Prop>();
+                ReconLog.Headline($"`{name}`: spawned `{go.name}` size {size}; Prop={(Interop.Alive(prop) ? prop.type.ToString() : "none")}; components: {string.Join(", ", comps)}");
+                Spawned.Add((go, $"junk probe {name}", UnityEngine.SceneManagement.SceneManager.GetActiveScene().name));
+            }
+            catch (Exception e) { ReconLog.Error($"junk probe {name}", e); }
+        }
+
         /// <summary>On every scene change: are the weapons we spawned still alive? (Design item 5.)</summary>
         public static void CheckSpawned(string newScene)
         {
