@@ -36,6 +36,18 @@ gate rule is the same: private room, every occupant on the identical version and
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
 
+## 0.3 — milestone L2, the bag panel
+
+`[` opens and closes a world-space panel in front of you (it stays where it was opened;
+close and reopen to move it). Each row shows the weapon's generated mesh, its coloured
+name, type and tier, the game's stats line, weight and value, and a DROP button that puts
+that item on the floor as tagged loot. Sort buttons: NEW, VALUE, WEIGHT, RARITY; pages of
+six. The buttons are clones of the fabricator button with every inherited listener off,
+and the font is borrowed from the game, so both templates are captured in the lobby
+(three seconds after it loads) and kept across scene loads. If you open the bag in a
+dungeon before ever loading the lobby with this build, you get a toast and the summary
+instead.
+
 ## 0.2 — milestone L1, the core loop
 
 What runs, gated to a fully modded private room (solo counts):

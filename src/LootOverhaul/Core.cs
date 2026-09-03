@@ -6,7 +6,7 @@ using LootOverhaul.Loot;
 using LootOverhaul.Net;
 using LootOverhaul.Recon;
 
-[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.2.0", "dan")]
+[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.3.0", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace LootOverhaul
@@ -24,13 +24,14 @@ namespace LootOverhaul
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.2.0";
+        public const string Version = "0.3.0";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
 
         private ModRoster _roster;
         private ModHandshake _handshake;
+        private float _templateCaptureAt = -1f;
 
         public override void OnInitializeMelon()
         {
@@ -39,7 +40,7 @@ namespace LootOverhaul
             try { MelonPreferences.Save(); }
             catch (Exception e) { LoggerInstance.Warning($"Could not write MelonPreferences.cfg: {e.Message}"); }
 
-            LoggerInstance.Msg($"LootOverhaul {Version} — L1: drops, loot tags, bag-on-pickup. Recon hooks {(ModConfig.ReconEnabled.Value ? "on" : "off")}.");
+            LoggerInstance.Msg($"LootOverhaul {Version} — L1+L2: drops, loot tags, bag-on-pickup, bag panel. Recon hooks {(ModConfig.ReconEnabled.Value ? "on" : "off")}.");
             LoggerInstance.Msg($"Data folder: {ModPaths.Root}; recon transcripts in {ModPaths.ReconDir}");
 
             SelfCheck.LogSelfHash(LoggerInstance);
@@ -65,7 +66,7 @@ namespace LootOverhaul
                 GameplayHooks.Install();
             }
             Hooks.Report();
-            LoggerInstance.Msg("Bag hotkeys: [ = bag summary (toast + transcript), ] = drop the last bagged item at your feet.");
+            LoggerInstance.Msg("Bag hotkeys: [ = open/close the bag panel, ] = drop the last bagged item at your feet.");
             if (ModConfig.ReconEnabled.Value)
             {
                 LoggerInstance.Msg("Recon hotkeys: Insert = generator survey, Delete = spawn a test weapon (private room), Backslash (\\) = lobby survey + marker cubes, Scroll Lock = cloned button + pointer test.");
@@ -79,11 +80,16 @@ namespace LootOverhaul
             ModGate.Evaluate(_roster);
             ModNet.Pump();
             LootRegistry.Tick();
+            if (_templateCaptureAt > 0f && UnityEngine.Time.unscaledTime >= _templateCaptureAt)
+            {
+                _templateCaptureAt = -1f;
+                try { UiKit.CaptureTemplates(); } catch (Exception e) { LoggerInstance.Warning($"Template capture threw: {e.GetType().Name}: {e.Message}"); }
+            }
 
             if (!ModConfig.HotkeysEnabled.Value) return;
             try
             {
-                if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.LeftBracket)) BagManager.SummaryToast();
+                if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.LeftBracket)) BagPanel.Toggle();
                 else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.RightBracket)) BagManager.DropLast();
                 if (!ModConfig.ReconEnabled.Value) return;
                 if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Insert)) GeneratorProbe.Survey();
@@ -97,6 +103,8 @@ namespace LootOverhaul
         public override void OnSceneWasInitialized(int buildIndex, string sceneName)
         {
             LootRegistry.Clear($"scene changed to {sceneName}");
+            BagPanel.Hide();
+            _templateCaptureAt = sceneName == Il2Cpp.GameManager.LOBBY_SCENE ? UnityEngine.Time.unscaledTime + 3f : -1f;
             if (!ModConfig.ReconEnabled.Value) return;
             ReconLog.Section($"Scene initialized: {sceneName} (#{buildIndex})");
             ReconLog.TryKeyValue("GameManager.IsLobbyScene", () => Il2Cpp.GameManager.IsLobbyScene);

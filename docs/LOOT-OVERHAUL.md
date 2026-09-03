@@ -352,7 +352,10 @@ and every two-player question (who sees the spawn, non-master `OnKilled`, claims
 - **0.2 (2026-09-02):** milestone L1 built — master drop roll on `AI.OnKilled`, tagged
   networked spawns with rarity beams and toasts, master-arbitrated claims on `Prop.PickUp`,
   JSON bag, `[`/`]` hotkeys. Untested in game as of writing; see `src/LootOverhaul/README.md`
-  for the solo test script. Next: L2 bag panel, L3 booth.
+  for the solo test script. Tested 2026-09-02: the full loop worked solo.
+- **0.3 (2026-09-02):** milestone L2 built — world-space bag panel from cloned game buttons
+  and the game's font, mesh previews via `GenerateLootWeapon`, sort and paging, per-row
+  drop. Untested. Next: L3 booth.
 
 ## Verify first (one UnityExplorer/recon session, no headset-heavy iteration)
 

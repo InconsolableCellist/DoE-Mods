@@ -59,6 +59,7 @@ namespace LootOverhaul.Loot
             inv.Items.Add(item);
             inv.Save();
             Toast($"Bagged {item.ColoredName}  ({item.Weight:0.#} wt, {item.Value} value)  bag {inv.TotalWeight:0.#}/{ModConfig.BagWeightCapacity.Value:0}");
+            BagPanel.Refresh();
             ReconLog.Line($"bag + {item.Name} [{LootTables.ClassName(item.WeaponClass)} {LootTables.TypeName(item.PropType)} t{item.WeaponTier + 1} seed {item.RandomSeed}] value={item.Value} weight={item.Weight:0.#} -> {inv.Items.Count} items, {inv.TotalWeight:0.#} wt");
         }
 
@@ -67,21 +68,30 @@ namespace LootOverhaul.Loot
         {
             var inv = Inventory;
             if (inv.Items.Count == 0) { Toast("Bag is empty."); return; }
+            Drop(inv.Items[inv.Items.Count - 1]);
+        }
+
+        /// <summary>Drop one bag item at your feet as tagged loot. The panel's per-row Drop uses this.</summary>
+        public static void Drop(LootItem item)
+        {
+            var inv = Inventory;
+            if (item == null || inv.Find(item.Id) == null) { Toast("That item is no longer in the bag."); return; }
             if (!Gate.ModGate.Active) { Toast("Not in a modded room."); return; }
-            var item = inv.Items[inv.Items.Count - 1];
             try
             {
                 var local = AvatarPlayer.LocalAvatar;
                 if (!Interop.Alive(local)) { Toast("No avatar to drop from."); return; }
                 var head = local.Head;
-                var pos = head.position + head.forward * 0.6f;
-                var tag = DropRoller.SpawnLoot(item, pos, Vector3.up * 1.5f + head.forward * 1.0f);
+                var fwd = head.forward; fwd.y = 0f; fwd.Normalize();
+                var pos = head.position + fwd * 0.5f + Vector3.down * 0.3f;
+                var tag = DropRoller.SpawnLoot(item, pos, Vector3.up * 1.0f + fwd * 1.2f);
                 if (tag == null) { Toast("Drop failed — see log."); return; }
                 inv.Remove(item.Id);
                 inv.Save();
                 Toast($"Dropped {item.ColoredName}");
+                BagPanel.Refresh();
             }
-            catch (Exception e) { Core.Log.Error($"DropLast failed: {e}"); }
+            catch (Exception e) { Core.Log.Error($"Drop failed: {e}"); }
         }
 
         public static void SummaryToast()
@@ -90,6 +100,12 @@ namespace LootOverhaul.Loot
             var sb = new StringBuilder();
             sb.Append($"Bag: {inv.Items.Count} item(s), {inv.TotalWeight:0.#}/{ModConfig.BagWeightCapacity.Value:0} wt, {inv.Gold} gold, {inv.KillsSinceLegendary} kills since legendary");
             Toast(sb.ToString());
+            DumpToTranscript();
+        }
+
+        public static void DumpToTranscript()
+        {
+            var inv = Inventory;
             ReconLog.Section("Bag contents");
             foreach (var i in inv.Items)
                 ReconLog.Line($"- {i.Name} [{LootTables.ClassName(i.WeaponClass)} {LootTables.TypeName(i.PropType)} t{i.WeaponTier + 1}] value={i.Value} weight={i.Weight:0.#} found {i.FoundAt:u} by {i.FoundBy}");
