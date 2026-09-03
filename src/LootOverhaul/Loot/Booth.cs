@@ -114,7 +114,8 @@ namespace LootOverhaul.Loot
             var inv = BagManager.Inventory;
             var items = new List<LootItem>(inv.Items);
             items.Sort((a, b) => b.Value.CompareTo(a.Value));
-            var pages = Math.Max(1, (items.Count + RowsPerPage - 1) / RowsPerPage);
+            var perPage = RowsPerPage - 1;
+            var pages = Math.Max(1, (items.Count + perPage - 1) / perPage);
             _sellPage = Math.Max(0, Math.Min(_sellPage, pages - 1));
 
             var height = 0.36f + RowsPerPage * RowHeight;
@@ -129,10 +130,11 @@ namespace LootOverhaul.Loot
                 UiKit.Button(_sell, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f, top - 0.05f, 0f), $"SELL {junkCount} JUNK · {junkValue}g", SellAllJunk, BtnScale);
 
             var y0 = top - 0.19f;
-            var start = _sellPage * RowsPerPage;
+            var start = _sellPage * perPage;
             var sellX = PanelWidth * 0.5f - 0.04f - BtnW * 0.5f;
+            // One row fewer so the bag line fits above the pager.
             var textW = sellX - BtnW * 0.5f - 0.02f - (left + 0.16f);
-            for (var i = 0; i < RowsPerPage && start + i < items.Count; i++)
+            for (var i = 0; i < RowsPerPage - 1 && start + i < items.Count; i++)
             {
                 var item = items[start + i];
                 var row = new GameObject($"SellRow_{i}"); row.transform.SetParent(_sell, false);
@@ -155,6 +157,18 @@ namespace LootOverhaul.Loot
                 UiKit.Button(_sell, new Vector3(-0.22f - BtnW * 0.5f, bottom, 0f), "<", () => { _sellPage--; BuildSell(); }, BtnScale);
                 UiKit.Button(_sell, new Vector3(0.22f + BtnW * 0.5f, bottom, 0f), ">", () => { _sellPage++; BuildSell(); }, BtnScale);
             }
+            // A bigger bag, the broker's gold sink, on the row above the pager.
+            var bagY = bottom + 0.09f;
+            if (inv.BagLevel < BagManager.BagUpgrades.Length)
+            {
+                var next = BagManager.BagUpgrades[inv.BagLevel];
+                var price = (int)Math.Round(next.price * ModConfig.ShopPriceMultiplier.Value);
+                UiKit.Text(_sell, new Vector3(left, bagY, 0f), 0.8f, 0.05f, 0.32f,
+                    $"<color=#9A9A9A>bag {inv.TotalWeight:0.#} / {BagManager.Capacity:0} wt   ·   {next.name} (+{next.bonus:0} wt)  <color=#F5C542>{price} gold</color></color>");
+                UiKit.Button(_sell, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f, bagY, 0f), "BIGGER BAG", () => { BagManager.BuyBagUpgrade(); }, BtnScale);
+            }
+            else
+                UiKit.Text(_sell, new Vector3(left, bagY, 0f), 0.8f, 0.05f, 0.32f, $"<color=#9A9A9A>bag {inv.TotalWeight:0.#} / {BagManager.Capacity:0} wt   ·   {BagManager.BagUpgrades[^1].name}</color>");
             if (items.Count == 0)
                 UiKit.Text(_sell, new Vector3(0f, y0 - RowHeight, 0f), 0.8f, 0.06f, 0.4f, "Nothing to sell. Bring me something shiny.", TextAlignmentOptions.Center);
         }

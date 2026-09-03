@@ -505,7 +505,10 @@ and recipes → scrolls that retune a bracelet → hazard contracts.
   A `loot goblin` enemy appeared in a normal run and dropped a Common longsword.
 - **0.9.3 (2026-09-03):** `manual` candidate first, tab row at the booth, full tonic
   catalogue with inverted reduction stats, two junk bodies retired, preview clamp.
-  Deployed, untested.
+- **0.9.4 (2026-09-03):** bag upgrades as the gold sink; button template width sanity
+  (the run measured 0.05 m for a 0.5 m button). Deployed, untested. Gesture: SteamVR
+  actions became readable 10 s in on the 0.9.2 run; whether the stick-hold opened the bag
+  is unknown (the bag was never opened that session).
 
 ## Verify first (one UnityExplorer/recon session, no headset-heavy iteration)
 

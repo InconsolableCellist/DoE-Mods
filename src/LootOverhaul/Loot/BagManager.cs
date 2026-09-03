@@ -50,7 +50,39 @@ namespace LootOverhaul.Loot
             return "default";
         }
 
-        public static bool CanCarry(LootItem item) => Inventory.CanCarry(item.Weight, ModConfig.BagWeightCapacity.Value);
+        public static readonly (string name, float bonus, int price)[] BagUpgrades =
+        {
+            ("Satchel", 30f, 400), ("Traveller's Pack", 60f, 1200), ("Porter's Harness", 110f, 3000),
+        };
+
+        /// <summary>Bag capacity: the setting plus whatever the player has bought.</summary>
+        public static float Capacity
+        {
+            get
+            {
+                var lvl = Math.Max(0, Math.Min(BagUpgrades.Length, Inventory.BagLevel));
+                return ModConfig.BagWeightCapacity.Value + (lvl == 0 ? 0f : BagUpgrades[lvl - 1].bonus);
+            }
+        }
+
+        public static bool CanCarry(LootItem item) => Inventory.CanCarry(item.Weight, Capacity);
+
+        /// <summary>Buy the next bag upgrade with mod gold.</summary>
+        public static bool BuyBagUpgrade()
+        {
+            var inv = Inventory;
+            if (inv.BagLevel >= BagUpgrades.Length) { Toast("You already carry the biggest bag the broker sells."); return false; }
+            var next = BagUpgrades[inv.BagLevel];
+            var price = (int)Math.Round(next.price * ModConfig.ShopPriceMultiplier.Value);
+            if (inv.Gold < price) { Toast($"The {next.name} costs {price} gold; you have {inv.Gold}."); return false; }
+            inv.Gold -= price;
+            inv.BagLevel++;
+            inv.Save();
+            Toast($"Bought a {next.name}: bag capacity is now {Capacity:0} wt.");
+            ReconLog.Line($"bag upgrade {inv.BagLevel} ({next.name}) for {price} -> gold {inv.Gold}");
+            BagPanel.Refresh(); Booth.Refresh();
+            return true;
+        }
 
         public static void Bag(LootItem item)
         {
@@ -58,7 +90,7 @@ namespace LootOverhaul.Loot
             item.FoundAt = DateTime.UtcNow;
             inv.Items.Add(item);
             inv.Save();
-            Toast($"Bagged {item.ColoredName}  ({item.Weight:0.#} wt, {item.Value} value)  bag {inv.TotalWeight:0.#}/{ModConfig.BagWeightCapacity.Value:0}");
+            Toast($"Bagged {item.ColoredName}  ({item.Weight:0.#} wt, {item.Value} value)  bag {inv.TotalWeight:0.#}/{Capacity:0}");
             BagPanel.Refresh();
             ReconLog.Line($"bag + {item.Name} [{LootTables.ClassName(item.WeaponClass)} {LootTables.TypeName(item.PropType)} t{item.WeaponTier + 1} seed {item.RandomSeed}] value={item.Value} weight={item.Weight:0.#} -> {inv.Items.Count} items, {inv.TotalWeight:0.#} wt");
         }
@@ -100,7 +132,7 @@ namespace LootOverhaul.Loot
         {
             var inv = Inventory;
             var sb = new StringBuilder();
-            sb.Append($"Bag: {inv.Items.Count} item(s), {inv.TotalWeight:0.#}/{ModConfig.BagWeightCapacity.Value:0} wt, {inv.Gold} gold, {inv.KillsSinceLegendary} kills since legendary");
+            sb.Append($"Bag: {inv.Items.Count} item(s), {inv.TotalWeight:0.#}/{Capacity:0} wt, {inv.Gold} gold, {inv.KillsSinceLegendary} kills since legendary");
             Toast(sb.ToString());
             DumpToTranscript();
         }

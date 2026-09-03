@@ -101,7 +101,7 @@ namespace LootOverhaul.Loot
             if (idx < 0) { BagManager.Toast("That one is gone."); return false; }
             var price = stockItem.Value;
             if (inv.Gold < price) { BagManager.Toast($"Not enough gold: {price} needed, you have {inv.Gold}."); return false; }
-            if (!inv.CanCarry(stockItem.Weight, ModConfig.BagWeightCapacity.Value)) { BagManager.Toast("Your bag is too full to carry it."); return false; }
+            if (!inv.CanCarry(stockItem.Weight, BagManager.Capacity)) { BagManager.Toast("Your bag is too full to carry it."); return false; }
 
             inv.ShopStock.RemoveAt(idx);
             inv.Gold -= price;
@@ -133,7 +133,7 @@ namespace LootOverhaul.Loot
             var item = Buffs.MakeItem(def, tier);
             var price = (int)Math.Round(item.Value * ModConfig.ShopPriceMultiplier.Value);
             if (inv.Gold < price) { BagManager.Toast($"Not enough gold: {price} needed, you have {inv.Gold}."); return false; }
-            if (!inv.CanCarry(item.Weight, ModConfig.BagWeightCapacity.Value)) { BagManager.Toast("Your bag is too full."); return false; }
+            if (!inv.CanCarry(item.Weight, BagManager.Capacity)) { BagManager.Toast("Your bag is too full."); return false; }
             inv.Gold -= price;
             item.Value = Math.Max(1, price / 4);   // resale
             inv.Items.Add(item);

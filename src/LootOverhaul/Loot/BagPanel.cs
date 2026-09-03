@@ -119,7 +119,7 @@ namespace LootOverhaul.Loot
             var top = height * 0.5f;
             var left = -Width * 0.5f + 0.04f;
             UiKit.Text(_content, new Vector3(left, top - 0.05f, 0f), Width - 0.08f, 0.06f, 0.5f,
-                $"<b>BAG</b>   {inv.Items.Count} item(s)   {inv.TotalWeight:0.#} / {ModConfig.BagWeightCapacity.Value:0} wt   <color=#F5C542>{inv.Gold} gold</color>");
+                $"<b>BAG</b>   {inv.Items.Count} item(s)   {inv.TotalWeight:0.#} / {BagManager.Capacity:0} wt   <color=#F5C542>{inv.Gold} gold</color>");
             if (Buffs.AnyActive)
                 UiKit.Text(_content, new Vector3(left, top - 0.105f, 0f), Width - 0.08f, 0.05f, 0.3f, $"<color=#7FD8FF>active this run:</color> {Buffs.DescribeActive()}");
 

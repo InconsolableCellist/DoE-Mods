@@ -71,7 +71,10 @@ namespace LootOverhaul.Loot
                                 var b = new Bounds(source.transform.position, Vector3.zero);
                                 var first = true;
                                 foreach (var r in rs) { if (!Interop.Alive(r)) continue; if (first) { b = r.bounds; first = false; } else b.Encapsulate(r.bounds); }
-                                if (!first) ButtonSize = new Vector2(Mathf.Max(0.05f, b.size.x), Mathf.Max(0.02f, b.size.y));
+                                // The renderers under the button are the label, not the glowing frame: the
+                                // 2026-09-02 run measured 0.05 m for a button that draws ~0.5 m wide. Trust the
+                                // measurement only if it is plausible; otherwise keep the known good default.
+                                if (!first && b.size.x > 0.25f && b.size.x < 1.5f) ButtonSize = new Vector2(b.size.x, Mathf.Max(0.03f, b.size.y));
                             }
                             catch { }
                             Core.Log.Msg($"UI: button template captured from `{Interop.ScenePath(source.transform)}` ({stripped} inherited listener(s) off), size {ButtonSize.x:0.00}×{ButtonSize.y:0.00} m.");

@@ -32,6 +32,9 @@ namespace LootOverhaul.Loot
         /// </summary>
         public LootItem[] Loadout = new LootItem[3];
 
+        /// <summary>Bag upgrades bought at the broker: 0 none, 1 satchel, 2 pack, 3 porter's harness.</summary>
+        public int BagLevel;
+
         /// <summary>Legendary pity counter: kills since the last legendary drop for this account.</summary>
         public int KillsSinceLegendary;
 

@@ -36,6 +36,15 @@ gate rule is the same: private room, every occupant on the identical version and
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
 
+## 0.9.4 — a bigger bag, and the real button width
+
+- **Bigger bag.** The sell panel's bottom line offers the next bag upgrade for mod gold:
+  Satchel (+30 wt), Traveller's Pack (+60), Porter's Harness (+110), on top of
+  `BagWeightCapacity`. The level is kept in the inventory file.
+- The button template measured 5 cm wide on the last run (the label, not the glowing
+  frame), which is why every button-relative layout was off. Implausible measurements are
+  ignored now and the known width used.
+
 ## 0.9.3 — fixes from the 0.9.2 run
 
 - The broker's BUY panel now has a tab row (WEAPONS · TONICS · ENCHANT) under the header
