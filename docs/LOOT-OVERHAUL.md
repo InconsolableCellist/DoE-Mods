@@ -346,6 +346,89 @@ Transcripts: `UserData/LootOverhaul/recon/recon-20260902-002755.md` and the two 
 **Still open:** chest hooks (no chest was opened), in-dungeon respawn with a partner alive,
 and every two-player question (who sees the spawn, non-master `OnKilled`, claims).
 
+## What the game already has behind a broker (analysis 2026-09-02)
+
+Surveyed from the dump and the asset census for the "buy more than weapons" idea: armor,
+spells, one-run buffs, poisoned weapons, crafting, enchanting. Verdict per system, and the
+PlayFab consequence of each, since that is what decides the shape.
+
+**Consumables — exist, but they persist to PlayFab.** Potions (health, small, bomb, ice,
+haste, quad damage, invisibility, resurrect, cluster, frosty, pumpkin), power gems, bones,
+dice and the death whistle are all spawnable prefabs (`potion_*`, `gem_*`, `wolf_treat`,
+`dice`, `death_whistle`) and the inventory ring takes them through
+`Holster.AddToInventory(prefab, count)`. But the ring's contents are saved as
+`CharacterValues.StoredConsumables`, and the watchdog shows the game writing that value
+repeatedly every session. A mod-granted potion left in the ring at lobby return would be
+saved as owned. Options: intercept that one write and strip mod-granted entries (fiddly:
+the value is a serialized list), or never grant vanilla consumables and implement buffs
+ourselves. Recommendation: the latter for buffs, and treat vanilla consumables as a
+possible later sale only inside a dungeon with a strip-on-save guard.
+
+**One-run buffs — the exosuit is a live multiplier table.** `AvatarPlayer.LocalExoSuit`
+holds a public float per perk: `Chest_Armor`, `Chest_Vitality`, `Chest_Heal`, `Arms_Power`,
+`Arms_Critical`, `Arms_Might`, `Legs_Haste`, `Legs_Swift`, `Legs_Jump`, `Mind_Fortune`,
+`Mind_Lucky`, `Mind_Perception`, and about twenty more, recomputed from the equipped perks
+by `Update(ExosuitModule)` / `ResetAll`. A run buff is a temporary bump to one of those
+floats, re-applied after the game's own recompute (postfix on `ResetAll`/`Update`), cleared
+on lobby return. Nothing persists, nothing is written. "Potion of Iron Skin" = Chest_Armor
+× 1.5 for the run; "Elixir of Haste" = Legs_Haste. **Cheapest real feature on this list.**
+Whether each multiplier is applied locally or on the master needs one recon run per stat.
+
+**Armor — no stat, but the exosuit *is* the armor system.** `Chest_Armor`,
+`Chest_Resilience`, `Chest_Vitality`, `Legs_Absorb` are the game's damage-side stats, and
+`AvatarPlayer.OnDamaged` is the single entry point (recon). Mod armor = a worn item that
+holds a set of exosuit bumps (and a cosmetic garment later). Sold, dropped, enchanted like
+a weapon.
+
+**Spells — exist as staff styles and kinetics bracelets.** `WeaponFactory.StaffStyle`:
+Fireball, Heal, Ice, Pull, Push, Shockwave, Slow, Basic; the generator already produces
+`Staff_<Style>_Gen1` weapons and our drops include them. The hands' "kinetics" are
+`KineticBracelet` components (`KineticsType` Slow/Push/Pull/Heal/Shockwave/AddVelocity/Ice,
+with charge time, energy, range, damage, level) chosen through the `LeftKinetic` /
+`RightKinetic` loadout items. New spell *content* means new staff behaviour, which is
+real work; new spell *access* (a scroll that swaps your bracelet's `KineticsType` for a
+run, or a staff drop of a style you have not unlocked) is cheap. Gems (`Gem`, `gemEnergy`)
+charge staffs by physical attachment — the game's own "soul gem" mechanic, usable as is.
+
+**Poisoned or elemental weapons — already a weapon property.** `WeaponElemental`
+Fire/Ice/Poison and the 50 perks live on the weapon module. The generator's `Manual`
+serialized type (`ManualWeaponDTO`: perkA/B/C, damageMin, damageType, superior) lets a
+module carry chosen perks and an element, and the game networks it (11 values). That is
+the enchanting table: take a bag weapon, spend gold and a reagent, write a Manual module
+with an added perk or element. Slot count by rarity (Common 1, Unique 2, Rare 2,
+Legendary 3) is our rule. Needs one recon: build a Manual DTO by hand and confirm the
+module name the game expects (`IsMythicModule` / `manualSerializedValueIndices` suggest a
+fixed module-name convention) and that it spawns.
+
+**Crafting ingredients — junk is already the reagent economy.** Bones, ingots, gems,
+rune stones exist as bodies with tiers; an ingredient is a junk item with a `Kind` of
+"reagent" and a recipe table. No new game system required.
+
+**Hazard modifiers — the game's own run modifiers.** `GameManager.HazardModifier`:
+NoPotions, Potions50Pct, NoRevives, CreatureSwarms, Damage150/200Pct, BowsOnly, AxesOnly,
+SwordAndShield, DaggersOnly, FireballStaffs, DragonBattle, MiniBossBattle, BossBattle,
+RandomWeapons, with reward tiers +25%/+40% loot. Applied per run via static flags
+(`Hazard_CreatureSwarms` …) from the dungeon scanner. A broker "contract" could set a
+hazard flag for the next run in exchange for a drop-rate boost, but the flags are
+gameplay-affecting and networked by the host's run setup — test before relying on it.
+
+**Locked content the generator can still make.** Seasonal weapons
+(`SeasonalKey` Christmas/Spring/Halloween) are date-gated for the vendor but the
+generator takes the key as a parameter: off-season seasonal styles as rare finds. Mythic
+weapons are promotion rewards (`PromotionStation.WeaponReward`, `HasMythicWeapon`), built
+through `GenerateMythicWeaponModuleForLocalPlayer(type, perks)`: a mod "mythic" drop is
+possible but sits close to the game's prestige track, so treat it as a house rule.
+Sandbox-only props exist too: `C1911`, `M16` firearms, hockey stick, snowball, pumpkin
+bomb, Christmas ornament.
+
+**What is not there.** No armor stat, no spell slots beyond the two bracelets and the
+staff styles, no crafting or enchanting UI, no scroll item. Everything above builds those
+from the multiplier table, the Manual weapon module and the junk model.
+
+**Suggested order** (all inside the PlayFab wall): run buffs via exosuit multipliers →
+enchanting via Manual modules (after its recon) → armor as an exosuit bundle → reagents
+and recipes → scrolls that retune a bracelet → hazard contracts.
+
 ## Implementation state
 
 - **0.1 (2026-09-01):** recon build. Findings above.
