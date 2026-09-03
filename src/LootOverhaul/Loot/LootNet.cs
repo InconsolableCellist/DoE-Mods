@@ -180,7 +180,7 @@ namespace LootOverhaul.Loot
         public static void OnDenied(int viewId)
         {
             if (LootRegistry.TryGet(viewId, out var tag)) tag.ClaimPending = false;
-            BagManager.Toast("Someone else got it.");
+            BagManager.Toast("Taken.");
         }
     }
 }

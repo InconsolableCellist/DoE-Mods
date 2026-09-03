@@ -53,7 +53,7 @@ namespace LootOverhaul.Loot
 
         public static readonly (string name, float bonus, int price)[] BagUpgrades =
         {
-            ("Satchel", 30f, 400), ("Traveller's Pack", 60f, 1200), ("Porter's Harness", 110f, 3000),
+            ("Satchel", 30f, 400), ("Backpack", 60f, 1200), ("Bag of Holding", 110f, 3000),
         };
 
         /// <summary>Bag capacity: the setting plus whatever the player has bought.</summary>
@@ -72,7 +72,7 @@ namespace LootOverhaul.Loot
         public static bool BuyBagUpgrade()
         {
             var inv = Inventory;
-            if (inv.BagLevel >= BagUpgrades.Length) { Toast("You already carry the biggest bag the broker sells."); return false; }
+            if (inv.BagLevel >= BagUpgrades.Length) { Toast("You already carry the biggest bag there is."); return false; }
             var next = BagUpgrades[inv.BagLevel];
             var price = (int)Math.Round(next.price * ModConfig.ShopPriceMultiplier.Value);
             if (inv.Gold < price) { Toast($"The {next.name} costs {price} gold; you have {inv.Gold}."); return false; }
@@ -108,7 +108,7 @@ namespace LootOverhaul.Loot
         public static void Drop(LootItem item)
         {
             var inv = Inventory;
-            if (item == null || inv.Find(item.Id) == null) { Toast("That item is no longer in the bag."); return; }
+            if (item == null || inv.Find(item.Id) == null) { Toast("That's gone."); return; }
             if (inv.Find(item.Id).EquippedSlot >= 0) { Toast("Unequip it at the booth first."); return; }
             if (!Gate.ModGate.Active) { Toast("Not in a modded room."); return; }
             try

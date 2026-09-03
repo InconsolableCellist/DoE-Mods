@@ -98,7 +98,7 @@ namespace LootOverhaul.Loot
             var inv = BagManager.Inventory;
             if (inv.ShopStock == null) return false;
             var idx = inv.ShopStock.FindIndex(i => i.Id == stockItem.Id);
-            if (idx < 0) { BagManager.Toast("That one is gone."); return false; }
+            if (idx < 0) { BagManager.Toast("That's gone."); return false; }
             var price = stockItem.Value;
             if (inv.Gold < price) { BagManager.Toast($"Not enough gold: {price} needed, you have {inv.Gold}."); return false; }
             if (!inv.CanCarry(stockItem.Weight, BagManager.Capacity)) { BagManager.Toast("Your bag is too full to carry it."); return false; }
@@ -129,7 +129,7 @@ namespace LootOverhaul.Loot
         public static bool BuyTonic(Buffs.Def def, int tier)
         {
             var inv = BagManager.Inventory;
-            if (!Unlocks.PerkUnlocked(def.Stat)) { BagManager.Toast("The broker won't sell what you haven't earned yet."); return false; }
+            if (!Unlocks.PerkUnlocked(def.Stat)) { BagManager.Toast("You haven't unlocked that perk yet."); return false; }
             var item = Buffs.MakeItem(def, tier);
             var price = (int)Math.Round(item.Value * ModConfig.ShopPriceMultiplier.Value);
             if (inv.Gold < price) { BagManager.Toast($"Not enough gold: {price} needed, you have {inv.Gold}."); return false; }

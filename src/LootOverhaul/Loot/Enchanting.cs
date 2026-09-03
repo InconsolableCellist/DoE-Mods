@@ -92,10 +92,10 @@ namespace LootOverhaul.Loot
         public static LootItem Enchant(LootItem item, int perkId, int element)
         {
             var inv = BagManager.Inventory;
-            if (!Ready) { BagManager.Toast("The table is cold: the game has not accepted a manual weapon yet (see the log)."); return null; }
+            if (!Ready) { BagManager.Toast("Enchanting is unavailable in this game version."); return null; }
             if (!ModGate.Active) { BagManager.Toast("Not in a modded room."); return null; }
             var live = inv.Find(item.Id);
-            if (live == null || !live.IsWeapon) { BagManager.Toast("That weapon is gone."); return null; }
+            if (live == null || !live.IsWeapon) { BagManager.Toast("That's gone."); return null; }
             if (live.EquippedSlot >= 0) { BagManager.Toast("Unequip it at the pedestal first."); return null; }
             var price = Price(live);
             if (inv.Gold < price) { BagManager.Toast($"Enchanting costs {price} gold; you have {inv.Gold}."); return null; }
@@ -121,12 +121,12 @@ namespace LootOverhaul.Loot
             {
                 var wm = WeaponCodec.ToModule(enchanted);
                 var prefab = WeaponModule.GetWeaponPrefabData(wm, out var data);
-                if (data == null || data.Length != ManualPacketLength) { BagManager.Toast("The game refused that enchantment (see the log)."); ReconLog.Line($"enchant: packet length {(data == null ? -1 : data.Length)} for {enchanted.ModuleName}"); return null; }
+                if (data == null || data.Length != ManualPacketLength) { BagManager.Toast("That enchantment didn't take."); ReconLog.Line($"enchant: packet length {(data == null ? -1 : data.Length)} for {enchanted.ModuleName}"); return null; }
                 enchanted.Name = wm.GetDisplayName(false).Replace(FabricatorBridge.Marker, "");
                 enchanted.ColoredName = wm.GetDisplayName(true).Replace(FabricatorBridge.Marker, "");
                 try { var def = WeaponFactory.GetRandomWeaponStats(wm.GetWeaponType(), wm.GetWeaponClass(), wm.GetWeaponTier(), wm.GetWeaponStyle(), wm.GetRandomSeed()); enchanted.Value = def == null ? live.Value : (int)Math.Round(def.salvageValue * 1.5f); } catch { }
             }
-            catch (Exception e) { BagManager.Toast("The game refused that enchantment (see the log)."); Core.Log.Warning($"Enchant failed: {e.GetType().Name}: {e.Message}"); return null; }
+            catch (Exception e) { BagManager.Toast("That enchantment didn't take."); Core.Log.Warning($"Enchant failed: {e.GetType().Name}: {e.Message}"); return null; }
 
             inv.Gold -= price;
             inv.Remove(reagent.Id);

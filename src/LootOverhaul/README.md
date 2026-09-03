@@ -36,6 +36,14 @@ gate rule is the same: private room, every occupant on the identical version and
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
 
+## 0.9.7 — copy pass, greyed buttons
+
+The sign reads SHOPKEEPER. Unaffordable buys show a greyed `NEED 2510g` instead of a live
+button (tonics and the bag upgrade too). Bag tiers are Satchel, Backpack, Bag of Holding,
+bought with `BUY SATCHEL` and so on. Tonics are "good for one excursion". The developer
+phrasing in empty states, the cold enchanting table, lost claims ("Taken.") and the five
+"gone" messages is replaced with plain English.
+
 ## 0.9.6 — armor
 
 Armor drops out of the weapon budget (`ArmorShare`, 35% of successful weapon rolls) as a

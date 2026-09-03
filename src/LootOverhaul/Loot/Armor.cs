@@ -130,7 +130,7 @@ namespace LootOverhaul.Loot
         {
             var inv = BagManager.Inventory;
             var live = inv.Find(item.Id);
-            if (live == null || live.Kind != "armor") { BagManager.Toast("That piece is gone."); return; }
+            if (live == null || live.Kind != "armor") { BagManager.Toast("That's gone."); return; }
             var old = Worn(live.ArmorSlot);
             if (old != null) old.WornSlot = -1;
             live.WornSlot = live.ArmorSlot;

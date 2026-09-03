@@ -70,7 +70,7 @@ namespace LootOverhaul.Loot
                 var yaw = Quaternion.LookRotation(-fwd, Vector3.up).eulerAngles.y;
                 ModConfig.BoothX.Value = pos.x; ModConfig.BoothY.Value = pos.y; ModConfig.BoothZ.Value = pos.z; ModConfig.BoothYaw.Value = yaw;
                 MelonPreferences.Save();
-                BagManager.Toast($"Booth placed at ({pos.x:0.0}, {pos.y:0.0}, {pos.z:0.0}), yaw {yaw:0}.");
+                BagManager.Toast($"Shopkeeper moved.");
                 if (GameManager.IsLobbyScene) ShowIfLobby(GameManager.LOBBY_SCENE);
             }
             catch (Exception e) { Core.Log.Warning($"PlaceHere failed: {e.GetType().Name}: {e.Message}"); }
@@ -89,7 +89,7 @@ namespace LootOverhaul.Loot
             _sell.localRotation = Quaternion.Euler(0f, -14f, 0f);
             _buy.localPosition = new Vector3(0.70f, 1.3f, 0f);
             _buy.localRotation = Quaternion.Euler(0f, 14f, 0f);
-            UiKit.Text(_root.transform, new Vector3(0f, 2.0f, 0f), 1.2f, 0.15f, 0.9f, "<b>LOOT BROKER</b>", TextAlignmentOptions.Center);
+            UiKit.Text(_root.transform, new Vector3(0f, 2.0f, 0f), 1.2f, 0.15f, 0.9f, "<b>SHOPKEEPER</b>", TextAlignmentOptions.Center);
         }
 
         private static void PlaceFromConfig()
@@ -165,12 +165,12 @@ namespace LootOverhaul.Loot
                 var price = (int)Math.Round(next.price * ModConfig.ShopPriceMultiplier.Value);
                 UiKit.Text(_sell, new Vector3(left, bagY, 0f), 0.8f, 0.05f, 0.32f,
                     $"<color=#9A9A9A>bag {inv.TotalWeight:0.#} / {BagManager.Capacity:0} wt   ·   {next.name} (+{next.bonus:0} wt)  <color=#F5C542>{price} gold</color></color>");
-                UiKit.Button(_sell, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f, bagY, 0f), "BIGGER BAG", () => { BagManager.BuyBagUpgrade(); }, BtnScale);
+                UiKit.Button(_sell, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f, bagY, 0f), $"BUY {next.name.ToUpperInvariant()}", () => { BagManager.BuyBagUpgrade(); }, BtnScale, enabled: inv.Gold >= price);
             }
             else
                 UiKit.Text(_sell, new Vector3(left, bagY, 0f), 0.8f, 0.05f, 0.32f, $"<color=#9A9A9A>bag {inv.TotalWeight:0.#} / {BagManager.Capacity:0} wt   ·   {BagManager.BagUpgrades[^1].name}</color>");
             if (items.Count == 0)
-                UiKit.Text(_sell, new Vector3(0f, y0 - RowHeight, 0f), 0.8f, 0.06f, 0.4f, "Nothing to sell. Bring me something shiny.", TextAlignmentOptions.Center);
+                UiKit.Text(_sell, new Vector3(0f, y0 - RowHeight, 0f), 0.8f, 0.06f, 0.4f, "Nothing to sell.", TextAlignmentOptions.Center);
         }
 
         // ---- the shop --------------------------------------------------------------------------
@@ -213,10 +213,10 @@ namespace LootOverhaul.Loot
                 UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), textW, 0.045f, 0.3f,
                     $"<color=#9A9A9A>{LootTables.TypeName(item.PropType)}  tier {item.WeaponTier + 1}   wt {item.Weight:0.#}</color>   {stats}");
                 var captured = item;
-                UiKit.Button(row.transform, new Vector3(buyX, 0f, 0f), afford ? "BUY" : "TOO DEAR", () => { if (Shop.Buy(captured)) Rebuild(); }, BtnScale);
+                UiKit.Button(row.transform, new Vector3(buyX, 0f, 0f), afford ? "BUY" : $"NEED {item.Value}g", () => { if (Shop.Buy(captured)) Rebuild(); }, BtnScale, enabled: afford);
             }
             if (stock.Count == 0)
-                UiKit.Text(_buy, new Vector3(0f, y0 - RowHeight, 0f), 0.8f, 0.06f, 0.4f, "Sold out. Restock, or come back later.", TextAlignmentOptions.Center);
+                UiKit.Text(_buy, new Vector3(0f, y0 - RowHeight, 0f), 0.8f, 0.06f, 0.4f, "Sold out.", TextAlignmentOptions.Center);
         }
 
         /// <summary>The mode tabs on their own row: measured widths lie about the glow, so space them generously.</summary>
@@ -235,10 +235,10 @@ namespace LootOverhaul.Loot
             var inv = BagManager.Inventory;
             var offered = Buffs.Offered();
             UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f,
-                $"<b>TONICS</b>   one run each   <color=#9A9A9A>{offered.Count} brew(s) you have earned</color>");
+                $"<b>TONICS</b>   (good for one excursion)   <color=#9A9A9A>{offered.Count} brew(s)</color>");
             if (offered.Count == 0)
             {
-                UiKit.Text(_buy, new Vector3(0f, top - 0.4f, 0f), 1.1f, 0.06f, 0.36f, "Unlock a perk at the exosuit station and the broker will brew for it.", TextAlignmentOptions.Center);
+                UiKit.Text(_buy, new Vector3(0f, top - 0.4f, 0f), 1.1f, 0.06f, 0.36f, "Unlock exosuit perks to use potions with those perks.", TextAlignmentOptions.Center);
                 return;
             }
             var rows = 4;
@@ -259,7 +259,7 @@ namespace LootOverhaul.Loot
                 {
                     var tier = t;
                     var price = Shop.TonicPrice(def, tier);
-                    UiKit.Button(row.transform, new Vector3(x, 0f, 0f), $"{Buffs.TierNames[tier].ToUpperInvariant()} {price}g", () => { if (Shop.BuyTonic(captured, tier)) BuildBuy(); }, BtnScale * 0.85f);
+                    UiKit.Button(row.transform, new Vector3(x, 0f, 0f), $"{Buffs.TierNames[tier].ToUpperInvariant()} {price}g", () => { if (Shop.BuyTonic(captured, tier)) BuildBuy(); }, BtnScale * 0.85f, enabled: inv.Gold >= price);
                     x -= Mathf.Max(BtnW, 0.24f) * 0.85f + 0.05f;
                 }
             }
@@ -279,8 +279,8 @@ namespace LootOverhaul.Loot
                 UiKit.Button(_buy, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f, top - 0.05f, 0f), "BACK", () => { _enchantTarget = null; BuildBuy(); }, BtnScale);
             if (!Enchanting.Ready)
             {
-                UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f, "<b>ENCHANT</b>   <color=#9A9A9A>table is cold</color>");
-                UiKit.Text(_buy, new Vector3(0f, top - 0.4f, 0f), 1.1f, 0.06f, 0.34f, $"The game has not yet accepted a hand-built weapon module ({Enchanting.SelfTestReport}).", TextAlignmentOptions.Center);
+                UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f, "<b>ENCHANT</b>   <color=#9A9A9A>unavailable</color>");
+                UiKit.Text(_buy, new Vector3(0f, top - 0.4f, 0f), 1.1f, 0.06f, 0.34f, "Enchanting is unavailable in this game version.", TextAlignmentOptions.Center);
                 return;
             }
             var target = _enchantTarget == null ? null : inv.Find(_enchantTarget);
@@ -315,7 +315,7 @@ namespace LootOverhaul.Loot
                     UiKit.Button(_buy, new Vector3(-0.22f - BtnW * 0.5f, bottom, 0f), "<", () => { _enchantPage--; BuildBuy(); }, BtnScale);
                     UiKit.Button(_buy, new Vector3(0.22f + BtnW * 0.5f, bottom, 0f), ">", () => { _enchantPage++; BuildBuy(); }, BtnScale);
                 }
-                if (weapons.Count == 0) UiKit.Text(_buy, new Vector3(0f, y0 - RowHeight, 0f), 0.8f, 0.06f, 0.4f, "No unequipped weapons in the bag.", TextAlignmentOptions.Center);
+                if (weapons.Count == 0) UiKit.Text(_buy, new Vector3(0f, y0 - RowHeight, 0f), 0.8f, 0.06f, 0.4f, "The bag contains no unequipped weapons.", TextAlignmentOptions.Center);
                 return;
             }
 

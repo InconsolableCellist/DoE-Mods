@@ -43,7 +43,7 @@ namespace LootOverhaul.Loot
             UiKit.CaptureTemplates();
             if (!UiKit.Ready)
             {
-                BagManager.Toast("Bag panel needs the lobby once to borrow the game's buttons and font.");
+                BagManager.Toast("Visit the lobby once before opening the bag.");
                 BagManager.SummaryToast();
                 return;
             }
@@ -201,7 +201,7 @@ namespace LootOverhaul.Loot
                 UiKit.Button(_content, new Vector3(0.22f + BtnW * 0.5f, bottom, 0f), ">", () => { _page = Math.Min(pages - 1, _page + 1); Rebuild(); }, BtnScale);
             }
             if (items.Count == 0)
-                UiKit.Text(_content, new Vector3(0f, y0 - RowHeight, 0f), 0.8f, 0.06f, 0.4f, "Empty. Go kill something.", TextAlignmentOptions.Center);
+                UiKit.Text(_content, new Vector3(0f, y0 - RowHeight, 0f), 0.8f, 0.06f, 0.4f, "Empty.", TextAlignmentOptions.Center);
         }
     }
 }

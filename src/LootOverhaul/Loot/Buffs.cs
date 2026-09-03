@@ -34,7 +34,7 @@ namespace LootOverhaul.Loot
         public static readonly Def[] Catalogue =
         {
             new Def { Stat = "Arms_Critical",     Name = "Keen Edge Oil",      Flavor = "more criticals" },
-            new Def { Stat = "Arms_Distance",     Name = "Long Arm Liniment",  Flavor = "reach farther" },
+            new Def { Stat = "Arms_Distance",     Name = "Long Arm Liniment",  Flavor = "throw weapons farther" },
             new Def { Stat = "Arms_Farshot",      Name = "Hawkeye Drops",      Flavor = "shoot farther" },
             new Def { Stat = "Arms_Impale",       Name = "Skewer Salve",       Flavor = "impale more often" },
             new Def { Stat = "Arms_Knockback",    Name = "Ram's Draught",      Flavor = "knock foes back" },
@@ -138,7 +138,7 @@ namespace LootOverhaul.Loot
         public static void Drink(LootItem item)
         {
             var inv = BagManager.Inventory;
-            if (item == null || inv.Find(item.Id) == null) { BagManager.Toast("That tonic is gone."); return; }
+            if (item == null || inv.Find(item.Id) == null) { BagManager.Toast("That's gone."); return; }
             if (!ModGate.Active) { BagManager.Toast("Not in a modded room."); return; }
             Active.TryGetValue(item.BuffStat, out var current);
             Active[item.BuffStat] = Math.Max(current, item.BuffMult);

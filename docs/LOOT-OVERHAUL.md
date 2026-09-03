@@ -516,8 +516,10 @@ and recipes → scrolls that retune a bracelet → hazard contracts.
 - **0.9.5 (2026-09-03):** hover-only floor labels, bag panel spacing, TMP truncation.
 - **0.9.6 (2026-09-03):** armor as a worn bundle of exosuit stats (Armor.cs), three slots,
   stats gated to unlocked perks, combined with tonics in Buffs.Apply, persisted worn.
-  Placeholder floor body. Deployed, untested. Next: reagents and recipes; cosmetic garment
-  bodies for armor (the `cosmetic/mesh/*` resources) once a mesh-swap body works.
+  Placeholder floor body.
+- **0.9.7 (2026-09-03):** copy pass from the user's review (SHOPKEEPER, NEED …g greyed,
+  bag tier names, plain-English states). Deployed, untested. Next: reagents and recipes;
+  cosmetic garment bodies for armor once a mesh-swap body works.
 
 ## Verify first (one UnityExplorer/recon session, no headset-heavy iteration)
 

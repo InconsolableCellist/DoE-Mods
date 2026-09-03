@@ -129,7 +129,7 @@ namespace LootOverhaul.Loot
             return n;
         }
 
-        public static InteractableButton Button(Transform parent, Vector3 localPos, string label, Action onPressed, float scale = 1f)
+        public static InteractableButton Button(Transform parent, Vector3 localPos, string label, Action onPressed, float scale = 1f, bool enabled = true)
         {
             if (!Interop.Alive(_buttonTemplate)) return null;
             try
@@ -143,6 +143,23 @@ namespace LootOverhaul.Loot
                 var btn = go.GetComponent<InteractableButton>();
                 try { btn.ShowButton(true, label, null); } catch { }
                 try { btn.SetLabel(label); } catch { }
+                if (!enabled)
+                {
+                    // Greyed: dimmed frame, no pointer response. The laser catcher behind it still shows the beam.
+                    try
+                    {
+                        foreach (var r in go.GetComponentsInChildren<Renderer>(true))
+                        {
+                            if (!Interop.Alive(r)) continue;
+                            try { r.material.color = new Color(0.35f, 0.35f, 0.4f, 1f); } catch { }
+                            try { r.material.SetColor("_EmissionColor", new Color(0.1f, 0.1f, 0.12f, 1f)); } catch { }
+                        }
+                        btn.enabled = false;
+                        foreach (var c in go.GetComponentsInChildren<Collider>(true)) if (Interop.Alive(c)) c.enabled = false;
+                    }
+                    catch { }
+                    return btn;
+                }
                 if (onPressed != null)
                     btn.onPressed.AddListener(DelegateSupport.ConvertDelegate<UnityAction>(onPressed));
                 return btn;
