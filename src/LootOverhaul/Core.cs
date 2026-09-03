@@ -6,7 +6,7 @@ using LootOverhaul.Loot;
 using LootOverhaul.Net;
 using LootOverhaul.Recon;
 
-[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.9.0", "dan")]
+[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.9.1", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace LootOverhaul
@@ -24,7 +24,7 @@ namespace LootOverhaul
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.9.0";
+        public const string Version = "0.9.1";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -59,6 +59,7 @@ namespace LootOverhaul
             DropRoller.Install();
             BagPickup.Install();
             FabricatorBridge.Install();
+            Buffs.Install();
 
             if (ModConfig.ReconEnabled.Value)
             {
@@ -84,10 +85,11 @@ namespace LootOverhaul
             BagPickup.Tick();
             Claims.Tick();
             BagGesture.Tick();
+            Buffs.Tick();
             if (_templateCaptureAt > 0f && UnityEngine.Time.unscaledTime >= _templateCaptureAt)
             {
                 _templateCaptureAt = -1f;
-                try { UiKit.CaptureTemplates(); Booth.ShowIfLobby(Il2Cpp.GameManager.LOBBY_SCENE); }
+                try { UiKit.CaptureTemplates(); Booth.ShowIfLobby(Il2Cpp.GameManager.LOBBY_SCENE); if (ModConfig.ReconEnabled.Value) Buffs.Snapshot("lobby"); }
                 catch (Exception e) { LoggerInstance.Warning($"Template capture / booth threw: {e.GetType().Name}: {e.Message}"); }
             }
 
@@ -111,6 +113,8 @@ namespace LootOverhaul
         public override void OnSceneWasInitialized(int buildIndex, string sceneName)
         {
             LootRegistry.Clear($"scene changed to {sceneName}");
+            Unlocks.Invalidate();
+            if (sceneName == Il2Cpp.GameManager.LOBBY_SCENE || sceneName == Il2Cpp.GameManager.MAINMENU_SCENE) Buffs.ClearAll($"entered {sceneName}");
             BagPanel.Hide();
             Booth.Hide();
             _templateCaptureAt = sceneName == Il2Cpp.GameManager.LOBBY_SCENE ? UnityEngine.Time.unscaledTime + 3f : -1f;
@@ -134,6 +138,8 @@ namespace LootOverhaul
                 ReconLog.Line($"- loadout: {Loadout.Describe()}");
                 ReconLog.Line($"- fabricator bridge: {FabricatorBridge.Describe()}");
                 ReconLog.Line($"- shop: {Shop.Bought} bought, {Shop.Restocks} restock(s)");
+                ReconLog.Line($"- buffs active at quit: {Buffs.DescribeActive()}");
+                Buffs.Snapshot("quit");
                 EventTally.Report("quit");
                 ProfileWatch.Report();
                 ReconLog.Close();

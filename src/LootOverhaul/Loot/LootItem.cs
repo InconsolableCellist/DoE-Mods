@@ -20,7 +20,11 @@ namespace LootOverhaul.Loot
 
         /// <summary>"weapon" (a generated weapon; DTO fields below apply) or "junk" (a trinket: PrefabName is the vanilla prop it rides on, Name/Value/Weight come from the junk table).</summary>
         public string Kind = "weapon";
-        public bool IsWeapon => Kind != "junk";
+        public bool IsWeapon => Kind == "weapon";
+        public bool IsBuff => Kind == "buff";
+        /// <summary>Tonics: the exosuit stat name and the multiplier applied for one run.</summary>
+        public string BuffStat;
+        public float BuffMult;
 
         // ---- WeaponModuleDTO fields, verbatim ----------------------------------------------
         /// <summary>e.g. <c>Sword_Gen1</c>, <c>Staff_Heal_Gen1</c> — the networked prefab name.</summary>

@@ -36,6 +36,20 @@ gate rule is the same: private room, every occupant on the identical version and
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
 
+## 0.9.1 — tonics, and lock-step with the game's gating
+
+- **Tonics.** The broker's BUY panel has a TONICS page: one-run brews on the game's own
+  exosuit stats (Ironskin = armor, Bruiser's Brew = power, Quicksilver = haste, Lucky Coin
+  Tea = fortune, and eleven more), in Minor / Major / Grand (×1.15 / ×1.30 / ×1.50).
+  DRINK one from the bag; it lasts until the lobby loads again, so drink in the lobby for
+  your next run. The bag header lists what is active. Nothing is written to the profile:
+  the multiplier is re-applied a frame after every exosuit recompute.
+- **Lock-step.** The broker only brews for stats whose perk you have already unlocked at
+  the exosuit station. Weapon drops and shop stock use only weapon types your armory (or
+  loadout) already contains, and staff drops only styles you own. Seasonal styles are
+  never generated. The transcript logs the exosuit table and the unlock sets at lobby
+  entry and at quit so the gating can be checked.
+
 ## 0.9 — endless junk, the hand, the gesture
 
 - **Junk names are rolled** from adjective × material × noun × provenance pools per tier

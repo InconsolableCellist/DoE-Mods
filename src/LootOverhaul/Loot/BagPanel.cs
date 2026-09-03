@@ -120,6 +120,8 @@ namespace LootOverhaul.Loot
             var left = -Width * 0.5f + 0.04f;
             UiKit.Text(_content, new Vector3(left, top - 0.05f, 0f), Width - 0.08f, 0.06f, 0.5f,
                 $"<b>BAG</b>   {inv.Items.Count} item(s)   {inv.TotalWeight:0.#} / {ModConfig.BagWeightCapacity.Value:0} wt   <color=#F5C542>{inv.Gold} gold</color>");
+            if (Buffs.AnyActive)
+                UiKit.Text(_content, new Vector3(left, top - 0.105f, 0f), Width - 0.08f, 0.05f, 0.3f, $"<color=#7FD8FF>active this run:</color> {Buffs.DescribeActive()}");
 
             // Sort + close buttons, laid out from the measured button width.
             var by = top - 0.19f;
@@ -153,13 +155,23 @@ namespace LootOverhaul.Loot
                     try { stats = Interop.OneLine(WeaponCodec.ToModule(item).GetStatsText()); } catch { }
                     second = $"<color=#9A9A9A>{LootTables.TypeName(item.PropType)}  tier {item.WeaponTier + 1}   wt {item.Weight:0.#}   value {item.Value}</color>   {stats}";
                 }
+                else if (item.IsBuff)
+                {
+                    var d = Buffs.Find(item.BuffStat);
+                    second = $"<color=#9A9A9A>tonic   {(d == null ? item.BuffStat : d.Flavor)} ×{item.BuffMult:0.00} for one run   wt {item.Weight:0.#}</color>";
+                }
                 else
                     second = $"<color=#9A9A9A>{LootTables.JunkTierName(item.WeaponClass)}   wt {item.Weight:0.#}   value {item.Value}</color>";
                 UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), textW, 0.05f, 0.38f, $"{item.ColoredName}{equipped}");
                 UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), textW, 0.045f, 0.3f, second);
 
                 var captured = item;
-                if (item.EquippedSlot < 0)
+                if (item.IsBuff)
+                {
+                    UiKit.Button(row.transform, new Vector3(dropX, 0f, 0f), "DRINK", () => Buffs.Drink(captured), BtnScale);
+                    UiKit.Button(row.transform, new Vector3(dropX - BtnW - 0.02f, 0f, 0f), "DROP", () => BagManager.Drop(captured), BtnScale);
+                }
+                else if (item.EquippedSlot < 0)
                     UiKit.Button(row.transform, new Vector3(dropX, 0f, 0f), "DROP", () => BagManager.Drop(captured), BtnScale);
             }
 

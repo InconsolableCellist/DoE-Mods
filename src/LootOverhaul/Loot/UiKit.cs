@@ -236,8 +236,9 @@ namespace LootOverhaul.Loot
         {
             if (!item.IsWeapon)
             {
-                var glyph = item.WeaponClass >= 2 ? "✦" : item.WeaponClass == 1 ? "◆" : "•";
-                var t = Text(parent, localPos + new Vector3(-fit * 0.25f, 0f, 0f), fit, fit, fit * 1.6f, $"<color={LootTables.JunkColor(item.WeaponClass)}>{glyph}</color>", TextAlignmentOptions.Center);
+                var glyph = item.IsBuff ? "○" : item.WeaponClass >= 2 ? "✦" : item.WeaponClass == 1 ? "◆" : "•";
+                var color = item.IsBuff ? "#7FD8FF" : LootTables.JunkColor(item.WeaponClass);
+                var t = Text(parent, localPos + new Vector3(-fit * 0.25f, 0f, 0f), fit, fit, fit * 1.6f, $"<color={color}>{glyph}</color>", TextAlignmentOptions.Center);
                 return t == null ? null : t.gameObject;
             }
             return WeaponPreview(parent, localPos, item, fit);

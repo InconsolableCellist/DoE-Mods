@@ -70,6 +70,12 @@ namespace LootOverhaul.Loot
             return null;
         }
 
+        /// <summary>Is this module one of ours (a bag weapon injected into the game's lists)?</summary>
+        public static bool IsBagWeapon(WeaponModule wm)
+        {
+            try { return wm != null && FindByGuid(GuidOf(wm)) != null; } catch { return false; }
+        }
+
         private static string GuidOf(WeaponModule wm)
         {
             try { return Norm(wm.GetGuid().ToString()); } catch { return ""; }

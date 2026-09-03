@@ -41,10 +41,12 @@ namespace LootOverhaul.Loot
                         var cls = RollClass();
                         var t = tier + (i >= slots - 2 && Rng.NextDouble() < 0.6 ? 1 : 0);   // the last two slots lean a tier up
                         t = Math.Min(6, t);
-                        var type = LootTables.DroppableTypes[Rng.Next(LootTables.DroppableTypes.Length)];
+                        var types = Unlocks.DroppableTypes();
+                        var type = types[Rng.Next(types.Length)];
+                        var style = type == LootTables.Staff ? Unlocks.PickStaffStyle(Rng) : -1;
                         var wm = WeaponFactory.GenerateRandomWeaponModuleForLocalPlayer(
                             (WeaponFactory.WeaponClass)cls, (Prop.Type)type,
-                            (WeaponFactory.WeaponTier)t, (WeaponFactory.WeaponStyle)(-1), -1, WeaponFactory.SeasonalKey.None);
+                            (WeaponFactory.WeaponTier)t, (WeaponFactory.WeaponStyle)style, -1, WeaponFactory.SeasonalKey.None);
                         if (wm == null) continue;
                         var item = WeaponCodec.FromModule(wm);
                         item.FoundBy = "Loot Broker";
@@ -122,6 +124,28 @@ namespace LootOverhaul.Loot
             BagPanel.Refresh();
             return true;
         }
+
+        /// <summary>Tonics are brewed to order: unlimited, priced by tier, gated by unlocked perks.</summary>
+        public static bool BuyTonic(Buffs.Def def, int tier)
+        {
+            var inv = BagManager.Inventory;
+            if (!Unlocks.PerkUnlocked(def.Stat)) { BagManager.Toast("The broker won't sell what you haven't earned yet."); return false; }
+            var item = Buffs.MakeItem(def, tier);
+            var price = (int)Math.Round(item.Value * ModConfig.ShopPriceMultiplier.Value);
+            if (inv.Gold < price) { BagManager.Toast($"Not enough gold: {price} needed, you have {inv.Gold}."); return false; }
+            if (!inv.CanCarry(item.Weight, ModConfig.BagWeightCapacity.Value)) { BagManager.Toast("Your bag is too full."); return false; }
+            inv.Gold -= price;
+            item.Value = Math.Max(1, price / 4);   // resale
+            inv.Items.Add(item);
+            inv.Save();
+            Bought++;
+            BagManager.Toast($"Bought {item.ColoredName} for <color=#F5C542>{price} gold</color>  (now {inv.Gold})");
+            ReconLog.Line($"shop: bought tonic {item.Name} for {price} -> gold {inv.Gold}");
+            BagPanel.Refresh();
+            return true;
+        }
+
+        public static int TonicPrice(Buffs.Def def, int tier) => (int)Math.Round(def.Prices[Math.Max(0, Math.Min(2, tier))] * ModConfig.ShopPriceMultiplier.Value);
 
         public static bool Restock()
         {

@@ -66,10 +66,13 @@ namespace LootOverhaul.Loot
                     if (cls == 3) inv.KillsSinceLegendary = 0;
                     inv.Save();
                     var tier = RollTier();
-                    var type = LootTables.DroppableTypes[Rng.Next(LootTables.DroppableTypes.Length)];
+                    var types = Unlocks.DroppableTypes();
+                    var type = types[Rng.Next(types.Length)];
+                    // Staff style is the spell: only styles the player already owns (lock-step). Never seasonal.
+                    var style = type == LootTables.Staff ? Unlocks.PickStaffStyle(Rng) : -1;
                     var wm = WeaponFactory.GenerateRandomWeaponModuleForLocalPlayer(
                         (WeaponFactory.WeaponClass)cls, (Prop.Type)type,
-                        (WeaponFactory.WeaponTier)tier, (WeaponFactory.WeaponStyle)(-1), -1, WeaponFactory.SeasonalKey.None);
+                        (WeaponFactory.WeaponTier)tier, (WeaponFactory.WeaponStyle)style, -1, WeaponFactory.SeasonalKey.None);
                     if (wm == null) { Core.Log.Warning($"Generator returned null for {LootTables.TypeName(type)}/{cls}/t{tier + 1}."); return; }
 
                     var item = WeaponCodec.FromModule(wm);

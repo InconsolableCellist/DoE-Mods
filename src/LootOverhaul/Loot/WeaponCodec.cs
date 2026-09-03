@@ -69,7 +69,7 @@ namespace LootOverhaul.Loot
             i.Id, i.PrefabName, S(i.GenV), S(i.WeaponClass), S(i.WeaponTier), S(i.RandomSeed), i.WeaponGuid ?? "",
             S(i.WeaponStyle), i.NameIDs == null ? "" : string.Join(",", i.NameIDs), i.DtoName ?? "", i.ModuleName ?? "",
             S(i.ModuleType), S(i.PropType), i.Name ?? "", i.ColoredName ?? "", S(i.Value), i.Weight.ToString("R", CultureInfo.InvariantCulture),
-            S(i.FoundInRealm), i.FoundBy ?? "", i.Kind ?? "weapon",
+            S(i.FoundInRealm), i.FoundBy ?? "", i.Kind ?? "weapon", i.BuffStat ?? "", i.BuffMult.ToString("R", CultureInfo.InvariantCulture),
         });
 
         public static LootItem Decode(string s)
@@ -84,6 +84,7 @@ namespace LootOverhaul.Loot
                 Weight = float.Parse(p[16], CultureInfo.InvariantCulture), FoundInRealm = I(p[17]), FoundBy = p[18],
             };
             if (p.Length > 19 && p[19].Length > 0) item.Kind = p[19];
+            if (p.Length > 21) { item.BuffStat = p[20].Length > 0 ? p[20] : null; float.TryParse(p[21], System.Globalization.NumberStyles.Float, CultureInfo.InvariantCulture, out item.BuffMult); }
             if (p[8].Length > 0)
             {
                 var ids = p[8].Split(',');

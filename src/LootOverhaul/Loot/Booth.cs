@@ -28,7 +28,8 @@ namespace LootOverhaul.Loot
 
         private static GameObject _root;
         private static Transform _sell, _buy;
-        private static int _sellPage;
+        private static int _sellPage, _tonicPage;
+        private static bool _showTonics;
 
         public static bool IsShown => Interop.Alive(_root) && _root.activeSelf;
 
@@ -137,7 +138,7 @@ namespace LootOverhaul.Loot
                 row.transform.localPosition = new Vector3(0f, y0 - i * RowHeight, 0f);
                 UiKit.Preview(row.transform, new Vector3(left + 0.07f, 0f, -0.03f), item, 0.11f);
                 var equipped = item.EquippedSlot >= 0 ? $"   <color=#F5C542>equipped: {Loadout.SlotNames[item.EquippedSlot]}</color>" : "";
-                var kind = item.IsWeapon ? $"{LootTables.TypeName(item.PropType)}  tier {item.WeaponTier + 1}" : LootTables.JunkTierName(item.WeaponClass);
+                var kind = item.IsWeapon ? $"{LootTables.TypeName(item.PropType)}  tier {item.WeaponTier + 1}" : item.IsBuff ? "tonic" : LootTables.JunkTierName(item.WeaponClass);
                 UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), textW, 0.05f, 0.38f, $"{item.ColoredName}{equipped}");
                 UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), textW, 0.045f, 0.3f,
                     $"<color=#9A9A9A>{kind}   wt {item.Weight:0.#}</color>   <color=#F5C542>{SellPrice(item)} gold</color>");
@@ -172,9 +173,11 @@ namespace LootOverhaul.Loot
             var top = height * 0.5f;
             var left = -PanelWidth * 0.5f + 0.04f;
             var minutesLeft = Math.Max(0, ModConfig.ShopRefreshMinutes.Value - (int)(DateTime.UtcNow - inv.ShopGeneratedAt).TotalMinutes);
+            if (_showTonics) { BuildTonics(top, left); return; }
             UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f,
-                $"<b>BUY</b>   {stock.Count} in stock   <color=#9A9A9A>new stock in {minutesLeft} min</color>");
+                $"<b>WEAPONS</b>   {stock.Count} in stock   <color=#9A9A9A>new stock in {minutesLeft} min</color>");
             UiKit.Button(_buy, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f, top - 0.05f, 0f), $"RESTOCK ({Shop.RestockPrice(inv)})", () => { if (Shop.Restock()) Rebuild(); }, BtnScale);
+            UiKit.Button(_buy, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 1.5f - 0.02f, top - 0.05f, 0f), "TONICS", () => { _showTonics = true; BuildBuy(); }, BtnScale);
 
             var y0 = top - 0.19f;
             var buyX = PanelWidth * 0.5f - 0.04f - BtnW * 0.5f;
@@ -198,6 +201,49 @@ namespace LootOverhaul.Loot
             }
             if (stock.Count == 0)
                 UiKit.Text(_buy, new Vector3(0f, y0 - RowHeight, 0f), 0.8f, 0.06f, 0.4f, "Sold out. Restock, or come back later.", TextAlignmentOptions.Center);
+        }
+
+        private static void BuildTonics(float top, float left)
+        {
+            var inv = BagManager.Inventory;
+            var offered = Buffs.Offered();
+            UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f,
+                $"<b>TONICS</b>   one run each   <color=#9A9A9A>{offered.Count} brew(s) you have earned</color>");
+            UiKit.Button(_buy, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f, top - 0.05f, 0f), "WEAPONS", () => { _showTonics = false; BuildBuy(); }, BtnScale);
+            if (offered.Count == 0)
+            {
+                UiKit.Text(_buy, new Vector3(0f, top - 0.4f, 0f), 1.1f, 0.06f, 0.36f, "Unlock a perk at the exosuit station and the broker will brew for it.", TextAlignmentOptions.Center);
+                return;
+            }
+            var rows = 5;
+            var pages = Math.Max(1, (offered.Count + rows - 1) / rows);
+            _tonicPage = Math.Max(0, Math.Min(_tonicPage, pages - 1));
+            var y0 = top - 0.19f;
+            var start = _tonicPage * rows;
+            for (var i = 0; i < rows && start + i < offered.Count; i++)
+            {
+                var def = offered[start + i];
+                var row = new GameObject($"TonicRow_{i}"); row.transform.SetParent(_buy, false);
+                row.transform.localPosition = new Vector3(0f, y0 - i * 0.14f, 0f);
+                UiKit.Text(row.transform, new Vector3(left, 0.03f, 0f), 0.6f, 0.05f, 0.38f, $"<color=#7FD8FF>{def.Name}</color>   <size=80%><color=#9A9A9A>{def.Flavor}</color></size>");
+                UiKit.Text(row.transform, new Vector3(left, -0.03f, 0f), 0.6f, 0.045f, 0.3f, $"<color=#9A9A9A>×{def.Mults[0]:0.00} / ×{def.Mults[1]:0.00} / ×{def.Mults[2]:0.00}</color>");
+                var captured = def;
+                var x = PanelWidth * 0.5f - 0.04f - BtnW * 0.5f;
+                for (var t = 2; t >= 0; t--)
+                {
+                    var tier = t;
+                    var price = Shop.TonicPrice(def, tier);
+                    UiKit.Button(row.transform, new Vector3(x, 0f, 0f), $"{Buffs.TierNames[tier].ToUpperInvariant()} {price}g", () => { if (Shop.BuyTonic(captured, tier)) BuildBuy(); }, BtnScale * 0.85f);
+                    x -= BtnW * 0.85f + 0.015f;
+                }
+            }
+            var bottom = -top + 0.06f;
+            UiKit.Text(_buy, new Vector3(0f, bottom, 0f), 0.3f, 0.06f, 0.35f, $"page {_tonicPage + 1} / {pages}", TextAlignmentOptions.Center);
+            if (pages > 1)
+            {
+                UiKit.Button(_buy, new Vector3(-0.22f - BtnW * 0.5f, bottom, 0f), "<", () => { _tonicPage--; BuildBuy(); }, BtnScale);
+                UiKit.Button(_buy, new Vector3(0.22f + BtnW * 0.5f, bottom, 0f), ">", () => { _tonicPage++; BuildBuy(); }, BtnScale);
+            }
         }
 
         public static int SellPrice(LootItem item) => Math.Max(1, (int)Math.Round(item.Value * ModConfig.SellMultiplier.Value));

@@ -488,7 +488,11 @@ and recipes → scrolls that retune a bracelet → hazard contracts.
   still attached: `Prop.Drop(root)` does not release the hand, `PropRoot.Drop()` does).
 - **0.9 (2026-09-02):** procedural junk names (JunkNamer), hand release via `PropRoot.Drop`,
   claimed objects hidden in place, gesture retries and defaults to stick-hold. Deployed,
-  untested. Next: two-player session, artifacts with story, own models, loot goblin?
+  untested.
+- **0.9.1 (2026-09-02):** tonics on the exosuit multiplier table (Buffs), lock-step gating
+  (Unlocks: armory types, owned staff styles, unlocked perks), no seasonal generation.
+  Deployed, untested. First run must confirm the multipliers are felt (the snapshot lines
+  show before/after) and that `GetUnlockedPerks` names match the exosuit field names.
 
 ## Verify first (one UnityExplorer/recon session, no headset-heavy iteration)
 
@@ -560,7 +564,13 @@ change them here first.
    every profile mutator and the save so the game only ever mutates its own data. The
    booth is a sell counter and, later, the shop.
 
-7. **Separate mod, own identity.** `LootOverhaul.dll` is independent of CustomAvatars: its own
+7. **Lock-step with the game's gating; side-system, not a shortcut.** (2026-09-02.) The mod
+   never offers what the base game has not yet given the player: weapon types come from the
+   armory, staff styles from owned staffs, tonic stats from unlocked perks, and seasonal
+   content is never generated off-season (spoilers, and the developers' intent). Writing
+   *our own* state is fine and encouraged; writing the game's is not.
+
+8. **Separate mod, own identity.** `LootOverhaul.dll` is independent of CustomAvatars: its own
    Photon player properties (`lo.ver`, `lo.sha`, `lo.caps`), its own event-code block
    (150–159; CustomAvatars owns 140–149), its own MelonPreferences category and UserData
    folder. The gate and transport code is carried over rather than shared, so either mod can
