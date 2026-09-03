@@ -36,6 +36,24 @@ gate rule is the same: private room, every occupant on the identical version and
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
 
+## 0.6 — tuning, junk, labels
+
+- **Drops are reasonable now.** Tier comes from the game's own loot tier for your level
+  (`TierUpChance` for one tier up), rarity is weighted `WeightCommon/Unique/Rare/Legendary`
+  (70/22/7/1 by default) with bosses and the pity counter pushing upward, and critters
+  (scorpions, wasps) never drop weapons. Bosses always may.
+- **Junk.** A failed weapon roll can drop a trinket (`JunkDropChance`): gnawed bones, bone
+  dice, silver mugs, skull crowns, religious icons, gilded skulls and the like, riding on
+  harmless vanilla props for their floor body. Three tiers, trinket / curio / artifact,
+  priced accordingly. The broker has a SELL ALL JUNK button. Which vanilla props actually
+  spawn is learned at runtime and logged; a prefab that refuses is retired for the session.
+- **Floating name labels** over floor loot instead of the beam (`DropLabels` on,
+  `DropBeams` off by default). They face you and use the game's font.
+- **Pedestal thumbnails** for bag weapons carry a small gold LOOT tag.
+- **Pickup hand freeze fixed:** the game's pickup now completes and the item is dropped
+  straight back out of the hand before the claim, instead of the pickup being cancelled.
+- Copy trimmed, previews scaled to fit whatever the weapon is, page buttons spaced.
+
 ## 0.5 — loot in the game's own fabricator; the booth is a sell counter
 
 Equipping moved into the vanilla fabricator, which is where you already choose your three

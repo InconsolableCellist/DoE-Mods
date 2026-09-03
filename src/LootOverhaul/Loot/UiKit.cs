@@ -203,8 +203,23 @@ namespace LootOverhaul.Loot
             return quad;
         }
 
-        /// <summary>The weapon's generated mesh and material, as a small static preview.</summary>
-        public static GameObject WeaponPreview(Transform parent, Vector3 localPos, LootItem item, float scale)
+        /// <summary>
+        /// A preview that fits in <paramref name="fit"/> metres whatever the item: the weapon's
+        /// generated mesh scaled by its bounds, or a text glyph for junk.
+        /// </summary>
+        public static GameObject Preview(Transform parent, Vector3 localPos, LootItem item, float fit)
+        {
+            if (!item.IsWeapon)
+            {
+                var glyph = item.WeaponClass >= 2 ? "✦" : item.WeaponClass == 1 ? "◆" : "•";
+                var t = Text(parent, localPos + new Vector3(-fit * 0.25f, 0f, 0f), fit, fit, fit * 1.6f, $"<color={LootTables.JunkColor(item.WeaponClass)}>{glyph}</color>", TextAlignmentOptions.Center);
+                return t == null ? null : t.gameObject;
+            }
+            return WeaponPreview(parent, localPos, item, fit);
+        }
+
+        /// <summary>The weapon's generated mesh and material, scaled so its longest side is <paramref name="fit"/> metres.</summary>
+        public static GameObject WeaponPreview(Transform parent, Vector3 localPos, LootItem item, float fit)
         {
             try
             {
@@ -217,7 +232,12 @@ namespace LootOverhaul.Loot
                 go.transform.SetParent(parent, false);
                 go.transform.localPosition = localPos;
                 go.transform.localRotation = Quaternion.Euler(0f, 0f, -35f);
-                go.transform.localScale = Vector3.one * scale;
+                var longest = 1f;
+                try { var b = mesh.bounds.size; longest = Mathf.Max(b.x, Mathf.Max(b.y, b.z)); } catch { }
+                if (longest < 0.01f) longest = 1f;
+                go.transform.localScale = Vector3.one * (fit / longest);
+                // Centre the mesh on the anchor rather than on its origin (a spear's origin is at the grip).
+                try { go.transform.localPosition = localPos - go.transform.localRotation * (mesh.bounds.center * (fit / longest)); } catch { }
                 var mf = go.AddComponent(Il2CppType.Of<MeshFilter>()).TryCast<MeshFilter>();
                 var mr = go.AddComponent(Il2CppType.Of<MeshRenderer>()).TryCast<MeshRenderer>();
                 if (mf == null || mr == null) { UnityEngine.Object.Destroy(go); return null; }

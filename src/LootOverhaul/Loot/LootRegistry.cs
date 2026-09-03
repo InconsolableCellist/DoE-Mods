@@ -14,6 +14,7 @@ namespace LootOverhaul.Loot
         public LootItem Item;
         public GameObject Object;   // may be null on a client that only heard the broadcast
         public GameObject Beam;
+        public GameObject Label;
         public bool ClaimPending;
         public bool Claimed;
     }
@@ -39,8 +40,15 @@ namespace LootOverhaul.Loot
             var tag = new LootTag { ViewId = viewId, Item = item, Object = obj };
             Tags[viewId] = tag;
             if (obj == null) tag.Object = FindObject(viewId);
-            if (ModConfig.DropBeams.Value) tag.Beam = DropBeam.Attach(tag);
+            Decorate(tag);
             return tag;
+        }
+
+        private static void Decorate(LootTag tag)
+        {
+            if (!Interop.Alive(tag.Object)) return;
+            if (ModConfig.DropBeams.Value && tag.Beam == null) tag.Beam = DropBeam.Attach(tag);
+            if (ModConfig.DropLabels.Value && tag.Label == null) tag.Label = DropLabel.Attach(tag);
         }
 
         public static void Remove(int viewId)
@@ -48,11 +56,12 @@ namespace LootOverhaul.Loot
             if (!Tags.TryGetValue(viewId, out var tag)) return;
             Tags.Remove(viewId);
             DropBeam.Detach(tag);
+            DropLabel.Detach(tag);
         }
 
         public static void Clear(string why)
         {
-            foreach (var tag in Tags.Values) DropBeam.Detach(tag);
+            foreach (var tag in Tags.Values) { DropBeam.Detach(tag); DropLabel.Detach(tag); }
             if (Tags.Count > 0) Core.Log.Msg($"Loot registry cleared ({Tags.Count} tag(s)): {why}");
             Tags.Clear();
         }
@@ -74,9 +83,9 @@ namespace LootOverhaul.Loot
             foreach (var tag in Tags.Values)
             {
                 if (tag.Claimed) continue;
-                if (Interop.Alive(tag.Object)) { DropBeam.Follow(tag); continue; }
+                if (Interop.Alive(tag.Object)) { DropBeam.Follow(tag); DropLabel.Follow(tag); continue; }
                 tag.Object = FindObject(tag.ViewId);
-                if (tag.Object != null && tag.Beam == null && ModConfig.DropBeams.Value) tag.Beam = DropBeam.Attach(tag);
+                if (tag.Object != null) Decorate(tag);
             }
         }
     }
@@ -164,5 +173,56 @@ namespace LootOverhaul.Loot
             2 => new Color(0.06f, 0.13f, 1f),
             _ => new Color(0.25f, 0.06f, 1f),
         };
+    }
+
+    /// <summary>
+    /// The item's name floating over it in its rarity colour, always facing the player. The
+    /// quiet alternative to the beam: readable when you walk up, ignorable mid-fight.
+    /// </summary>
+    public static class DropLabel
+    {
+        public static GameObject Attach(LootTag tag)
+        {
+            if (!Interop.Alive(tag.Object)) return null;
+            try
+            {
+                var go = new GameObject($"LootLabel_{tag.ViewId}");
+                var text = tag.Item.ColoredName;
+                if (!tag.Item.IsWeapon) text += $"  <size=70%><color=#9A9A9A>{LootTables.JunkTierName(tag.Item.WeaponClass)}</color></size>";
+                var tmp = UiKit.Text(go.transform, Vector3.zero, 1.2f, 0.08f, 0.32f, text, Il2CppTMPro.TextAlignmentOptions.Center);
+                if (tmp == null) { UnityEngine.Object.Destroy(go); return null; }
+                Follow(tag, go);
+                return go;
+            }
+            catch (Exception e)
+            {
+                Core.Log.Warning($"Drop label failed: {e.GetType().Name}: {e.Message}");
+                return null;
+            }
+        }
+
+        public static void Follow(LootTag tag) => Follow(tag, tag.Label);
+
+        private static void Follow(LootTag tag, GameObject label)
+        {
+            if (!Interop.Alive(label)) return;
+            if (!Interop.Alive(tag.Object)) { Detach(tag); return; }
+            try
+            {
+                var pos = tag.Object.transform.position + Vector3.up * 0.35f;
+                label.transform.position = pos;
+                Vector3 eye;
+                try { eye = AvatarPlayer.LocalAvatar.Head.position; } catch { eye = pos + Vector3.forward; }
+                var toEye = pos - eye; toEye.y = 0f;
+                if (toEye.sqrMagnitude > 0.0001f) label.transform.rotation = Quaternion.LookRotation(toEye, Vector3.up);
+            }
+            catch { }
+        }
+
+        public static void Detach(LootTag tag)
+        {
+            try { if (Interop.Alive(tag.Label)) UnityEngine.Object.Destroy(tag.Label); } catch { }
+            tag.Label = null;
+        }
     }
 }

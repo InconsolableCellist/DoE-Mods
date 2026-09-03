@@ -8,10 +8,10 @@ using Interop = LootOverhaul.Recon.Interop;
 namespace LootOverhaul.Loot
 {
     /// <summary>
-    /// "Collect, don't wield." A prefix on <c>Prop.PickUp</c>: if the prop is tagged loot,
-    /// the pickup is cancelled and a claim goes to the master instead. Untagged props are
-    /// untouched — this is the one place the mod alters game behaviour, and only for
-    /// objects the mod itself spawned.
+    /// "Collect, don't wield." A postfix on <c>Prop.PickUp</c>: the game completes its pickup
+    /// (so the hand's state machine runs to the end — cancelling it in 0.2 left the hand
+    /// frozen until the next real grab), then we drop the prop straight back out of the hand
+    /// and send a claim to the master. Untagged props are untouched.
     /// </summary>
     public static class BagPickup
     {
@@ -19,35 +19,33 @@ namespace LootOverhaul.Loot
 
         public static void Install()
         {
-            Hooks.Patch(typeof(Prop), "PickUp", Hooks.Of(typeof(BagPickup), nameof(Prefix)), null);
+            Hooks.Patch(typeof(Prop), "PickUp", null, Hooks.Of(typeof(BagPickup), nameof(Postfix)));
         }
 
-        private static bool Prefix(Prop __instance)
+        private static void Postfix(Prop __instance, PropRoot __0)
         {
             try
             {
-                if (!ModGate.Active || LootRegistry.Count == 0) return true;
-                if (!Interop.Alive(__instance)) return true;
+                if (!ModGate.Active || LootRegistry.Count == 0) return;
+                if (!Interop.Alive(__instance)) return;
                 var pv = __instance.GetComponent<PhotonView>();
-                if (!Interop.Alive(pv)) return true;
-                if (!LootRegistry.TryGet(pv.ViewID, out var tag)) return true;
+                if (!Interop.Alive(pv)) return;
+                if (!LootRegistry.TryGet(pv.ViewID, out var tag)) return;
 
                 Cancelled++;
-                if (tag.Claimed || tag.ClaimPending) return false;
+                try { __instance.Drop(__0); }
+                catch (Exception e) { Core.Log.Warning($"Loot drop-back failed: {e.GetType().Name}: {e.Message}"); }
+
+                if (tag.Claimed || tag.ClaimPending) return;
                 if (!BagManager.CanCarry(tag.Item))
                 {
                     BagManager.Toast($"Bag full — {tag.Item.ColoredName} weighs {tag.Item.Weight:0.#}");
-                    return false;
+                    return;
                 }
                 ReconLog.Line($"pickup -> claim: view {pv.ViewID} {tag.Item.Name}");
                 Claims.Request(tag);
-                return false;
             }
-            catch (Exception e)
-            {
-                Core.Log.Error($"BagPickup prefix threw, letting the game proceed: {e}");
-                return true;
-            }
+            catch (Exception e) { Core.Log.Error($"BagPickup postfix threw: {e}"); }
         }
     }
 }

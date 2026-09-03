@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Il2Cpp;
 using LootOverhaul.Gate;
 using LootOverhaul.Recon;
+using UnityEngine;
 using Interop = LootOverhaul.Recon.Interop;
 
 namespace LootOverhaul.Loot
@@ -52,6 +53,7 @@ namespace LootOverhaul.Loot
             Hooks.Patch(typeof(PlayerProfile), "GetWeaponModule", null, Hooks.Of(t, nameof(GetWeaponModule_Postfix)));
             Hooks.Patch(typeof(PlayerProfile), "GetLoadoutData", null, Hooks.Of(t, nameof(GetLoadoutData_Postfix)));
             Hooks.Patch(typeof(WeaponModule), "GetDisplayName", null, Hooks.Of(t, nameof(DisplayName_Postfix)));
+            Hooks.Patch(typeof(ModuleButton), "SetCustomModule", null, Hooks.Of(t, nameof(ModuleButton_Postfix)));
         }
 
         private static void Suspend() => _suspend++;
@@ -64,7 +66,7 @@ namespace LootOverhaul.Loot
         {
             if (string.IsNullOrEmpty(guidNorm)) return null;
             foreach (var i in BagManager.Inventory.Items)
-                if (Norm(i.WeaponGuid) == guidNorm) return i;
+                if (i.IsWeapon && Norm(i.WeaponGuid) == guidNorm) return i;
             return null;
         }
 
@@ -96,6 +98,7 @@ namespace LootOverhaul.Loot
                 var n = 0;
                 foreach (var item in inv.Items)
                 {
+                    if (!item.IsWeapon) continue;
                     try { copy.Add(ModuleFor(item)); n++; } catch { }
                 }
                 Injected = n;
@@ -141,6 +144,26 @@ namespace LootOverhaul.Loot
                 __result = Marker + __result;
             }
             catch { }
+        }
+
+        /// <summary>A small gold "LOOT" tag on the pedestal's thumbnail buttons for bag weapons.</summary>
+        private static void ModuleButton_Postfix(ModuleButton __instance, BaseModule __0)
+        {
+            try
+            {
+                if (!Interop.Alive(__instance)) return;
+                var wm = __0 == null ? null : __0.TryCast<WeaponModule>();
+                var ours = wm != null && Active && FindByGuid(GuidOf(wm)) != null;
+                var t = __instance.transform.Find("LootTag");
+                if (!ours) { if (t != null) t.gameObject.SetActive(false); return; }
+                if (t != null) { t.gameObject.SetActive(true); return; }
+                var tag = new GameObject("LootTag");
+                tag.transform.SetParent(__instance.transform, false);
+                tag.transform.localPosition = new Vector3(0f, 0f, -0.01f);
+                var size = UiKit.ButtonSize.y;
+                UiKit.Text(tag.transform, new Vector3(-UiKit.ButtonSize.x * 0.5f + 0.01f, size * 0.55f, 0f), 0.3f, 0.03f, 0.18f, "<color=#F5C542><b>LOOT</b></color>");
+            }
+            catch (Exception e) { Core.Log.Warning($"ModuleButton tag failed: {e.GetType().Name}: {e.Message}"); }
         }
 
         // ---- writes ---------------------------------------------------------------------------

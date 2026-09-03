@@ -1,12 +1,12 @@
 using System;
+using System.Collections.Generic;
 using Il2Cpp;
 using Il2CppPhoton.Pun;
 using LootOverhaul.Gate;
 using LootOverhaul.Recon;
-using Interop = LootOverhaul.Recon.Interop;
 using UnityEngine;
+using Interop = LootOverhaul.Recon.Interop;
 using AI = Il2CppSauron.AI;
-using Realm = Il2CppOthergate.Biome.Realm;
 
 namespace LootOverhaul.Loot
 {
@@ -16,14 +16,17 @@ namespace LootOverhaul.Loot
     /// kills with a real killer — the run-end cleanup arrives as killer -1 / damage type 8
     /// (recon 2026-09-02) and must not shower the exit with swords.
     ///
-    /// Rarity comes from the game's own realm-weighted roll, nudged by the mod: bosses never
-    /// drop below Rare, and a pity counter guarantees a Legendary eventually, since the
-    /// vanilla roll never produced one at level 15 in 800 tries.
+    /// Tuning after the 2026-09-02 19:30 playtest: critters never drop weapons (a scorpion
+    /// has no sword), tiers come from the game's own loot tier for the player instead of a
+    /// uniform roll over all seven, rarity is weighted toward Common with bosses and the
+    /// pity counter pushing upward, and a failed weapon roll can still drop a trinket.
     /// </summary>
     public static class DropRoller
     {
         private static readonly System.Random Rng = new System.Random();
-        public static int RollsSeen, Dropped;
+        private static readonly HashSet<string> BadPrefabs = new HashSet<string>();
+        public static int RollsSeen, Dropped, JunkDropped;
+        private static bool _tierLogged;
 
         public static void Install()
         {
@@ -40,38 +43,57 @@ namespace LootOverhaul.Loot
                 if (!Interop.Alive(__instance)) return;
 
                 RollsSeen++;
-                var aiType = 0; var boss = false;
+                var aiType = 0; var boss = false; var family = -1;
                 try { aiType = (int)__instance.type; boss = __instance.IsBoss; } catch { }
+                try { family = (int)__instance.references.family; } catch { }
 
                 var inv = BagManager.Inventory;
                 inv.KillsSinceLegendary++;
 
+                // Undead=0, Critter=1, Sorcerer=2, Monster=3. Critters carry nothing; bosses always may.
+                var canCarryWeapon = boss || family != 1;
                 var chance = boss ? ModConfig.BossDropChance.Value
                                   : ModConfig.BaseDropChance.Value * LootTables.EnemyMultiplier(aiType);
                 var roll = Rng.NextDouble();
                 var pity = ModConfig.LegendaryPityKills.Value > 0 && inv.KillsSinceLegendary >= ModConfig.LegendaryPityKills.Value;
-                if (roll >= chance && !pity) { inv.Save(); return; }
-
-                var cls = RollClass(boss, pity);
-                if (cls == 3) inv.KillsSinceLegendary = 0;
-                inv.Save();
-
-                var type = LootTables.DroppableTypes[Rng.Next(LootTables.DroppableTypes.Length)];
-                var wm = WeaponFactory.GenerateRandomWeaponModuleForLocalPlayer(
-                    (WeaponFactory.WeaponClass)cls, (Prop.Type)type,
-                    (WeaponFactory.WeaponTier)(-1), (WeaponFactory.WeaponStyle)(-1), -1, WeaponFactory.SeasonalKey.None);
-                if (wm == null) { Core.Log.Warning($"Generator returned null for {LootTables.TypeName(type)}/{cls}."); return; }
-
-                var item = WeaponCodec.FromModule(wm);
-                try { item.FoundInRealm = (int)GameManager.CurrentRealm; } catch { }
-                try { item.FoundBy = AvatarPlayer.FindByActorNo(__0)?.name; } catch { }
 
                 var pos = __instance.transform.position + Vector3.up * 1.0f;
                 var kick = Vector3.up * 2.5f + new Vector3((float)(Rng.NextDouble() - 0.5), 0f, (float)(Rng.NextDouble() - 0.5)) * 1.5f;
-                var tag = SpawnLoot(item, pos, kick);
-                if (tag == null) return;
-                Dropped++;
-                ReconLog.Line($"DROP #{Dropped}: {item.Name} [{LootTables.ClassName(cls)}] from `{__instance.name}` type={aiType} boss={boss} chance={chance:0.###} roll={roll:0.###} pity={pity} view={tag.ViewId}");
+
+                if (canCarryWeapon && (roll < chance || pity))
+                {
+                    var cls = RollClass(boss, pity);
+                    if (cls == 3) inv.KillsSinceLegendary = 0;
+                    inv.Save();
+                    var tier = RollTier();
+                    var type = LootTables.DroppableTypes[Rng.Next(LootTables.DroppableTypes.Length)];
+                    var wm = WeaponFactory.GenerateRandomWeaponModuleForLocalPlayer(
+                        (WeaponFactory.WeaponClass)cls, (Prop.Type)type,
+                        (WeaponFactory.WeaponTier)tier, (WeaponFactory.WeaponStyle)(-1), -1, WeaponFactory.SeasonalKey.None);
+                    if (wm == null) { Core.Log.Warning($"Generator returned null for {LootTables.TypeName(type)}/{cls}/t{tier + 1}."); return; }
+
+                    var item = WeaponCodec.FromModule(wm);
+                    try { item.FoundInRealm = (int)GameManager.CurrentRealm; } catch { }
+                    try { item.FoundBy = AvatarPlayer.FindByActorNo(__0)?.name; } catch { }
+                    var tag = SpawnLoot(item, pos, kick);
+                    if (tag == null) return;
+                    Dropped++;
+                    ReconLog.Line($"DROP #{Dropped}: {item.Name} [{LootTables.ClassName(cls)} t{tier + 1}] from `{__instance.name}` family={family} type={aiType} boss={boss} chance={chance:0.###} roll={roll:0.###} pity={pity} view={tag.ViewId}");
+                    return;
+                }
+                inv.Save();
+
+                // No weapon: maybe a trinket. Critters included — a scorpion can sit on a bone.
+                var junkChance = ModConfig.JunkDropChance.Value * (family == 1 ? 0.5f : 1f) * (boss ? 3f : 1f);
+                if (Rng.NextDouble() < junkChance)
+                {
+                    var item = MakeJunk(__0);
+                    if (item == null) return;
+                    var tag = SpawnLoot(item, pos, kick);
+                    if (tag == null) return;
+                    JunkDropped++;
+                    ReconLog.Line($"JUNK #{JunkDropped}: {item.Name} [{LootTables.JunkTierName(item.WeaponClass)} on `{item.PrefabName}`] from `{__instance.name}` family={family} value={item.Value} view={tag.ViewId}");
+                }
             }
             catch (Exception e) { Core.Log.Error($"Drop roll failed: {e}"); }
         }
@@ -79,45 +101,92 @@ namespace LootOverhaul.Loot
         private static int RollClass(bool boss, bool pity)
         {
             if (pity) return 3;
+            var w = new[] { ModConfig.WeightCommon.Value, ModConfig.WeightUnique.Value, ModConfig.WeightRare.Value, ModConfig.WeightLegendary.Value };
+            var total = 0f; foreach (var x in w) total += Math.Max(0f, x);
             var cls = 0;
-            try
+            if (total > 0f)
             {
-                var level = PlayerProfile.GetLevel();
-                var realm = GameManager.CurrentRealm;
-                if ((int)realm < 0) realm = Realm.Underworld;
-                cls = (int)WeaponFactory.GetRandomWeaponClass(level, realm, false, false);
+                var r = Rng.NextDouble() * total;
+                for (cls = 0; cls < 3; cls++) { r -= Math.Max(0f, w[cls]); if (r < 0) break; }
             }
-            catch (Exception e) { Core.Log.Warning($"Vanilla rarity roll failed ({e.GetType().Name}); using Common."); }
-            if (cls < 0 || cls > 3) cls = 0;
-            if (boss) cls = Math.Max(cls, 2) + (Rng.NextDouble() < 0.25 ? 1 : 0);
+            if (boss) cls = Math.Max(cls, 1) + (Rng.NextDouble() < 0.35 ? 1 : 0);
             return Math.Min(cls, 3);
         }
 
+        /// <summary>The game's loot tier for this player, occasionally one up. 0-based, clamped to the seven weapon tiers.</summary>
+        private static int RollTier()
+        {
+            var tier = 0;
+            try { tier = GameManager.CalculateLootTierForLocalPlayer(false); }
+            catch (Exception e) { Core.Log.Warning($"CalculateLootTierForLocalPlayer threw {e.GetType().Name}; using tier 1."); }
+            if (!_tierLogged) { _tierLogged = true; ReconLog.Line($"loot tier for local player (game's own): {tier}"); }
+            if (Rng.NextDouble() < ModConfig.TierUpChance.Value) tier++;
+            return Math.Max(0, Math.Min(6, tier));
+        }
+
+        private static LootItem MakeJunk(int killerActor)
+        {
+            var tier = LootTables.RollJunkTier(Rng.NextDouble());
+            var pool = new List<LootTables.Junk>();
+            foreach (var j in LootTables.JunkTable) if (j.Tier == tier && !BadPrefabs.Contains(j.Prefab)) pool.Add(j);
+            if (pool.Count == 0) foreach (var j in LootTables.JunkTable) if (!BadPrefabs.Contains(j.Prefab)) pool.Add(j);
+            if (pool.Count == 0) return null;
+            var def = pool[Rng.Next(pool.Count)];
+            var item = new LootItem
+            {
+                Kind = "junk",
+                PrefabName = def.Prefab,
+                Name = def.Name,
+                ColoredName = $"<color={LootTables.JunkColor(def.Tier)}>{def.Name}</color>",
+                WeaponClass = def.Tier,       // reused as the junk tier for sorting/colour
+                Value = Rng.Next(def.MinValue, def.MaxValue + 1),
+                Weight = def.Weight,
+                PropType = -1,
+            };
+            try { item.FoundInRealm = (int)GameManager.CurrentRealm; } catch { }
+            try { item.FoundBy = AvatarPlayer.FindByActorNo(killerActor)?.name; } catch { }
+            return item;
+        }
+
         /// <summary>
-        /// Spawn an item as a tagged, networked weapon on the floor. Used by the drop roll on
-        /// the master and by "drop from bag" on any client. The spawner owns the object; the
-        /// master destroys it on claim.
+        /// Spawn an item as a tagged, networked object on the floor. Weapons go through the
+        /// generator's prefab + data; junk rides on a plain vanilla prop. The spawner owns
+        /// the object; the master destroys it on claim.
         /// </summary>
         public static LootTag SpawnLoot(LootItem item, Vector3 pos, Vector3 velocity)
         {
             try
             {
-                var wm = WeaponCodec.ToModule(item);
-                var prefab = WeaponModule.GetWeaponPrefabData(wm, out var data);
-                var go = PhotonNetwork.Instantiate(prefab, pos, Quaternion.identity, 0, data);
-                if (!Interop.Alive(go)) { Core.Log.Warning($"Instantiate returned null for `{prefab}`."); return null; }
+                GameObject go;
+                if (item.IsWeapon)
+                {
+                    var wm = WeaponCodec.ToModule(item);
+                    var prefab = WeaponModule.GetWeaponPrefabData(wm, out var data);
+                    go = PhotonNetwork.Instantiate(prefab, pos, Quaternion.identity, 0, data);
+                }
+                else
+                {
+                    go = PhotonNetwork.Instantiate(item.PrefabName, pos, Quaternion.identity, 0, null);
+                    if (!Interop.Alive(go))
+                    {
+                        BadPrefabs.Add(item.PrefabName);
+                        Core.Log.Warning($"Junk prefab `{item.PrefabName}` would not instantiate; retired for this session.");
+                        return null;
+                    }
+                }
+                if (!Interop.Alive(go)) { Core.Log.Warning($"Instantiate returned null for {item.Name}."); return null; }
                 var pv = go.GetComponent<PhotonView>();
-                if (!Interop.Alive(pv)) { Core.Log.Warning($"Spawned `{prefab}` has no PhotonView."); return null; }
+                if (!Interop.Alive(pv)) { Core.Log.Warning($"Spawned {item.Name} has no PhotonView."); try { UnityEngine.Object.Destroy(go); } catch { } return null; }
                 try { var rb = go.GetComponent<Rigidbody>(); if (Interop.Alive(rb)) rb.velocity = velocity; } catch { }
 
                 var tag = LootRegistry.Add(pv.ViewID, item, go);
                 LootNet.SendSpawned(tag);
-                BagManager.Toast($"Loot dropped: {item.ColoredName}");
                 return tag;
             }
             catch (Exception e)
             {
                 Core.Log.Error($"SpawnLoot failed for {item.Name}: {e}");
+                if (!item.IsWeapon) BadPrefabs.Add(item.PrefabName);
                 return null;
             }
         }

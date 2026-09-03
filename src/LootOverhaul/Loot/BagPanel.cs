@@ -120,8 +120,6 @@ namespace LootOverhaul.Loot
             var left = -Width * 0.5f + 0.04f;
             UiKit.Text(_content, new Vector3(left, top - 0.05f, 0f), Width - 0.08f, 0.06f, 0.5f,
                 $"<b>BAG</b>   {inv.Items.Count} item(s)   {inv.TotalWeight:0.#} / {ModConfig.BagWeightCapacity.Value:0} wt   <color=#F5C542>{inv.Gold} gold</color>");
-            UiKit.Text(_content, new Vector3(left, top - 0.10f, 0f), Width - 0.08f, 0.05f, 0.3f,
-                "Loot you have picked up. Sort it, drop something on the floor for a friend, or take it to the Loot Broker to sell. Equip at any fabricator: bag weapons show there with a [LOOT] mark.");
 
             // Sort + close buttons, laid out from the measured button width.
             var by = top - 0.19f;
@@ -145,19 +143,23 @@ namespace LootOverhaul.Loot
                 row.transform.SetParent(_content, false);
                 row.transform.localPosition = new Vector3(0f, y, 0f);
 
-                UiKit.WeaponPreview(row.transform, new Vector3(left + 0.07f, 0f, -0.03f), item, 0.28f);
+                UiKit.Preview(row.transform, new Vector3(left + 0.07f, 0f, -0.03f), item, 0.11f);
 
-                string stats = "";
-                try { stats = Interop.OneLine(WeaponCodec.ToModule(item).GetStatsText()); } catch { }
-                UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), textW, 0.05f, 0.38f,
-                    $"{item.ColoredName}   <size=75%>{LootTables.TypeName(item.PropType)}  tier {item.WeaponTier + 1}</size>");
-                UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), textW, 0.045f, 0.3f,
-                    $"{stats}   <color=#9A9A9A>wt {item.Weight:0.#}   value {item.Value}</color>");
+                var equipped = item.EquippedSlot >= 0 ? $"   <color=#F5C542>equipped: {Loadout.SlotNames[item.EquippedSlot]}</color>" : "";
+                string second;
+                if (item.IsWeapon)
+                {
+                    string stats = "";
+                    try { stats = Interop.OneLine(WeaponCodec.ToModule(item).GetStatsText()); } catch { }
+                    second = $"<color=#9A9A9A>{LootTables.TypeName(item.PropType)}  tier {item.WeaponTier + 1}   wt {item.Weight:0.#}   value {item.Value}</color>   {stats}";
+                }
+                else
+                    second = $"<color=#9A9A9A>{LootTables.JunkTierName(item.WeaponClass)}   wt {item.Weight:0.#}   value {item.Value}</color>";
+                UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), textW, 0.05f, 0.38f, $"{item.ColoredName}{equipped}");
+                UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), textW, 0.045f, 0.3f, second);
 
                 var captured = item;
-                if (item.EquippedSlot >= 0)
-                    UiKit.Text(row.transform, new Vector3(dropX - BtnW * 0.5f, 0f, 0f), BtnW, 0.05f, 0.3f, $"<color=#F5C542>equipped: {Loadout.SlotNames[item.EquippedSlot]}</color>");
-                else
+                if (item.EquippedSlot < 0)
                     UiKit.Button(row.transform, new Vector3(dropX, 0f, 0f), "DROP", () => BagManager.Drop(captured), BtnScale);
             }
 
@@ -165,8 +167,8 @@ namespace LootOverhaul.Loot
             UiKit.Text(_content, new Vector3(0f, bottom, 0f), 0.3f, 0.06f, 0.35f, $"page {_page + 1} / {pages}", TextAlignmentOptions.Center);
             if (pages > 1)
             {
-                UiKit.Button(_content, new Vector3(-0.2f - BtnW * 0.5f, bottom, 0f), "<", () => { _page = Math.Max(0, _page - 1); Rebuild(); }, BtnScale);
-                UiKit.Button(_content, new Vector3(0.2f + BtnW * 0.5f, bottom, 0f), ">", () => { _page = Math.Min(pages - 1, _page + 1); Rebuild(); }, BtnScale);
+                UiKit.Button(_content, new Vector3(-0.22f - BtnW * 0.5f, bottom, 0f), "<", () => { _page = Math.Max(0, _page - 1); Rebuild(); }, BtnScale);
+                UiKit.Button(_content, new Vector3(0.22f + BtnW * 0.5f, bottom, 0f), ">", () => { _page = Math.Min(pages - 1, _page + 1); Rebuild(); }, BtnScale);
             }
             if (items.Count == 0)
                 UiKit.Text(_content, new Vector3(0f, y0 - RowHeight, 0f), 0.8f, 0.06f, 0.4f, "Empty. Go kill something.", TextAlignmentOptions.Center);

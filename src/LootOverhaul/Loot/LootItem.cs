@@ -18,6 +18,10 @@ namespace LootOverhaul.Loot
         /// <summary>Stable id for claims, trades and the loadout slots. Not the game's weapon GUID.</summary>
         public string Id = Guid.NewGuid().ToString("N");
 
+        /// <summary>"weapon" (a generated weapon; DTO fields below apply) or "junk" (a trinket: PrefabName is the vanilla prop it rides on, Name/Value/Weight come from the junk table).</summary>
+        public string Kind = "weapon";
+        public bool IsWeapon => Kind != "junk";
+
         // ---- WeaponModuleDTO fields, verbatim ----------------------------------------------
         /// <summary>e.g. <c>Sword_Gen1</c>, <c>Staff_Heal_Gen1</c> — the networked prefab name.</summary>
         public string PrefabName;

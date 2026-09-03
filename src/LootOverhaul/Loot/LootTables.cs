@@ -45,6 +45,40 @@ namespace LootOverhaul.Loot
             _ => 1.0f,
         };
 
+        /// <summary>
+        /// A trinket the broker will buy. Rides on a harmless vanilla prop for its floor body.
+        /// Tiers: 0 trinket (grey), 1 curio (white), 2 artifact (gold).
+        /// </summary>
+        public class Junk
+        {
+            public string Name; public string Prefab; public int Tier; public int MinValue, MaxValue; public float Weight;
+            public Junk(string name, string prefab, int tier, int min, int max, float weight) { Name = name; Prefab = prefab; Tier = tier; MinValue = min; MaxValue = max; Weight = weight; }
+        }
+
+        // Prefab names are the pool keys seen in the game's strings; which of them the
+        // networked pool will actually instantiate is learned at runtime (SpawnLoot logs a
+        // failure and the roller stops picking that prefab for the session).
+        public static readonly Junk[] JunkTable =
+        {
+            new Junk("Gnawed Bone",        "Bone",              0, 3,   12,  0.5f),
+            new Junk("Bone Dice",          "Dice",              0, 5,   20,  0.2f),
+            new Junk("Dog Treat",          "Wolf_Treat",        0, 2,   8,   0.3f),
+            new Junk("Pile of Bones",      "Bones",             0, 4,   15,  1.0f),
+            new Junk("Weighted Dice",      "Dice",              1, 25,  70,  0.2f),
+            new Junk("Carved Bone Idol",   "Bone",              1, 30,  90,  0.6f),
+            new Junk("Silver Mug",         "Wolf_Treat",        1, 40,  110, 0.8f),
+            new Junk("Skull Crown",        "Trophy_SkullCrown", 1, 60,  160, 1.5f),
+            new Junk("Religious Icon",     "Trophy_NovaGuild",  2, 150, 400, 1.2f),
+            new Junk("Gilded Skull",       "Trophy_SkullCrown", 2, 200, 500, 1.5f),
+            new Junk("Gold Chalice",       "Dice",              2, 250, 600, 1.0f),
+        };
+
+        public static string JunkTierName(int tier) => tier switch { 0 => "trinket", 1 => "curio", _ => "artifact" };
+        public static string JunkColor(int tier) => tier switch { 0 => "#9A9A9A", 1 => "#E8E8E8", _ => "#F5C542" };
+
+        /// <summary>Junk tier roll: mostly trinkets.</summary>
+        public static int RollJunkTier(double r) => r < 0.70 ? 0 : r < 0.94 ? 1 : 2;
+
         public static string ClassName(int weaponClass) => weaponClass switch
         {
             0 => "Common", 1 => "Unique", 2 => "Rare", 3 => "Legendary", 4 => "Mythic", _ => "?",

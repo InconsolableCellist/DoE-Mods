@@ -367,9 +367,15 @@ and every two-player question (who sees the spawn, non-master `OnKilled`, claims
   symptom). UI: 3D TextMeshPro `fontSize` is ~0.1 m per unit, so 1.6 with a 0.08 m rect
   truncated every label to nothing; the fabricator button is ~0.5 m wide at scale 1.
 - **0.5 (2026-09-02):** pivot to the vanilla fabricator (`FabricatorBridge`), booth reduced
-  to a sell counter, UI sizing fixed. Untested. Next: verify the bridge in the lobby
-  (bag weapons listed with `[LOOT]`, equip works, no profile write), then junk loot
-  types and the shop.
+  to a sell counter, UI sizing fixed. **Playtest 2026-09-02 19:30: successful** — bag
+  weapons listed at the pedestal with `[LOOT]`, equipped from there, on the body in lobby
+  and dungeon, eight drops bagged, eight sold, no profile write. Feedback: drops too strong
+  (uniform tier roll, rare-heavy realm roll), critters dropping swords, beam noisy, hand
+  froze after a cancelled pickup, copy poor, big previews.
+- **0.6 (2026-09-02):** drop tuning (game loot tier, weighted rarity, family filter), junk
+  loot with Daggerfall-style flavour names on vanilla props, floating labels instead of
+  beams, LOOT tag on pedestal thumbnails, pickup completes-then-drops, UI copy and layout.
+  Untested. Next: confirm which junk prefabs spawn, then the shop.
 
 ## Verify first (one UnityExplorer/recon session, no headset-heavy iteration)
 

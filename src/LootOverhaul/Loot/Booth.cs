@@ -82,7 +82,6 @@ namespace LootOverhaul.Loot
             _sell = sell.transform;
             _sell.localPosition = new Vector3(0f, 1.3f, 0f);
             UiKit.Text(_root.transform, new Vector3(0f, 2.0f, 0f), 1.2f, 0.15f, 0.9f, "<b>LOOT BROKER</b>", TextAlignmentOptions.Center);
-            UiKit.Text(_root.transform, new Vector3(0f, 1.9f, 0f), 1.2f, 0.06f, 0.3f, "buys anything you dug up   ·   equip loot at any fabricator", TextAlignmentOptions.Center);
         }
 
         private static void PlaceFromConfig()
@@ -111,11 +110,13 @@ namespace LootOverhaul.Loot
             var top = height * 0.5f;
             var left = -PanelWidth * 0.5f + 0.04f;
             UiKit.Text(_sell, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f,
-                $"<b>SELL</b>   {inv.Items.Count} item(s) in your bag   you have <color=#F5C542>{inv.Gold} gold</color>");
-            UiKit.Text(_sell, new Vector3(left, top - 0.10f, 0f), PanelWidth - 0.08f, 0.05f, 0.3f,
-                $"The broker pays the game's salvage value × {ModConfig.SellMultiplier.Value:0.##}. Weapons you have equipped at a fabricator stay yours until you unequip them.");
+                $"<b>SELL</b>   {inv.Items.Count} item(s)   <color=#F5C542>{inv.Gold} gold</color>");
+            var junkCount = 0; var junkValue = 0;
+            foreach (var j in inv.Items) if (!j.IsWeapon) { junkCount++; junkValue += SellPrice(j); }
+            if (junkCount > 0)
+                UiKit.Button(_sell, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f, top - 0.05f, 0f), $"SELL ALL JUNK ({junkValue})", SellAllJunk, BtnScale);
 
-            var y0 = top - 0.22f;
+            var y0 = top - 0.19f;
             var start = _sellPage * RowsPerPage;
             var sellX = PanelWidth * 0.5f - 0.04f - BtnW * 0.5f;
             var textW = sellX - BtnW * 0.5f - 0.02f - (left + 0.16f);
@@ -124,11 +125,12 @@ namespace LootOverhaul.Loot
                 var item = items[start + i];
                 var row = new GameObject($"SellRow_{i}"); row.transform.SetParent(_sell, false);
                 row.transform.localPosition = new Vector3(0f, y0 - i * RowHeight, 0f);
-                UiKit.WeaponPreview(row.transform, new Vector3(left + 0.07f, 0f, -0.03f), item, 0.28f);
+                UiKit.Preview(row.transform, new Vector3(left + 0.07f, 0f, -0.03f), item, 0.11f);
                 var equipped = item.EquippedSlot >= 0 ? $"   <color=#F5C542>equipped: {Loadout.SlotNames[item.EquippedSlot]}</color>" : "";
+                var kind = item.IsWeapon ? $"{LootTables.TypeName(item.PropType)}  tier {item.WeaponTier + 1}" : LootTables.JunkTierName(item.WeaponClass);
                 UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), textW, 0.05f, 0.38f, $"{item.ColoredName}{equipped}");
                 UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), textW, 0.045f, 0.3f,
-                    $"<color=#9A9A9A>{LootTables.TypeName(item.PropType)}  tier {item.WeaponTier + 1}   wt {item.Weight:0.#}</color>   <color=#F5C542>{SellPrice(item)} gold</color>");
+                    $"<color=#9A9A9A>{kind}   wt {item.Weight:0.#}</color>   <color=#F5C542>{SellPrice(item)} gold</color>");
                 var captured = item;
                 if (item.EquippedSlot < 0)
                     UiKit.Button(row.transform, new Vector3(sellX, 0f, 0f), "SELL", () => Sell(captured), BtnScale);
@@ -138,14 +140,33 @@ namespace LootOverhaul.Loot
             UiKit.Text(_sell, new Vector3(0f, bottom, 0f), 0.3f, 0.06f, 0.35f, $"page {_sellPage + 1} / {pages}", TextAlignmentOptions.Center);
             if (pages > 1)
             {
-                UiKit.Button(_sell, new Vector3(-0.2f - BtnW * 0.5f, bottom, 0f), "<", () => { _sellPage--; BuildSell(); }, BtnScale);
-                UiKit.Button(_sell, new Vector3(0.2f + BtnW * 0.5f, bottom, 0f), ">", () => { _sellPage++; BuildSell(); }, BtnScale);
+                UiKit.Button(_sell, new Vector3(-0.22f - BtnW * 0.5f, bottom, 0f), "<", () => { _sellPage--; BuildSell(); }, BtnScale);
+                UiKit.Button(_sell, new Vector3(0.22f + BtnW * 0.5f, bottom, 0f), ">", () => { _sellPage++; BuildSell(); }, BtnScale);
             }
             if (items.Count == 0)
                 UiKit.Text(_sell, new Vector3(0f, y0 - RowHeight, 0f), 0.8f, 0.06f, 0.4f, "Nothing to sell. Bring me something shiny.", TextAlignmentOptions.Center);
         }
 
         public static int SellPrice(LootItem item) => Math.Max(1, (int)Math.Round(item.Value * ModConfig.SellMultiplier.Value));
+
+        private static void SellAllJunk()
+        {
+            var inv = BagManager.Inventory;
+            var total = 0; var n = 0;
+            foreach (var j in new List<LootItem>(inv.Items))
+            {
+                if (j.IsWeapon) continue;
+                total += SellPrice(j); n++;
+                inv.Remove(j.Id);
+            }
+            if (n == 0) { BagManager.Toast("No junk to sell."); return; }
+            inv.Gold += total;
+            inv.Save();
+            BagManager.Toast($"Sold {n} piece(s) of junk for <color=#F5C542>{total} gold</color>  (now {inv.Gold})");
+            ReconLog.Line($"sold {n} junk for {total} -> gold {inv.Gold}");
+            Rebuild();
+            BagPanel.Refresh();
+        }
 
         private static void Sell(LootItem item)
         {

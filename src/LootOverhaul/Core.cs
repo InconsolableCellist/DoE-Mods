@@ -6,7 +6,7 @@ using LootOverhaul.Loot;
 using LootOverhaul.Net;
 using LootOverhaul.Recon;
 
-[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.5.0", "dan")]
+[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.6.0", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace LootOverhaul
@@ -24,7 +24,7 @@ namespace LootOverhaul
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.5.0";
+        public const string Version = "0.6.0";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -125,7 +125,7 @@ namespace LootOverhaul
             if (ModConfig.ReconEnabled.Value)
             {
                 ReconLog.Section("Loot loop counters");
-                ReconLog.Line($"- kills rolled on this master: {DropRoller.RollsSeen}, drops: {DropRoller.Dropped}, pickups cancelled into claims: {BagPickup.Cancelled}");
+                ReconLog.Line($"- kills rolled on this master: {DropRoller.RollsSeen}, weapon drops: {DropRoller.Dropped}, junk drops: {DropRoller.JunkDropped}, pickups turned into claims: {BagPickup.Cancelled}");
                 ReconLog.Line($"- loadout: {Loadout.Describe()}");
                 ReconLog.Line($"- fabricator bridge: {FabricatorBridge.Describe()}");
                 EventTally.Report("quit");

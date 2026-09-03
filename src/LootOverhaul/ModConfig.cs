@@ -24,8 +24,16 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<float> BossDropChance;
         /// <summary>After this many kills without a Legendary, the next drop is one. 0 disables.</summary>
         public static MelonPreferences_Entry<int> LegendaryPityKills;
-        /// <summary>Rarity-coloured beam over floor loot.</summary>
+        /// <summary>Rarity-coloured beam over floor loot (off: the floating name label is the default).</summary>
         public static MelonPreferences_Entry<bool> DropBeams;
+        /// <summary>Floating rarity-coloured name over floor loot.</summary>
+        public static MelonPreferences_Entry<bool> DropLabels;
+        /// <summary>Rarity weights for weapon drops, relative. Bosses and pity push upward from here.</summary>
+        public static MelonPreferences_Entry<float> WeightCommon, WeightUnique, WeightRare, WeightLegendary;
+        /// <summary>Chance, 0–1, that a real kill drops a trinket instead of nothing (rolled after the weapon roll fails).</summary>
+        public static MelonPreferences_Entry<float> JunkDropChance;
+        /// <summary>Chance that a drop is one tier above the game's loot tier for your level.</summary>
+        public static MelonPreferences_Entry<float> TierUpChance;
         /// <summary>Gold per point of the game's salvage value when selling at the booth.</summary>
         public static MelonPreferences_Entry<float> SellMultiplier;
         /// <summary>Booth placement in the lobby, world units. Press = in the lobby to set it where you stand.</summary>
@@ -52,7 +60,14 @@ namespace LootOverhaul
             BagWeightCapacity = Main.CreateEntry("BagWeightCapacity", 60f);
             BossDropChance = Main.CreateEntry("BossDropChance", 1.0f);
             LegendaryPityKills = Main.CreateEntry("LegendaryPityKills", 120);
-            DropBeams = Main.CreateEntry("DropBeams", true);
+            DropBeams = Main.CreateEntry("DropBeams", false);
+            DropLabels = Main.CreateEntry("DropLabels", true);
+            WeightCommon = Main.CreateEntry("WeightCommon", 70f);
+            WeightUnique = Main.CreateEntry("WeightUnique", 22f);
+            WeightRare = Main.CreateEntry("WeightRare", 7f);
+            WeightLegendary = Main.CreateEntry("WeightLegendary", 1f);
+            JunkDropChance = Main.CreateEntry("JunkDropChance", 0.18f);
+            TierUpChance = Main.CreateEntry("TierUpChance", 0.12f);
             SellMultiplier = Main.CreateEntry("SellMultiplier", 1.0f);
             LoadoutEnabled = Main.CreateEntry("LoadoutEnabled", true);
             // Defaults: 2.5 m in front of where the lobby spawned the player on 2026-09-02, facing back.
