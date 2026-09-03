@@ -57,6 +57,10 @@ LootOverhaul inert for the whole room, by design.
   weighted dice, marrow charm, skull crown, guild trophy, religious icon, gilded skull
   crown, gambler's relic). Press **-** (minus) in a private room to try further candidate
   props one at a time; each is described in the transcript with its size and components.
+  **;** (semicolon) runs a census of every GameObject the game can load by name from its
+  Resources folders that carries a Prop or PhotonView — the authoritative list of possible
+  loot bodies — and the Backslash lobby survey now also lists decoration meshes (cups,
+  bottles, skulls, candles…) with sizes, as candidates for mesh-swapped loot bodies.
 - The junk button now reads `SELL n JUNK · value g`. Junk items are also listed as rows.
 
 ## 0.7 — the shop

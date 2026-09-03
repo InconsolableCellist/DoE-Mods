@@ -67,7 +67,7 @@ namespace LootOverhaul
                 GameplayHooks.Install();
             }
             Hooks.Report();
-            LoggerInstance.Msg("Hotkeys: [ = open/close the bag panel (or the VR gesture, see BagGesture), ] = drop the last bagged item, = (equals) = place the booth where you stand (lobby), - (minus) = junk prefab probe.");
+            LoggerInstance.Msg("Hotkeys: [ = open/close the bag panel (or the VR gesture, see BagGesture), ] = drop the last bagged item, = (equals) = place the booth where you stand (lobby), - (minus) = junk prefab probe, ; (semicolon) = Resources census.");
             if (ModConfig.ReconEnabled.Value)
             {
                 LoggerInstance.Msg("Recon hotkeys: Insert = generator survey, Delete = spawn a test weapon (private room), Backslash (\\) = lobby survey + marker cubes, Scroll Lock = cloned button + pointer test.");
@@ -98,6 +98,7 @@ namespace LootOverhaul
                 else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.RightBracket)) BagManager.DropLast();
                 else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Equals)) Booth.PlaceHere();
                 else if (ModConfig.ReconEnabled.Value && UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Minus)) GeneratorProbe.JunkProbe();
+                else if (ModConfig.ReconEnabled.Value && UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Semicolon)) GeneratorProbe.ResourceCensus();
                 if (!ModConfig.ReconEnabled.Value) return;
                 if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Insert)) GeneratorProbe.Survey();
                 else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Delete)) GeneratorProbe.SpawnTest();

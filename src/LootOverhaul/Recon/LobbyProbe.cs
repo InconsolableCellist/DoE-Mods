@@ -141,6 +141,29 @@ namespace LootOverhaul.Recon
                     ReconLog.Line($"- armory[{i}]: \"{Interop.OneLine(unlocked[i].GetDisplayName(false))}\" `{unlocked[i].GetPrefabName()}` {unlocked[i].GetWeaponClass()} tier={unlocked[i].GetWeaponTier()}");
             });
 
+            ReconLog.Try("decoration meshes", () =>
+            {
+                // Every mesh in the scene whose name suggests a trinket: candidates for loot
+                // bodies (the spawned prop's mesh can be swapped for one of these on every client).
+                var filters = UnityEngine.Object.FindObjectsOfType<MeshFilter>();
+                var kw = new System.Text.RegularExpressions.Regex("cup|mug|goblet|chalice|tankard|bottle|flask|plate|bowl|candle|lantern|book|scroll|vase|urn|jar|skull|bone|gem|coin|ring|amulet|idol|statue|relic|trophy|dice|jewel|crown|treasure|bag|sack|pouch|orb|horn", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                var seen = new HashSet<string>();
+                var n = 0;
+                foreach (var mf in filters)
+                {
+                    if (!Interop.Alive(mf) || !Interop.Alive(mf.sharedMesh)) continue;
+                    var m = mf.sharedMesh;
+                    if (!kw.IsMatch(m.name) && !kw.IsMatch(mf.gameObject.name)) continue;
+                    if (!seen.Add(m.name)) continue;
+                    var b = m.bounds.size;
+                    string mat = "?";
+                    try { var r = mf.GetComponent<Renderer>(); if (Interop.Alive(r) && Interop.Alive(r.sharedMaterial)) mat = r.sharedMaterial.name; } catch { }
+                    ReconLog.Line($"- mesh `{m.name}` on `{mf.gameObject.name}` size {b.x:0.00}×{b.y:0.00}×{b.z:0.00} verts={m.vertexCount} material=`{mat}` at {Interop.ScenePath(mf.transform)}");
+                    n++;
+                }
+                ReconLog.KeyValue("decoration mesh candidates", n);
+            });
+
             ReconLog.Try("marker cubes", () =>
             {
                 if (here == Vector3.zero) { ReconLog.Line("- no player position; markers skipped"); return; }

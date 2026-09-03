@@ -244,6 +244,44 @@ namespace LootOverhaul.Recon
             catch (Exception e) { ReconLog.Error($"junk probe {name}", e); }
         }
 
+        /// <summary>
+        /// Semicolon key: every GameObject the game can load by name from its Resources folders,
+        /// with the components that matter to us. This is the set PhotonNetwork.Instantiate can
+        /// reach by plain name, so it is the authoritative list of possible loot bodies.
+        /// </summary>
+        public static void ResourceCensus()
+        {
+            ReconLog.Section("Resources census (GameObjects)");
+            try
+            {
+                var all = Resources.LoadAll("", Il2CppInterop.Runtime.Il2CppType.Of<GameObject>());
+                ReconLog.KeyValue("GameObjects in Resources", all == null ? -1 : all.Length);
+                if (all == null) return;
+                var withProp = 0;
+                foreach (var o in all)
+                {
+                    var go = o?.TryCast<GameObject>();
+                    if (!Interop.Alive(go)) continue;
+                    var prop = go.GetComponent<Prop>();
+                    var pv = go.GetComponent<PhotonView>();
+                    if (!Interop.Alive(prop) && !Interop.Alive(pv)) continue;
+                    withProp++;
+                    var size = "?";
+                    try
+                    {
+                        var rs = go.GetComponentsInChildren<Renderer>(true);
+                        if (rs.Length > 0) { var b = rs[0].bounds; foreach (var r in rs) b.Encapsulate(r.bounds); size = $"{b.size.x:0.00}×{b.size.y:0.00}×{b.size.z:0.00}"; }
+                    }
+                    catch { }
+                    var comps = new List<string>();
+                    foreach (var c in go.GetComponents<Component>()) if (Interop.Alive(c)) comps.Add(c.GetIl2CppType().Name);
+                    ReconLog.Line($"- `{go.name}` prop={(Interop.Alive(prop) ? prop.type.ToString() : "-")} view={(Interop.Alive(pv) ? "yes" : "no")} size {size} : {string.Join(", ", comps)}");
+                }
+                ReconLog.Headline($"Resources census: {all.Length} GameObject(s), {withProp} with a Prop or PhotonView — see the transcript.");
+            }
+            catch (Exception e) { ReconLog.Error("resources census", e); }
+        }
+
         /// <summary>On every scene change: are the weapons we spawned still alive? (Design item 5.)</summary>
         public static void CheckSpawned(string newScene)
         {
