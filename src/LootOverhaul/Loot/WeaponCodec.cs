@@ -82,6 +82,7 @@ namespace LootOverhaul.Loot
             S(i.ModuleType), S(i.PropType), i.Name ?? "", i.ColoredName ?? "", S(i.Value), i.Weight.ToString("R", CultureInfo.InvariantCulture),
             S(i.FoundInRealm), i.FoundBy ?? "", i.Kind ?? "weapon", i.BuffStat ?? "", i.BuffMult.ToString("R", CultureInfo.InvariantCulture),
             i.Manual ? "1" : "0", S(i.PerkA), S(i.PerkB), S(i.PerkC), S(i.DamageMin), S(i.DamageType), i.Superior ? "1" : "0",
+            S(i.ArmorSlot), i.ArmorStats ?? "",
         });
 
         public static LootItem Decode(string s)
@@ -98,6 +99,7 @@ namespace LootOverhaul.Loot
             if (p.Length > 19 && p[19].Length > 0) item.Kind = p[19];
             if (p.Length > 21) { item.BuffStat = p[20].Length > 0 ? p[20] : null; float.TryParse(p[21], System.Globalization.NumberStyles.Float, CultureInfo.InvariantCulture, out item.BuffMult); }
             if (p.Length > 28) { item.Manual = p[22] == "1"; item.PerkA = I(p[23]); item.PerkB = I(p[24]); item.PerkC = I(p[25]); item.DamageMin = I(p[26]); item.DamageType = I(p[27]); item.Superior = p[28] == "1"; }
+            if (p.Length > 30) { item.ArmorSlot = I(p[29]); item.ArmorStats = p[30].Length > 0 ? p[30] : null; }
             if (p[8].Length > 0)
             {
                 var ids = p[8].Split(',');

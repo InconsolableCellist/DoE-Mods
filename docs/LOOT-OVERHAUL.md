@@ -514,7 +514,10 @@ and recipes → scrolls that retune a bracelet → hazard contracts.
   value multiplied (1.3 → 1.495); stick-hold gesture opens the bag; bag panel had overlap
   (sort buttons touching, DROP/DRINK over text). No profile write.
 - **0.9.5 (2026-09-03):** hover-only floor labels, bag panel spacing, TMP truncation.
-  Deployed, untested.
+- **0.9.6 (2026-09-03):** armor as a worn bundle of exosuit stats (Armor.cs), three slots,
+  stats gated to unlocked perks, combined with tonics in Buffs.Apply, persisted worn.
+  Placeholder floor body. Deployed, untested. Next: reagents and recipes; cosmetic garment
+  bodies for armor (the `cosmetic/mesh/*` resources) once a mesh-swap body works.
 
 ## Verify first (one UnityExplorer/recon session, no headset-heavy iteration)
 

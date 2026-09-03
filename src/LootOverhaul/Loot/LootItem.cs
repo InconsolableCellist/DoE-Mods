@@ -22,6 +22,11 @@ namespace LootOverhaul.Loot
         public string Kind = "weapon";
         public bool IsWeapon => Kind == "weapon";
         public bool IsBuff => Kind == "buff";
+        public bool IsArmor => Kind == "armor";
+        /// <summary>Armor: slot (0 head, 1 chest, 2 legs), encoded stat bonuses, and the slot it is worn in (-1 = in the bag).</summary>
+        public int ArmorSlot = -1;
+        public string ArmorStats;
+        public int WornSlot = -1;
         /// <summary>Tonics: the exosuit stat name and the multiplier applied for one run.</summary>
         public string BuffStat;
         public float BuffMult;

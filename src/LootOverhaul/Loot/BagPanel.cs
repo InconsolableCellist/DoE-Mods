@@ -120,8 +120,11 @@ namespace LootOverhaul.Loot
             var left = -Width * 0.5f + 0.04f;
             UiKit.Text(_content, new Vector3(left, top - 0.05f, 0f), Width - 0.08f, 0.06f, 0.5f,
                 $"<b>BAG</b>   {inv.Items.Count} item(s)   {inv.TotalWeight:0.#} / {BagManager.Capacity:0} wt   <color=#F5C542>{inv.Gold} gold</color>");
-            if (Buffs.AnyActive)
-                UiKit.Text(_content, new Vector3(left, top - 0.105f, 0f), Width - 0.08f, 0.05f, 0.3f, $"<color=#7FD8FF>active this run:</color> {Buffs.DescribeActive()}");
+            var status = "";
+            if (Buffs.AnyWorn) status += $"<color=#C9A86A>wearing:</color> {Armor.DescribeWorn()}   ";
+            if (Buffs.AnyActive) status += $"<color=#7FD8FF>this run:</color> {Buffs.DescribeActive()}";
+            if (status.Length > 0)
+                UiKit.Text(_content, new Vector3(left, top - 0.105f, 0f), Width - 0.08f, 0.05f, 0.3f, status);
 
             // Sort + close buttons, laid out from the measured button width.
             var by = top - 0.19f;
@@ -161,10 +164,13 @@ namespace LootOverhaul.Loot
                     var d = Buffs.Find(item.BuffStat);
                     second = $"<color=#9A9A9A>tonic · {(d == null ? item.BuffStat : d.Flavor)} ×{item.BuffMult:0.00}</color>";
                 }
+                else if (item.IsArmor)
+                    second = $"<color=#9A9A9A>{Armor.SlotNames[item.ArmorSlot].ToLowerInvariant()} armor · {Armor.DescribeStats(item)}</color>";
                 else
                     second = $"<color=#9A9A9A>{LootTables.JunkTierName(item.WeaponClass)}   wt {item.Weight:0.#}   value {item.Value}</color>";
-                var rowTextW = item.IsBuff ? twoBtnTextW : textW;
-                UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), rowTextW, 0.05f, 0.38f, $"{item.ColoredName}{equipped}");
+                var rowTextW = item.IsBuff || item.IsArmor ? twoBtnTextW : textW;
+                var worn = item.IsArmor && item.WornSlot >= 0 ? "   <color=#C9A86A>worn</color>" : "";
+                UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), rowTextW, 0.05f, 0.38f, $"{item.ColoredName}{equipped}{worn}");
                 UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), rowTextW, 0.045f, 0.3f, second);
 
                 var captured = item;
@@ -172,6 +178,16 @@ namespace LootOverhaul.Loot
                 {
                     UiKit.Button(row.transform, new Vector3(dropX, 0f, 0f), "DRINK", () => Buffs.Drink(captured), BtnScale);
                     UiKit.Button(row.transform, new Vector3(dropX - BtnW * 1.2f - 0.03f, 0f, 0f), "DROP", () => BagManager.Drop(captured), BtnScale);
+                }
+                else if (item.IsArmor)
+                {
+                    if (item.WornSlot >= 0)
+                        UiKit.Button(row.transform, new Vector3(dropX, 0f, 0f), "TAKE OFF", () => Armor.Remove(captured), BtnScale);
+                    else
+                    {
+                        UiKit.Button(row.transform, new Vector3(dropX, 0f, 0f), "WEAR", () => Armor.Wear(captured), BtnScale);
+                        UiKit.Button(row.transform, new Vector3(dropX - BtnW * 1.2f - 0.03f, 0f, 0f), "DROP", () => BagManager.Drop(captured), BtnScale);
+                    }
                 }
                 else if (item.EquippedSlot < 0)
                     UiKit.Button(row.transform, new Vector3(dropX, 0f, 0f), "DROP", () => BagManager.Drop(captured), BtnScale);

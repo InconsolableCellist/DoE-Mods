@@ -36,6 +36,18 @@ gate rule is the same: private room, every occupant on the identical version and
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
 
+## 0.9.6 — armor
+
+Armor drops out of the weapon budget (`ArmorShare`, 35% of successful weapon rolls) as a
+bundle on the floor (placeholder body, the reliquary chest, until cosmetic meshes are wired
+in). A piece has a slot (head, chest, legs), a rarity, a rolled name ("Scale Hauberk of the
+Owl", "Mithril Sabatons of Warding"), and one to three exosuit-stat bonuses — Common one,
+Rare two, Legendary three — drawn only from perks you have unlocked, in bands from ×1.04 to
+×1.28. WEAR it from the bag: one piece per slot, permanent while worn, combined with any
+tonic (armor multiplies together, the best tonic on top), re-applied after every recompute,
+kept in the inventory file so it is on you next session. TAKE OFF to change; worn pieces
+cannot be sold or dropped. The bag header shows what you are wearing.
+
 ## 0.9.5 — hover labels, bag panel spacing
 
 - Floor labels show only while you look at the item (within about four metres, a narrow

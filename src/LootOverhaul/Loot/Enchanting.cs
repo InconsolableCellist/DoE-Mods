@@ -84,7 +84,7 @@ namespace LootOverhaul.Loot
         {
             LootItem best = null;
             foreach (var j in inv.Items)
-                if (!j.IsWeapon && !j.IsBuff && j.WeaponClass >= tier && (best == null || j.Value < best.Value)) best = j;
+                if (!j.IsWeapon && !j.IsBuff && !j.IsArmor && j.WeaponClass >= tier && (best == null || j.Value < best.Value)) best = j;
             return best;
         }
 

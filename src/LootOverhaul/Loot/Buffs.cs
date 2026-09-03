@@ -73,11 +73,20 @@ namespace LootOverhaul.Loot
 
         /// <summary>Active for this run: stat -> multiplier (stacking takes the best, not the product).</summary>
         private static readonly Dictionary<string, float> Active = new Dictionary<string, float>();
+        /// <summary>Armor: stat -> product of worn multipliers. Permanent while worn.</summary>
+        private static Dictionary<string, float> Worn = new Dictionary<string, float>();
         private static readonly Dictionary<string, PropertyInfo> Props = new Dictionary<string, PropertyInfo>();
         private static bool _reapplyPending;
         private static int _applied;
 
         public static bool AnyActive => Active.Count > 0;
+        public static bool AnyWorn => Worn.Count > 0;
+
+        public static void RebuildWorn()
+        {
+            Worn = Armor.WornMultipliers();
+            Apply("armor changed");
+        }
 
         public static void Install()
         {
@@ -92,7 +101,7 @@ namespace LootOverhaul.Loot
         {
             if (!_reapplyPending) return;
             _reapplyPending = false;
-            if (Active.Count > 0) Apply("exosuit recompute");
+            if (Active.Count > 0 || Worn.Count > 0) Apply("exosuit recompute");
         }
 
         public static Def Find(string stat) { foreach (var d in Catalogue) if (d.Stat == stat) return d; return null; }
@@ -166,7 +175,10 @@ namespace LootOverhaul.Loot
             var exo = AvatarPlayer.LocalExoSuit;
             if (exo == null) return;
             var parts = new List<string>();
-            foreach (var kv in Active)
+            // Combined: tonic (best of) × armor (product), per stat.
+            var combined = new Dictionary<string, float>(Worn);
+            foreach (var kv in Active) { combined.TryGetValue(kv.Key, out var w); combined[kv.Key] = (w <= 0f ? 1f : w) * kv.Value; }
+            foreach (var kv in combined)
             {
                 try
                 {

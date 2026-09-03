@@ -125,7 +125,7 @@ namespace LootOverhaul.Loot
             UiKit.Text(_sell, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f,
                 $"<b>SELL</b>   {inv.Items.Count} item(s)   <color=#F5C542>{inv.Gold} gold</color>");
             var junkCount = 0; var junkValue = 0;
-            foreach (var j in inv.Items) if (!j.IsWeapon) { junkCount++; junkValue += SellPrice(j); }
+            foreach (var j in inv.Items) if (!j.IsWeapon && !j.IsBuff && !j.IsArmor) { junkCount++; junkValue += SellPrice(j); }
             if (junkCount > 0)
                 UiKit.Button(_sell, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f, top - 0.05f, 0f), $"SELL {junkCount} JUNK · {junkValue}g", SellAllJunk, BtnScale);
 
@@ -141,12 +141,12 @@ namespace LootOverhaul.Loot
                 row.transform.localPosition = new Vector3(0f, y0 - i * RowHeight, 0f);
                 UiKit.Preview(row.transform, new Vector3(left + 0.07f, 0f, -0.03f), item, 0.11f);
                 var equipped = item.EquippedSlot >= 0 ? $"   <color=#F5C542>equipped: {Loadout.SlotNames[item.EquippedSlot]}</color>" : "";
-                var kind = item.IsWeapon ? $"{LootTables.TypeName(item.PropType)}  tier {item.WeaponTier + 1}" : item.IsBuff ? "tonic" : LootTables.JunkTierName(item.WeaponClass);
+                var kind = item.IsWeapon ? $"{LootTables.TypeName(item.PropType)}  tier {item.WeaponTier + 1}" : item.IsBuff ? "tonic" : item.IsArmor ? $"{Armor.SlotNames[item.ArmorSlot].ToLowerInvariant()} armor" : LootTables.JunkTierName(item.WeaponClass);
                 UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), textW, 0.05f, 0.38f, $"{item.ColoredName}{equipped}");
                 UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), textW, 0.045f, 0.3f,
                     $"<color=#9A9A9A>{kind}   wt {item.Weight:0.#}</color>   <color=#F5C542>{SellPrice(item)} gold</color>");
                 var captured = item;
-                if (item.EquippedSlot < 0)
+                if (item.EquippedSlot < 0 && item.WornSlot < 0)
                     UiKit.Button(row.transform, new Vector3(sellX, 0f, 0f), "SELL", () => Sell(captured), BtnScale);
             }
 
@@ -348,7 +348,7 @@ namespace LootOverhaul.Loot
             var total = 0; var n = 0;
             foreach (var j in new List<LootItem>(inv.Items))
             {
-                if (j.IsWeapon) continue;
+                if (j.IsWeapon || j.IsBuff || j.IsArmor) continue;
                 total += SellPrice(j); n++;
                 inv.Remove(j.Id);
             }
@@ -367,6 +367,7 @@ namespace LootOverhaul.Loot
             var live = inv.Find(item.Id);
             if (live == null) { BagManager.Toast("Already gone."); Refresh(); return; }
             if (live.EquippedSlot >= 0) { BagManager.Toast("Unequip it first."); return; }
+            if (live.WornSlot >= 0) { BagManager.Toast("Take it off first."); return; }
             var price = SellPrice(live);
             inv.Remove(live.Id);
             inv.Gold += price;

@@ -29,6 +29,7 @@ namespace LootOverhaul.Loot
                     _account = account;
                     _inv = LootInventory.Load(ModPaths.InventoryFile(account));
                     Core.Log.Msg($"Bag loaded for `{account}`: {_inv.Items.Count} item(s), {_inv.TotalWeight:0.#} wt, {_inv.Gold} gold.");
+                    try { Buffs.RebuildWorn(); } catch { }
                 }
                 return _inv;
             }

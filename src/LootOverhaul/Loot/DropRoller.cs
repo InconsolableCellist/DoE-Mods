@@ -65,6 +65,20 @@ namespace LootOverhaul.Loot
                     var cls = RollClass(boss, pity);
                     if (cls == 3) inv.KillsSinceLegendary = 0;
                     inv.Save();
+
+                    // Some of the weapon budget is armor, when the player has any perk to build it on.
+                    if (Rng.NextDouble() < ModConfig.ArmorShare.Value)
+                    {
+                        var realmA = -1; try { realmA = (int)GameManager.CurrentRealm; } catch { }
+                        var armor = Armor.Roll(cls, realmA, Rng);
+                        if (armor != null)
+                        {
+                            try { armor.FoundBy = AvatarPlayer.FindByActorNo(__0)?.name; } catch { }
+                            var atag = SpawnLoot(armor, pos, kick * 0.6f);
+                            if (atag != null) { Dropped++; ReconLog.Line($"ARMOR #{Dropped}: {armor.Name} [{LootTables.ClassName(cls)} {Armor.SlotNames[armor.ArmorSlot]}] {Armor.DescribeStats(armor)} from `{__instance.name}` view={atag.ViewId}"); }
+                            return;
+                        }
+                    }
                     var tier = RollTier();
                     var types = Unlocks.DroppableTypes();
                     var type = types[Rng.Next(types.Length)];

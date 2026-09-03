@@ -6,7 +6,7 @@ using LootOverhaul.Loot;
 using LootOverhaul.Net;
 using LootOverhaul.Recon;
 
-[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.9.5", "dan")]
+[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.9.6", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace LootOverhaul
@@ -24,7 +24,7 @@ namespace LootOverhaul
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.9.5";
+        public const string Version = "0.9.6";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -138,7 +138,7 @@ namespace LootOverhaul
                 ReconLog.Line($"- loadout: {Loadout.Describe()}");
                 ReconLog.Line($"- fabricator bridge: {FabricatorBridge.Describe()}");
                 ReconLog.Line($"- shop: {Shop.Bought} bought, {Shop.Restocks} restock(s)");
-                ReconLog.Line($"- buffs active at quit: {Buffs.DescribeActive()}");
+                ReconLog.Line($"- buffs active at quit: {Buffs.DescribeActive()}; worn: {Armor.DescribeWorn()}");
                 ReconLog.Line($"- enchanting: {Enchanting.SelfTestReport}");
                 Buffs.Snapshot("quit");
                 EventTally.Report("quit");

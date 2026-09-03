@@ -43,6 +43,8 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<float> JunkDropChance;
         /// <summary>Chance that a drop is one tier above the game's loot tier for your level.</summary>
         public static MelonPreferences_Entry<float> TierUpChance;
+        /// <summary>Share of successful weapon rolls that become armor instead, 0–1.</summary>
+        public static MelonPreferences_Entry<float> ArmorShare;
         /// <summary>Gold per point of the game's salvage value when selling at the booth.</summary>
         public static MelonPreferences_Entry<float> SellMultiplier;
         /// <summary>Shop asking price = the game's cost figure × this.</summary>
@@ -89,6 +91,7 @@ namespace LootOverhaul
             WeightLegendary = Main.CreateEntry("WeightLegendary", 1f);
             JunkDropChance = Main.CreateEntry("JunkDropChance", 0.35f);
             TierUpChance = Main.CreateEntry("TierUpChance", 0.12f);
+            ArmorShare = Main.CreateEntry("ArmorShare", 0.35f);
             SellMultiplier = Main.CreateEntry("SellMultiplier", 1.0f);
             ShopPriceMultiplier = Main.CreateEntry("ShopPriceMultiplier", 2.5f);
             ShopSlots = Main.CreateEntry("ShopSlots", 6);
