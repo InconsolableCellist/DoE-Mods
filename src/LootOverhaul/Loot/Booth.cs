@@ -11,9 +11,10 @@ using Interop = LootOverhaul.Recon.Interop;
 namespace LootOverhaul.Loot
 {
     /// <summary>
-    /// Milestone L3: the Loot Broker, a stall in the lobby that buys bag items for mod gold
-    /// at the game's salvage value. Equipping moved into the game's own fabricator (see
-    /// <see cref="FabricatorBridge"/>), so the booth is a sell counter and, later, a shop.
+    /// The Loot Broker, a stall in the lobby: a sell counter (bag items for mod gold at the
+    /// game's salvage value) and a shop (<see cref="Shop"/>: generated weapons at your loot
+    /// tier for the game's cost figure). Equipping is at the game's own fabricator (see
+    /// <see cref="FabricatorBridge"/>).
     /// Placed from config (press = in the lobby to move it to where you stand), built once,
     /// kept across scene loads, shown only in the lobby with the gate open.
     /// </summary>
@@ -26,7 +27,7 @@ namespace LootOverhaul.Loot
         private static float BtnW => UiKit.ButtonSize.x * BtnScale;
 
         private static GameObject _root;
-        private static Transform _sell;
+        private static Transform _sell, _buy;
         private static int _sellPage;
 
         public static bool IsShown => Interop.Alive(_root) && _root.activeSelf;
@@ -79,8 +80,13 @@ namespace LootOverhaul.Loot
             _root = new GameObject("LootOverhaul_Booth");
             UnityEngine.Object.DontDestroyOnLoad(_root);
             var sell = new GameObject("Sell"); sell.transform.SetParent(_root.transform, false);
-            _sell = sell.transform;
-            _sell.localPosition = new Vector3(0f, 1.3f, 0f);
+            var buy = new GameObject("Buy"); buy.transform.SetParent(_root.transform, false);
+            _sell = sell.transform; _buy = buy.transform;
+            // Two panels side by side, each a little over a metre wide, angled toward the visitor.
+            _sell.localPosition = new Vector3(-0.70f, 1.3f, 0f);
+            _sell.localRotation = Quaternion.Euler(0f, -14f, 0f);
+            _buy.localPosition = new Vector3(0.70f, 1.3f, 0f);
+            _buy.localRotation = Quaternion.Euler(0f, 14f, 0f);
             UiKit.Text(_root.transform, new Vector3(0f, 2.0f, 0f), 1.2f, 0.15f, 0.9f, "<b>LOOT BROKER</b>", TextAlignmentOptions.Center);
         }
 
@@ -91,7 +97,11 @@ namespace LootOverhaul.Loot
             _root.transform.rotation = Quaternion.Euler(0f, ModConfig.BoothYaw.Value + 180f, 0f);
         }
 
-        private static void Rebuild() => BuildSell();
+        private static void Rebuild()
+        {
+            BuildSell();
+            BuildBuy();
+        }
 
         // ---- sell counter -------------------------------------------------------------------
 
@@ -145,6 +155,49 @@ namespace LootOverhaul.Loot
             }
             if (items.Count == 0)
                 UiKit.Text(_sell, new Vector3(0f, y0 - RowHeight, 0f), 0.8f, 0.06f, 0.4f, "Nothing to sell. Bring me something shiny.", TextAlignmentOptions.Center);
+        }
+
+        // ---- the shop --------------------------------------------------------------------------
+
+        private static void BuildBuy()
+        {
+            if (!Interop.Alive(_buy)) return;
+            UiKit.DestroyChildren(_buy);
+            Shop.EnsureStock();
+            var inv = BagManager.Inventory;
+            var stock = inv.ShopStock ?? new List<LootItem>();
+
+            var height = 0.36f + RowsPerPage * RowHeight;
+            UiKit.Backdrop(_buy, new Vector3(0f, 0f, 0.01f), PanelWidth, height, new Color(0.04f, 0.06f, 0.09f, 1f));
+            var top = height * 0.5f;
+            var left = -PanelWidth * 0.5f + 0.04f;
+            var minutesLeft = Math.Max(0, ModConfig.ShopRefreshMinutes.Value - (int)(DateTime.UtcNow - inv.ShopGeneratedAt).TotalMinutes);
+            UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f,
+                $"<b>BUY</b>   {stock.Count} in stock   <color=#9A9A9A>new stock in {minutesLeft} min</color>");
+            UiKit.Button(_buy, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f, top - 0.05f, 0f), $"RESTOCK ({Shop.RestockPrice(inv)})", () => { if (Shop.Restock()) Rebuild(); }, BtnScale);
+
+            var y0 = top - 0.19f;
+            var buyX = PanelWidth * 0.5f - 0.04f - BtnW * 0.5f;
+            var textW = buyX - BtnW * 0.5f - 0.02f - (left + 0.16f);
+            for (var i = 0; i < RowsPerPage && i < stock.Count; i++)
+            {
+                var item = stock[i];
+                var row = new GameObject($"BuyRow_{i}"); row.transform.SetParent(_buy, false);
+                row.transform.localPosition = new Vector3(0f, y0 - i * RowHeight, 0f);
+                UiKit.Preview(row.transform, new Vector3(left + 0.07f, 0f, -0.03f), item, 0.11f);
+                string stats = "";
+                try { stats = Interop.OneLine(WeaponCodec.ToModule(item).GetStatsText()); } catch { }
+                var afford = inv.Gold >= item.Value;
+                var priceColor = afford ? "#F5C542" : "#B04040";
+                UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), textW, 0.05f, 0.38f,
+                    $"{item.ColoredName}   <color={priceColor}>{item.Value} gold</color>");
+                UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), textW, 0.045f, 0.3f,
+                    $"<color=#9A9A9A>{LootTables.TypeName(item.PropType)}  tier {item.WeaponTier + 1}   wt {item.Weight:0.#}</color>   {stats}");
+                var captured = item;
+                UiKit.Button(row.transform, new Vector3(buyX, 0f, 0f), afford ? "BUY" : "TOO DEAR", () => { if (Shop.Buy(captured)) Rebuild(); }, BtnScale);
+            }
+            if (stock.Count == 0)
+                UiKit.Text(_buy, new Vector3(0f, y0 - RowHeight, 0f), 0.8f, 0.06f, 0.4f, "Sold out. Restock, or come back later.", TextAlignmentOptions.Center);
         }
 
         public static int SellPrice(LootItem item) => Math.Max(1, (int)Math.Round(item.Value * ModConfig.SellMultiplier.Value));

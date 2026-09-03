@@ -35,6 +35,10 @@ namespace LootOverhaul.Loot
         /// <summary>Legendary pity counter: kills since the last legendary drop for this account.</summary>
         public int KillsSinceLegendary;
 
+        /// <summary>The broker's current stock for this player (Value holds the asking price) and when it was rolled.</summary>
+        public List<LootItem> ShopStock = new List<LootItem>();
+        public DateTime ShopGeneratedAt = DateTime.MinValue;
+
         [JsonIgnore] public string Path { get; private set; }
         [JsonIgnore] public float TotalWeight { get { var w = 0f; foreach (var i in Items) w += i.Weight; return w; } }
 
@@ -58,6 +62,7 @@ namespace LootOverhaul.Loot
             inv.Path = path;
             if (inv.Loadout == null || inv.Loadout.Length != 3) inv.Loadout = new LootItem[3];
             inv.Items ??= new List<LootItem>();
+            inv.ShopStock ??= new List<LootItem>();
             return inv;
         }
 

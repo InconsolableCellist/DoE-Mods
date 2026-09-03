@@ -36,6 +36,12 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<float> TierUpChance;
         /// <summary>Gold per point of the game's salvage value when selling at the booth.</summary>
         public static MelonPreferences_Entry<float> SellMultiplier;
+        /// <summary>Shop asking price = the game's cost figure × this.</summary>
+        public static MelonPreferences_Entry<float> ShopPriceMultiplier;
+        /// <summary>How many weapons the broker keeps in stock.</summary>
+        public static MelonPreferences_Entry<int> ShopSlots;
+        /// <summary>Stock older than this is rolled again for free on the next visit.</summary>
+        public static MelonPreferences_Entry<int> ShopRefreshMinutes;
         /// <summary>Booth placement in the lobby, world units. Press = in the lobby to set it where you stand.</summary>
         public static MelonPreferences_Entry<float> BoothX, BoothY, BoothZ, BoothYaw;
         /// <summary>Re-apply the booth loadout after every holster fill. Off means the booth only sells.</summary>
@@ -69,6 +75,9 @@ namespace LootOverhaul
             JunkDropChance = Main.CreateEntry("JunkDropChance", 0.18f);
             TierUpChance = Main.CreateEntry("TierUpChance", 0.12f);
             SellMultiplier = Main.CreateEntry("SellMultiplier", 1.0f);
+            ShopPriceMultiplier = Main.CreateEntry("ShopPriceMultiplier", 1.0f);
+            ShopSlots = Main.CreateEntry("ShopSlots", 6);
+            ShopRefreshMinutes = Main.CreateEntry("ShopRefreshMinutes", 60);
             LoadoutEnabled = Main.CreateEntry("LoadoutEnabled", true);
             // Defaults: 2.5 m in front of where the lobby spawned the player on 2026-09-02, facing back.
             BoothX = Main.CreateEntry("BoothX", 51.45f);

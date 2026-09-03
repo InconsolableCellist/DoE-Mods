@@ -36,6 +36,16 @@ gate rule is the same: private room, every occupant on the identical version and
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
 
+## 0.7 — the shop
+
+The broker's right-hand panel sells weapons. Six (`ShopSlots`) generated at your loot
+tier, the last two leaning a tier up, rarity 50/30/15/5, priced at the game's own cost
+figure × `ShopPriceMultiplier` in mod gold. Stock is yours alone, saved in the inventory
+file, rolled again for free once it is `ShopRefreshMinutes` old (60), or on the spot with
+RESTOCK for a tenth of the stock's asking prices. BUY puts the weapon in your bag as
+ordinary loot, so it sells back at salvage and equips at the pedestal like anything else.
+TOO DEAR means exactly that.
+
 ## 0.6 — tuning, junk, labels
 
 - **Drops are reasonable now.** Tier comes from the game's own loot tier for your level

@@ -376,6 +376,10 @@ and every two-player question (who sees the spawn, non-master `OnKilled`, claims
   loot with Daggerfall-style flavour names on vanilla props, floating labels instead of
   beams, LOOT tag on pedestal thumbnails, pickup completes-then-drops, UI copy and layout.
   Untested. Next: confirm which junk prefabs spawn, then the shop.
+- **0.7 (2026-09-02):** the shop — per-player generated stock at the loot tier, priced at
+  the game's cost figure, free refresh hourly or paid restock, buy into the bag. Built,
+  not yet deployed (game was running) and untested. Next: two-player session, artifacts
+  with a story, a controller gesture for the bag.
 
 ## Verify first (one UnityExplorer/recon session, no headset-heavy iteration)
 
