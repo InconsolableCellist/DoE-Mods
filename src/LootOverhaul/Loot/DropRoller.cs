@@ -87,12 +87,17 @@ namespace LootOverhaul.Loot
                 var junkChance = ModConfig.JunkDropChance.Value * (family == 1 ? 0.5f : 1f) * (boss ? 3f : 1f);
                 if (Rng.NextDouble() < junkChance)
                 {
-                    var item = MakeJunk(__0);
-                    if (item == null) return;
-                    var tag = SpawnLoot(item, pos, kick);
-                    if (tag == null) return;
-                    JunkDropped++;
-                    ReconLog.Line($"JUNK #{JunkDropped}: {item.Name} [{LootTables.JunkTierName(item.WeaponClass)} on `{item.PrefabName}`] from `{__instance.name}` family={family} value={item.Value} view={tag.ViewId}");
+                    // A prefab that refuses is retired inside SpawnLoot; try up to three bodies so the drop is not lost.
+                    for (var attempt = 0; attempt < 3; attempt++)
+                    {
+                        var item = MakeJunk(__0);
+                        if (item == null) return;
+                        var tag = SpawnLoot(item, pos, kick);
+                        if (tag == null) continue;
+                        JunkDropped++;
+                        ReconLog.Line($"JUNK #{JunkDropped}: {item.Name} [{LootTables.JunkTierName(item.WeaponClass)} on `{item.PrefabName}`] from `{__instance.name}` family={family} value={item.Value} view={tag.ViewId}");
+                        return;
+                    }
                 }
             }
             catch (Exception e) { Core.Log.Error($"Drop roll failed: {e}"); }

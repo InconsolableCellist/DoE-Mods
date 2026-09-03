@@ -206,11 +206,14 @@ namespace LootOverhaul.Recon
             finally { ProfileWatch.Probe = null; }
         }
 
+        // Exact names from the game's Resources table (docs/RESOURCE-PATHS.txt, census 2026-09-02).
         private static readonly string[] JunkCandidates =
         {
-            "Dice", "Wolf_Treat", "Trophy_SkullCrown", "Trophy_NovaGuild", "Trophy_Chest", "Trophy_Zombie",
-            "Chalice", "Chalice_01", "Goblet", "Mug", "Cup", "Skull", "Horn", "Candle", "Book", "Bottle",
-            "Gem_White", "Crystal", "Key_01_Skull", "Bone", "Bones", "Coin_Pile_01",
+            "Chalice", "Mug_01", "Mug_02", "Tools/Chalice_Silver", "Xmas_Ornament", "Dice", "Wolf_Treat",
+            "Trophy_SkullCrown", "Trophy_NovaGuild", "Trophy_Chest_01", "Trophy_Zombie_01",
+            "Hockey_Puck", "Rune_01", "Rocks_01", "Tools/Spoon_02", "Tools/Hammer_01", "Tools/Pincers_01",
+            "Tools/Shovel_01", "Tools/Metalbar_01", "Snowball", "Ball", "Gem_White", "Key_01_Skull",
+            "Death_Whistle", "Crystal", "Battery_01", "Club_01", "Bat", "Coin_Pile_01",
         };
         private static int _junkCursor;
 

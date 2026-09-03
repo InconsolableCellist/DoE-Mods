@@ -387,7 +387,16 @@ and every two-player question (who sees the spawn, non-master `OnKilled`, claims
   `othergate_HandTrigger`), coin-pile sparkle instead of the beam, laser catcher behind
   panels, pickup drop-back deferred a frame + hand memory cleared + delayed destroy, drop
   rates 3.5% / 35%, junk names matched to models, `-` junk prefab probe, shop × 2.5.
-  Deployed, untested. Next: two-player session (when possible), artifacts, own junk models.
+  Deployed, untested.
+- **Asset census (2026-09-02, offline, UnityPy over `data.unity3d`):** the game's Resources
+  table has 2,701 paths; the prop-relevant ones are curated in `docs/RESOURCE-PATHS.txt`.
+  Loot-body candidates by plain name: `Chalice`, `Mug_01`, `Mug_02`, `Tools/Chalice_Silver`,
+  `Xmas_Ornament`, `Dice`, `Wolf_Treat`, `Trophy_SkullCrown/NovaGuild/Chest_01/Zombie_01`,
+  `Hockey_Puck`, `Rune_01`, `Rocks_01`, the `Tools/` smithing set, `Gem_*`, `Key_01_Skull`,
+  `Coin_Pile_*`. The chalice and mugs carry `LiquidContainer`. Also present: a `Loot Goblin`
+  enemy prefab with its own sound group. Resources paths are case-insensitive. Which of
+  these the networked pool instantiates is still confirmed only for `Wolf_Treat`; the `-`
+  probe walks the list. Next: run it, then two-player session, artifacts, own junk models.
 
 ## Verify first (one UnityExplorer/recon session, no headset-heavy iteration)
 

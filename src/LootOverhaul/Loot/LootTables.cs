@@ -61,23 +61,38 @@ namespace LootOverhaul.Loot
         // Names match the model they ride on. `Bone` and `Bones` refused to spawn (2026-09-02);
         // Wolf_Treat spawned. Dice and the two trophies are unconfirmed — the `-` probe tests
         // more candidates and the roller retires any prefab that refuses.
+        // Prefab names are the game's Resources paths (docs/RESOURCE-PATHS.txt). Confirmed to spawn:
+        // Wolf_Treat. Unconfirmed: everything else — the roller retires a prefab that refuses and
+        // re-rolls, and the `-` probe tests them one by one. Names match the model.
         public static readonly Junk[] JunkTable =
         {
             // trinkets (grey)
-            new Junk("Dog Treat",           "Wolf_Treat",        0, 2,   8,   0.3f),
-            new Junk("Stale Jerky",         "Wolf_Treat",        0, 3,   10,  0.3f),
-            new Junk("Bone Dice",           "Dice",              0, 5,   20,  0.2f),
-            new Junk("Chipped Dice",        "Dice",              0, 4,   14,  0.2f),
+            new Junk("Dog Treat",           "Wolf_Treat",           0, 2,   8,   0.3f),
+            new Junk("Chipped Dice",        "Dice",                 0, 4,   14,  0.2f),
+            new Junk("Clay Mug",            "Mug_01",               0, 3,   12,  0.5f),
+            new Junk("Cracked Tankard",     "Mug_02",               0, 3,   12,  0.5f),
+            new Junk("Tarnished Chalice",   "Chalice",              0, 8,   25,  0.6f),
+            new Junk("Odd Rock",            "Rocks_01",             0, 1,   5,   1.0f),
+            new Junk("Bent Spoon",          "Tools/Spoon_02",       0, 2,   9,   0.1f),
+            new Junk("Iron Disc",           "Hockey_Puck",          0, 3,   10,  0.4f),
             // curios (white)
-            new Junk("Weighted Dice",       "Dice",              1, 25,  70,  0.2f),
-            new Junk("Ivory Dice",          "Dice",              1, 40,  110, 0.2f),
-            new Junk("Marrow Charm",        "Wolf_Treat",        1, 30,  80,  0.4f),
-            new Junk("Skull Crown",         "Trophy_SkullCrown", 1, 60,  160, 1.5f),
-            new Junk("Guild Trophy",        "Trophy_NovaGuild",  1, 50,  140, 1.2f),
+            new Junk("Weighted Dice",       "Dice",                 1, 25,  70,  0.2f),
+            new Junk("Engraved Tankard",    "Mug_02",               1, 30,  90,  0.6f),
+            new Junk("Silver Chalice",      "Tools/Chalice_Silver", 1, 50,  140, 0.7f),
+            new Junk("Silver Spoon",        "Tools/Spoon_02",       1, 20,  60,  0.1f),
+            new Junk("Iron Ingot",          "Tools/Metalbar_01",    1, 30,  80,  2.0f),
+            new Junk("Smith's Hammer",      "Tools/Hammer_01",      1, 25,  70,  1.2f),
+            new Junk("Glass Bauble",        "Xmas_Ornament",        1, 35,  100, 0.2f),
+            new Junk("Skull Crown",         "Trophy_SkullCrown",    1, 60,  160, 1.5f),
+            new Junk("Guild Trophy",        "Trophy_NovaGuild",     1, 50,  140, 1.2f),
+            new Junk("Marrow Charm",        "Wolf_Treat",           1, 30,  80,  0.4f),
             // artifacts (gold)
-            new Junk("Gilded Skull Crown",  "Trophy_SkullCrown", 2, 200, 500, 1.5f),
-            new Junk("Religious Icon",      "Trophy_NovaGuild",  2, 150, 400, 1.2f),
-            new Junk("Gambler's Relic",     "Dice",              2, 180, 450, 0.2f),
+            new Junk("Jeweled Chalice",     "Chalice",              2, 250, 600, 0.6f),
+            new Junk("Rune Stone",          "Rune_01",              2, 200, 550, 0.8f),
+            new Junk("Gilded Skull Crown",  "Trophy_SkullCrown",    2, 200, 500, 1.5f),
+            new Junk("Religious Icon",      "Trophy_NovaGuild",     2, 150, 400, 1.2f),
+            new Junk("Reliquary Chest",     "Trophy_Chest_01",      2, 180, 450, 2.0f),
+            new Junk("Gambler's Relic",     "Dice",                 2, 180, 450, 0.2f),
         };
 
         public static string JunkTierName(int tier) => tier switch { 0 => "trinket", 1 => "curio", _ => "artifact" };
