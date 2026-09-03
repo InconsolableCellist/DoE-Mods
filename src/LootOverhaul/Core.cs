@@ -6,7 +6,7 @@ using LootOverhaul.Loot;
 using LootOverhaul.Net;
 using LootOverhaul.Recon;
 
-[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.3.0", "dan")]
+[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.4.0", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace LootOverhaul
@@ -24,7 +24,7 @@ namespace LootOverhaul
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.3.0";
+        public const string Version = "0.4.0";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -40,7 +40,7 @@ namespace LootOverhaul
             try { MelonPreferences.Save(); }
             catch (Exception e) { LoggerInstance.Warning($"Could not write MelonPreferences.cfg: {e.Message}"); }
 
-            LoggerInstance.Msg($"LootOverhaul {Version} — L1+L2: drops, loot tags, bag-on-pickup, bag panel. Recon hooks {(ModConfig.ReconEnabled.Value ? "on" : "off")}.");
+            LoggerInstance.Msg($"LootOverhaul {Version} — L1-L3: drops, loot tags, bag-on-pickup, bag panel, booth. Recon hooks {(ModConfig.ReconEnabled.Value ? "on" : "off")}.");
             LoggerInstance.Msg($"Data folder: {ModPaths.Root}; recon transcripts in {ModPaths.ReconDir}");
 
             SelfCheck.LogSelfHash(LoggerInstance);
@@ -58,6 +58,7 @@ namespace LootOverhaul
             LootNet.Init(_roster);
             DropRoller.Install();
             BagPickup.Install();
+            Loadout.Install();
 
             if (ModConfig.ReconEnabled.Value)
             {
@@ -66,7 +67,7 @@ namespace LootOverhaul
                 GameplayHooks.Install();
             }
             Hooks.Report();
-            LoggerInstance.Msg("Bag hotkeys: [ = open/close the bag panel, ] = drop the last bagged item at your feet.");
+            LoggerInstance.Msg("Hotkeys: [ = open/close the bag panel, ] = drop the last bagged item, = (equals) = place the booth where you stand (lobby).");
             if (ModConfig.ReconEnabled.Value)
             {
                 LoggerInstance.Msg("Recon hotkeys: Insert = generator survey, Delete = spawn a test weapon (private room), Backslash (\\) = lobby survey + marker cubes, Scroll Lock = cloned button + pointer test.");
@@ -80,10 +81,12 @@ namespace LootOverhaul
             ModGate.Evaluate(_roster);
             ModNet.Pump();
             LootRegistry.Tick();
+            Loadout.Tick();
             if (_templateCaptureAt > 0f && UnityEngine.Time.unscaledTime >= _templateCaptureAt)
             {
                 _templateCaptureAt = -1f;
-                try { UiKit.CaptureTemplates(); } catch (Exception e) { LoggerInstance.Warning($"Template capture threw: {e.GetType().Name}: {e.Message}"); }
+                try { UiKit.CaptureTemplates(); Booth.ShowIfLobby(Il2Cpp.GameManager.LOBBY_SCENE); }
+                catch (Exception e) { LoggerInstance.Warning($"Template capture / booth threw: {e.GetType().Name}: {e.Message}"); }
             }
 
             if (!ModConfig.HotkeysEnabled.Value) return;
@@ -91,6 +94,7 @@ namespace LootOverhaul
             {
                 if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.LeftBracket)) BagPanel.Toggle();
                 else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.RightBracket)) BagManager.DropLast();
+                else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Equals)) Booth.PlaceHere();
                 if (!ModConfig.ReconEnabled.Value) return;
                 if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Insert)) GeneratorProbe.Survey();
                 else if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Delete)) GeneratorProbe.SpawnTest();
@@ -104,6 +108,7 @@ namespace LootOverhaul
         {
             LootRegistry.Clear($"scene changed to {sceneName}");
             BagPanel.Hide();
+            Booth.Hide();
             _templateCaptureAt = sceneName == Il2Cpp.GameManager.LOBBY_SCENE ? UnityEngine.Time.unscaledTime + 3f : -1f;
             if (!ModConfig.ReconEnabled.Value) return;
             ReconLog.Section($"Scene initialized: {sceneName} (#{buildIndex})");
@@ -122,6 +127,7 @@ namespace LootOverhaul
             {
                 ReconLog.Section("Loot loop counters");
                 ReconLog.Line($"- kills rolled on this master: {DropRoller.RollsSeen}, drops: {DropRoller.Dropped}, pickups cancelled into claims: {BagPickup.Cancelled}");
+                ReconLog.Line($"- loadout: {Loadout.Describe()}");
                 EventTally.Report("quit");
                 ProfileWatch.Report();
                 ReconLog.Close();
@@ -133,7 +139,8 @@ namespace LootOverhaul
             // The drop roll and the pickup prefix each check ModGate.Active on every call, so
             // there is nothing to arm. Disarming means forgetting the floor loot: in a room
             // that just went vanilla, those weapons are ordinary weapons now.
-            if (!active) LootRegistry.Clear("gate closed");
+            if (!active) { LootRegistry.Clear("gate closed"); Booth.Hide(); }
+            else if (Il2Cpp.GameManager.IsLobbyScene) _templateCaptureAt = UnityEngine.Time.unscaledTime + 1f;
         }
     }
 }

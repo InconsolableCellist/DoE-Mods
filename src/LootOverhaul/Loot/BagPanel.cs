@@ -146,7 +146,10 @@ namespace LootOverhaul.Loot
                     $"<size=90%>{stats}</size>   wt {item.Weight:0.#}   value {item.Value}");
 
                 var captured = item;
-                UiKit.Button(row.transform, new Vector3(0.44f, 0f, 0f), "DROP", () => BagManager.Drop(captured), 0.5f);
+                if (item.EquippedSlot >= 0)
+                    UiKit.Text(row.transform, new Vector3(0.36f, 0f, 0f), 0.16f, 0.05f, 0.9f, $"<color=#F5C542>{Loadout.SlotNames[item.EquippedSlot]}</color>");
+                else
+                    UiKit.Button(row.transform, new Vector3(0.44f, 0f, 0f), "DROP", () => BagManager.Drop(captured), 0.5f);
             }
 
             var bottom = -top + 0.06f;

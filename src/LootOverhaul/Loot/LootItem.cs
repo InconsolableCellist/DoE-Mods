@@ -56,5 +56,10 @@ namespace LootOverhaul.Loot
         public DateTime FoundAt = DateTime.UtcNow;
         /// <summary>Nickname of whoever's kill (or chest) produced it — for the trade log.</summary>
         public string FoundBy;
+
+        /// <summary>"loot" for bag items, "armory" for a vanilla weapon read from the profile.</summary>
+        public string Source = "loot";
+        /// <summary>-1 when not equipped; otherwise the loadout slot (0 left hip, 1 right hip, 2 back).</summary>
+        public int EquippedSlot = -1;
     }
 }

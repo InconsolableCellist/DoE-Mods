@@ -26,10 +26,11 @@ namespace LootOverhaul.Loot
         /// <summary>
         /// Battle loadout, one entry per stock slot (left hip, right hip, back), in the game's
         /// <c>Holster.SaveSlot</c> order. Null means "whatever the vanilla loadout says".
-        /// A value is either a <see cref="LootItem.Id"/> or a vanilla armory weapon's save
-        /// string prefixed with <c>vanilla:</c> — the booth picker offers both sources.
+        /// An entry is a copy of the weapon record (DTO fields), from either the bag or the
+        /// vanilla armory; <see cref="LootItem.Source"/> says which. Bag items in use carry
+        /// <see cref="LootItem.EquippedSlot"/> so they cannot be sold or dropped meanwhile.
         /// </summary>
-        public string[] Slots = new string[3];
+        public LootItem[] Loadout = new LootItem[3];
 
         /// <summary>Legendary pity counter: kills since the last legendary drop for this account.</summary>
         public int KillsSinceLegendary;
@@ -55,7 +56,7 @@ namespace LootOverhaul.Loot
 
             inv ??= new LootInventory();
             inv.Path = path;
-            if (inv.Slots == null || inv.Slots.Length != 3) inv.Slots = new string[3];
+            if (inv.Loadout == null || inv.Loadout.Length != 3) inv.Loadout = new LootItem[3];
             inv.Items ??= new List<LootItem>();
             return inv;
         }
@@ -85,8 +86,8 @@ namespace LootOverhaul.Loot
             var idx = Items.FindIndex(i => i.Id == id);
             if (idx < 0) return false;
             Items.RemoveAt(idx);
-            for (var s = 0; s < Slots.Length; s++)
-                if (Slots[s] == id) Slots[s] = null;
+            for (var s = 0; s < Loadout.Length; s++)
+                if (Loadout[s] != null && Loadout[s].Id == id) Loadout[s] = null;
             return true;
         }
     }

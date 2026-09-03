@@ -355,7 +355,12 @@ and every two-player question (who sees the spawn, non-master `OnKilled`, claims
   for the solo test script. Tested 2026-09-02: the full loop worked solo.
 - **0.3 (2026-09-02):** milestone L2 built — world-space bag panel from cloned game buttons
   and the game's font, mesh previews via `GenerateLootWeapon`, sort and paging, per-row
-  drop. Untested. Next: L3 booth.
+  drop. Untested.
+- **0.4 (2026-09-02):** milestone L3 built — the Loot Broker in the lobby: sell counter into
+  mod gold, three-slot loadout picker from armory or bag, re-applied after each holster fill
+  via `AvatarPlayer.ResetWeapon` + `AssignWeapon` with the watchdog armed. Untested; the two
+  things to confirm are that `AssignWeapon` makes no profile write and that it replaces the
+  vanilla weapon rather than adding a second. Next: shop (L5), armor (L6).
 
 ## Verify first (one UnityExplorer/recon session, no headset-heavy iteration)
 

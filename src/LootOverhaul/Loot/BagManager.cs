@@ -76,6 +76,7 @@ namespace LootOverhaul.Loot
         {
             var inv = Inventory;
             if (item == null || inv.Find(item.Id) == null) { Toast("That item is no longer in the bag."); return; }
+            if (inv.Find(item.Id).EquippedSlot >= 0) { Toast("Unequip it at the booth first."); return; }
             if (!Gate.ModGate.Active) { Toast("Not in a modded room."); return; }
             try
             {
@@ -90,6 +91,7 @@ namespace LootOverhaul.Loot
                 inv.Save();
                 Toast($"Dropped {item.ColoredName}");
                 BagPanel.Refresh();
+                Booth.Refresh();
             }
             catch (Exception e) { Core.Log.Error($"Drop failed: {e}"); }
         }

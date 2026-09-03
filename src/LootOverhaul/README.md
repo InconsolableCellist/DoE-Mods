@@ -36,6 +36,29 @@ gate rule is the same: private room, every occupant on the identical version and
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
 
+## 0.4 — milestone L3, the booth
+
+The Loot Broker stands in the lobby, built one second after the gate opens there. Its
+position comes from `[LootOverhaul] BoothX/Y/Z/Yaw`; the defaults put it 2.5 m in front of
+where the lobby spawned you on 2026-09-02. Press **=** (equals) in the lobby to move it to
+1.5 m in front of where you stand, facing you; the setting is saved.
+
+- **SELL** (left panel): bag items by value, the game's salvage value × `SellMultiplier`
+  in mod gold. Equipped items show their slot instead of a SELL button.
+- **BATTLE LOADOUT** (right panel): the three stock slots. CHOOSE lists every weapon that
+  holster accepts, from your vanilla armory (read-only) and your bag, with the game's
+  stats line; USE picks it; VANILLA hands the slot back to the game. The choice lives in
+  the inventory JSON. After every holster fill (lobby entry, dungeon entry, respawn) the
+  mod waits 1.5 s and swaps the chosen weapons in with the game's own `ResetWeapon` +
+  `AssignWeapon`, with the PlayFab watchdog armed around the call. Dungeon hazard weapons
+  win over the loadout. `LoadoutEnabled = false` turns the swap off.
+
+Solo test: in the lobby walk up to the booth; CHOOSE a slot, USE a bag or armory weapon,
+check your hip or back after the swap (about two seconds), then enter a dungeon and check
+it is still there. SELL something and watch the gold. The transcript's `loadout:` lines say
+what was applied and how many props `AssignWeapon` spawned; the watchdog summary at quit
+says whether any of it wrote to the profile (it must not).
+
 ## 0.3 — milestone L2, the bag panel
 
 `[` opens and closes a world-space panel in front of you (it stays where it was opened;

@@ -26,6 +26,12 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<int> LegendaryPityKills;
         /// <summary>Rarity-coloured beam over floor loot.</summary>
         public static MelonPreferences_Entry<bool> DropBeams;
+        /// <summary>Gold per point of the game's salvage value when selling at the booth.</summary>
+        public static MelonPreferences_Entry<float> SellMultiplier;
+        /// <summary>Booth placement in the lobby, world units. Press = in the lobby to set it where you stand.</summary>
+        public static MelonPreferences_Entry<float> BoothX, BoothY, BoothZ, BoothYaw;
+        /// <summary>Re-apply the booth loadout after every holster fill. Off means the booth only sells.</summary>
+        public static MelonPreferences_Entry<bool> LoadoutEnabled;
 
         // ---- [LootOverhaul_Dev] ---------------------------------------------------------
         public static MelonPreferences_Entry<bool> VerboseLogging;
@@ -47,6 +53,13 @@ namespace LootOverhaul
             BossDropChance = Main.CreateEntry("BossDropChance", 1.0f);
             LegendaryPityKills = Main.CreateEntry("LegendaryPityKills", 120);
             DropBeams = Main.CreateEntry("DropBeams", true);
+            SellMultiplier = Main.CreateEntry("SellMultiplier", 1.0f);
+            LoadoutEnabled = Main.CreateEntry("LoadoutEnabled", true);
+            // Defaults: 2.5 m in front of where the lobby spawned the player on 2026-09-02, facing back.
+            BoothX = Main.CreateEntry("BoothX", 51.45f);
+            BoothY = Main.CreateEntry("BoothY", -1.98f);
+            BoothZ = Main.CreateEntry("BoothZ", 20.75f);
+            BoothYaw = Main.CreateEntry("BoothYaw", 105.6f, description: "Degrees. Press = in the lobby to place the booth where you stand, facing you.");
 
             Dev = MelonPreferences.CreateCategory("LootOverhaul_Dev");
             VerboseLogging = Dev.CreateEntry("VerboseLogging", false);
