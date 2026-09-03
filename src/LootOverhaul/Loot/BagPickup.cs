@@ -50,7 +50,16 @@ namespace LootOverhaul.Loot
             {
                 try
                 {
-                    if (Interop.Alive(prop)) { try { prop.Drop(hand); } catch (Exception e) { Core.Log.Warning($"Loot drop-back failed: {e.GetType().Name}: {e.Message}"); } }
+                    // Release through the HAND (PropRoot.Drop), which is what the game does when you
+                    // open your fingers; Prop.Drop(root) left the hand still attached to the prop and
+                    // it followed the object when the claim moved it (0.8: hand in the floor).
+                    if (Interop.Alive(hand)) { try { hand.Drop(); } catch (Exception e) { Core.Log.Warning($"Hand release failed: {e.GetType().Name}: {e.Message}"); } }
+                    try
+                    {
+                        var owner = Interop.Alive(prop) ? prop.owner : null;
+                        if (Interop.Alive(owner)) { owner.Drop(); ReconLog.Line($"pickup: prop still owned after hand release; released owner too"); }
+                    }
+                    catch { }
                     if (Interop.Alive(hand)) { try { hand.ClearLastProp(); } catch { } }
 
                     if (tag.Claimed || tag.ClaimPending) continue;

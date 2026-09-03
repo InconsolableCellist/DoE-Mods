@@ -396,7 +396,16 @@ and every two-player question (who sees the spawn, non-master `OnKilled`, claims
   `Coin_Pile_*`. The chalice and mugs carry `LiquidContainer`. Also present: a `Loot Goblin`
   enemy prefab with its own sound group. Resources paths are case-insensitive. Which of
   these the networked pool instantiates is still confirmed only for `Wolf_Treat`; the `-`
-  probe walks the list. Next: run it, then two-player session, artifacts, own junk models.
+  probe walks the list.
+  **0.8 playtest 2026-09-02 22:32:** all probed bodies spawn (Chalice, Mug_01/02,
+  Tools/Chalice_Silver, Xmas_Ornament [a BreakableProp], Dice; Rocks_01, Hockey_Puck,
+  Trophy_NovaGuild, Wolf_Treat via drops); 9 junk / 1 weapon in 23 kills at the new rates;
+  sparkle borrowed from `Coin_Pile_01`; gesture failed — SteamVR_Actions null in the main
+  menu and the code gave up; the hand followed the claimed object 50 m down (the hand was
+  still attached: `Prop.Drop(root)` does not release the hand, `PropRoot.Drop()` does).
+- **0.9 (2026-09-02):** procedural junk names (JunkNamer), hand release via `PropRoot.Drop`,
+  claimed objects hidden in place, gesture retries and defaults to stick-hold. Deployed,
+  untested. Next: two-player session, artifacts with story, own models, loot goblin?
 
 ## Verify first (one UnityExplorer/recon session, no headset-heavy iteration)
 

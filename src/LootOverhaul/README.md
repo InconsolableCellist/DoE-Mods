@@ -36,6 +36,21 @@ gate rule is the same: private room, every occupant on the identical version and
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
 
+## 0.9 — endless junk, the hand, the gesture
+
+- **Junk names are rolled** from adjective × material × noun × provenance pools per tier
+  and per body ("Tarnished Pewter Tankard", "Engraved Silver Goblet of the Vile Halls",
+  "Runic Moonstone Reliquary of the Bone King"); value follows the material and adjective.
+  All ten bodies probed on 2026-09-02 spawn, so the table is live.
+- **Hand fix, third attempt.** The release now goes through the hand (`PropRoot.Drop`),
+  which is what opening your fingers does; the earlier prop-side drop left the hand attached,
+  and the claim then moved the object fifty metres down with the hand still on it. Claimed
+  objects are now hidden in place (renderers, colliders, physics off) and destroyed 2.5 s
+  later; nothing is moved.
+- **Gesture default is `stick-hold`:** right stick straight up for 0.7 s. SteamVR's action
+  set is null in the main menu, which 0.8 mistook for "no SteamVR" and gave up; it now
+  retries. `back-grip` remains an option but the back holsters' grab zones fight it.
+
 ## 0.8 — playtest fixes
 
 - **Open the bag in VR.** `BagGesture = back-grip` (default): reach your right hand behind

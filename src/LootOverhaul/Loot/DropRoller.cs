@@ -88,11 +88,12 @@ namespace LootOverhaul.Loot
                 if (Rng.NextDouble() < junkChance)
                 {
                     // A prefab that refuses is retired inside SpawnLoot; try up to three bodies so the drop is not lost.
+                    var gentle = Vector3.up * 1.2f + new Vector3((float)(Rng.NextDouble() - 0.5), 0f, (float)(Rng.NextDouble() - 0.5)) * 0.6f;
                     for (var attempt = 0; attempt < 3; attempt++)
                     {
                         var item = MakeJunk(__0);
                         if (item == null) return;
-                        var tag = SpawnLoot(item, pos, kick);
+                        var tag = SpawnLoot(item, pos, gentle);
                         if (tag == null) continue;
                         JunkDropped++;
                         ReconLog.Line($"JUNK #{JunkDropped}: {item.Name} [{LootTables.JunkTierName(item.WeaponClass)} on `{item.PrefabName}`] from `{__instance.name}` family={family} value={item.Value} view={tag.ViewId}");
@@ -137,18 +138,21 @@ namespace LootOverhaul.Loot
             if (pool.Count == 0) foreach (var j in LootTables.JunkTable) if (!BadPrefabs.Contains(j.Prefab)) pool.Add(j);
             if (pool.Count == 0) return null;
             var def = pool[Rng.Next(pool.Count)];
+            var realm = -1;
+            try { realm = (int)GameManager.CurrentRealm; } catch { }
+            var (name, mult) = JunkNamer.Roll(def.Prefab, def.Tier, realm, Rng);
             var item = new LootItem
             {
                 Kind = "junk",
                 PrefabName = def.Prefab,
-                Name = def.Name,
-                ColoredName = $"<color={LootTables.JunkColor(def.Tier)}>{def.Name}</color>",
+                Name = name,
+                ColoredName = $"<color={LootTables.JunkColor(def.Tier)}>{name}</color>",
                 WeaponClass = def.Tier,       // reused as the junk tier for sorting/colour
-                Value = Rng.Next(def.MinValue, def.MaxValue + 1),
+                Value = Math.Max(1, (int)Math.Round(Rng.Next(def.MinValue, def.MaxValue + 1) * mult)),
                 Weight = def.Weight,
                 PropType = -1,
+                FoundInRealm = realm,
             };
-            try { item.FoundInRealm = (int)GameManager.CurrentRealm; } catch { }
             try { item.FoundBy = AvatarPlayer.FindByActorNo(killerActor)?.name; } catch { }
             return item;
         }

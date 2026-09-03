@@ -132,12 +132,15 @@ namespace LootOverhaul.Loot
 
         public static void HideNow(GameObject go)
         {
+            // Renderers and colliders off, physics frozen, object left exactly where it is:
+            // moving it (0.8) dragged the still-attached hand into the floor.
             try
             {
                 if (go == null) return;
                 foreach (var r in go.GetComponentsInChildren<Renderer>()) if (r != null) r.enabled = false;
                 foreach (var c in go.GetComponentsInChildren<Collider>()) if (c != null) c.enabled = false;
-                go.transform.position += Vector3.down * 50f;
+                var rb = go.GetComponent<Rigidbody>();
+                if (rb != null) { rb.velocity = Vector3.zero; rb.isKinematic = true; }
             }
             catch { }
         }
@@ -160,7 +163,7 @@ namespace LootOverhaul.Loot
             tag.Claimed = true;
             LootNet.SendGranted(viewId, actor);
             var obj = tag.Object ?? LootRegistry.FindObject(viewId);
-            if (obj != null) { HideNow(obj); Doomed.Add((obj, UnityEngine.Time.unscaledTime + 1.5f)); }
+            if (obj != null) { HideNow(obj); Doomed.Add((obj, UnityEngine.Time.unscaledTime + 2.5f)); }
             OnGranted(viewId, actor);
         }
 

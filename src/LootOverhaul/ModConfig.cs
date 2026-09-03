@@ -77,9 +77,9 @@ namespace LootOverhaul
             DropLabels = Main.CreateEntry("DropLabels", true);
             DropSparkles = Main.CreateEntry("DropSparkles", true);
             PanelLaser = Main.CreateEntry("PanelLaser", true);
-            BagGesture = Main.CreateEntry("BagGesture", "back-grip",
+            BagGesture = Main.CreateEntry("BagGesture", "stick-hold",
                 description: "back-grip = reach behind your back with the right hand, squeeze grip and push the stick up; stick-hold = hold the right stick up; off.");
-            BagGestureHoldSeconds = Main.CreateEntry("BagGestureHoldSeconds", 0.5f);
+            BagGestureHoldSeconds = Main.CreateEntry("BagGestureHoldSeconds", 0.7f);
             WeightCommon = Main.CreateEntry("WeightCommon", 70f);
             WeightUnique = Main.CreateEntry("WeightUnique", 22f);
             WeightRare = Main.CreateEntry("WeightRare", 7f);
