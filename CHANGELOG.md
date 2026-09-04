@@ -2,6 +2,15 @@
 
 Versions are the mod's `Version` constant in `src/CustomAvatars/Core.cs`. This file was reconstructed from the git history on 2026-09-01.
 
+## 0.42.2 (2026-09-03)
+
+### Fixed
+- A peer's avatar no longer ends up a hip's height in the air, legs stretched down to the floor and arms down to their hands, after they die and come back. The pose is copied from their game body as a delta from a reference, and the one part of that reference the alignment at capture cannot repair is where the hips were: the reference is re-taken the frame a peer comes back to life, when their body is still a ragdoll, and the settled re-take half a second later found the body still being stood up (one capture stood 66° round from the rig it was copying; one leash trip after a respawn read 9.8 m). Measured from hips that were on the floor, every frame afterwards shoved the avatar the difference into the air, for as long as it was worn. Their own view was fine because their own reference was taken on their own machine at a different moment; two F4s fixed it because a fresh swap takes a fresh reference. The hips origin is now learned rather than trusted — the highest the hips sit while the body is solved, not ragdolled, and standing where a person's hips can be, for most of a second — and any reference that disagrees with it by more than a crouch is corrected to it. Until one has been learned, an origin that is not a standing body's is not followed. The settled re-capture also waits for the hips to have been steady, not just for the game to report it is solving. A crouch caught at capture, which used to stand the avatar up in the air by the depth of the crouch, is corrected the moment they stand. `RetargetHipsGuard = false` restores the old behaviour.
+- Holding a T-pose now does to your avatar on everyone else's screen what two F4 presses do: peers are told it came off before they are told it went back on, so they build a fresh copy. Before, they heard only "still wearing it", which their side treats as a resize and keeps the copy they had — with whatever was wrong with it.
+
+### Added
+- The peer pose line reports the hips shift being applied and how far the avatar's hips are from the game body's. A separate warning fires, at most every ten seconds, when a peer's avatar hips are more than half a metre from their game body's, with the state of the guard: that is the body-in-the-air symptom, named directly.
+
 ## 0.42.1 (2026-09-02)
 
 ### Fixed

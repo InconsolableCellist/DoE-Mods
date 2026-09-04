@@ -142,6 +142,7 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<string> SwapArmTargetSource;
         public static MelonPreferences_Entry<bool> SwapForceVanillaIK;
         public static MelonPreferences_Entry<float> RetargetHipsFollow;
+        public static MelonPreferences_Entry<bool> RetargetHipsGuard;
         public static MelonPreferences_Entry<float> DiagPeerPoseSeconds;
         public static MelonPreferences_Entry<string> SwapHideVanillaMeshMode;
         public static MelonPreferences_Entry<bool> SwapKeepVanillaMeshInView;
@@ -430,6 +431,12 @@ namespace CustomAvatars
                 "a respawn catches the body mid-transition, and a reference taken then is a tilt " +
                 "that lasts the whole session.");
             RetargetHipsFollow = Dev.CreateEntry("RetargetHipsFollow", 1.0f);
+            RetargetHipsGuard = Dev.CreateEntry("RetargetHipsGuard", true, description:
+                "Learn where the game rig's hips sit on a standing body and measure the hips " +
+                "follow from there, instead of from wherever they were when the reference was " +
+                "taken. A reference taken on a respawning peer — a ragdoll, or a body still " +
+                "being stood up — put their avatar a hip's height in the air with its legs " +
+                "stretched to the floor until they re-wore it. Off, the old behaviour.");
             DiagPeerPoseSeconds = Dev.CreateEntry("DiagPeerPoseSeconds", 1.0f, description:
                 "Seconds between the one-line report on why a peer's avatar is or isn't moving. " +
                 "0 turns it off.");

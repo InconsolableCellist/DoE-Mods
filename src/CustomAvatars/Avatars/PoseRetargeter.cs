@@ -128,6 +128,42 @@ namespace CustomAvatars.Avatars
             Interop.Alive(_targetHips) && Interop.Alive(_targetRoot)
                 ? _targetHips.position - _targetRoot.position : (Vector3?)null;
 
+        /// <summary>Where our hips are right now, to compare with the game rig's.</summary>
+        public Vector3? TargetHipsPosition =>
+            Interop.Alive(_targetHips) ? _targetHips.position : (Vector3?)null;
+
+        /// <summary>The node the game rig's hips are measured under (`root` on the vanilla body).</summary>
+        public Transform SourceHipsParent =>
+            Interop.Alive(_sourceHips) ? _sourceHips.parent : null;
+
+        /// <summary>The game rig's hips, local to their parent, right now.</summary>
+        public Vector3? SourceHipsLocalNow =>
+            Interop.Alive(_sourceHips) ? _sourceHips.localPosition : (Vector3?)null;
+
+        /// <summary>
+        /// The origin the hips translation is measured from: where the game rig's hips sat,
+        /// local to their parent, when the reference was taken. Every frame's hips shift is
+        /// the distance from here, so this has to be where the hips sit on a standing, solved
+        /// body. Taken from a ragdoll, or from a body the game was still lifting into its
+        /// spawn, it is wrong by the whole difference — for as long as the avatar is worn.
+        /// </summary>
+        public Vector3? SourceHipsRestLocal =>
+            Interop.Alive(_sourceHips) ? _sourceHipsRestLocal : (Vector3?)null;
+
+        /// <summary>Replace the hips origin with one known to be a standing body's.</summary>
+        public void SetSourceHipsRest(Vector3 local) => _sourceHipsRestLocal = local;
+
+        /// <summary>
+        /// Hold our hips at their own rest instead of following the game's. For when the
+        /// origin is known to be bad and nothing better is known yet: a body standing at its
+        /// bind pose is right to within a crouch, a body shoved a hip's height into the air
+        /// is not right at all.
+        /// </summary>
+        public bool HipsFollowSuspended { get; set; }
+
+        /// <summary>How far, in world metres, the hips were moved off their rest this frame.</summary>
+        public float HipsShiftMetres { get; private set; }
+
         public string Build(AvatarPlayer player, GameObject model, AvatarManifest manifest)
         {
             Animator source;
@@ -744,15 +780,20 @@ namespace CustomAvatars.Avatars
             {
                 try
                 {
+                    var follow = ModConfig.RetargetHipsFollow.Value;
                     var delta = _sourceHips.localPosition - _sourceHipsRestLocal;
                     var sourceParent = _sourceHips.parent;
                     var targetParent = _targetHips.parent;
-                    if (Interop.Alive(sourceParent) && Interop.Alive(targetParent) && Interop.Alive(_targetRoot))
+                    var haveParents = Interop.Alive(sourceParent) && Interop.Alive(targetParent) && Interop.Alive(_targetRoot);
+                    if (haveParents)
                     {
                         var world = sourceParent.TransformVector(delta);
                         delta = Vector3.Scale(targetParent.InverseTransformVector(world), _targetRoot.lossyScale);
                     }
-                    _targetHips.localPosition = _targetHipsRestLocal + delta * ModConfig.RetargetHipsFollow.Value;
+                    if (HipsFollowSuspended) delta = Vector3.zero;
+                    delta *= follow;
+                    _targetHips.localPosition = _targetHipsRestLocal + delta;
+                    HipsShiftMetres = haveParents ? targetParent.TransformVector(delta).magnitude : delta.magnitude;
                 }
                 catch { }
             }

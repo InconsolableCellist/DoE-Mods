@@ -194,6 +194,13 @@ namespace CustomAvatars.Avatars
                 ? _self.HeightScale * PlayerSize.Applied / UnityEngine.Mathf.Max(0.05f, _self.SizeAtFit)
                 : 0f;
             _self.Revert(why);
+            // Tell peers it came off BEFORE it goes back on, exactly as two F4 presses do. A
+            // single "still wearing X" afterwards is read on their side as a resize, which
+            // keeps their copy of us — springs, face and all — and with it whatever was wrong
+            // with it. Off then on is the one message that makes them build a fresh one, and a
+            // fresh one is the whole point of re-wearing. Both messages are reliable and
+            // ordered, so they cannot land the other way round.
+            SelfAvatarChanged?.Invoke();
             _self.Apply(local, manifest, isSelf: true, initialFit: guess);
             _selfWanted = _self.AvatarName ?? _selfWanted;
             SelfAvatarChanged?.Invoke();

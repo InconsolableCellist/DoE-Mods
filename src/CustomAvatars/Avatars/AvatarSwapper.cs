@@ -75,6 +75,18 @@ namespace CustomAvatars.Avatars
         private bool _vanillaIkWas;
         private bool _ragdolling;
 
+        // The hips origin guard. See GuardHipsOrigin.
+        private Vector3? _hipsGood;          // where the game rig's hips sit on a standing, solved body
+        private float _hipsSteadyStart = -1f; // unscaled time the hips have been plausible since; -1 = not now
+        private float _nextHipsLogAt;
+        private int _hipsRebases;
+        private float _nextHipsWarnAt;
+        private const float HipsMinHeight = 0.45f;   // a hip lower than this, in body metres, is lying down
+        private const float HipsMaxHeight = 1.5f;    // higher than this is being lifted, or is not a person
+        private const float HipsMaxLateral = 0.4f;   // further than this from the root is a ragdoll that travelled
+        private const float HipsSteadySeconds = 0.75f;
+        private const float HipsRebaseMetres = 0.15f; // an origin further than this from the standing one is wrong
+
         // Head-anchored placement, for ourselves only. See AlignToHead.
         private Transform _headBone;
         private Vector3 _modelBaseScale = Vector3.one;
@@ -1054,6 +1066,7 @@ namespace CustomAvatars.Avatars
                 LogSettledPlacement();
             }
 
+            GuardHipsOrigin();
             RecaptureWhenSolved();
             WatchForRebind();
 
@@ -1066,6 +1079,7 @@ namespace CustomAvatars.Avatars
             }
 
             LogPeerPose();
+            WatchPeerHips();
 
             // Only once the body is posed do we know where its head actually is.
             if (IsSelf) { Calibrate(); AlignToHead(); }
@@ -1261,6 +1275,11 @@ namespace CustomAvatars.Avatars
             if (!_retargetNeedsRecapture || _retarget == null) return;
             if (Time.unscaledTime < _retargetSettleUntil) return;
             if (!Interop.Alive(_model) || _manifest == null || !RigIsSolved()) return;
+            // Solving is not the same as settled. Half a second after a respawn the game
+            // reported LOD 0 with the body still turning (one capture stood 66° round from
+            // the rig it was copying) and its hips still on their way up from the corpse.
+            // The hips say when the body is actually standing.
+            if (!HipsSteadyFor(Mathf.Max(0f, ModConfig.RetargetSettleSeconds.Value))) return;
 
             _retargetNeedsRecapture = false;
             try
@@ -1275,6 +1294,170 @@ namespace CustomAvatars.Avatars
                 RebuildLegIk();
             }
             catch (Exception e) { Core.Log.Warning($"Pose re-capture failed: {e.Message}"); }
+        }
+
+        /// <summary>
+        /// Keep the hips origin honest.
+        ///
+        /// The retarget carries the game rig's hips translation onto ours as a delta from
+        /// where the hips sat when the reference was taken. That origin is the one part of the
+        /// reference the alignment at capture cannot fix: rotations are re-aligned whatever
+        /// pose the rig was caught in, but a translation measured from the wrong place is
+        /// wrong by that much every frame afterwards. A peer's reference is re-taken the frame
+        /// they come back to life, and their body is a ragdoll then — hips on the floor, or
+        /// ten metres from where the game's root says they are (one leash trip after a respawn
+        /// read 9.8 m). The settled re-capture half a second later found the body still being
+        /// stood up. Either way the origin was a hip's height too low, so from then on every
+        /// frame shoved the avatar that far into the air, with its legs stretched down to the
+        /// feet and its arms down to the hands, until they took the avatar off and on again.
+        /// From their own side nothing was wrong, because their own reference was taken on
+        /// their own machine at a different moment.
+        ///
+        /// So the origin is learned rather than trusted: the highest the hips sit while the
+        /// body is solved, not ragdolled, and standing somewhere a person's hips can be, held
+        /// for a moment. Whenever a fresh reference disagrees with that by more than a crouch
+        /// would explain, the learned origin replaces it. Until anything has been learned, an
+        /// origin that is not a standing body's is not followed at all — a rig at its bind
+        /// pose is right to within a crouch, a rig shoved into the air is not right at all.
+        /// </summary>
+        private void GuardHipsOrigin()
+        {
+            if (_retarget == null || !ModConfig.RetargetHipsGuard.Value || !Interop.Alive(_fullBody))
+            {
+                _hipsSteadyStart = -1f;
+                return;
+            }
+            try
+            {
+                var parent = _retarget.SourceHipsParent;
+                var now = _retarget.SourceHipsLocalNow;
+                var rest = _retarget.SourceHipsRestLocal;
+                if (!Interop.Alive(parent) || !now.HasValue || !rest.HasValue) { _hipsSteadyStart = -1f; return; }
+
+                var root = _fullBody.transform;
+                var scale = Mathf.Max(0.05f, root.lossyScale.y);
+                var up = root.up;
+
+                // Height above the body's root and distance out from under it, in the body's
+                // own metres, so a peer sized up or down is measured the same.
+                bool Plausible(Vector3 local, out float height)
+                {
+                    var fromRoot = parent.TransformPoint(local) - root.position;
+                    height = Vector3.Dot(fromRoot, up) / scale;
+                    var lateral = Vector3.ProjectOnPlane(fromRoot, up).magnitude / scale;
+                    return height >= HipsMinHeight && height <= HipsMaxHeight && lateral <= HipsMaxLateral;
+                }
+
+                var ragdolled = false;
+                try { ragdolled = _fullBody.isRagdolled; } catch { }
+                var nowOk = Plausible(now.Value, out var nowHeight);
+                var restOk = Plausible(rest.Value, out _);
+                var steady = nowOk && !ragdolled && !_ragdolling && RigIsSolved();
+                if (!steady) _hipsSteadyStart = -1f;
+                else if (_hipsSteadyStart < 0f) _hipsSteadyStart = Time.unscaledTime;
+
+                // Learn the standing origin: the highest the hips sit while steady. Standing
+                // is the highest a body gets — a crouch is lower, a corpse is lower, and the
+                // band above rules out the sky — so a crouch caught at capture is corrected
+                // the moment they stand up, not baked in.
+                if (steady && Time.unscaledTime - _hipsSteadyStart >= HipsSteadySeconds)
+                {
+                    if (!_hipsGood.HasValue) _hipsGood = now;
+                    else
+                    {
+                        // A tenth of a metre of hysteresis: the hips rise a few centimetres
+                        // when a player reaches up or bobs, a crouch or a corpse is short by
+                        // thirty or more.
+                        Plausible(_hipsGood.Value, out var goodHeight);
+                        if (nowHeight > goodHeight + 0.10f) _hipsGood = now;
+                    }
+                }
+
+                if (_hipsGood.HasValue)
+                {
+                    _retarget.HipsFollowSuspended = false;
+                    var off = parent.TransformVector(rest.Value - _hipsGood.Value).magnitude;
+                    if (off > HipsRebaseMetres * scale)
+                    {
+                        _retarget.SetSourceHipsRest(_hipsGood.Value);
+                        _hipsRebases++;
+                        if (Time.unscaledTime >= _nextHipsLogAt)
+                        {
+                            _nextHipsLogAt = Time.unscaledTime + 5f;
+                            Plausible(rest.Value, out var restHeight);
+                            Core.Log.Msg($"    hips origin re-based on {Who()}: the reference had the hips " +
+                                         $"{off:0.00} m from where they stand (at {restHeight:0.00} m above the root" +
+                                         $"{(restOk ? "" : " — a ragdoll, or a body still spawning")}); " +
+                                         $"the avatar would have sat that far off for as long as it was worn.");
+                        }
+                    }
+                }
+                else
+                {
+                    var suspend = !restOk;
+                    if (suspend != _retarget.HipsFollowSuspended && Time.unscaledTime >= _nextHipsLogAt)
+                    {
+                        _nextHipsLogAt = Time.unscaledTime + 5f;
+                        Core.Log.Msg(suspend
+                            ? $"    hips origin on {Who()} was taken off a body that isn't standing — holding the hips at rest until it is."
+                            : $"    hips origin on {Who()} looks like a standing body again — following it.");
+                    }
+                    _retarget.HipsFollowSuspended = suspend;
+                }
+            }
+            catch { _hipsSteadyStart = -1f; }
+        }
+
+        /// <summary>
+        /// Have the game rig's hips been somewhere a standing body's would be, solved and not
+        /// ragdolled, for this long? True when the rig has no hips to ask.
+        /// </summary>
+        private bool HipsSteadyFor(float seconds)
+        {
+            if (_retarget == null || !ModConfig.RetargetHipsGuard.Value) return true;
+            if (!_retarget.SourceHipsLocalNow.HasValue) return true;
+            return _hipsSteadyStart >= 0f && Time.unscaledTime - _hipsSteadyStart >= seconds;
+        }
+
+        private string Who()
+        {
+            if (IsSelf) return "you";
+            try { if (Interop.Alive(_player)) return $"peer `{_player.PlayerName}`"; } catch { }
+            return $"actor {ActorNumber}";
+        }
+
+        /// <summary>
+        /// The symptom, watched for directly: a peer's avatar whose hips are nowhere near the
+        /// game body's hips. Whatever the cause, that is the body in the air with its legs
+        /// stretched to the floor, and it deserves a line that says so rather than a
+        /// hand-miss figure someone has to interpret. Once every ten seconds while it lasts.
+        /// </summary>
+        private void WatchPeerHips()
+        {
+            if (IsSelf || _retarget == null || _ragdolling) return;
+            if (Time.unscaledTime < _nextHipsWarnAt) return;
+            try
+            {
+                var ours = _retarget.TargetHipsPosition;
+                var theirs = _retarget.SourceHipsPosition;
+                if (!ours.HasValue || !theirs.HasValue || !Interop.Alive(_fullBody)) return;
+                var scale = Mathf.Max(0.05f, _fullBody.transform.lossyScale.y);
+                var apart = Vector3.Distance(ours.Value, theirs.Value);
+                if (apart <= 0.5f * scale) return;
+                _nextHipsWarnAt = Time.unscaledTime + 10f;
+                var up = Vector3.Dot(ours.Value - theirs.Value, _fullBody.transform.up);
+                Core.Log.Warning($"{Who()}'s avatar hips are {apart:0.00} m from their game body's " +
+                                 $"({up:+0.00;-0.00} m vertically) — hips shift this frame {_retarget.HipsShiftMetres:0.00} m" +
+                                 $"{(_retarget.HipsFollowSuspended ? " (follow suspended)" : "")}, " +
+                                 $"origin {(_hipsGood.HasValue ? "learned" : "not learned yet")}, re-based {_hipsRebases} time(s), " +
+                                 $"ragdolled={SafeRagdolled()} LOD={(RigIsSolved() ? "0" : "not 0")}.");
+            }
+            catch { }
+        }
+
+        private string SafeRagdolled()
+        {
+            try { return Interop.Alive(_fullBody) ? _fullBody.isRagdolled.ToString() : "?"; } catch { return "?"; }
         }
 
         /// <summary>
@@ -1746,9 +1929,17 @@ namespace CustomAvatars.Avatars
                              $" headW={solver.spine.positionWeight:0.##}";
                 }
 
+                var hips = $"hips shift {_retarget.HipsShiftMetres * 100f:0} cm" +
+                           (_retarget.HipsFollowSuspended ? " (suspended)" : "") +
+                           (_hipsGood.HasValue ? "" : ", origin unlearned");
+                var ours = _retarget.TargetHipsPosition;
+                var theirs = _retarget.SourceHipsPosition;
+                if (ours.HasValue && theirs.HasValue)
+                    hips += $", ours {Vector3.Distance(ours.Value, theirs.Value) * 100f:0} cm from theirs";
+
                 Core.Log.Msg($"peer `{who}`: {reach} | {travel}" +
                              (stolen >= 0f ? $", {stolen:0.#}° taken back off us between frames" : "") +
-                             $" | {vis} | {ik}");
+                             $" | {hips} | {vis} | {ik}");
             }
             catch (Exception e) { Core.Log.Warning($"peer pose probe failed: {e.GetType().Name}: {e.Message}"); }
         }
@@ -1864,6 +2055,11 @@ namespace CustomAvatars.Avatars
             _leashTrips = 0;
             _wasAlive = true;
             _ragdolling = false;
+            _hipsGood = null;
+            _hipsSteadyStart = -1f;
+            _hipsRebases = 0;
+            _nextHipsLogAt = 0f;
+            _nextHipsWarnAt = 0f;
             _manifest = null;
             _model = null;
             _fullBody = null;
