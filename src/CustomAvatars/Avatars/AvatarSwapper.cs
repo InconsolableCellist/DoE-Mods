@@ -1090,13 +1090,33 @@ namespace CustomAvatars.Avatars
             // ragdoll's business.
             if (_legIk != null && !_ragdolling && ModConfig.LegIkEnabled.Value)
             {
-                try { _legIk.Apply(FootTargetOffset(), _model.transform.right, _model.transform.forward); }
+                try
+                {
+                    // The lag offset re-bases feet the GAME placed on its lagging display body.
+                    // A foot a tracker is driving is solved to a world target and is not on
+                    // that body at all: adding the lag to it put the target a stride ahead of
+                    // the real foot the moment the stick was pushed (field-tested: legs fine
+                    // standing still, 1–2 m ahead of the hips when walking, stretched to the
+                    // cap and locked far past it). Scaled by how much the tracker is driving,
+                    // so a fading puck hands the offset back smoothly.
+                    var lag = FootTargetOffset();
+                    var fbt = Fbt.FbtManager.Local;
+                    var left = lag * (1f - (fbt?.LocalFootDrive(Fbt.TrackerRole.LeftFoot) ?? 0f));
+                    var right = lag * (1f - (fbt?.LocalFootDrive(Fbt.TrackerRole.RightFoot) ?? 0f));
+                    _legIk.Apply(left, right, _model.transform.right, _model.transform.forward);
+                }
                 catch (Exception e) { Core.Log.Warning($"Leg IK failed, disabling: {e.Message}"); _legIk = null; }
 
                 if (IsSelf && Time.unscaledTime >= _nextLegLogAt)
                 {
                     _nextLegLogAt = Time.unscaledTime + 1f;
-                    if (_legIk != null && _legIk.WorthLogging) Core.Log.Msg($"legs: {_legIk.Describe()}");
+                    if (_legIk != null && _legIk.WorthLogging)
+                    {
+                        var fbt = Fbt.FbtManager.Local;
+                        var drive = fbt == null ? "" :
+                            $", tracker drive L {fbt.LocalFootDrive(Fbt.TrackerRole.LeftFoot):0.00} R {fbt.LocalFootDrive(Fbt.TrackerRole.RightFoot):0.00}";
+                        Core.Log.Msg($"legs: {_legIk.Describe()} | body lag {FootTargetOffset().magnitude * 100f:0}cm{drive}");
+                    }
                 }
             }
 

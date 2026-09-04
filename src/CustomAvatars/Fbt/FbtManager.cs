@@ -58,6 +58,20 @@ namespace CustomAvatars.Fbt
         private string _blipDetail = "";
         private float _blipNextLogAt;
 
+        // Dropouts, per role. The last usable pose is kept in TRACKING space and re-projected
+        // through the play-space rig on every frame it is missing, so a puck that has gone
+        // dark rides along with the player instead of staying nailed to a spot in the dungeon
+        // while they walk away from it. Past FbtStaleSeconds the target's weight eases out and
+        // the game places that limb itself until the puck is back — a dropout that lasts is
+        // a missing limb, not a stuck one.
+        private readonly Vector3[] _lastLocalPos = new Vector3[3];
+        private readonly Quaternion[] _lastLocalRot = new Quaternion[3];
+        private readonly bool[] _hasLastLocal = new bool[3];
+        private readonly float[] _lostAt = { -1f, -1f, -1f };   // unscaled time the dropout began; <0 = tracking
+        private readonly bool[] _faded = new bool[3];            // past the threshold, logged once
+        private readonly float[] _weight = { 1f, 1f, 1f };
+        private const float WeightEaseSeconds = 0.25f;
+
         // ---- remote rigs ----
         private class RemoteRig
         {
@@ -65,14 +79,32 @@ namespace CustomAvatars.Fbt
             public readonly Transform[] Targets = new Transform[3];
             public readonly Vector3[] SmoothedPos = new Vector3[3];
             public readonly Quaternion[] SmoothedRot = new Quaternion[3];
+            public readonly float[] Weight = { 1f, 1f, 1f };
             public bool Smoothing;
         }
         private readonly Dictionary<int, RemoteRig> _remoteRigs = new Dictionary<int, RemoteRig>();
 
         public bool Enabled { get; private set; }
 
+        /// <summary>The one manager, for code that needs to ask whether the local feet are tracked.</summary>
+        public static FbtManager Local { get; private set; }
+
+        /// <summary>
+        /// How much a tracker is driving the local game rig's foot right now: 1 fully, 0 not at
+        /// all (FBT off, not wired, or that puck faded out), in between during a fade. The
+        /// avatar's leg solver needs this because a tracked foot is solved to a WORLD target
+        /// and is not on the lagging display body — so the offset that re-bases vanilla feet
+        /// from that body onto the player must not be added to it.
+        /// </summary>
+        public float LocalFootDrive(TrackerRole role)
+        {
+            if (!Enabled || !_localRig.Wired || !_localRig.Alive) return 0f;
+            return Mathf.Clamp01(_weight[(int)role]);
+        }
+
         public FbtManager(AvatarSwapManager swaps, ModRoster roster, TrackerReader reader)
         {
+            Local = this;
             _swaps = swaps;
             _reader = reader;
             _sync = new TrackerSync(roster);
@@ -182,7 +214,7 @@ namespace CustomAvatars.Fbt
             _calibrator.Tick(_reader, dt, tposeEntryAllowed: Enabled && _swaps.SelfActive);
 
             UpdateVisuals();
-            UpdateLocal();
+            UpdateLocal(dt);
             UpdateRemotes(dt);
         }
 
@@ -203,7 +235,7 @@ namespace CustomAvatars.Fbt
             if (_visuals.Shown) _visuals.Hide();
         }
 
-        private void UpdateLocal()
+        private void UpdateLocal(float dt)
         {
             // While calibration is armed, the rig must be back in the game's hands: capturing
             // offsets against a rig that is still solving toward the PREVIOUS calibration's
@@ -258,51 +290,87 @@ namespace CustomAvatars.Fbt
                 EnsureProxies();
                 if (!_localRig.Wire(fullBody, isLocal: true, _targets[0], _targets[1], _targets[2], _bodyScale))
                     return;
+                ResetDropouts();
             }
 
-            DriveProxies();
+            DriveProxies(dt);
             _localRig.AssertPerFrame();
 
             if (ModConfig.FbtDebug.Value)
-                Core.Log.Msg($"FBT: hip={_targets[0].position:F3} L={_targets[1].position:F3} R={_targets[2].position:F3}");
+                Core.Log.Msg($"FBT: hip={_targets[0].position:F3} L={_targets[1].position:F3} R={_targets[2].position:F3} " +
+                             $"weights {_weight[0]:0.00}/{_weight[1]:0.00}/{_weight[2]:0.00}");
         }
 
-        /// <summary>Move each proxy onto its tracker; the offset children become the targets.</summary>
-        private void DriveProxies()
+        /// <summary>
+        /// Move each proxy onto its tracker; the offset children become the targets. A puck
+        /// with no usable pose this frame is held where it last was relative to the play
+        /// space, and faded out of the solve once it has been gone for FbtStaleSeconds.
+        /// </summary>
+        private void DriveProxies(float dt)
         {
+            var rig = _reader.Rig;
+            var now = Time.unscaledTime;
+            var staleAfter = Mathf.Max(0.2f, ModConfig.FbtStaleSeconds.Value);
+
             foreach (var c in _calibration)
             {
+                var i = (int)c.Role;
                 TrackerReader.Device device = null;
                 foreach (var t in _reader.Trackers)
                     if (t.Serial == c.Serial) { device = t; break; }
 
-                // Occluded or dropped: the proxy keeps its last pose, which reads as a frozen
-                // foot rather than a leg snapping to origin.
-                if (device == null)
+                var proxy = _proxies[i];
+                if (device == null || !device.PoseValid)
                 {
                     _blipCount++;
-                    _blipDetail = $"{c.Role} {c.Serial}: absent from the poll";
-                    continue;
+                    _blipDetail = device == null ? $"{c.Role} {c.Serial}: absent from the poll"
+                                                 : $"{c.Role} {c.Serial}: {device.Why()}";
+                    if (_lostAt[i] < 0f) _lostAt[i] = now;
+
+                    // Hold the last pose where the PLAYER is, not where the dungeon was. The
+                    // proxy is a root object in world space; without this, joystick locomotion
+                    // leaves a dark puck's target behind and the leg stretches to reach it.
+                    if (_hasLastLocal[i] && Interop.Alive(rig) && Interop.Alive(proxy))
+                        proxy.transform.SetPositionAndRotation(rig.TransformPoint(_lastLocalPos[i]),
+                                                               rig.rotation * _lastLocalRot[i]);
+
+                    var lostFor = now - _lostAt[i];
+                    if (lostFor >= staleAfter && !_faded[i])
+                    {
+                        _faded[i] = true;
+                        Core.Log.Warning($"FBT: {c.Role} untracked for {lostFor:0.0} s ({_blipDetail}) — " +
+                                         "fading it out; the game places it until the puck is back.");
+                    }
                 }
-                if (!device.PoseValid)
+                else
                 {
-                    _blipCount++;
-                    _blipDetail = $"{c.Role} {c.Serial}: {device.Result}" +
-                                  (device.GarbagePose ? " with non-finite values (read path suspect)" : "");
-                    continue;
+                    if (_faded[i])
+                        Core.Log.Msg($"FBT: {c.Role} tracking again after {now - _lostAt[i]:0.0} s — fading it back in.");
+                    _lostAt[i] = -1f;
+                    _faded[i] = false;
+
+                    if (Interop.Alive(proxy))
+                    {
+                        proxy.transform.SetPositionAndRotation(device.WorldPos, device.WorldRot);
+                        // The tracker→bone offset under this proxy is world metres captured at
+                        // one size; at another size the same strap sits proportionally closer.
+                        var ratio = Avatars.PlayerSize.Applied / Mathf.Max(0.05f, _calibratedAtSize);
+                        if (Mathf.Abs(proxy.transform.localScale.x - ratio) > 1e-4f)
+                            proxy.transform.localScale = Vector3.one * ratio;
+                    }
+                    _lastLocalPos[i] = device.LocalPos;
+                    _lastLocalRot[i] = device.LocalRot;
+                    _hasLastLocal[i] = true;
                 }
 
-                var proxy = _proxies[(int)c.Role];
-                if (Interop.Alive(proxy))
-                {
-                    proxy.transform.SetPositionAndRotation(device.WorldPos, device.WorldRot);
-                    // The tracker→bone offset under this proxy is world metres captured at
-                    // one size; at another size the same strap sits proportionally closer.
-                    var ratio = Avatars.PlayerSize.Applied / Mathf.Max(0.05f, _calibratedAtSize);
-                    if (Mathf.Abs(proxy.transform.localScale.x - ratio) > 1e-4f)
-                        proxy.transform.localScale = Vector3.one * ratio;
-                }
+                // Ease rather than pop, both ways: a pelvis weight that steps 1→0 in one frame
+                // is a visible jolt through the whole spine.
+                _weight[i] = Mathf.MoveTowards(_weight[i], _faded[i] ? 0f : 1f, Mathf.Max(0f, dt) / WeightEaseSeconds);
             }
+
+            _localRig.HipWeight = _weight[(int)TrackerRole.Hip];
+            _localRig.LeftFootWeight = _weight[(int)TrackerRole.LeftFoot];
+            _localRig.RightFootWeight = _weight[(int)TrackerRole.RightFoot];
 
             if (_blipCount > 0 && Time.unscaledTime >= _blipNextLogAt)
             {
@@ -310,6 +378,18 @@ namespace CustomAvatars.Fbt
                                  $"holding last poses through them. Latest: {_blipDetail}");
                 _blipNextLogAt = Time.unscaledTime + 5f;
                 _blipCount = 0;
+            }
+        }
+
+        /// <summary>Forget held poses and fades: a fresh wire or calibration starts fully tracked.</summary>
+        private void ResetDropouts()
+        {
+            for (var i = 0; i < 3; i++)
+            {
+                _hasLastLocal[i] = false;
+                _lostAt[i] = -1f;
+                _faded[i] = false;
+                _weight[i] = 1f;
             }
         }
 
@@ -348,6 +428,7 @@ namespace CustomAvatars.Fbt
             _calibratedAtSize = _calibrator.LastCalibratedAtSize;
             RebuildRoleMap();
             EnsureProxies();          // creates or re-offsets, whichever applies
+            ResetDropouts();          // a held pose from before the recalibration must not survive it
             HideVisuals();            // "pucks disappear" is the lock-in confirmation
             if (!Enabled) { Enabled = true; SavePreference(); }
             // A live rig keeps stale offsets until rewired; cheapest correct move is rewire.
@@ -467,6 +548,15 @@ namespace CustomAvatars.Fbt
                 root.rotation * poses.RightRot,
             };
 
+            // The sender's own fade, mirrored: a puck they have lost is a target they are
+            // holding, and it is faded here at the same rate rather than followed at full weight.
+            var stale = new[] { poses.HipStale, poses.LeftStale, poses.RightStale };
+            for (var i = 0; i < 3; i++)
+                remote.Weight[i] = Mathf.MoveTowards(remote.Weight[i], stale[i] ? 0f : 1f, Mathf.Max(0f, dt) / WeightEaseSeconds);
+            remote.Rig.HipWeight = remote.Weight[0];
+            remote.Rig.LeftFootWeight = remote.Weight[1];
+            remote.Rig.RightFootWeight = remote.Weight[2];
+
             var k = 1f - Mathf.Exp(-Mathf.Max(0.01f, ModConfig.FbtRemoteSmoothing.Value) * dt * 60f);
             for (var i = 0; i < 3; i++)
             {
@@ -521,6 +611,9 @@ namespace CustomAvatars.Fbt
                             LeftRot = inverse * _targets[1].rotation,
                             RightPos = root.InverseTransformPoint(_targets[2].position),
                             RightRot = inverse * _targets[2].rotation,
+                            HipStale = _faded[(int)TrackerRole.Hip],
+                            LeftStale = _faded[(int)TrackerRole.LeftFoot],
+                            RightStale = _faded[(int)TrackerRole.RightFoot],
                         };
                     }
                 }

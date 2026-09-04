@@ -41,18 +41,39 @@ namespace CustomAvatars.Fbt
             public ETrackedDeviceClass Class;
             public string Serial;
             public string ControllerType;
+            /// <summary>Usable: flagged valid, actually tracking, finite, and somewhere in the room.</summary>
             public bool PoseValid;
+            /// <summary>OpenVR's own bPoseIsValid byte, before any of our checks.</summary>
+            public bool FlaggedValid;
             /// <summary>Flagged valid by OpenVR but the numbers weren't numbers.</summary>
             public bool GarbagePose;
+            /// <summary>Flagged valid and finite, but kilometres from the play space.</summary>
+            public bool Implausible;
             public ETrackingResult Result;
             public Vector3 LocalPos, WorldPos;
             public Quaternion LocalRot = Quaternion.identity, WorldRot = Quaternion.identity;
 
+            /// <summary>Why this pose isn't usable, for a log line. Empty when it is.</summary>
+            public string Why()
+            {
+                if (PoseValid) return "";
+                if (!FlaggedValid) return $"{Result}";
+                if (GarbagePose) return $"{Result} with non-finite values (read path suspect)";
+                if (Implausible) return $"{Result} at {LocalPos.magnitude:0} m from the play space (read path suspect)";
+                return $"{Result} — flagged valid by SteamVR but not tracking, so not trusted";
+            }
+
             public override string ToString() =>
                 $"#{Index} {Class} serial={Serial ?? "?"} type={ControllerType ?? "?"} " +
-                (PoseValid ? $"world={WorldPos:F3}"
-                           : $"pose INVALID ({Result}{(GarbagePose ? ", garbage values" : "")})");
+                (PoseValid ? $"world={WorldPos:F3} ({Result})" : $"pose INVALID ({Why()})");
         }
+
+        /// <summary>
+        /// Farther than this from the tracking origin, in tracking-space metres, and the pose
+        /// is a read error rather than a person: rooms are metres, not kilometres. Field-tested
+        /// value that this catches: a foot puck 8401 m away, flagged valid.
+        /// </summary>
+        private const float MaxPlausibleMetres = 25f;
 
         /// <summary>
         /// TrackedDevicePose_t exactly as native OpenVR lays it out: 3x4 row-major matrix,
@@ -74,6 +95,12 @@ namespace CustomAvatars.Fbt
 
         /// <summary>Generic trackers only, freshest poll. Controllers/HMD are dump-only.</summary>
         public IReadOnlyList<Device> Trackers => _trackers;
+
+        /// <summary>
+        /// The play-space transform the freshest poll mapped through — null when there wasn't
+        /// one. Callers that hold a tracking-space pose across a dropout re-project it here.
+        /// </summary>
+        public Transform Rig { get; private set; }
 
         private CVRSystem System
         {
@@ -158,6 +185,7 @@ namespace CustomAvatars.Fbt
 
             Transform rig = null;
             try { rig = XRRig.Transform; } catch { }
+            Rig = Interop.Alive(rig) ? rig : null;
 
             try
             {
@@ -202,7 +230,8 @@ namespace CustomAvatars.Fbt
             var m = (float*)element;
 
             device.Result = (ETrackingResult)(*(int*)(element + OffsetResult));
-            device.PoseValid = *(element + OffsetPoseIsValid) != 0;
+            device.FlaggedValid = *(element + OffsetPoseIsValid) != 0;
+            device.PoseValid = device.FlaggedValid;
             if (!device.PoseValid) return device;
 
             // Valve's own HmdMatrix34_t→Unity conversion, inlined: right-handed row-major
@@ -216,6 +245,26 @@ namespace CustomAvatars.Fbt
             {
                 device.PoseValid = false;
                 device.GarbagePose = true;
+                return device;
+            }
+            if (device.LocalPos.magnitude > MaxPlausibleMetres)
+            {
+                device.PoseValid = false;
+                device.Implausible = true;
+                return device;
+            }
+
+            // Nor is "valid" a promise the puck can see a base station. A puck that has lost
+            // optical tracking stays flagged valid while SteamVR coasts it on its IMU
+            // (Running_OutOfRange): the position drifts for a moment, then freezes wherever
+            // it got to. Field-tested: a hip puck did exactly that for ten seconds, the
+            // pelvis target sat on the frozen point, and the whole body was hauled sideways
+            // — while the invalid-flag counter saw only the two frames at either end. Only a
+            // pose the runtime itself calls Running_OK leaves here as usable; the callers
+            // hold or fade a limb through the rest.
+            if (device.Result != ETrackingResult.Running_OK && ModConfig.FbtStrictTracking.Value)
+            {
+                device.PoseValid = false;
                 return device;
             }
 

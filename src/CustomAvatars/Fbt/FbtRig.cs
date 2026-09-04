@@ -46,6 +46,13 @@ namespace CustomAvatars.Fbt
         // proportions — without it a taller player's knees lock straight or pop sideways.
         private float _bodyScale = 1f;
 
+        // Per-target multipliers on the full weights, set by the owner every frame before
+        // AssertPerFrame: 1 while a puck is tracked, eased to 0 once it has been lost long
+        // enough that holding its last pose reads as a stuck limb. At 0 the game's own
+        // placement takes that part of the body back; the other two targets keep tracking.
+        // Restore ignores these — it puts back what the game had, not what we multiplied.
+        public float HipWeight = 1f, LeftFootWeight = 1f, RightFootWeight = 1f;
+
         public bool Wired => _wired;
 
         /// <summary>Still pointing at live native objects? False means the player was replaced.</summary>
@@ -62,6 +69,7 @@ namespace CustomAvatars.Fbt
         {
             if (_wired) Restore("rewiring");
             _bodyScale = Mathf.Clamp(bodyScale, 0.7f, 1.5f);
+            HipWeight = LeftFootWeight = RightFootWeight = 1f;
 
             if (!Interop.Alive(fullBody)) return false;
             VRIK ik = null;
@@ -144,13 +152,18 @@ namespace CustomAvatars.Fbt
                 if (solver == null) return;
                 if (_isLocal && solver.LOD != 0) solver.LOD = 0;
 
-                solver.spine.pelvisPositionWeight = 1f;
-                solver.spine.pelvisRotationWeight = Mathf.Clamp01(ModConfig.FbtPelvisRotationWeight.Value);
+                var hip = Mathf.Clamp01(HipWeight);
+                var left = Mathf.Clamp01(LeftFootWeight);
+                var right = Mathf.Clamp01(RightFootWeight);
+                var pelvisRot = Mathf.Clamp01(ModConfig.FbtPelvisRotationWeight.Value);
+                var footRot = Mathf.Clamp01(ModConfig.FbtFootRotationWeight.Value);
+                solver.spine.pelvisPositionWeight = hip;
+                solver.spine.pelvisRotationWeight = pelvisRot * hip;
                 solver.spine.maintainPelvisPosition = 0f;
-                solver.leftLeg.positionWeight = 1f;
-                solver.leftLeg.rotationWeight = Mathf.Clamp01(ModConfig.FbtFootRotationWeight.Value);
-                solver.rightLeg.positionWeight = 1f;
-                solver.rightLeg.rotationWeight = Mathf.Clamp01(ModConfig.FbtFootRotationWeight.Value);
+                solver.leftLeg.positionWeight = left;
+                solver.leftLeg.rotationWeight = footRot * left;
+                solver.rightLeg.positionWeight = right;
+                solver.rightLeg.rotationWeight = footRot * right;
                 solver.leftLeg.legLengthMlp = _bodyScale;
                 solver.rightLeg.legLengthMlp = _bodyScale;
 

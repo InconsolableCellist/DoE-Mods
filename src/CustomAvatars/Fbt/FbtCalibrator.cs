@@ -251,18 +251,25 @@ namespace CustomAvatars.Fbt
             foreach (var t in reader.Trackers)
                 if (t.PoseValid && !string.IsNullOrEmpty(t.Serial)) valid.Add(t);
 
+            // Every refusal below that is about the trackers writes the full enumeration to the
+            // recon log. FBT that starts enabled from settings never runs the F10 path, which
+            // was the only other place that dumps — so a session refused for bad tracker data
+            // used to leave no record of which device said what. Field-tested cost: three
+            // rounds of hardware fiddling to find a role misassignment a dump would have named.
             if (valid.Count < 3)
             {
                 Core.Log.Warning($"*** FBT: only {valid.Count} tracker(s) with a valid pose — " +
-                                 "need hip + both feet. Still armed; check SteamVR and squeeze again.");
+                                 "need hip + both feet. Still armed; check SteamVR and squeeze again. Full dump follows.");
                 FbtAudio.Error();
+                reader.DumpNow();
                 return;
             }
             if (_validStreak < 0.5f)
             {
                 Core.Log.Warning("*** FBT: tracker poses are blipping in and out — locking now would " +
-                                 "capture garbage. Hold still a moment and squeeze again.");
+                                 "capture garbage. Hold still a moment and squeeze again. Full dump follows.");
                 FbtAudio.Error();
+                reader.DumpNow();
                 return;
             }
             if (!Interop.Alive(player))
@@ -273,7 +280,17 @@ namespace CustomAvatars.Fbt
             }
 
             var roles = AssignRoles(valid, player);
-            if (roles == null) { FbtAudio.Error(); return; }   // AssignRoles already said why
+            if (roles == null) { FbtAudio.Error(); reader.DumpNow(); return; }   // AssignRoles already said why
+
+            // Which puck became which limb, and where it was — so a mis-binding is visible
+            // even on a calibration that goes on to lock cleanly.
+            foreach (var role in new[] { TrackerRole.Hip, TrackerRole.LeftFoot, TrackerRole.RightFoot })
+            {
+                var d = roles[role];
+                var type = d.ControllerType ?? "";
+                var how = type.Contains("waist") || type.Contains("foot") ? $"SteamVR role `{type}`" : "by geometry";
+                Core.Log.Msg($"    FBT: {role} = {d.Serial} ({how}) at {d.WorldPos:F2}, {d.Result}");
+            }
 
             var calibrated = CaptureOffsets(roles, player);
             if (calibrated == null) { FbtAudio.Error(); return; }
@@ -288,16 +305,18 @@ namespace CustomAvatars.Fbt
                 if (!FbtMath.Finite(c.OffsetPos) || !FbtMath.Finite(c.OffsetRot))
                 {
                     Core.Log.Warning($"*** FBT: the {c.Role} capture came out non-finite — a tracker " +
-                                     "lied mid-read. Nothing saved; squeeze again.");
+                                     "lied mid-read. Nothing saved; squeeze again. Full dump follows.");
                     FbtAudio.Error();
+                    reader.DumpNow();
                     return;
                 }
                 if (c.OffsetPos.magnitude > 1f * Avatars.PlayerSize.Applied)
                 {
                     Core.Log.Warning($"*** FBT: the {c.Role} offset came out {c.OffsetPos.magnitude:0.00} m — " +
                                      "that is not a mounting offset, the tracker data is wrong. " +
-                                     "Nothing saved; squeeze again.");
+                                     "Nothing saved; squeeze again. Full dump follows.");
                     FbtAudio.Error();
+                    reader.DumpNow();
                     return;
                 }
             }
@@ -464,6 +483,24 @@ namespace CustomAvatars.Fbt
                 { TrackerRole.LeftFoot, HumanBodyBones.LeftFoot },
                 { TrackerRole.RightFoot, HumanBodyBones.RightFoot },
             };
+
+            // The rig's own stance at this moment, head-relative. Offsets are measured against
+            // these bones, so if the rig has not relaxed back to its idle pose after a release
+            // (one session's offsets grew 15 cm between a first calibration against an idle rig
+            // and two recalibrations seconds after a release), these numbers will differ
+            // between the attempts and say so. VRIK's enabled state is the first suspect: the
+            // game keeps it off on your own body, so nothing may be re-solving it at all.
+            try
+            {
+                var hips = animator.GetBoneTransform(HumanBodyBones.Hips);
+                var lf = animator.GetBoneTransform(HumanBodyBones.LeftFoot);
+                var rf = animator.GetBoneTransform(HumanBodyBones.RightFoot);
+                var vrik = "?";
+                try { var ik = player.FullBody.ik; vrik = Interop.Alive(ik) ? (ik.enabled ? "on" : "off") : "none"; } catch { }
+                Core.Log.Msg($"    FBT: rig stance at lock (from its head) — hips {hips.position - rigHead.position:F3}, " +
+                             $"L foot {lf.position - rigHead.position:F3}, R foot {rf.position - rigHead.position:F3}, VRIK {vrik}");
+            }
+            catch { }
 
             var result = new List<CalibratedTracker>();
             foreach (var kv in roles)

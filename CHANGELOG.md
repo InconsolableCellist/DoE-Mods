@@ -2,6 +2,32 @@
 
 Versions are the mod's `Version` constant in `src/CustomAvatars/Core.cs`. This file was reconstructed from the git history on 2026-09-01.
 
+## 0.42.5 (2026-09-03)
+
+### Fixed
+- Legs no longer run ahead of the body when you walk with the stick under full-body tracking. Your game body is a display object smoothed for the network, so it lags behind where you actually are while you move, and the leg solver adds that lag to the game's foot positions to bring vanilla feet from the lagging body under your avatar. With trackers the game's feet are solved to world targets and are not on the lagging body at all, so the lag was counted twice: standing still the legs were right, and the moment you moved the foot targets ran one to two metres ahead of your hips, the legs stretched to their cap and the feet locked far past it. The offset is now scaled down by how much a tracker is driving each foot, so a tracked foot gets none and a puck that has faded out hands the offset back smoothly.
+- The leg line's reach-drift check no longer flags the one-shot height fit as drift; the build-time length is compared at the model's current scale.
+
+### Added
+- The `legs:` line reports the display body's lag and how much each foot is tracker-driven.
+
+## 0.42.4 (2026-09-03)
+
+### Fixed
+- Legs no longer stretch away into the distance under full-body tracking. The leg solver measures the leg's length from its bones every frame; when a solve misses, the foot lock moves the foot bone to the target, and since the retarget writes only rotations, that displacement stayed in the shin's frame and was measured as shin length from then on, so the next solve planned for a shin that did not exist and missed by more. Every session started with a 164 cm miss on the first frame, the game's display body being far from ours, which left the leg reading 195 cm instead of 85 for the rest of the session. Without trackers that was survivable, because the game's feet sit close enough to the hips that a solve rarely misses again. With trackers the game's hip-to-foot distance is your real leg, this avatar's leg is shorter, and the solve missed on every frame: the measured reach ran from 85 cm to 390 cm within seconds. The foot is now put back on the end of the shin before every solve, the same fix the arm solver got in 0.42.0. The `legs:` line reports a reach that has wandered from its build-time value, with the build-time value beside it.
+
+## 0.42.3 (2026-09-03)
+
+### Fixed
+- Full-body tracking no longer hauls the body sideways, or stretches the legs, when a puck loses sight of its base stations. SteamVR keeps such a puck flagged valid while it coasts on the puck's own motion sensor: the position drifts for a moment and then freezes wherever it got to, and the mod trusted every flagged-valid pose. One session's hip puck did this for ten seconds: the pelvis target sat on the frozen point, the whole body leaned after it, and the left hand ended up 122 cm from its shoulder while the dropout counter saw only the two frames at either end of the event. A pose now has to be one SteamVR itself reports as tracking (`Running_OK`) to drive a limb; anything else counts as a dropout, and the blip line says when a pose was flagged valid but not trusted. `FbtStrictTracking = false` restores the old behaviour, for comparison.
+- A dropout no longer leaves its target nailed to a spot in the dungeon. The last usable pose was held in world space, so under joystick locomotion the player walked away from their own hip or foot. It is now held relative to the play space and rides along.
+- A dropout that lasts is a missing limb, not a stuck one: after `FbtStaleSeconds` (the same setting that already governed a peer's quiet stream, default one second) the target's weight eases out over a quarter of a second and the game places that limb itself, then eases back in when the puck returns. Both transitions are logged with the reason and the duration. Peers get the same fade: the stream carries which of the sender's pucks are lost, and the receiver fades that target rather than following a held pose at full weight. Older senders never set the flags and read as fully tracked.
+- Calibration refused for bad tracker data now writes the full tracker enumeration to the recon log. FBT that starts enabled from settings never runs the F10 path, which was the only place that dumped, so a session refused for a foot puck at 8401 m left no record of which device said what. A pose that is finite but farther than 25 m from the play space is also rejected at the read now, by name.
+
+### Added
+- Calibration logs which puck became which limb, whether by its SteamVR role or by geometry, where it was and what its tracking state was, on every attempt including the ones that lock cleanly.
+- Calibration logs the game rig's own hip and foot positions relative to its head at the moment of lock, and whether its VRIK is enabled. Offsets are measured against those bones; two recalibrations seconds after a release came out 15 cm larger than a first calibration against an idle rig, and this line will say whether the rig had relaxed.
+
 ## 0.42.2 (2026-09-03)
 
 ### Fixed

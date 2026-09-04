@@ -19,6 +19,10 @@ namespace CustomAvatars.Fbt
     /// immune to the two clients smoothing world positions differently.
     ///
     /// 32 bytes a message: [seq][flags], then hip/left/right × (position 6 B + rotation 4 B).
+    /// Flags: bit 0 keyframe; bits 1–3 say the sender's hip / left foot / right foot puck has
+    /// been lost long enough that the sender has faded that target out — the pose still on
+    /// the wire for it is a held one, and the receiver fades it the same way. A sender from
+    /// before those bits never sets them, which reads as "all tracked": the old behaviour.
     /// </summary>
     public class TrackerSync
     {
@@ -26,6 +30,7 @@ namespace CustomAvatars.Fbt
         {
             public Vector3 HipPos, LeftPos, RightPos;
             public Quaternion HipRot, LeftRot, RightRot;
+            public bool HipStale, LeftStale, RightStale;
         }
 
         public class RemoteEntry
@@ -36,6 +41,9 @@ namespace CustomAvatars.Fbt
 
         private const int PacketBytes = 2 + 3 * (6 + 4);
         private const byte FlagKeyframe = 1;
+        private const byte FlagHipStale = 2;
+        private const byte FlagLeftStale = 4;
+        private const byte FlagRightStale = 8;
 
         private readonly ModRoster _roster;
         private readonly byte[] _packet = new byte[PacketBytes];
@@ -74,9 +82,14 @@ namespace CustomAvatars.Fbt
             var targets = _roster.ModdedPeerActors(ModCaps.Fbt);
             if (targets.Length == 0) return;
 
+            var flags = keyframe ? FlagKeyframe : (byte)0;
+            if (poses.HipStale) flags |= FlagHipStale;
+            if (poses.LeftStale) flags |= FlagLeftStale;
+            if (poses.RightStale) flags |= FlagRightStale;
+
             var offset = 0;
             _packet[offset++] = _sequence++;
-            _packet[offset++] = keyframe ? FlagKeyframe : (byte)0;
+            _packet[offset++] = flags;
             Packing.WritePosMm(_packet, ref offset, poses.HipPos);
             Packing.WriteQuat(_packet, ref offset, poses.HipRot);
             Packing.WritePosMm(_packet, ref offset, poses.LeftPos);
@@ -95,7 +108,10 @@ namespace CustomAvatars.Fbt
         {
             var posEpsilon = Mathf.Max(0.001f, ModConfig.TrackerPosEpsilonMm.Value / 1000f);
             var rotEpsilon = Mathf.Max(0.1f, ModConfig.TrackerRotEpsilonDegrees.Value);
-            return Vector3.Distance(now.HipPos, _lastSent.HipPos) > posEpsilon
+            return now.HipStale != _lastSent.HipStale
+                || now.LeftStale != _lastSent.LeftStale
+                || now.RightStale != _lastSent.RightStale
+                || Vector3.Distance(now.HipPos, _lastSent.HipPos) > posEpsilon
                 || Vector3.Distance(now.LeftPos, _lastSent.LeftPos) > posEpsilon
                 || Vector3.Distance(now.RightPos, _lastSent.RightPos) > posEpsilon
                 || Quaternion.Angle(now.HipRot, _lastSent.HipRot) > rotEpsilon
@@ -112,9 +128,13 @@ namespace CustomAvatars.Fbt
                 return;
             }
 
-            var offset = 2;   // sequence and flags are diagnostics; latest-wins needs neither
+            var flags = bytes[1];   // the sequence byte is diagnostics; latest-wins needs no ordering
+            var offset = 2;
             var poses = new PoseSet
             {
+                HipStale = (flags & FlagHipStale) != 0,
+                LeftStale = (flags & FlagLeftStale) != 0,
+                RightStale = (flags & FlagRightStale) != 0,
                 HipPos = Packing.ReadPosMm(bytes, ref offset),
                 HipRot = Packing.ReadQuat(bytes, ref offset),
                 LeftPos = Packing.ReadPosMm(bytes, ref offset),

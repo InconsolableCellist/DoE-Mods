@@ -32,6 +32,10 @@ namespace CustomAvatars.Avatars
             public Vector3 UpperRestScale = Vector3.one;
             public Vector3 LowerRestScale = Vector3.one;
             public Vector3 FootRestScale = Vector3.one;
+            public Vector3 FootRestLocalPos;
+            public float RestNatural;          // at build, in world metres
+            public float RestModelScale = 1f;  // the model's scale when RestNatural was measured
+            public Transform ModelRoot;
             public float CurrentScale = 1f;
             public bool Stretched;
             public float LastNatural, LastNeeded, LastScale, LastMiss, LastExpectedMiss;
@@ -41,8 +45,25 @@ namespace CustomAvatars.Avatars
 
         public bool HasLegs => _left != null || _right != null;
 
-        /// <summary>True when either solver miss is over a centimetre.</summary>
-        public bool WorthLogging => (_left?.LastMiss ?? 0f) > 0.01f || (_right?.LastMiss ?? 0f) > 0.01f;
+        /// <summary>True when either solver miss is over a centimetre, or a leg's measured length has wandered.</summary>
+        public bool WorthLogging => (_left?.LastMiss ?? 0f) > 0.01f || (_right?.LastMiss ?? 0f) > 0.01f ||
+                                    ReachWandered(_left) || ReachWandered(_right);
+
+        // Same invariant as the arm: the leg's length is measured from the bones every frame
+        // and must come out the same every time, once the model's own scale is taken out —
+        // the one-shot height fit a second after the swap changes it legitimately. A reach
+        // that grows beyond that is a bone left off the end of its parent, which is what the
+        // foot lock did before the rest position was put back.
+        private static bool ReachWandered(Leg leg) =>
+            leg != null && leg.RestNatural > 0f && Mathf.Abs(leg.LastNatural - RestNaturalNow(leg)) > 0.05f;
+
+        private static float RestNaturalNow(Leg leg)
+        {
+            var scale = 1f;
+            try { if (Interop.Alive(leg.ModelRoot) && leg.RestModelScale > 1e-4f) scale = leg.ModelRoot.lossyScale.y / leg.RestModelScale; }
+            catch { }
+            return leg.RestNatural * scale;
+        }
 
         public string Build(GameObject model, AvatarManifest manifest, Func<HumanBodyBones, Transform> sourceBone)
         {
@@ -81,7 +102,7 @@ namespace CustomAvatars.Avatars
             // No vanilla foot, no target: leave that leg to the retarget.
             if (!Interop.Alive(srcFoot)) return null;
 
-            return new Leg
+            var leg = new Leg
             {
                 Side = side,
                 Upper = upper, Lower = lower, Foot = foot,
@@ -91,19 +112,29 @@ namespace CustomAvatars.Avatars
                 UpperRestScale = upper.localScale,
                 LowerRestScale = lower.localScale,
                 FootRestScale = foot.localScale,
+                FootRestLocalPos = foot.localPosition,
+                ModelRoot = model.transform,
             };
+            try
+            {
+                leg.RestNatural = Vector3.Distance(upper.position, lower.position) + Vector3.Distance(lower.position, foot.position);
+                leg.RestModelScale = Mathf.Max(1e-4f, model.transform.lossyScale.y);
+            }
+            catch { }
+            return leg;
         }
 
         /// <summary>
         /// Solve both legs. Call after the retarget has posed the body and the head anchor has
-        /// placed it. <paramref name="offset"/> is added to every target: for your own avatar
-        /// the game's display body lags behind where you actually are, so its feet are re-based
-        /// from the lagging body onto ours.
+        /// placed it. Each offset is added to that leg's target: for your own avatar the game's
+        /// display body lags behind where you actually are, so a foot the game placed on that
+        /// body is re-based onto ours. A foot a tracker is driving is already solved to a world
+        /// target and gets no offset — the caller passes zero for it.
         /// </summary>
-        public void Apply(Vector3 offset, Vector3 modelRight, Vector3 modelForward)
+        public void Apply(Vector3 offsetLeft, Vector3 offsetRight, Vector3 modelRight, Vector3 modelForward)
         {
-            Solve(_left, offset, modelRight, modelForward);
-            Solve(_right, offset, modelRight, modelForward);
+            Solve(_left, offsetLeft, modelRight, modelForward);
+            Solve(_right, offsetRight, modelRight, modelForward);
         }
 
         /// <summary>Put the bone scales back, before this solver is thrown away for a new one.</summary>
@@ -113,6 +144,7 @@ namespace CustomAvatars.Avatars
             {
                 if (leg == null) continue;
                 try { if (Interop.Alive(leg.Upper)) RestScales(leg); } catch { }
+                try { if (Interop.Alive(leg.Foot)) leg.Foot.localPosition = leg.FootRestLocalPos; } catch { }
             }
         }
 
@@ -124,8 +156,9 @@ namespace CustomAvatars.Avatars
             {
                 if (leg == null) return "-";
                 var locked = ModConfig.LegLockFeet.Value ? " locked" : "";
+                var rest = ReachWandered(leg) ? $" (was {RestNaturalNow(leg) * 100f:0.#}cm at build, at this scale)" : "";
                 return $"miss {leg.LastMiss * 100f:0.#}cm{locked} (geometry {leg.LastExpectedMiss * 100f:0.#}cm, " +
-                       $"reach {leg.LastNatural * 100f:0.#}cm, needed {leg.LastNeeded * 100f:0.#}cm, " +
+                       $"reach {leg.LastNatural * 100f:0.#}cm{rest}, needed {leg.LastNeeded * 100f:0.#}cm, " +
                        $"stretch x{leg.LastScale:0.00})";
             }
         }
@@ -164,8 +197,21 @@ namespace CustomAvatars.Avatars
                     leg.CurrentScale = 1f;
                     leg.Stretched = false;
                     RestScales(leg);
+                    leg.Foot.localPosition = leg.FootRestLocalPos;
                     return;
                 }
+
+                // Put the foot back on the end of the shin before measuring anything. The lock
+                // at the bottom moves the foot bone to the target whenever the solve misses,
+                // the retarget only writes rotations, so the offset stayed in the shin's frame
+                // and was measured as shin length from then on — and a longer measured shin
+                // makes the next solve miss by more. Every session began with a 164 cm miss on
+                // the first frame (the game's display body far from ours) that left the leg
+                // reading 195 cm instead of 85; under full-body tracking, where the game's
+                // hip-to-foot distance exceeds this avatar's leg and the solve misses every
+                // frame, the reach ran away to 390 cm in seconds — legs stretched off into
+                // the distance. The arm solver had this exact fix in 0.42.0; the leg didn't.
+                leg.Foot.localPosition = leg.FootRestLocalPos;
 
                 // The retarget gave the foot the vanilla foot's orientation. The solve below
                 // rotates the leg above it and carries it along; it is put back at the end.

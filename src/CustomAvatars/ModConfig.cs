@@ -128,6 +128,7 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<bool> FbtDebug;
         public static MelonPreferences_Entry<bool> SizeDebug;
         public static MelonPreferences_Entry<bool> FbtDisableGrounder;
+        public static MelonPreferences_Entry<bool> FbtStrictTracking;
         public static MelonPreferences_Entry<bool> FbtAnchorHips;
 
         public static MelonPreferences_Entry<bool> SwapUseVrik;
@@ -327,8 +328,10 @@ namespace CustomAvatars
             TrackerRotEpsilonDegrees = Tuning.CreateEntry("TrackerRotEpsilonDegrees", 1.5f);
             FbtRemoteSmoothing = Tuning.CreateEntry("FbtRemoteSmoothing", 0.35f, description:
                 "How quickly a peer's legs follow their stream. Lower is smoother and laggier.");
-            // After this long without tracker data a peer's legs go back to the game's own
-            // walking animation rather than freezing mid-stride.
+            // After this long without usable data, a limb is let go rather than left frozen:
+            // your own hip or foot target fades out to the game's own placement when its puck
+            // has been untracked this long (and back in when it returns), and a peer's legs
+            // go back to the game's walking animation when their stream has gone quiet.
             FbtStaleSeconds = Tuning.CreateEntry("FbtStaleSeconds", 1.0f);
 
             // Measured automatically from where your headset actually is, taking the tallest
@@ -368,6 +371,11 @@ namespace CustomAvatars
             // The grounder plants feet on the floor procedurally; real foot trackers and a
             // foot-planter fighting over the same feet is visible as toe jitter.
             FbtDisableGrounder = Dev.CreateEntry("FbtDisableGrounder", true);
+            // A puck that has lost sight of its base stations stays "valid" to SteamVR while
+            // it coasts on its IMU and freezes wherever it drifted to. On, only a pose SteamVR
+            // itself reports as Running_OK drives a limb; the rest count as dropouts and the
+            // limb is held, then faded out. Off is the pre-0.42.3 behaviour, for comparison.
+            FbtStrictTracking = Dev.CreateEntry("FbtStrictTracking", true);
             // Escape hatch for risk #2 in the FBT plan: anchor the self avatar to the solved
             // hips (the ragdoll branch) instead of the head, if head-anchoring fights hip drive.
             FbtAnchorHips = Dev.CreateEntry("FbtAnchorHips", false);
