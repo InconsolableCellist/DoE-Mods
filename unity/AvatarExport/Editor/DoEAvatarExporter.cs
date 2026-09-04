@@ -599,6 +599,21 @@ namespace DoEMod.Export
             string rightEyePath = rightEye != null ? RelPath(clone.transform, rightEye) : null;
             bool hasEyeBones = leftEye != null && rightEye != null;
 
+            // Which side of the face each eye bone actually sits on. Nothing else on an avatar
+            // cares whether LeftEye and RightEye were mapped the right way round — the eyes are
+            // driven together and a swap is invisible in Unity — so a face grafted in from
+            // another model can carry them backwards for its whole life without anyone noticing.
+            // The mod used to take the line between the two eyes as which way the head faces,
+            // and a swapped pair pointed it out of the back of the head: one avatar wore its
+            // head turned exactly 180 degrees round. The mod now takes the sign from the
+            // shoulders instead and corrects it, so this is a note rather than a fault, but it
+            // is worth fixing at the source.
+            var leftArmBone  = animator.GetBoneTransform(HumanBodyBones.LeftUpperArm);
+            var rightArmBone = animator.GetBoneTransform(HumanBodyBones.RightUpperArm);
+            bool eyesSwapped = hasEyeBones && leftArmBone != null && rightArmBone != null &&
+                               Vector3.Dot(rightEye.position - leftEye.position,
+                                           rightArmBone.position - leftArmBone.position) < 0f;
+
             var shaderNames = renderers.SelectMany(r => r.sharedMaterials)
                 .Where(m => m != null && m.shader != null)
                 .Select(m => m.shader.name).Distinct().OrderBy(s => s).ToList();
@@ -705,6 +720,11 @@ namespace DoEMod.Export
                 if (unconsumed.Count > 60) report.AppendLine($"    … and {unconsumed.Count - 60} more");
             }
             report.AppendLine($"Eye bones: L={(leftEye ? leftEye.name : "none")} R={(rightEye ? rightEye.name : "none")}");
+            if (eyesSwapped)
+                report.AppendLine("WARNING: the bone mapped as LeftEye sits on the avatar's RIGHT — the two eye bones\n" +
+                                  "         are mapped the wrong way round. Swap them in Rig > Configure > Head. The\n" +
+                                  "         mod works around it, and nothing in Unity will show it, but anything that\n" +
+                                  "         tells the eyes apart (gaze convergence) has them crossed.");
             report.AppendLine($"Jaw bone: {(jaw ? jaw.name : "none")}");
             report.AppendLine($"Bounds height: {height:F2}m (renderer AABB — ears/hair/tail inflate this), " +
                               $"head bone: {headHeightWorld:F2}m, humanScale: {humanScale:F3}");

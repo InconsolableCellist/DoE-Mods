@@ -193,6 +193,7 @@ namespace CustomAvatars.Avatars
 
             _links.Sort((a, b) => a.Depth.CompareTo(b.Depth));
             TorsoTurnAtCapture = float.NaN;
+            HeadAlignNote = null;
             var aligned = AlignAtCapture(source, model, map);
             var turned = "";
             if (!float.IsNaN(TorsoTurnAtCapture) && Mathf.Abs(TorsoTurnAtCapture) > 5f)
@@ -215,7 +216,8 @@ namespace CustomAvatars.Avatars
             return _links.Count == 0
                 ? "no bones could be paired between the two rigs"
                 : $"{_links.Count} bone(s) paired" + (missing > 0 ? $", {missing} unpaired" : "") +
-                  (aligned > 0 ? $", {aligned} aligned at capture" : "") + turned + rigScale;
+                  (aligned > 0 ? $", {aligned} aligned at capture" : "") + turned + rigScale +
+                  (string.IsNullOrEmpty(HeadAlignNote) ? ", head unaligned" : ", " + HeadAlignNote);
         }
 
         /// <summary>
@@ -317,6 +319,14 @@ namespace CustomAvatars.Avatars
         public float TorsoTurnAtCapture { get; private set; } = float.NaN;
 
         /// <summary>
+        /// Which measurement the head was aligned on at capture, and whether an eye line had to
+        /// be turned back. Null when the head went unaligned. For the log: a head that comes out
+        /// facing the wrong way is the one alignment nobody can miss, and this says which of the
+        /// three measurements produced it.
+        /// </summary>
+        public string HeadAlignNote { get; private set; }
+
+        /// <summary>
         /// A second axis for the bones whose first one runs up the body. The hip line for the
         /// hips and the legs, the shoulder line for the spine and up (falling back to the hip
         /// line when an arm is unpaired). Arms keep their one axis: the next joint down hides
@@ -385,13 +395,12 @@ namespace CustomAvatars.Avatars
         /// degrees of freedom, so the head starts out facing exactly where the game's head
         /// faces and the delta carries it correctly from there.
         /// </summary>
-        private static bool TryAlignHead(Animator source, GameObject model, Dictionary<string, string> map,
-                                         Dictionary<HumanBodyBones, Link> byBone, Link head)
+        private bool TryAlignHead(Animator source, GameObject model, Dictionary<string, string> map,
+                                  Dictionary<HumanBodyBones, Link> byBone, Link head)
         {
             try
             {
                 if (!Interop.Alive(head.Source) || !Interop.Alive(head.Target)) return false;
-                if (!TryEyeMidpoint(source, model, map, out var srcEye, out var dstEye, out var srcEyeLine, out var dstEyeLine)) return false;
 
                 // The neck if the avatar has one, the chest if it doesn't; either gives the
                 // direction the head sits along.
@@ -404,37 +413,76 @@ namespace CustomAvatars.Avatars
                 var dstUp = head.Target.position - below.Target.position;
                 if (srcUp.sqrMagnitude < 1e-8f || dstUp.sqrMagnitude < 1e-8f) return false;
 
-                // Flatten the eye direction against the neck axis before using it. Where the
-                // eyes sit relative to the head bone is a modelling choice and differs between
-                // rigs — the game's sit about level with the bone, an imported avatar's can be
-                // well above or below it — and Quaternion.LookRotation honours the forward
-                // vector exactly, so feeding it the raw eye direction hands that difference
-                // straight through as pitch. It was worth about a chin on the chest. The neck
-                // axis is a real skeletal direction both rigs agree on, so pitch comes from
-                // that, and the eyes are left to do the one job they are reliable for: which
-                // way round the head faces.
+                // The shoulder line, or the hip line if an arm is unpaired. This is the same
+                // axis the torso is aligned on, and it is the only one of the three below whose
+                // direction is certain: the humanoid map says which upper arm is the left one,
+                // and a rig whose arms were swapped would be visibly inside out long before it
+                // got here.
+                var haveBody = TryLine(byBone, HumanBodyBones.LeftUpperArm, HumanBodyBones.RightUpperArm, out var srcBody, out var dstBody) ||
+                               TryLine(byBone, HumanBodyBones.LeftUpperLeg, HumanBodyBones.RightUpperLeg, out srcBody, out dstBody);
+
+                var haveEyes = TryEyeMidpoint(source, model, map, out var srcEye, out var dstEye, out var srcEyeLine, out var dstEyeLine);
+                var haveEyeLine = haveEyes && srcEyeLine.sqrMagnitude > 1e-8f && dstEyeLine.sqrMagnitude > 1e-8f;
+
+                // Left eye to right eye, crossed with the neck axis, is which way the face
+                // points — and it reads the head's own turn, which the shoulders don't. What it
+                // cannot do on its own is tell a rig that labelled its eye bones the other way
+                // round from one that didn't: swap the two and the same measurement points out
+                // the back of the head. Nothing else on the avatar depends on which eye is
+                // which, so a rigger can label them backwards and never see it; one tester's
+                // avatar (`eye_l.003`/`eye_r.003` on an otherwise `_L`/`_R` rig, a face grafted
+                // in from elsewhere) wore its head turned exactly 180° round.
                 //
-                // Better still, when both eyes are mapped: the line from the left eye to the
-                // right one. Which eye is which comes from the humanoid map, so the line's sign
-                // is certain, and right-across-up is forward on any rig. The eye midpoint
-                // failed on one avatar whose eye bones sat 2.7 units above the head bone and
-                // 0.16 in front of it while its neck leaned further forward than that: flattened
-                // against the neck the eyes came out BEHIND the head, and the mannequin stood
-                // with its head turned round to face its own back.
+                // So the sign comes from the body, not the label: an eye line that runs against
+                // the rig's own shoulder line is flipped before use, on each rig separately.
+                // A head can only turn about eighty degrees on a neck, so a live rig caught
+                // mid-glance is never near the ninety that would flip it by mistake.
+                var srcFlipped = false;
+                var dstFlipped = false;
+                if (haveEyeLine && haveBody)
+                {
+                    if (Vector3.Dot(srcEyeLine, srcBody) < 0f) { srcEyeLine = -srcEyeLine; srcFlipped = true; }
+                    if (Vector3.Dot(dstEyeLine, dstBody) < 0f) { dstEyeLine = -dstEyeLine; dstFlipped = true; }
+                }
+
                 Vector3 srcForward, dstForward;
-                var srcAcross = Vector3.Cross(srcEyeLine, srcUp);
-                var dstAcross = Vector3.Cross(dstEyeLine, dstUp);
-                if (srcEyeLine.sqrMagnitude > 1e-8f && dstEyeLine.sqrMagnitude > 1e-8f &&
-                    srcAcross.sqrMagnitude > 1e-8f && dstAcross.sqrMagnitude > 1e-8f)
+                var srcAcross = haveEyeLine ? Vector3.Cross(srcEyeLine, srcUp) : Vector3.zero;
+                var dstAcross = haveEyeLine ? Vector3.Cross(dstEyeLine, dstUp) : Vector3.zero;
+                if (haveEyeLine && srcAcross.sqrMagnitude > 1e-8f && dstAcross.sqrMagnitude > 1e-8f)
                 {
                     srcForward = srcAcross;
                     dstForward = dstAcross;
+                    var mislabelled = srcFlipped && dstFlipped ? "both rigs'"
+                                    : dstFlipped ? "the avatar's"
+                                    : srcFlipped ? "the game rig's" : null;
+                    HeadAlignNote = mislabelled == null
+                        ? "head on the eye line"
+                        : $"head on the eye line ({mislabelled} eye bones are labelled left for right — turned back)";
                 }
-                else
+                else if (haveBody)
                 {
+                    // No eye line on one of the rigs. The shoulders give the same forward,
+                    // minus whatever the head was turned by at capture — a few degrees of
+                    // error against a rig that has no eyes to ask.
+                    srcForward = Vector3.Cross(srcBody, srcUp);
+                    dstForward = Vector3.Cross(dstBody, dstUp);
+                    HeadAlignNote = "head on the shoulder line (one of the rigs has no pair of eye bones)";
+                }
+                else if (haveEyes)
+                {
+                    // Last resort: where the eyes sit relative to the head bone, flattened
+                    // against the neck. This is a modelling choice rather than a skeletal
+                    // direction — one avatar's eyes sat 2.7 units above its head bone and 0.16
+                    // in front of it while its neck leaned further forward than that, so
+                    // flattened they came out BEHIND the head and the mannequin faced its own
+                    // back. Only reached now when a rig has neither a second eye nor a pair of
+                    // arms or legs to measure across.
                     srcForward = Vector3.ProjectOnPlane(srcEye - head.Source.position, srcUp);
                     dstForward = Vector3.ProjectOnPlane(dstEye - head.Target.position, dstUp);
+                    HeadAlignNote = "head on the eye midpoint (no second eye, no shoulder or hip line)";
                 }
+                else return false;
+
                 if (srcForward.sqrMagnitude < 1e-8f || dstForward.sqrMagnitude < 1e-8f) return false;
 
                 var srcRot = Quaternion.LookRotation(srcForward.normalized, srcUp.normalized);

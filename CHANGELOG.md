@@ -2,6 +2,13 @@
 
 Versions are the mod's `Version` constant in `src/CustomAvatars/Core.cs`. This file was reconstructed from the git history on 2026-09-01.
 
+## 0.42.1 (2026-09-02)
+
+### Fixed
+- A head no longer comes out turned 180 degrees round on an avatar whose eye bones are mapped left for right. The head is aligned on the line between the two eyes, which is the only measurement that reads the head's own turn — but that line's direction came from the humanoid map's labels, and nothing else on an avatar cares which eye is which, so a face grafted in from another model can carry `LeftEye` and `RightEye` swapped for its whole life with nothing in Unity to show it. Swapped, the same measurement points out the back of the head. The sign now comes from the rig's own shoulder line (the hip line if an arm is unpaired), measured separately on each rig, so a mislabelled pair is turned back before it is used. The pairing line says which of the three measurements aligned the head and whether an eye line had to be turned back.
+- The head is also aligned now when one of the rigs has no usable pair of eye bones: it falls back to the shoulder line, which gives the same facing minus whatever the head was turned by at capture, rather than to where the eyes sit relative to the head bone — the measurement that pointed one avatar's head at its own back. Before, a rig with no eyes at all left the head unaligned entirely.
+- Exporter: the report warns when the bone mapped as `LeftEye` sits on the avatar's right, so the mapping can be fixed at the source rather than worked around.
+
 ## 0.42.0 (2026-09-02)
 
 ### Added
