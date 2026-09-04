@@ -22,6 +22,27 @@ namespace LootOverhaul.Loot
         public static void Install()
         {
             Hooks.Patch(typeof(Prop), "PickUp", null, Hooks.Of(typeof(BagPickup), nameof(Postfix)));
+            // Belt and braces for other players: their pickup reaches every client as this RPC.
+            // On the master it is enough to grant the claim from here, whatever their own hook did.
+            Hooks.Patch(typeof(Prop), "Remote_Pickup", null, Hooks.Of(typeof(BagPickup), nameof(RemotePickup_Postfix)));
+        }
+
+        private static void RemotePickup_Postfix(Prop __instance, int __0)
+        {
+            try
+            {
+                if (!ModGate.Active || !PhotonNetwork.IsMasterClient || LootRegistry.Count == 0) return;
+                if (!Interop.Alive(__instance)) return;
+                var pv = __instance.GetComponent<PhotonView>();
+                if (!Interop.Alive(pv) || !LootRegistry.TryGet(pv.ViewID, out var tag)) return;
+                if (tag.Claimed) return;
+                var avatar = AvatarPlayer.Find(__0);
+                var player = Interop.Alive(avatar) ? AvatarPlayer.Find(avatar) : null;
+                if (player == null) { ReconLog.Line($"remote pickup of loot view {pv.ViewID} by player view {__0}: actor unknown"); return; }
+                ReconLog.Line($"remote pickup -> grant: view {pv.ViewID} {tag.Item.Name} to actor {player.ActorNumber} ({avatar.name})");
+                Claims.MasterGrant(pv.ViewID, player.ActorNumber);
+            }
+            catch (Exception e) { Core.Log.Warning($"Remote pickup grant failed: {e.GetType().Name}: {e.Message}"); }
         }
 
         private static void Postfix(Prop __instance, PropRoot __0)

@@ -518,8 +518,17 @@ and recipes → scrolls that retune a bracelet → hazard contracts.
   stats gated to unlocked perks, combined with tonics in Buffs.Apply, persisted worn.
   Placeholder floor body.
 - **0.9.7 (2026-09-03):** copy pass from the user's review (SHOPKEEPER, NEED …g greyed,
-  bag tier names, plain-English states). Deployed, untested. Next: reagents and recipes;
-  cosmetic garment bodies for armor once a mesh-swap body works.
+  bag tier names, plain-English states).
+  **First two-player run 2026-09-03 17:03–18:25 (remote log unavailable):** gate ACTIVE for
+  both on identical hash; the remote's handshake arrived (code 150 ×1) but no claim (151)
+  in 80 minutes, while the remote saw the master's drop broadcasts. So the remote's pickup
+  hook never fired: the game never completed a pickup of a bare-instantiated object on the
+  non-owning client. The game's own spawn paths call `SyncInitialStateOnPhotonInstantiation`
+  and `Net_EnablePickup(true)` after instantiating. Also: the booth position was a per-user
+  preference (remote saw the old default), and the S-broadcast toast spammed the remote.
+- **0.9.8 (2026-09-03):** post-spawn sync + enable-pickup on loot, master-side grant on
+  `Prop.Remote_Pickup`, built-in booth spot with `BoothPlaced` override, no broadcast toast.
+  Deployed, untested with a remote. Next: reagents and recipes; cosmetic armor bodies.
 
 ## Verify first (one UnityExplorer/recon session, no headset-heavy iteration)
 

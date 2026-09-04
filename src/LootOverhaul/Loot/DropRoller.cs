@@ -205,6 +205,21 @@ namespace LootOverhaul.Loot
                 if (!Interop.Alive(pv)) { Core.Log.Warning($"Spawned {item.Name} has no PhotonView."); try { UnityEngine.Object.Destroy(go); } catch { } return null; }
                 try { var rb = go.GetComponent<Rigidbody>(); if (Interop.Alive(rb)) rb.velocity = velocity; } catch { }
 
+                // The game's own spawn paths follow the instantiate with a state sync that makes
+                // the remote copies grabbable; a bare PhotonNetwork.Instantiate leaves them inert
+                // for other players (two-player run 2026-09-03: the remote could never pick loot
+                // up, and no claim ever reached the master). Do what the game does.
+                try
+                {
+                    var prop = go.GetComponent<Prop>();
+                    if (Interop.Alive(prop))
+                    {
+                        try { prop.SyncInitialStateOnPhotonInstantiation(); } catch (Exception e) { ReconLog.Line($"spawn: SyncInitialState threw {e.GetType().Name}"); }
+                        try { prop.Net_EnablePickup(true); } catch (Exception e) { ReconLog.Line($"spawn: Net_EnablePickup threw {e.GetType().Name}"); }
+                    }
+                }
+                catch { }
+
                 var tag = LootRegistry.Add(pv.ViewID, item, go);
                 LootNet.SendSpawned(tag);
                 return tag;

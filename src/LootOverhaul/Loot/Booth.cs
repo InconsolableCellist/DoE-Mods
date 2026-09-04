@@ -32,6 +32,10 @@ namespace LootOverhaul.Loot
         private static int _buyMode;            // 0 weapons, 1 tonics, 2 enchant
         private static string _enchantTarget;   // bag item id being enchanted, or null for the list
 
+        /// <summary>The built-in lobby spot, chosen by the mod's author with = on 2026-09-03. Everyone gets this unless they place it themselves.</summary>
+        public static readonly Vector3 DefaultPosition = new Vector3(42.075f, -1.930f, 16.224f);
+        public const float DefaultYaw = 1.536f;
+
         public static bool IsShown => Interop.Alive(_root) && _root.activeSelf;
 
         public static void ShowIfLobby(string sceneName)
@@ -69,6 +73,7 @@ namespace LootOverhaul.Loot
                 pos.y = floorY;
                 var yaw = Quaternion.LookRotation(-fwd, Vector3.up).eulerAngles.y;
                 ModConfig.BoothX.Value = pos.x; ModConfig.BoothY.Value = pos.y; ModConfig.BoothZ.Value = pos.z; ModConfig.BoothYaw.Value = yaw;
+                ModConfig.BoothPlaced.Value = true;
                 MelonPreferences.Save();
                 BagManager.Toast($"Shopkeeper moved.");
                 if (GameManager.IsLobbyScene) ShowIfLobby(GameManager.LOBBY_SCENE);
@@ -94,9 +99,12 @@ namespace LootOverhaul.Loot
 
         private static void PlaceFromConfig()
         {
-            _root.transform.position = new Vector3(ModConfig.BoothX.Value, ModConfig.BoothY.Value, ModConfig.BoothZ.Value);
+            var placed = ModConfig.BoothPlaced.Value;
+            var pos = placed ? new Vector3(ModConfig.BoothX.Value, ModConfig.BoothY.Value, ModConfig.BoothZ.Value) : DefaultPosition;
+            var yaw = placed ? ModConfig.BoothYaw.Value : DefaultYaw;
+            _root.transform.position = pos;
             // The panels face -Z of the root; yaw is the direction the booth looks toward the visitor.
-            _root.transform.rotation = Quaternion.Euler(0f, ModConfig.BoothYaw.Value + 180f, 0f);
+            _root.transform.rotation = Quaternion.Euler(0f, yaw + 180f, 0f);
         }
 
         private static void Rebuild()

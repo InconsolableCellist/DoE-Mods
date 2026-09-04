@@ -55,6 +55,8 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<int> ShopRefreshMinutes;
         /// <summary>Booth placement in the lobby, world units. Press = in the lobby to set it where you stand.</summary>
         public static MelonPreferences_Entry<float> BoothX, BoothY, BoothZ, BoothYaw;
+        /// <summary>True once the player has placed the booth with =; until then the built-in position is used.</summary>
+        public static MelonPreferences_Entry<bool> BoothPlaced;
         /// <summary>Re-apply the booth loadout after every holster fill. Off means the booth only sells.</summary>
         public static MelonPreferences_Entry<bool> LoadoutEnabled;
 
@@ -97,11 +99,11 @@ namespace LootOverhaul
             ShopSlots = Main.CreateEntry("ShopSlots", 6);
             ShopRefreshMinutes = Main.CreateEntry("ShopRefreshMinutes", 60);
             LoadoutEnabled = Main.CreateEntry("LoadoutEnabled", true);
-            // Defaults: 2.5 m in front of where the lobby spawned the player on 2026-09-02, facing back.
-            BoothX = Main.CreateEntry("BoothX", 51.45f);
-            BoothY = Main.CreateEntry("BoothY", -1.98f);
-            BoothZ = Main.CreateEntry("BoothZ", 20.75f);
-            BoothYaw = Main.CreateEntry("BoothYaw", 105.6f, description: "Degrees. Press = in the lobby to place the booth where you stand, facing you.");
+            BoothX = Main.CreateEntry("BoothX", Loot.Booth.DefaultPosition.x);
+            BoothY = Main.CreateEntry("BoothY", Loot.Booth.DefaultPosition.y);
+            BoothZ = Main.CreateEntry("BoothZ", Loot.Booth.DefaultPosition.z);
+            BoothYaw = Main.CreateEntry("BoothYaw", Loot.Booth.DefaultYaw, description: "Degrees. Press = in the lobby to place the booth where you stand, facing you.");
+            BoothPlaced = Main.CreateEntry("BoothPlaced", false, description: "Set by =. When false the mod's built-in lobby spot is used regardless of BoothX/Y/Z/Yaw.");
 
             Dev = MelonPreferences.CreateCategory("LootOverhaul_Dev");
             VerboseLogging = Dev.CreateEntry("VerboseLogging", false);

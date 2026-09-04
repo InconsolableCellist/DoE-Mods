@@ -78,7 +78,6 @@ namespace LootOverhaul.Loot
                     var viewId = int.Parse(parts[1]);
                     var item = WeaponCodec.Decode(parts[2]);
                     var tag = LootRegistry.Add(viewId, item, null);
-                    BagManager.Toast($"Loot dropped: {item.ColoredName}");
                     Core.Log.Msg($"Loot tagged from actor {sender}: view {viewId} {item.Name} ({(tag.Object == null ? "object not here yet" : "object found")})");
                     break;
                 }

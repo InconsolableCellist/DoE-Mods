@@ -36,6 +36,17 @@ gate rule is the same: private room, every occupant on the identical version and
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
 
+## 0.9.8 — first two-player fixes
+
+- **Other players can pick loot up.** Spawned loot now gets the game's own post-spawn state
+  sync and pickup-enable, which a bare Photon instantiate skips; remote copies were inert.
+  As a second path, the master grants the claim itself when another player's pickup RPC
+  arrives for a tagged object.
+- **One shopkeeper spot for everyone.** The mod carries a built-in lobby position (the
+  author's chosen spot); `=` still moves it for you alone and sets `BoothPlaced`.
+- Other players no longer get a "loot dropped" HUD message for every drop; the floor label
+  is the announcement.
+
 ## 0.9.7 — copy pass, greyed buttons
 
 The sign reads SHOPKEEPER. Unaffordable buys show a greyed `NEED 2510g` instead of a live
