@@ -31,6 +31,7 @@ namespace LootOverhaul.Loot
                 var tier = 0;
                 try { tier = GameManager.CalculateLootTierForLocalPlayer(false); } catch { }
                 tier = Math.Max(0, Math.Min(6, tier));
+                // Stock is rolled in the lobby, where no dungeon tier applies; the player's own tier is the cap there.
                 var slots = Math.Max(1, Math.Min(12, ModConfig.ShopSlots.Value));
                 var stock = new List<LootItem>();
                 ProfileWatch.Probe = "shop restock";

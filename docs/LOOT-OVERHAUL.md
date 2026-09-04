@@ -528,7 +528,12 @@ and recipes → scrolls that retune a bracelet → hazard contracts.
   preference (remote saw the old default), and the S-broadcast toast spammed the remote.
 - **0.9.8 (2026-09-03):** post-spawn sync + enable-pickup on loot, master-side grant on
   `Prop.Remote_Pickup`, built-in booth spot with `BoothPlaced` override, no broadcast toast.
-  Deployed, untested with a remote. Next: reagents and recipes; cosmetic armor bodies.
+  Deployed, untested with a remote.
+- **0.9.9 (2026-09-03):** ARMOR tab at the shopkeeper (the user found armor in the bag with
+  nothing to do: the only WEAR button was in the bag panel), drop tier capped to the
+  dungeon's `lvl_tier` / `GameManager.DifficultyTier`, bag base 30 wt with +15/+30/+55
+  upgrades. Built; deploy pending (game running). Next: reagents and recipes; cosmetic
+  armor bodies.
 
 ## Verify first (one UnityExplorer/recon session, no headset-heavy iteration)
 

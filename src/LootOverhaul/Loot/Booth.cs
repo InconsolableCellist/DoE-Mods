@@ -29,7 +29,7 @@ namespace LootOverhaul.Loot
         private static GameObject _root;
         private static Transform _sell, _buy;
         private static int _sellPage, _tonicPage, _enchantPage;
-        private static int _buyMode;            // 0 weapons, 1 tonics, 2 enchant
+        private static int _buyMode;            // 0 weapons, 1 tonics, 2 enchant, 3 armor
         private static string _enchantTarget;   // bag item id being enchanted, or null for the list
 
         /// <summary>The built-in lobby spot, chosen by the mod's author with = on 2026-09-03. Everyone gets this unless they place it themselves.</summary>
@@ -199,6 +199,7 @@ namespace LootOverhaul.Loot
             BuyTabs(top, left);
             if (_buyMode == 1) { BuildTonics(top, left); return; }
             if (_buyMode == 2) { BuildEnchant(top, left); return; }
+            if (_buyMode == 3) { BuildArmor(top, left); return; }
             UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f,
                 $"<b>WEAPONS</b>   {stock.Count} in stock   <color=#9A9A9A>new stock in {minutesLeft} min</color>");
             UiKit.Button(_buy, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f, top - 0.05f, 0f), $"RESTOCK {Shop.RestockPrice(inv)}g", () => { if (Shop.Restock()) Rebuild(); }, BtnScale);
@@ -231,11 +232,14 @@ namespace LootOverhaul.Loot
         private static void BuyTabs(float top, float left)
         {
             var y = top - 0.15f;
-            var gap = Mathf.Max(BtnW, 0.24f) + 0.06f;
-            var x = left + Mathf.Max(BtnW, 0.24f) * 0.5f;
-            UiKit.Button(_buy, new Vector3(x, y, 0f), _buyMode == 0 ? "• WEAPONS" : "WEAPONS", () => { _buyMode = 0; BuildBuy(); }, BtnScale); x += gap;
-            UiKit.Button(_buy, new Vector3(x, y, 0f), _buyMode == 1 ? "• TONICS" : "TONICS", () => { _buyMode = 1; BuildBuy(); }, BtnScale); x += gap;
-            UiKit.Button(_buy, new Vector3(x, y, 0f), _buyMode == 2 ? "• ENCHANT" : "ENCHANT", () => { _buyMode = 2; _enchantTarget = null; BuildBuy(); }, BtnScale);
+            var tabScale = BtnScale * 0.8f;
+            var w = Mathf.Max(BtnW * 0.8f, 0.2f);
+            var gap = w + 0.09f;
+            var x = left + w * 0.5f;
+            UiKit.Button(_buy, new Vector3(x, y, 0f), _buyMode == 0 ? "• WEAPONS" : "WEAPONS", () => { _buyMode = 0; BuildBuy(); }, tabScale); x += gap;
+            UiKit.Button(_buy, new Vector3(x, y, 0f), _buyMode == 1 ? "• TONICS" : "TONICS", () => { _buyMode = 1; BuildBuy(); }, tabScale); x += gap;
+            UiKit.Button(_buy, new Vector3(x, y, 0f), _buyMode == 2 ? "• ENCHANT" : "ENCHANT", () => { _buyMode = 2; _enchantTarget = null; BuildBuy(); }, tabScale); x += gap;
+            UiKit.Button(_buy, new Vector3(x, y, 0f), _buyMode == 3 ? "• ARMOR" : "ARMOR", () => { _buyMode = 3; BuildBuy(); }, tabScale);
         }
 
         private static void BuildTonics(float top, float left)
@@ -346,6 +350,47 @@ namespace LootOverhaul.Loot
                 if (rowI > 7) break;
             }
             if (options.Count == 0) UiKit.Text(_buy, new Vector3(0f, y1 - 0.1f, 0f), 0.8f, 0.06f, 0.4f, "Nothing more can be added to this weapon.", TextAlignmentOptions.Center);
+        }
+
+        /// <summary>Armor has no vanilla screen, so the shopkeeper is where it is worn: three slots, then the pieces in the bag.</summary>
+        private static void BuildArmor(float top, float left)
+        {
+            var inv = BagManager.Inventory;
+            UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f, "<b>ARMOR</b>   what you are wearing");
+            var bx = PanelWidth * 0.5f - 0.04f - BtnW * 0.5f;
+            var y = top - 0.26f;
+            for (var slot = 0; slot < 3; slot++)
+            {
+                var worn = Armor.Worn(slot);
+                var row = new GameObject($"ArmorSlot_{slot}"); row.transform.SetParent(_buy, false);
+                row.transform.localPosition = new Vector3(0f, y - slot * 0.1f, 0f);
+                UiKit.Text(row.transform, new Vector3(left, 0.02f, 0f), 0.75f, 0.05f, 0.36f,
+                    $"<b>{Armor.SlotNames[slot]}</b>   {(worn == null ? "<color=#9A9A9A>nothing</color>" : worn.ColoredName)}");
+                if (worn != null)
+                {
+                    UiKit.Text(row.transform, new Vector3(left, -0.028f, 0f), 0.75f, 0.045f, 0.28f, $"<color=#9A9A9A>{Armor.DescribeStats(worn)}</color>");
+                    var captured = worn;
+                    UiKit.Button(row.transform, new Vector3(bx, 0f, 0f), "TAKE OFF", () => { Armor.Remove(captured); BuildBuy(); }, BtnScale);
+                }
+            }
+            var pieces = new List<LootItem>();
+            foreach (var i in inv.Items) if (i.IsArmor && i.WornSlot < 0) pieces.Add(i);
+            pieces.Sort((a, b) => a.ArmorSlot != b.ArmorSlot ? a.ArmorSlot.CompareTo(b.ArmorSlot) : b.WeaponClass.CompareTo(a.WeaponClass));
+            var y1 = y - 0.36f;
+            UiKit.Text(_buy, new Vector3(left, y1 + 0.06f, 0f), 0.8f, 0.05f, 0.32f, pieces.Count == 0 ? "<color=#9A9A9A>No armor in the bag.</color>" : "<color=#9A9A9A>in the bag:</color>");
+            var rows = 4;
+            for (var i = 0; i < rows && i < pieces.Count; i++)
+            {
+                var item = pieces[i];
+                var row = new GameObject($"ArmorPiece_{i}"); row.transform.SetParent(_buy, false);
+                row.transform.localPosition = new Vector3(0f, y1 - i * 0.1f, 0f);
+                UiKit.Text(row.transform, new Vector3(left, 0.02f, 0f), 0.75f, 0.05f, 0.34f, $"{item.ColoredName}   <size=80%><color=#9A9A9A>{Armor.SlotNames[item.ArmorSlot].ToLowerInvariant()}</color></size>");
+                UiKit.Text(row.transform, new Vector3(left, -0.028f, 0f), 0.75f, 0.045f, 0.28f, $"<color=#9A9A9A>{Armor.DescribeStats(item)}</color>");
+                var captured = item;
+                UiKit.Button(row.transform, new Vector3(bx, 0f, 0f), "WEAR", () => { Armor.Wear(captured); BuildBuy(); }, BtnScale);
+            }
+            if (pieces.Count > rows)
+                UiKit.Text(_buy, new Vector3(left, y1 - rows * 0.1f, 0f), 0.8f, 0.05f, 0.3f, $"<color=#9A9A9A>… and {pieces.Count - rows} more in the bag (open it with the stick or [ to see them all).</color>");
         }
 
         public static int SellPrice(LootItem item) => Math.Max(1, (int)Math.Round(item.Value * ModConfig.SellMultiplier.Value));

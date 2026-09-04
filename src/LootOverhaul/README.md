@@ -36,6 +36,15 @@ gate rule is the same: private room, every occupant on the identical version and
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
 
+## 0.9.9 — armor at the shopkeeper, dungeon tier cap, smaller bag
+
+- **ARMOR tab** at the shopkeeper: the three slots with what is worn and TAKE OFF, then the
+  pieces in your bag with WEAR. (The bag panel's WEAR button remains; armor has no vanilla
+  screen, so this is its home.)
+- **Tier cap.** A drop's tier is never above the tier the dungeon was entered at (the room's
+  `lvl_tier`, else the game's difficulty tier). The transcript's `loot tier` line shows both.
+- **Bag halved:** base 30 wt; upgrades +15 / +30 / +55. Your settings file was updated.
+
 ## 0.9.8 — first two-player fixes
 
 - **Other players can pick loot up.** Spawned loot now gets the game's own post-spawn state

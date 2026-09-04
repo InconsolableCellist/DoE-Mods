@@ -53,7 +53,7 @@ namespace LootOverhaul.Loot
 
         public static readonly (string name, float bonus, int price)[] BagUpgrades =
         {
-            ("Satchel", 30f, 400), ("Backpack", 60f, 1200), ("Bag of Holding", 110f, 3000),
+            ("Satchel", 15f, 400), ("Backpack", 30f, 1200), ("Bag of Holding", 55f, 3000),
         };
 
         /// <summary>Bag capacity: the setting plus whatever the player has bought.</summary>

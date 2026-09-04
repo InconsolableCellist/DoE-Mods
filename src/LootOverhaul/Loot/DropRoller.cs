@@ -136,15 +136,38 @@ namespace LootOverhaul.Loot
             return Math.Min(cls, 3);
         }
 
-        /// <summary>The game's loot tier for this player, occasionally one up. 0-based, clamped to the seven weapon tiers.</summary>
+        /// <summary>The game's loot tier for this player, occasionally one up, never above the dungeon's own tier. 0-based, clamped to the seven weapon tiers.</summary>
         private static int RollTier()
         {
             var tier = 0;
             try { tier = GameManager.CalculateLootTierForLocalPlayer(false); }
             catch (Exception e) { Core.Log.Warning($"CalculateLootTierForLocalPlayer threw {e.GetType().Name}; using tier 1."); }
-            if (!_tierLogged) { _tierLogged = true; ReconLog.Line($"loot tier for local player (game's own): {tier}"); }
             if (Rng.NextDouble() < ModConfig.TierUpChance.Value) tier++;
+            var cap = DungeonTier();
+            if (cap >= 0) tier = Math.Min(tier, cap);
+            if (!_tierLogged) { _tierLogged = true; ReconLog.Line($"loot tier for local player (game's own): {tier}, dungeon tier cap: {cap}"); }
             return Math.Max(0, Math.Min(6, tier));
+        }
+
+        /// <summary>The tier this dungeon was entered at: the room's `lvl_tier` property, else the game's difficulty tier; -1 if neither is set (lobby).</summary>
+        public static int DungeonTier()
+        {
+            try
+            {
+                var room = PhotonNetwork.CurrentRoom;
+                if (room != null && room.CustomProperties != null)
+                {
+                    var key = (Il2CppSystem.String)"lvl_tier";
+                    if (room.CustomProperties.ContainsKey(key))
+                    {
+                        var v = room.CustomProperties[key];
+                        if (v != null && int.TryParse(v.ToString(), out var t) && t >= 0) return Math.Min(6, t);
+                    }
+                }
+            }
+            catch { }
+            try { var dt = (int)GameManager.DifficultyTier; if (dt >= 0) return Math.Min(6, dt); } catch { }
+            return -1;
         }
 
         private static LootItem MakeJunk(int killerActor)

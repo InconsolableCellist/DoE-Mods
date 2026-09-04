@@ -76,7 +76,7 @@ namespace LootOverhaul
             Enabled = Main.CreateEntry("Enabled", true);
             EnemyDropsEnabled = Main.CreateEntry("EnemyDropsEnabled", true);
             BaseDropChance = Main.CreateEntry("BaseDropChance", 0.035f);
-            BagWeightCapacity = Main.CreateEntry("BagWeightCapacity", 60f);
+            BagWeightCapacity = Main.CreateEntry("BagWeightCapacity", 30f);
             BossDropChance = Main.CreateEntry("BossDropChance", 1.0f);
             LegendaryPityKills = Main.CreateEntry("LegendaryPityKills", 120);
             DropBeams = Main.CreateEntry("DropBeams", false);
