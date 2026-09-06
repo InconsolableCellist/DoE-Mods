@@ -53,7 +53,49 @@ namespace LootOverhaul.Loot
             Hooks.Patch(typeof(PlayerProfile), "GetWeaponModule", null, Hooks.Of(t, nameof(GetWeaponModule_Postfix)));
             Hooks.Patch(typeof(PlayerProfile), "GetLoadoutData", null, Hooks.Of(t, nameof(GetLoadoutData_Postfix)));
             Hooks.Patch(typeof(WeaponModule), "GetDisplayName", null, Hooks.Of(t, nameof(DisplayName_Postfix)));
+            // The pedestal fills its thumbnails through SetCustomItemType (Fabricator.UpdateItemButtons,
+            // read from the assembly 2026-09-04), not SetCustomModule; both are tagged.
             Hooks.Patch(typeof(ModuleButton), "SetCustomModule", null, Hooks.Of(t, nameof(ModuleButton_Postfix)));
+            Hooks.Patch(typeof(ModuleButton), "SetCustomItemType", null, Hooks.Of(t, nameof(ModuleButtonType_Postfix)));
+            // The trash can at the pedestal: the game removes the weapon and credits its salvage
+            // value as real coins (EV_TrashModule -> IncrementCharacterData(Coins, salvage)). For a
+            // bag weapon the removal is ours and the coins must not happen.
+            Hooks.Patch(typeof(Fabricator), "EV_TrashModule", Hooks.Of(t, nameof(Trash_Prefix)), Hooks.Of(t, nameof(Trash_Postfix)));
+            Hooks.Patch(typeof(PlayerProfile), "IncrementCharacterData", Hooks.Of(t, nameof(Increment_Prefix)), null);
+        }
+
+        private static int _trashingBagWeapon;
+        public static int CoinsBlocked;
+
+        private static void Trash_Prefix(Fabricator __instance)
+        {
+            try
+            {
+                BaseModule sel = null;
+                try { sel = __instance.selectedModule; } catch { }
+                var wm = sel == null ? null : sel.TryCast<WeaponModule>();
+                if (wm != null && ModGate.Active && FindByGuid(GuidOf(wm)) != null)
+                {
+                    _trashingBagWeapon++;
+                    ReconLog.Line($"fabricator: trashing bag weapon {Interop.OneLine(wm.GetDisplayName(false))}; salvage coins will be refused");
+                }
+            }
+            catch (Exception e) { Core.Log.Warning($"Trash prefix failed: {e.GetType().Name}: {e.Message}"); }
+        }
+
+        private static void Trash_Postfix()
+        {
+            if (_trashingBagWeapon > 0) _trashingBagWeapon--;
+        }
+
+        private static bool Increment_Prefix(PlayerData.CharacterValues __0, int __1, ref bool __result)
+        {
+            if (_trashingBagWeapon <= 0 || __0 != PlayerData.CharacterValues.Coins) return true;
+            CoinsBlocked++;
+            ReconLog.Line($"fabricator: refused IncrementCharacterData(Coins, {__1}) for a trashed bag weapon");
+            BagManager.Toast("Trashed loot pays nothing here. The kobold buys shinies.");
+            __result = true;
+            return false;
         }
 
         private static void Suspend() => _suspend++;
@@ -152,22 +194,57 @@ namespace LootOverhaul.Loot
             catch { }
         }
 
-        /// <summary>A small gold "LOOT" tag on the pedestal's thumbnail buttons for bag weapons.</summary>
-        private static void ModuleButton_Postfix(ModuleButton __instance, BaseModule __0)
+        private static void ModuleButton_Postfix(ModuleButton __instance, BaseModule __0) => TagButton(__instance, __0);
+        private static void ModuleButtonType_Postfix(ModuleButton __instance, BaseModule __1) => TagButton(__instance, __1);
+
+        private static bool _tagLogged;
+
+        /// <summary>
+        /// A small gold "LOOT" tag over the pedestal's thumbnail for a bag weapon. Placed on
+        /// the thumbnail's own icon bounds (the earlier version used the fabricate button's
+        /// width and drew off the tile, 2026-09-04) and kept at world scale under the tile.
+        /// </summary>
+        private static void TagButton(ModuleButton __instance, BaseModule module)
         {
             try
             {
                 if (!Interop.Alive(__instance)) return;
-                var wm = __0 == null ? null : __0.TryCast<WeaponModule>();
+                var wm = module == null ? null : module.TryCast<WeaponModule>();
                 var ours = wm != null && Active && FindByGuid(GuidOf(wm)) != null;
                 var t = __instance.transform.Find("LootTag");
                 if (!ours) { if (t != null) t.gameObject.SetActive(false); return; }
                 if (t != null) { t.gameObject.SetActive(true); return; }
+
+                // The tile's visual bounds: its icon renderer, else every renderer under it.
+                Bounds b; var have = false;
+                try
+                {
+                    var icon = __instance.icon;
+                    if (Interop.Alive(icon)) { b = icon.bounds; have = true; } else b = new Bounds(__instance.transform.position, Vector3.zero);
+                }
+                catch { b = new Bounds(__instance.transform.position, Vector3.zero); }
+                if (!have)
+                {
+                    foreach (var r in __instance.GetComponentsInChildren<Renderer>())
+                    {
+                        if (!Interop.Alive(r)) continue;
+                        if (!have) { b = r.bounds; have = true; } else b.Encapsulate(r.bounds);
+                    }
+                }
+                var tile = have ? b : new Bounds(__instance.transform.position, new Vector3(0.1f, 0.1f, 0.01f));
+                var h = Mathf.Clamp(tile.size.y, 0.03f, 0.3f);
+
                 var tag = new GameObject("LootTag");
                 tag.transform.SetParent(__instance.transform, false);
-                tag.transform.localPosition = new Vector3(0f, 0f, -0.01f);
-                var size = UiKit.ButtonSize.y;
-                UiKit.Text(tag.transform, new Vector3(-UiKit.ButtonSize.x * 0.5f + 0.01f, size * 0.55f, 0f), 0.3f, 0.03f, 0.18f, "<color=#F5C542><b>LOOT</b></color>");
+                // World scale one under a scaled tile, so the text size below is in metres.
+                var ls = __instance.transform.lossyScale;
+                tag.transform.localScale = new Vector3(1f / Mathf.Max(0.001f, ls.x), 1f / Mathf.Max(0.001f, ls.y), 1f / Mathf.Max(0.001f, ls.z));
+                tag.transform.rotation = __instance.transform.rotation;
+                // Top-left corner of the tile, a hair toward the viewer.
+                var right = __instance.transform.right; var up = __instance.transform.up; var fwd = __instance.transform.forward;
+                tag.transform.position = tile.center - right * (tile.extents.x - 0.004f) + up * (tile.extents.y - 0.004f) - fwd * 0.004f;
+                UiKit.Text(tag.transform, Vector3.zero, h * 1.5f, h * 0.3f, h * 2.2f, "<color=#F5C542><b>LOOT</b></color>");
+                if (!_tagLogged) { _tagLogged = true; ReconLog.Line($"pedestal tag placed on tile {tile.size.x:0.###}×{tile.size.y:0.###} m (icon {(have ? "found" : "missing")}), tile scale {ls.x:0.###}"); }
             }
             catch (Exception e) { Core.Log.Warning($"ModuleButton tag failed: {e.GetType().Name}: {e.Message}"); }
         }
@@ -222,6 +299,13 @@ namespace LootOverhaul.Loot
                 var item = FindByGuid(GuidOf(__0));
                 if (item == null) return true;
                 Blocked++;
+                if (item.Locked)
+                {
+                    BagManager.Toast($"{item.ColoredName} is locked. Unlock it at the kobold first.");
+                    ReconLog.Line($"fabricator: trash refused, bag weapon {item.Name} is locked");
+                    __result = false;
+                    return false;
+                }
                 // Trash at the fabricator means trash: the item leaves the bag.
                 BagManager.Inventory.Remove(item.Id);
                 BagManager.Inventory.Save();
@@ -235,6 +319,6 @@ namespace LootOverhaul.Loot
             catch { return true; }
         }
 
-        public static string Describe() => $"injected {Injected} into the gear list, resolved {Resolved} holster lookups, {LoadoutWrites} loadout write(s) kept local, {Blocked} armory write(s) blocked";
+        public static string Describe() => $"injected {Injected} into the gear list, resolved {Resolved} holster lookups, {LoadoutWrites} loadout write(s) kept local, {Blocked} armory write(s) blocked, {CoinsBlocked} salvage coin write(s) refused";
     }
 }

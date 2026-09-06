@@ -535,6 +535,76 @@ and recipes → scrolls that retune a bracelet → hazard contracts.
   upgrades. Built; deploy pending (game running). Next: reagents and recipes; cosmetic
   armor bodies.
 
+- **0.9.10 (2026-09-04):** the two-player pickup bug, found in the assembly: the hand's
+  grab loop (`VRControllerProps.OnHold`) skips any prop that is neither a scene/room view
+  (`PhotonView.CreatorActorNr == 0`) nor `IsMine`. `LootSpawner.SpawnLoot` uses
+  `PhotonNetwork.InstantiateRoomObject` with `Prop.GetInstantiationData(room, pooled)`; the
+  mod now does the same (junk: room found by `SceneOcclusion.FindRoom(pos)`), and non-master
+  drops go through a new `R` opcode so the master spawns them. Floor loot is destroyed on
+  `GameManager.PreSceneLoadCallback` (pooled bodies are DontDestroyOnLoad and cached room
+  objects replay to joiners upright in the air); late-join re-sends carry the resting pose.
+  The pedestal trash can credited salvage coins for a bag weapon (`EV_TrashModule` →
+  `PlayerProfile.IncrementCharacterData(Coins, salvage)`): refused while a bag weapon is
+  trashed. Thumbnails: the pedestal calls `ModuleButton.SetCustomItemType`, not
+  `SetCustomModule`. Kobold traveler + tokens copy, stats rows without weight, spin +
+  throw audio + coin chime, `Prop.Outline` glow, bag auto-close, rates 1.5% / 18%, bag 30
+  (the user's cfg still said 60). Deployed, untested with a remote.
+- **0.9.11 (2026-09-05):** item locks, party-scaled drop chances, Remote_Pickup grant path
+  removed (bag-full leak), Rocks_01 retired, Wolf_Treat tinted by tier, FXOutline visibility
+  forced to Normal on loot, beams narrower and rarity-gated. Untested.
+
+## The basement vendors and where the kobold overlaps them (2026-09-04)
+
+What the game has under the lobby (world y ≈ −7): the **goblin** (`Vendor_Goblin` +
+`WeaponVendor : Fabricator`, at about (97,−7,15)) and the **merchant** (`Vendor_Merchant` +
+`CosmeticsVendor`, at about (106,−7,29)).
+
+- **The goblin sells generated weapons.** Per-tier `TierGen` rarity ranges and cost
+  multipliers, stock seeded from PlayFab server time and rotated every `refreshMinutes`
+  (the same seed for everyone, so friends see the same shelf), a chance of a seasonal item at
+  a multiplier, and a comparison panel against the weapon in your hand (`vsBetter/Same/Worse`,
+  `compareStats`, `compareSalvage`). Bought for the game's coins into the armory.
+- **The merchant sells cosmetics** (the `CosmeticsVendor` hologram, `EV_Salvage` on the
+  customizer salvages cosmetics for coins). No weapons.
+- **Nobody buys weapons.** There is no vendor sell path. "Selling" a weapon in vanilla is the
+  fabricator's trash can: `EV_TrashModule` removes it from the armory (or the uncrafted
+  list) and credits `salvageValue` as coins. That is the path a bag weapon was leaking
+  through until 0.9.10.
+
+Overlap with the kobold, tab by tab:
+
+| Kobold tab | Vanilla equivalent | Verdict |
+|---|---|---|
+| WEAPONS (six generated weapons at your loot tier, hourly refresh, paid restock) | The goblin, with a better seed (shared, server-timed), a comparison UI and seasonal items | **Redundant.** Same generator, same tiers; ours is a worse copy priced in a currency nobody has much of. |
+| SELL (bag items for tokens at salvage value) | Trash can (salvage for coins) | Distinct by design: tokens are the point. Keep. |
+| TONICS (one-run exosuit multipliers) | Nothing: consumables are potions/bombs, perks are permanent exosuit unlocks | Distinct. Keep. |
+| ENCHANT (a perk or element onto a dropped weapon, tokens + reagent) | Nothing: perks are rolled at generation, never added | Distinct. Keep; this is the best reason to bring a drop home. |
+| ARMOR (worn stat bundles) | Nothing (armor tiers exist on enemies only) | Distinct. Keep. |
+| Bag upgrades | Nothing | Distinct. Keep. |
+
+Recommendation: **keep weapon drops, retire the WEAPONS tab.** Drops are the mod (enemies
+never drop weapons in vanilla; chests give blueprints for coins); the shop tab merely
+re-sells what the goblin already sells. In its place, things the game cannot do and the
+generator makes cheap:
+
+1. **REFORGE** — reroll a dropped weapon's seed for tokens plus a curio, keeping type, tier
+   and rarity (a new name, new perks, new look). One generator call; the enchanting page's
+   layout fits it.
+2. **GAMBLE** — Diablo's gambler: pay tokens for an unidentified drop at your tier, rarity
+   weighted a little above the floor, revealed in the bag. The one place a Legendary can be
+   bought, at a price that makes the pity counter the cheaper route.
+3. **TEMPER** — raise a weapon one tier for tokens plus an artifact, capped at the dungeon
+   tier you last cleared (lock-step: never above what the game would hand you).
+4. **BOUNTIES** — the kobold posts a per-run task (kill N of a family, clear a floor
+   without dying) paying tokens; costs nothing in game internals beyond the kill hook we
+   already have.
+
+Integrating with the goblin instead (injecting bag weapons into the goblin's shelf, or
+selling to him) buys little: his shelf is PlayFab-seeded and shared, so any injection is
+per-client and desyncs what friends see; a sell path would have to write coins, which the
+economy wall forbids. The fabricator injection (0.5) already gives bag weapons the one
+vanilla screen that matters, the equip pedestal.
+
 ## Verify first (one UnityExplorer/recon session, no headset-heavy iteration)
 
 The LootOverhaul 0.1 recon build covers this list with read-only hooks and hotkey probes; see

@@ -28,7 +28,7 @@ namespace LootOverhaul.Loot
                 {
                     _account = account;
                     _inv = LootInventory.Load(ModPaths.InventoryFile(account));
-                    Core.Log.Msg($"Bag loaded for `{account}`: {_inv.Items.Count} item(s), {_inv.TotalWeight:0.#} wt, {_inv.Gold} gold.");
+                    Core.Log.Msg($"Bag loaded for `{account}`: {_inv.Items.Count} item(s), {_inv.TotalWeight:0.#} wt, {_inv.Gold} tokens.");
                     try { Buffs.RebuildWorn(); } catch { }
                 }
                 return _inv;
@@ -68,19 +68,19 @@ namespace LootOverhaul.Loot
 
         public static bool CanCarry(LootItem item) => Inventory.CanCarry(item.Weight, Capacity);
 
-        /// <summary>Buy the next bag upgrade with mod gold.</summary>
+        /// <summary>Buy the next bag upgrade with tokens.</summary>
         public static bool BuyBagUpgrade()
         {
             var inv = Inventory;
             if (inv.BagLevel >= BagUpgrades.Length) { Toast("You already carry the biggest bag there is."); return false; }
             var next = BagUpgrades[inv.BagLevel];
             var price = (int)Math.Round(next.price * ModConfig.ShopPriceMultiplier.Value);
-            if (inv.Gold < price) { Toast($"The {next.name} costs {price} gold; you have {inv.Gold}."); return false; }
+            if (inv.Gold < price) { Toast($"The {next.name} costs {price} tokens; you have {inv.Gold}."); return false; }
             inv.Gold -= price;
             inv.BagLevel++;
             inv.Save();
             Toast($"Bought a {next.name}: bag capacity is now {Capacity:0} wt.");
-            ReconLog.Line($"bag upgrade {inv.BagLevel} ({next.name}) for {price} -> gold {inv.Gold}");
+            ReconLog.Line($"bag upgrade {inv.BagLevel} ({next.name}) for {price} -> tokens {inv.Gold}");
             BagPanel.Refresh(); Booth.Refresh();
             return true;
         }
@@ -91,7 +91,7 @@ namespace LootOverhaul.Loot
             item.FoundAt = DateTime.UtcNow;
             inv.Items.Add(item);
             inv.Save();
-            Toast($"Bagged {item.ColoredName}  ({item.Weight:0.#} wt, {item.Value} value)  bag {inv.TotalWeight:0.#}/{Capacity:0}");
+            Toast($"Bagged {item.ColoredName}  ({item.Value} T)  bag {inv.TotalWeight:0.#}/{Capacity:0}");
             BagPanel.Refresh();
             ReconLog.Line($"bag + {item.Name} [{LootTables.ClassName(item.WeaponClass)} {LootTables.TypeName(item.PropType)} t{item.WeaponTier + 1} seed {item.RandomSeed}] value={item.Value} weight={item.Weight:0.#} -> {inv.Items.Count} items, {inv.TotalWeight:0.#} wt");
         }
@@ -109,7 +109,8 @@ namespace LootOverhaul.Loot
         {
             var inv = Inventory;
             if (item == null || inv.Find(item.Id) == null) { Toast("That's gone."); return; }
-            if (inv.Find(item.Id).EquippedSlot >= 0) { Toast("Unequip it at the booth first."); return; }
+            if (inv.Find(item.Id).EquippedSlot >= 0) { Toast("Unequip it at the pedestal first."); return; }
+            if (inv.Find(item.Id).Locked) { Toast("Locked. Unlock it at the kobold first."); return; }
             if (!Gate.ModGate.Active) { Toast("Not in a modded room."); return; }
             try
             {
@@ -118,8 +119,14 @@ namespace LootOverhaul.Loot
                 var head = local.Head;
                 var fwd = head.forward; fwd.y = 0f; fwd.Normalize();
                 var pos = head.position + fwd * 0.5f + Vector3.down * 0.3f;
-                var tag = DropRoller.SpawnLoot(item, pos, Vector3.up * 1.0f + fwd * 1.2f);
-                if (tag == null) { Toast("Drop failed — see log."); return; }
+                var vel = Vector3.up * 1.0f + fwd * 1.2f;
+                // Floor loot is a room object, which only the master can create; everyone else asks.
+                if (PhotonNetwork.IsMasterClient)
+                {
+                    var tag = DropRoller.SpawnLoot(item, pos, vel);
+                    if (tag == null) { Toast("Drop failed — see log."); return; }
+                }
+                else if (!LootNet.SendDropRequest(item, pos, vel)) { Toast("Drop failed — no host to ask."); return; }
                 inv.Remove(item.Id);
                 inv.Save();
                 Toast($"Dropped {item.ColoredName}");
@@ -133,7 +140,7 @@ namespace LootOverhaul.Loot
         {
             var inv = Inventory;
             var sb = new StringBuilder();
-            sb.Append($"Bag: {inv.Items.Count} item(s), {inv.TotalWeight:0.#}/{Capacity:0} wt, {inv.Gold} gold, {inv.KillsSinceLegendary} kills since legendary");
+            sb.Append($"Bag: {inv.Items.Count} item(s), {inv.TotalWeight:0.#}/{Capacity:0} wt, {inv.Gold} tokens, {inv.KillsSinceLegendary} kills since legendary");
             Toast(sb.ToString());
             DumpToTranscript();
         }

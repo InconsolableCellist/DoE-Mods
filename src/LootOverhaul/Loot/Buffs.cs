@@ -130,7 +130,7 @@ namespace LootOverhaul.Loot
                 Value = d.Prices[tier],
                 Weight = d.Weight,
                 PropType = -1,
-                FoundBy = "Loot Broker",
+                FoundBy = "Kobold Traveler",
             };
         }
 

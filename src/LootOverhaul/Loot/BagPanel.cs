@@ -59,6 +59,24 @@ namespace LootOverhaul.Loot
             if (Interop.Alive(_root)) _root.SetActive(false);
         }
 
+        /// <summary>Walk away from the open bag and it closes (BagAutoCloseMeters).</summary>
+        public static void Tick()
+        {
+            if (!IsOpen) return;
+            var limit = ModConfig.BagAutoCloseMeters.Value;
+            if (limit <= 0f) return;
+            try
+            {
+                var local = AvatarPlayer.LocalAvatar;
+                if (!Interop.Alive(local)) return;
+                var head = local.Head.position;
+                var panel = _root.transform.position;
+                var d = head - panel; d.y = 0f;
+                if (d.sqrMagnitude > limit * limit) Hide();
+            }
+            catch { }
+        }
+
         /// <summary>Called by the bag whenever its contents change, so an open panel stays true.</summary>
         public static void Refresh()
         {
@@ -119,7 +137,7 @@ namespace LootOverhaul.Loot
             var top = height * 0.5f;
             var left = -Width * 0.5f + 0.04f;
             UiKit.Text(_content, new Vector3(left, top - 0.05f, 0f), Width - 0.08f, 0.06f, 0.5f,
-                $"<b>BAG</b>   {inv.Items.Count} item(s)   {inv.TotalWeight:0.#} / {BagManager.Capacity:0} wt   <color=#F5C542>{inv.Gold} gold</color>");
+                $"<b>BAG</b>   {inv.Items.Count} item(s)   {inv.TotalWeight:0.#} / {BagManager.Capacity:0} wt   <color=#F5C542>{inv.Gold} tokens</color>");
             var status = "";
             if (Buffs.AnyWorn) status += $"<color=#C9A86A>wearing:</color> {Armor.DescribeWorn()}   ";
             if (Buffs.AnyActive) status += $"<color=#7FD8FF>this run:</color> {Buffs.DescribeActive()}";
@@ -157,7 +175,7 @@ namespace LootOverhaul.Loot
                 {
                     string stats = "";
                     try { stats = Interop.OneLine(WeaponCodec.ToModule(item).GetStatsText()); } catch { }
-                    second = $"<color=#9A9A9A>{LootTables.TypeName(item.PropType)}  tier {item.WeaponTier + 1}   wt {item.Weight:0.#}   value {item.Value}</color>   {stats}";
+                    second = $"<color=#9A9A9A>{LootTables.TypeName(item.PropType)} t{item.WeaponTier + 1}</color>  {stats}";
                 }
                 else if (item.IsBuff)
                 {
@@ -167,11 +185,12 @@ namespace LootOverhaul.Loot
                 else if (item.IsArmor)
                     second = $"<color=#9A9A9A>{Armor.SlotNames[item.ArmorSlot].ToLowerInvariant()} armor · {Armor.DescribeStats(item)}</color>";
                 else
-                    second = $"<color=#9A9A9A>{LootTables.JunkTierName(item.WeaponClass)}   wt {item.Weight:0.#}   value {item.Value}</color>";
+                    second = $"<color=#9A9A9A>{LootTables.JunkTierName(item.WeaponClass)}</color>   <color=#F5C542>{item.Value} tokens</color>";
                 var rowTextW = item.IsBuff || item.IsArmor ? twoBtnTextW : textW;
                 var worn = item.IsArmor && item.WornSlot >= 0 ? "   <color=#C9A86A>worn</color>" : "";
+                if (item.Locked) worn += "   <color=#9A9A9A>locked</color>";
                 UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), rowTextW, 0.05f, 0.38f, $"{item.ColoredName}{equipped}{worn}");
-                UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), rowTextW, 0.045f, 0.3f, second);
+                UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), rowTextW, 0.045f, item.IsWeapon ? 0.27f : 0.3f, second);
 
                 var captured = item;
                 if (item.IsBuff)

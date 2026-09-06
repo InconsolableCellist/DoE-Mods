@@ -11,7 +11,7 @@ namespace LootOverhaul.Loot
     /// The enchanting table, on the game's own "manual" weapon module: a module that carries
     /// chosen perks, an element and a damage figure explicitly (the mythic path uses it; the
     /// game networks it as 11 values). Enchanting a bag weapon writes a new manual record
-    /// with one more perk or an element, for gold and a reagent (a curio or artifact from
+    /// with one more perk or an element, for tokens and a reagent (a curio or artifact from
     /// the junk pile). Slots by rarity: Common 1, Unique 2, Rare 2, Legendary 3.
     ///
     /// The one unknown is how the game names a manual module. <see cref="SelfTest"/> builds
@@ -50,7 +50,7 @@ namespace LootOverhaul.Loot
 
         public static int Slots(int weaponClass) => weaponClass switch { 0 => 1, 1 => 2, 2 => 2, _ => 3 };
 
-        /// <summary>Gold cost of one enchantment by rarity, before the shop multiplier.</summary>
+        /// <summary>Token cost of one enchantment by rarity, before the shop multiplier.</summary>
         public static int Price(LootItem item) => (int)Math.Round((item.WeaponClass switch { 0 => 150, 1 => 300, 2 => 600, _ => 1200 }) * ModConfig.ShopPriceMultiplier.Value);
 
         /// <summary>Reagent tier needed: a curio for Common/Unique, an artifact for Rare/Legendary.</summary>
@@ -98,7 +98,7 @@ namespace LootOverhaul.Loot
             if (live == null || !live.IsWeapon) { BagManager.Toast("That's gone."); return null; }
             if (live.EquippedSlot >= 0) { BagManager.Toast("Unequip it at the pedestal first."); return null; }
             var price = Price(live);
-            if (inv.Gold < price) { BagManager.Toast($"Enchanting costs {price} gold; you have {inv.Gold}."); return null; }
+            if (inv.Gold < price) { BagManager.Toast($"Enchanting costs {price} tokens; you have {inv.Gold}."); return null; }
             var reagent = FindReagent(inv, ReagentTier(live));
             if (reagent == null) { BagManager.Toast($"Needs a {LootTables.JunkTierName(ReagentTier(live))} from your junk as a reagent."); return null; }
 
@@ -134,7 +134,7 @@ namespace LootOverhaul.Loot
             inv.Items.Add(enchanted);
             inv.Save();
             var what = perkId > 0 ? PerkName(perkId) : Elements[element];
-            BagManager.Toast($"Enchanted: {enchanted.ColoredName} gains <b>{what}</b>  (−{price} gold, −{reagent.Name})");
+            BagManager.Toast($"Enchanted: {enchanted.ColoredName} gains <b>{what}</b>  (−{price} tokens, −{reagent.Name})");
             ReconLog.Line($"enchant: {live.Name} + {what} -> {enchanted.Name} [{enchanted.ModuleName}] perks {enchanted.PerkA}/{enchanted.PerkB}/{enchanted.PerkC} element {enchanted.DamageType}; paid {price} + {reagent.Name}");
             BagPanel.Refresh(); Booth.Refresh();
             return enchanted;

@@ -66,7 +66,7 @@ namespace LootOverhaul.Loot
         // that sinks into the floor and cannot be grabbed) and Xmas_Ornament (a BreakableProp,
         // not grabbable). The roller still retires a prefab that refuses, and the `-` probe
         // tests candidates one by one. The namer picks the words; these rows pick body, tier,
-        // value range and weight.
+        // value range and weight. Rocks_01 retired 2026-09-05: it spawned with nothing visible.
         public static readonly Junk[] JunkTable =
         {
             // trinkets (grey)
@@ -75,7 +75,6 @@ namespace LootOverhaul.Loot
             new Junk("Clay Mug",            "Mug_01",               0, 3,   12,  0.5f),
             new Junk("Cracked Tankard",     "Mug_02",               0, 3,   12,  0.5f),
             new Junk("Tarnished Chalice",   "Chalice",              0, 8,   25,  0.6f),
-            new Junk("Odd Rock",            "Rocks_01",             0, 1,   5,   1.0f),
             new Junk("Bent Spoon",          "Tools/Spoon_02",       0, 2,   9,   0.1f),
             // curios (white)
             new Junk("Weighted Dice",       "Dice",                 1, 25,  70,  0.2f),

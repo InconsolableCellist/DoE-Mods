@@ -52,8 +52,12 @@ namespace LootOverhaul.Loot
 
                 // Undead=0, Critter=1, Sorcerer=2, Monster=3. Critters carry nothing; bosses always may.
                 var canCarryWeapon = boss || family != 1;
+                // More players, more loot to share: both chances scale with the room.
+                var players = 1;
+                try { players = Math.Max(1, (int)PhotonNetwork.CurrentRoom.PlayerCount); } catch { }
+                var partyScale = 1f + Math.Max(0f, ModConfig.DropChancePerExtraPlayer.Value) * (players - 1);
                 var chance = boss ? ModConfig.BossDropChance.Value
-                                  : ModConfig.BaseDropChance.Value * LootTables.EnemyMultiplier(aiType);
+                                  : Math.Min(1f, ModConfig.BaseDropChance.Value * LootTables.EnemyMultiplier(aiType) * partyScale);
                 var roll = Rng.NextDouble();
                 var pity = ModConfig.LegendaryPityKills.Value > 0 && inv.KillsSinceLegendary >= ModConfig.LegendaryPityKills.Value;
 
@@ -95,13 +99,13 @@ namespace LootOverhaul.Loot
                     var tag = SpawnLoot(item, pos, kick);
                     if (tag == null) return;
                     Dropped++;
-                    ReconLog.Line($"DROP #{Dropped}: {item.Name} [{LootTables.ClassName(cls)} t{tier + 1}] from `{__instance.name}` family={family} type={aiType} boss={boss} chance={chance:0.###} roll={roll:0.###} pity={pity} view={tag.ViewId}");
+                    ReconLog.Line($"DROP #{Dropped}: {item.Name} [{LootTables.ClassName(cls)} t{tier + 1}] from `{__instance.name}` family={family} type={aiType} boss={boss} chance={chance:0.###} (players {players}) roll={roll:0.###} pity={pity} view={tag.ViewId}");
                     return;
                 }
                 inv.Save();
 
                 // No weapon: maybe a trinket. Critters included — a scorpion can sit on a bone.
-                var junkChance = ModConfig.JunkDropChance.Value * (family == 1 ? 0.5f : 1f) * (boss ? 3f : 1f);
+                var junkChance = Math.Min(1f, ModConfig.JunkDropChance.Value * (family == 1 ? 0.5f : 1f) * (boss ? 3f : 1f) * partyScale);
                 if (Rng.NextDouble() < junkChance)
                 {
                     // A prefab that refuses is retired inside SpawnLoot; try up to three bodies so the drop is not lost.
@@ -198,24 +202,38 @@ namespace LootOverhaul.Loot
         }
 
         /// <summary>
-        /// Spawn an item as a tagged, networked object on the floor. Weapons go through the
-        /// generator's prefab + data; junk rides on a plain vanilla prop. The spawner owns
-        /// the object; the master destroys it on claim.
+        /// Spawn an item as a tagged, networked **room object** on the floor, the way the
+        /// game's own <c>LootSpawner</c> does it. Weapons go through the generator's prefab +
+        /// data; junk rides on a plain vanilla prop with the game's room data.
+        ///
+        /// Room objects because of the hand's grab rule (VRControllerProps.OnHold, read from
+        /// the assembly 2026-09-04): a prop is only grabbable when it is a scene/room view or
+        /// this client owns it. A plain <c>PhotonNetwork.Instantiate</c> made every drop the
+        /// master's personal property, and two two-player runs saw the remote grab nothing.
+        /// Only the master may create room objects, so a non-master drop asks the master.
         /// </summary>
         public static LootTag SpawnLoot(LootItem item, Vector3 pos, Vector3 velocity)
         {
             try
             {
+                if (!PhotonNetwork.IsMasterClient) { Core.Log.Warning($"SpawnLoot({item.Name}) called on a non-master; room objects need the master."); return null; }
                 GameObject go;
                 if (item.IsWeapon)
                 {
                     var wm = WeaponCodec.ToModule(item);
                     var prefab = WeaponModule.GetWeaponPrefabData(wm, out var data);
-                    go = PhotonNetwork.Instantiate(prefab, pos, Quaternion.identity, 0, data);
+                    go = PhotonNetwork.InstantiateRoomObject(prefab, pos, Quaternion.identity, 0, data);
                 }
                 else
                 {
-                    go = PhotonNetwork.Instantiate(item.PrefabName, pos, Quaternion.identity, 0, null);
+                    Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<Il2CppSystem.Object> data = null;
+                    try
+                    {
+                        var room = SceneOcclusion.FindRoom(pos, false);
+                        if (Interop.Alive(room)) data = Prop.GetInstantiationData(room, false);
+                    }
+                    catch (Exception e) { ReconLog.Line($"spawn: room lookup threw {e.GetType().Name}; junk spawns without room data"); }
+                    go = PhotonNetwork.InstantiateRoomObject(item.PrefabName, pos, Quaternion.identity, 0, data);
                     if (!Interop.Alive(go))
                     {
                         BadPrefabs.Add(item.PrefabName);
@@ -226,22 +244,21 @@ namespace LootOverhaul.Loot
                 if (!Interop.Alive(go)) { Core.Log.Warning($"Instantiate returned null for {item.Name}."); return null; }
                 var pv = go.GetComponent<PhotonView>();
                 if (!Interop.Alive(pv)) { Core.Log.Warning($"Spawned {item.Name} has no PhotonView."); try { UnityEngine.Object.Destroy(go); } catch { } return null; }
-                try { var rb = go.GetComponent<Rigidbody>(); if (Interop.Alive(rb)) rb.velocity = velocity; } catch { }
 
-                // The game's own spawn paths follow the instantiate with a state sync that makes
-                // the remote copies grabbable; a bare PhotonNetwork.Instantiate leaves them inert
-                // for other players (two-player run 2026-09-03: the remote could never pick loot
-                // up, and no claim ever reached the master). Do what the game does.
+                // A kick and a tumble, then the game's own throw/spin audio (networked by the game).
+                var angular = Vector3.zero;
                 try
                 {
-                    var prop = go.GetComponent<Prop>();
-                    if (Interop.Alive(prop))
+                    var rb = go.GetComponent<Rigidbody>();
+                    if (Interop.Alive(rb))
                     {
-                        try { prop.SyncInitialStateOnPhotonInstantiation(); } catch (Exception e) { ReconLog.Line($"spawn: SyncInitialState threw {e.GetType().Name}"); }
-                        try { prop.Net_EnablePickup(true); } catch (Exception e) { ReconLog.Line($"spawn: Net_EnablePickup threw {e.GetType().Name}"); }
+                        rb.velocity = velocity;
+                        angular = UnityEngine.Random.onUnitSphere * (6f + (float)Rng.NextDouble() * 8f);
+                        rb.angularVelocity = angular;
                     }
                 }
                 catch { }
+                DropSound.OnSpawned(go, velocity, angular);
 
                 var tag = LootRegistry.Add(pv.ViewID, item, go);
                 LootNet.SendSpawned(tag);

@@ -80,5 +80,7 @@ namespace LootOverhaul.Loot
         public string Source = "loot";
         /// <summary>-1 when not equipped; otherwise the loadout slot (0 left hip, 1 right hip, 2 back).</summary>
         public int EquippedSlot = -1;
+        /// <summary>Locked at the kobold: cannot be sold, dropped or trashed until unlocked.</summary>
+        public bool Locked;
     }
 }

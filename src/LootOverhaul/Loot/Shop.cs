@@ -50,7 +50,7 @@ namespace LootOverhaul.Loot
                             (WeaponFactory.WeaponTier)t, (WeaponFactory.WeaponStyle)style, -1, WeaponFactory.SeasonalKey.None);
                         if (wm == null) continue;
                         var item = WeaponCodec.FromModule(wm);
-                        item.FoundBy = "Loot Broker";
+                        item.FoundBy = "Kobold Traveler";
                         item.Value = Price(wm, item);
                         stock.Add(item);
                     }
@@ -101,7 +101,7 @@ namespace LootOverhaul.Loot
             var idx = inv.ShopStock.FindIndex(i => i.Id == stockItem.Id);
             if (idx < 0) { BagManager.Toast("That's gone."); return false; }
             var price = stockItem.Value;
-            if (inv.Gold < price) { BagManager.Toast($"Not enough gold: {price} needed, you have {inv.Gold}."); return false; }
+            if (inv.Gold < price) { BagManager.Toast($"Not enough tokens: {price} needed, you have {inv.Gold}."); return false; }
             if (!inv.CanCarry(stockItem.Weight, BagManager.Capacity)) { BagManager.Toast("Your bag is too full to carry it."); return false; }
 
             inv.ShopStock.RemoveAt(idx);
@@ -120,8 +120,8 @@ namespace LootOverhaul.Loot
             inv.Items.Add(bought);
             inv.Save();
             Bought++;
-            BagManager.Toast($"Bought {bought.ColoredName} for <color=#F5C542>{price} gold</color>  (now {inv.Gold})");
-            ReconLog.Line($"shop: bought {bought.Name} for {price} -> gold {inv.Gold}");
+            BagManager.Toast($"Bought {bought.ColoredName} for <color=#F5C542>{price} tokens</color>  (now {inv.Gold})");
+            ReconLog.Line($"shop: bought {bought.Name} for {price} -> tokens {inv.Gold}");
             BagPanel.Refresh();
             return true;
         }
@@ -133,15 +133,15 @@ namespace LootOverhaul.Loot
             if (!Unlocks.PerkUnlocked(def.Stat)) { BagManager.Toast("You haven't unlocked that perk yet."); return false; }
             var item = Buffs.MakeItem(def, tier);
             var price = (int)Math.Round(item.Value * ModConfig.ShopPriceMultiplier.Value);
-            if (inv.Gold < price) { BagManager.Toast($"Not enough gold: {price} needed, you have {inv.Gold}."); return false; }
+            if (inv.Gold < price) { BagManager.Toast($"Not enough tokens: {price} needed, you have {inv.Gold}."); return false; }
             if (!inv.CanCarry(item.Weight, BagManager.Capacity)) { BagManager.Toast("Your bag is too full."); return false; }
             inv.Gold -= price;
             item.Value = Math.Max(1, price / 4);   // resale
             inv.Items.Add(item);
             inv.Save();
             Bought++;
-            BagManager.Toast($"Bought {item.ColoredName} for <color=#F5C542>{price} gold</color>  (now {inv.Gold})");
-            ReconLog.Line($"shop: bought tonic {item.Name} for {price} -> gold {inv.Gold}");
+            BagManager.Toast($"Bought {item.ColoredName} for <color=#F5C542>{price} tokens</color>  (now {inv.Gold})");
+            ReconLog.Line($"shop: bought tonic {item.Name} for {price} -> tokens {inv.Gold}");
             BagPanel.Refresh();
             return true;
         }
@@ -152,11 +152,11 @@ namespace LootOverhaul.Loot
         {
             var inv = BagManager.Inventory;
             var price = RestockPrice(inv);
-            if (inv.Gold < price) { BagManager.Toast($"Restock costs {price} gold; you have {inv.Gold}."); return false; }
+            if (inv.Gold < price) { BagManager.Toast($"Restock costs {price} tokens; you have {inv.Gold}."); return false; }
             inv.Gold -= price;
             inv.Save();
             EnsureStock(force: true);
-            BagManager.Toast($"Restocked for <color=#F5C542>{price} gold</color>");
+            BagManager.Toast($"Restocked for <color=#F5C542>{price} tokens</color>");
             return true;
         }
     }

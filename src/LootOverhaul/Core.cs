@@ -6,7 +6,7 @@ using LootOverhaul.Loot;
 using LootOverhaul.Net;
 using LootOverhaul.Recon;
 
-[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.9.9", "dan")]
+[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.9.11", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace LootOverhaul
@@ -24,7 +24,7 @@ namespace LootOverhaul
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.9.9";
+        public const string Version = "0.9.11";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -40,7 +40,7 @@ namespace LootOverhaul
             try { MelonPreferences.Save(); }
             catch (Exception e) { LoggerInstance.Warning($"Could not write MelonPreferences.cfg: {e.Message}"); }
 
-            LoggerInstance.Msg($"LootOverhaul {Version} — drops, junk, bag, broker (sell + shop), loot in the fabricator. Recon hooks {(ModConfig.ReconEnabled.Value ? "on" : "off")}.");
+            LoggerInstance.Msg($"LootOverhaul {Version} — drops, junk, bag, the kobold traveler (sell + shop), loot in the fabricator. Recon hooks {(ModConfig.ReconEnabled.Value ? "on" : "off")}.");
             LoggerInstance.Msg($"Data folder: {ModPaths.Root}; recon transcripts in {ModPaths.ReconDir}");
 
             SelfCheck.LogSelfHash(LoggerInstance);
@@ -55,6 +55,7 @@ namespace LootOverhaul
             ModGate.ActiveChanged += OnGateChanged;
 
             Hooks.Init(HarmonyInstance);
+            SceneExit.Install();
             LootNet.Init(_roster);
             DropRoller.Install();
             BagPickup.Install();
@@ -85,7 +86,9 @@ namespace LootOverhaul
             BagPickup.Tick();
             Claims.Tick();
             BagGesture.Tick();
+            BagPanel.Tick();
             Buffs.Tick();
+            SceneExit.Tick();
             if (_templateCaptureAt > 0f && UnityEngine.Time.unscaledTime >= _templateCaptureAt)
             {
                 _templateCaptureAt = -1f;
@@ -112,7 +115,9 @@ namespace LootOverhaul
 
         public override void OnSceneWasInitialized(int buildIndex, string sceneName)
         {
-            LootRegistry.Clear($"scene changed to {sceneName}");
+            // The pooled loot bodies outlive the scene; whatever the pre-load hook did not
+            // catch is destroyed here, while the room is still the same one.
+            LootRegistry.Clear($"scene changed to {sceneName}", destroyOwned: true);
             Unlocks.Invalidate();
             if (sceneName == Il2Cpp.GameManager.LOBBY_SCENE || sceneName == Il2Cpp.GameManager.MAINMENU_SCENE) Buffs.ClearAll($"entered {sceneName}");
             BagPanel.Hide();
@@ -129,8 +134,8 @@ namespace LootOverhaul
 
         public override void OnApplicationQuit()
         {
+            LootRegistry.Clear("application quitting", destroyOwned: true);
             ModGate.ForceInert("application quitting");
-            LootRegistry.Clear("application quitting");
             if (ModConfig.ReconEnabled.Value)
             {
                 ReconLog.Section("Loot loop counters");
@@ -152,7 +157,7 @@ namespace LootOverhaul
             // The drop roll and the pickup prefix each check ModGate.Active on every call, so
             // there is nothing to arm. Disarming means forgetting the floor loot: in a room
             // that just went vanilla, those weapons are ordinary weapons now.
-            if (!active) { LootRegistry.Clear("gate closed"); Booth.Hide(); }
+            if (!active) { LootRegistry.Clear("gate closed", destroyOwned: true); Booth.Hide(); }
             else if (Il2Cpp.GameManager.IsLobbyScene) _templateCaptureAt = UnityEngine.Time.unscaledTime + 1f;
         }
     }

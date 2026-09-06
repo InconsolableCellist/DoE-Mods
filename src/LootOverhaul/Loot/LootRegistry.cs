@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Il2Cpp;
+using Il2CppPhoton.Pun;
+using Il2CppOthergate.Audio;
 using LootOverhaul.Recon;
 using Interop = LootOverhaul.Recon.Interop;
 using UnityEngine;
@@ -18,13 +20,22 @@ namespace LootOverhaul.Loot
         public GameObject Sparkle;
         public bool ClaimPending;
         public bool Claimed;
+        /// <summary>Actor the master granted the item to, or -1.</summary>
+        public int ClaimedBy = -1;
+        /// <summary>A resting pose sent by the master to a late joiner, applied once the object is here.</summary>
+        public Vector3? PosePosition;
+        public Quaternion PoseRotation;
+        public bool Outlined;
+        public float NextOutlineAt;
+        public bool SoundPlayed;
     }
 
     /// <summary>
     /// Which networked objects in the room are loot. Keyed by PhotonView ID, which is the
     /// same number on every client. The master spawns and broadcasts; everyone tags; the
     /// pickup prefix consults this to decide "bag it" versus "let the game wield it".
-    /// Cleared on every scene change, because the objects die with the scene anyway.
+    /// Cleared on every scene change; the master destroys what it still owns on the way
+    /// out, because the pooled objects would otherwise outlive the dungeon (0.9.10).
     /// </summary>
     public static class LootRegistry
     {
@@ -48,24 +59,77 @@ namespace LootOverhaul.Loot
         private static void Decorate(LootTag tag)
         {
             if (!Interop.Alive(tag.Object)) return;
-            if (ModConfig.DropBeams.Value && tag.Beam == null) tag.Beam = DropBeam.Attach(tag);
+            ApplyPose(tag);
+            if (ModConfig.DropBeams.Value && tag.Beam == null && tag.Item.WeaponClass >= ModConfig.BeamMinClass.Value) tag.Beam = DropBeam.Attach(tag);
+            JunkTint.Apply(tag);
             if (ModConfig.DropLabels.Value && tag.Label == null) tag.Label = DropLabel.Attach(tag);
             if (ModConfig.DropSparkles.Value && tag.Sparkle == null) tag.Sparkle = DropSparkle.Attach(tag);
+            DropOutline.Refresh(tag);
+            DropSound.OnFound(tag);
+        }
+
+        /// <summary>Move this client's copy to the pose the master sent (late join: the cached spawn puts it in the air, upright).</summary>
+        public static void ApplyPose(LootTag tag)
+        {
+            if (!tag.PosePosition.HasValue || tag.Claimed || !Interop.Alive(tag.Object)) return;
+            try
+            {
+                var t = tag.Object.transform;
+                t.position = tag.PosePosition.Value;
+                t.rotation = tag.PoseRotation;
+                var rb = tag.Object.GetComponent<Rigidbody>();
+                if (Interop.Alive(rb))
+                {
+                    if (!rb.isKinematic) { rb.velocity = Vector3.zero; rb.angularVelocity = Vector3.zero; }
+                    rb.position = tag.PosePosition.Value;
+                    rb.rotation = tag.PoseRotation;
+                    try { rb.Sleep(); } catch { }
+                }
+                ReconLog.Line($"loot view {tag.ViewId} moved to the master's resting pose {Interop.Vec(tag.PosePosition.Value)}");
+            }
+            catch (Exception e) { Core.Log.Warning($"Apply pose failed for view {tag.ViewId}: {e.GetType().Name}"); }
+            tag.PosePosition = null;
         }
 
         public static void Remove(int viewId)
         {
             if (!Tags.TryGetValue(viewId, out var tag)) return;
             Tags.Remove(viewId);
+            Undecorate(tag);
+        }
+
+        private static void Undecorate(LootTag tag)
+        {
             DropBeam.Detach(tag);
             DropLabel.Detach(tag);
             DropSparkle.Detach(tag);
+            DropOutline.Stop(tag);
         }
 
-        public static void Clear(string why)
+        /// <summary>
+        /// Forget every tag. With <paramref name="destroyOwned"/> the objects this client
+        /// controls (the master's room objects) are network-destroyed first, so a dungeon's
+        /// floor loot does not turn up in the next one or in a late joiner's room.
+        /// </summary>
+        public static void Clear(string why, bool destroyOwned = false)
         {
-            foreach (var tag in Tags.Values) { DropBeam.Detach(tag); DropLabel.Detach(tag); DropSparkle.Detach(tag); }
-            if (Tags.Count > 0) Core.Log.Msg($"Loot registry cleared ({Tags.Count} tag(s)): {why}");
+            var destroyed = 0;
+            foreach (var tag in Tags.Values)
+            {
+                Undecorate(tag);
+                if (!destroyOwned || tag.Claimed) continue;
+                try
+                {
+                    var obj = Interop.Alive(tag.Object) ? tag.Object : FindObject(tag.ViewId);
+                    if (obj == null) continue;
+                    var pv = obj.GetComponent<PhotonView>();
+                    if (!Interop.Alive(pv) || !pv.IsMine) continue;
+                    PhotonNetwork.Destroy(obj);
+                    destroyed++;
+                }
+                catch (Exception e) { Core.Log.Warning($"Destroying floor loot view {tag.ViewId} failed: {e.GetType().Name}: {e.Message}"); }
+            }
+            if (Tags.Count > 0) Core.Log.Msg($"Loot registry cleared ({Tags.Count} tag(s), {destroyed} destroyed): {why}");
             Tags.Clear();
         }
 
@@ -74,22 +138,168 @@ namespace LootOverhaul.Loot
         {
             try
             {
-                var pv = Il2CppPhoton.Pun.PhotonView.Find(viewId);
+                var pv = PhotonView.Find(viewId);
                 return Interop.Alive(pv) ? pv.gameObject : null;
             }
             catch { return null; }
         }
 
-        /// <summary>Retry object lookup for tags whose object had not replicated when the broadcast arrived.</summary>
+        /// <summary>Retry object lookup for tags whose object had not replicated when the broadcast arrived; keep the decorations on the item.</summary>
         public static void Tick()
         {
             foreach (var tag in Tags.Values)
             {
                 if (tag.Claimed) continue;
-                if (Interop.Alive(tag.Object)) { DropBeam.Follow(tag); DropLabel.Follow(tag); DropSparkle.Follow(tag); continue; }
+                if (Interop.Alive(tag.Object))
+                {
+                    DropBeam.Follow(tag); DropLabel.Follow(tag); DropSparkle.Follow(tag); DropOutline.Refresh(tag);
+                    continue;
+                }
                 tag.Object = FindObject(tag.ViewId);
                 if (tag.Object != null) Decorate(tag);
             }
+        }
+    }
+
+    /// <summary>
+    /// The game's own pickup glow (<c>Prop.Outline</c>, the FXOutline the coins and the
+    /// vanilla drops carry), kept lit on every tagged floor item until it is taken. The
+    /// outline colour is the prop's own: rarity for weapons, the default for junk bodies.
+    /// </summary>
+    public static class DropOutline
+    {
+        private const int Frames = 120;
+        private const float Every = 0.5f;
+
+        public static void Refresh(LootTag tag)
+        {
+            if (!ModConfig.DropOutline.Value || !Interop.Alive(tag.Object)) return;
+            var now = Time.unscaledTime;
+            if (tag.Outlined && now < tag.NextOutlineAt) return;
+            try
+            {
+                var prop = tag.Object.GetComponent<Prop>();
+                if (!Interop.Alive(prop)) return;
+                if (!tag.Outlined)
+                {
+                    // Some bodies (mugs, dice) ship with an always-on-top glow that shows through
+                    // walls; loot should glow like the spoon does, only in sight.
+                    try { var fx = prop.fxOutline; if (Interop.Alive(fx)) fx.glowVisibility = FXOutline.Visibility.Normal; } catch { }
+                }
+                prop.Outline(Frames);
+                tag.Outlined = true;
+                tag.NextOutlineAt = now + Every;
+            }
+            catch (Exception e) { if (!tag.Outlined) Core.Log.Warning($"Outline failed for view {tag.ViewId}: {e.GetType().Name}"); tag.Outlined = true; tag.NextOutlineAt = now + 5f; }
+        }
+
+        public static void Stop(LootTag tag)
+        {
+            if (!tag.Outlined) return;
+            tag.Outlined = false;
+            try
+            {
+                if (!Interop.Alive(tag.Object)) return;
+                var prop = tag.Object.GetComponent<Prop>();
+                if (Interop.Alive(prop)) prop.StopOutline();
+            }
+            catch { }
+        }
+    }
+
+    /// <summary>
+    /// Sounds for a drop. The spawner plays the prop's own throw/spin audio, which the game
+    /// networks itself; every client adds the coin pile's chime for weapons and armor when
+    /// the object turns up. The chime is one of the coin pile's three sound refs, chosen by
+    /// <c>DropChime</c> (start / finish / collected / off).
+    /// </summary>
+    public static class DropSound
+    {
+        private static SoundFXRef _chime;
+        private static bool _searched;
+
+        public static void OnFound(LootTag tag)
+        {
+            if (tag.SoundPlayed || !ModConfig.DropSounds.Value) return;
+            tag.SoundPlayed = true;
+            if (!tag.Item.IsWeapon && !tag.Item.IsArmor) return;
+            var chime = Chime();
+            if (chime == null) return;
+            try
+            {
+                var pitch = tag.Item.WeaponClass >= 3 ? 0.85f : tag.Item.WeaponClass == 2 ? 0.95f : 1.05f;
+                chime.PlaySoundAt(tag.Object.transform.position, 0f, 0.8f, pitch, false);
+            }
+            catch (Exception e) { Core.Log.Warning($"Drop chime failed: {e.GetType().Name}: {e.Message}"); }
+        }
+
+        /// <summary>Called by the spawner right after the kick: the game's own throw whoosh and spin loop, sent to everyone by the game.</summary>
+        public static void OnSpawned(GameObject go, Vector3 velocity, Vector3 angular)
+        {
+            if (!ModConfig.DropSounds.Value) return;
+            try
+            {
+                var prop = go.GetComponent<Prop>();
+                if (Interop.Alive(prop)) prop.PlayThrowAudio(velocity, angular);
+            }
+            catch (Exception e) { Core.Log.Warning($"Throw audio failed: {e.GetType().Name}: {e.Message}"); }
+        }
+
+        private static SoundFXRef Chime()
+        {
+            var which = (ModConfig.DropChime.Value ?? "").Trim().ToLowerInvariant();
+            if (which == "off" || which == "") return null;
+            if (_chime != null) return _chime;
+            if (_searched) return null;
+            try
+            {
+                Coins coins = null; string from = null;
+                var pool = NetworkObjectPool.UnpooledPrefabs;
+                if (pool != null)
+                    foreach (var kv in pool)
+                    {
+                        if (kv.Key == null || !kv.Key.StartsWith("Coin_Pile") || !Interop.Alive(kv.Value)) continue;
+                        var c = kv.Value.GetComponent<Coins>();
+                        if (Interop.Alive(c)) { coins = c; from = kv.Key; break; }
+                    }
+                if (coins == null)
+                    foreach (var c in UnityEngine.Object.FindObjectsOfType<Coins>())
+                        if (Interop.Alive(c)) { coins = c; from = c.name; break; }
+                if (coins == null) return null;   // look again on a later drop
+                _searched = true;
+                var start = coins.startFlightSoundFX; var finish = coins.finishFlightSoundFX; var collected = coins.collectedSoundFX;
+                _chime = which == "finish" ? finish : which == "collected" ? collected : start;
+                Core.Log.Msg($"Drop chime: `{Name(_chime)}` ({which}) from `{from}`; the coin pile's refs are start `{Name(start)}`, finish `{Name(finish)}`, collected `{Name(collected)}`.");
+                if (_chime == null || !_chime.IsValid) { Core.Log.Msg("Drop chime: that sound ref is not valid; chime off."); _chime = null; }
+                return _chime;
+            }
+            catch (Exception e) { Core.Log.Warning($"Drop chime lookup failed: {e.GetType().Name}: {e.Message}"); _searched = true; return null; }
+        }
+
+        private static string Name(SoundFXRef r) { try { return r == null ? "null" : r.name; } catch { return "?"; } }
+    }
+
+    /// <summary>
+    /// The bone body (Wolf_Treat) is the game's own dog treat and other drops use it too;
+    /// junk on it is tinted by tier so a marrow bone reads as loot: brown, ivory, gold.
+    /// </summary>
+    public static class JunkTint
+    {
+        public static void Apply(LootTag tag)
+        {
+            if (tag.Item.IsWeapon || tag.Item.IsArmor || tag.Item.IsBuff || tag.Item.PrefabName != "Wolf_Treat") return;
+            if (!Interop.Alive(tag.Object)) return;
+            var color = tag.Item.WeaponClass switch { 0 => new Color(0.55f, 0.42f, 0.30f), 1 => new Color(0.97f, 0.94f, 0.82f), _ => new Color(1.0f, 0.78f, 0.25f) };
+            try
+            {
+                foreach (var r in tag.Object.GetComponentsInChildren<MeshRenderer>(true))
+                {
+                    if (!Interop.Alive(r)) continue;
+                    try { r.material.color = color; } catch { }
+                    try { r.material.SetColor("_EmissionColor", color * (tag.Item.WeaponClass >= 2 ? 0.35f : 0.05f)); } catch { }
+                }
+            }
+            catch (Exception e) { Core.Log.Warning($"Junk tint failed: {e.GetType().Name}"); }
         }
     }
 
@@ -113,7 +323,7 @@ namespace LootOverhaul.Loot
                 beam.name = $"LootBeam_{tag.ViewId}";
                 try { UnityEngine.Object.Destroy(beam.GetComponent<Collider>()); } catch { }
                 var height = Height(tag.Item);
-                var width = tag.Item.WeaponClass >= 3 ? 0.08f : 0.045f;
+                var width = tag.Item.WeaponClass >= 3 ? 0.035f : 0.02f;
                 beam.transform.localScale = new Vector3(width, height * 0.5f, width);
                 beam.transform.rotation = Quaternion.identity;
                 beam.transform.position = tag.Object.transform.position + Vector3.up * (height * 0.5f + 0.1f);

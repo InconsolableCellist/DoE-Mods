@@ -11,10 +11,10 @@ using Interop = LootOverhaul.Recon.Interop;
 namespace LootOverhaul.Loot
 {
     /// <summary>
-    /// The Loot Broker, a stall in the lobby: a sell counter (bag items for mod gold at the
-    /// game's salvage value) and a shop (<see cref="Shop"/>: generated weapons at your loot
-    /// tier for the game's cost figure). Equipping is at the game's own fabricator (see
-    /// <see cref="FabricatorBridge"/>).
+    /// The Kobold Traveler, a stall in the lobby: a sell counter (bag items for tokens at the
+    /// game's salvage value; tokens are the mod's own currency, never the game's gold) and a
+    /// shop (<see cref="Shop"/>: generated weapons at your loot tier for the game's cost
+    /// figure). Equipping is at the game's own fabricator (see <see cref="FabricatorBridge"/>).
     /// Placed from config (press = in the lobby to move it to where you stand), built once,
     /// kept across scene loads, shown only in the lobby with the gate open.
     /// </summary>
@@ -75,7 +75,7 @@ namespace LootOverhaul.Loot
                 ModConfig.BoothX.Value = pos.x; ModConfig.BoothY.Value = pos.y; ModConfig.BoothZ.Value = pos.z; ModConfig.BoothYaw.Value = yaw;
                 ModConfig.BoothPlaced.Value = true;
                 MelonPreferences.Save();
-                BagManager.Toast($"Shopkeeper moved.");
+                BagManager.Toast($"Kobold moved.");
                 if (GameManager.IsLobbyScene) ShowIfLobby(GameManager.LOBBY_SCENE);
             }
             catch (Exception e) { Core.Log.Warning($"PlaceHere failed: {e.GetType().Name}: {e.Message}"); }
@@ -94,7 +94,8 @@ namespace LootOverhaul.Loot
             _sell.localRotation = Quaternion.Euler(0f, -14f, 0f);
             _buy.localPosition = new Vector3(0.70f, 1.3f, 0f);
             _buy.localRotation = Quaternion.Euler(0f, 14f, 0f);
-            UiKit.Text(_root.transform, new Vector3(0f, 2.0f, 0f), 1.2f, 0.15f, 0.9f, "<b>SHOPKEEPER</b>", TextAlignmentOptions.Center);
+            UiKit.Text(_root.transform, new Vector3(0f, 2.02f, 0f), 1.6f, 0.15f, 0.9f, "<b>KOBOLD TRAVELER</b>", TextAlignmentOptions.Center);
+            UiKit.Text(_root.transform, new Vector3(0f, 1.9f, 0f), 1.6f, 0.06f, 0.36f, "<color=#9A9A9A>shinies from the dungeon for tokens</color>", TextAlignmentOptions.Center);
         }
 
         private static void PlaceFromConfig()
@@ -131,17 +132,16 @@ namespace LootOverhaul.Loot
             var top = height * 0.5f;
             var left = -PanelWidth * 0.5f + 0.04f;
             UiKit.Text(_sell, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f,
-                $"<b>SELL</b>   {inv.Items.Count} item(s)   <color=#F5C542>{inv.Gold} gold</color>");
+                $"<b>SELL</b>   {inv.Items.Count} item(s)   <color=#F5C542>{inv.Gold} tokens</color>");
             var junkCount = 0; var junkValue = 0;
-            foreach (var j in inv.Items) if (!j.IsWeapon && !j.IsBuff && !j.IsArmor) { junkCount++; junkValue += SellPrice(j); }
-            if (junkCount > 0)
-                UiKit.Button(_sell, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f, top - 0.05f, 0f), $"SELL {junkCount} JUNK · {junkValue}g", SellAllJunk, BtnScale);
+            foreach (var j in inv.Items) if (!j.IsWeapon && !j.IsBuff && !j.IsArmor && !j.Locked) { junkCount++; junkValue += SellPrice(j); }
 
             var y0 = top - 0.19f;
             var start = _sellPage * perPage;
             var sellX = PanelWidth * 0.5f - 0.04f - BtnW * 0.5f;
-            // One row fewer so the bag line fits above the pager.
-            var textW = sellX - BtnW * 0.5f - 0.02f - (left + 0.16f);
+            var lockX = sellX - BtnW * 1.2f - 0.03f;
+            // One row fewer so the bag line fits above the pager; two buttons per row (LOCK, SELL).
+            var textW = lockX - BtnW * 0.5f - 0.02f - (left + 0.16f);
             for (var i = 0; i < RowsPerPage - 1 && start + i < items.Count; i++)
             {
                 var item = items[start + i];
@@ -149,12 +149,18 @@ namespace LootOverhaul.Loot
                 row.transform.localPosition = new Vector3(0f, y0 - i * RowHeight, 0f);
                 UiKit.Preview(row.transform, new Vector3(left + 0.07f, 0f, -0.03f), item, 0.11f);
                 var equipped = item.EquippedSlot >= 0 ? $"   <color=#F5C542>equipped: {Loadout.SlotNames[item.EquippedSlot]}</color>" : "";
-                var kind = item.IsWeapon ? $"{LootTables.TypeName(item.PropType)}  tier {item.WeaponTier + 1}" : item.IsBuff ? "tonic" : item.IsArmor ? $"{Armor.SlotNames[item.ArmorSlot].ToLowerInvariant()} armor" : LootTables.JunkTierName(item.WeaponClass);
-                UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), textW, 0.05f, 0.38f, $"{item.ColoredName}{equipped}");
-                UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), textW, 0.045f, 0.3f,
-                    $"<color=#9A9A9A>{kind}   wt {item.Weight:0.#}</color>   <color=#F5C542>{SellPrice(item)} gold</color>");
+                string kind;
+                if (item.IsWeapon) { string stats = ""; try { stats = Interop.OneLine(WeaponCodec.ToModule(item).GetStatsText()); } catch { } kind = $"<color=#9A9A9A>{LootTables.TypeName(item.PropType)} t{item.WeaponTier + 1}</color>  {stats}"; }
+                else if (item.IsBuff) kind = "<color=#9A9A9A>tonic</color>";
+                else if (item.IsArmor) kind = $"<color=#9A9A9A>{Armor.SlotNames[item.ArmorSlot].ToLowerInvariant()} armor · {Armor.DescribeStats(item)}</color>";
+                else kind = $"<color=#9A9A9A>{LootTables.JunkTierName(item.WeaponClass)}</color>";
+                UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), textW, 0.05f, 0.38f, $"{item.ColoredName}{equipped}   <color=#F5C542>{SellPrice(item)} tokens</color>");
+                UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), textW, 0.045f, item.IsWeapon ? 0.27f : 0.3f, kind);
                 var captured = item;
-                if (item.EquippedSlot < 0 && item.WornSlot < 0)
+                UiKit.Button(row.transform, new Vector3(lockX, 0f, 0f), item.Locked ? "UNLOCK" : "LOCK", () => ToggleLock(captured), BtnScale);
+                if (item.Locked)
+                    UiKit.Text(row.transform, new Vector3(sellX - BtnW * 0.5f, 0f, 0f), BtnW, 0.05f, 0.3f, "<color=#9A9A9A>locked</color>", TextAlignmentOptions.Center);
+                else if (item.EquippedSlot < 0 && item.WornSlot < 0)
                     UiKit.Button(row.transform, new Vector3(sellX, 0f, 0f), "SELL", () => Sell(captured), BtnScale);
             }
 
@@ -165,14 +171,17 @@ namespace LootOverhaul.Loot
                 UiKit.Button(_sell, new Vector3(-0.22f - BtnW * 0.5f, bottom, 0f), "<", () => { _sellPage--; BuildSell(); }, BtnScale);
                 UiKit.Button(_sell, new Vector3(0.22f + BtnW * 0.5f, bottom, 0f), ">", () => { _sellPage++; BuildSell(); }, BtnScale);
             }
-            // A bigger bag, the broker's gold sink, on the row above the pager.
+            // SELL ALL JUNK, big, in the band between the last row and the bag line.
+            if (junkCount > 0)
+                UiKit.Button(_sell, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f * 1.5f, bottom + 0.2f, 0f), $"SELL {junkCount} JUNK · {junkValue} tk", SellAllJunk, BtnScale * 1.5f);
+            // A bigger bag, the kobold's token sink, on the row above the pager.
             var bagY = bottom + 0.09f;
             if (inv.BagLevel < BagManager.BagUpgrades.Length)
             {
                 var next = BagManager.BagUpgrades[inv.BagLevel];
                 var price = (int)Math.Round(next.price * ModConfig.ShopPriceMultiplier.Value);
                 UiKit.Text(_sell, new Vector3(left, bagY, 0f), 0.8f, 0.05f, 0.32f,
-                    $"<color=#9A9A9A>bag {inv.TotalWeight:0.#} / {BagManager.Capacity:0} wt   ·   {next.name} (+{next.bonus:0} wt)  <color=#F5C542>{price} gold</color></color>");
+                    $"<color=#9A9A9A>bag {inv.TotalWeight:0.#} / {BagManager.Capacity:0} wt   ·   {next.name} (+{next.bonus:0} wt)  <color=#F5C542>{price} tokens</color></color>");
                 UiKit.Button(_sell, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f, bagY, 0f), $"BUY {next.name.ToUpperInvariant()}", () => { BagManager.BuyBagUpgrade(); }, BtnScale, enabled: inv.Gold >= price);
             }
             else
@@ -202,7 +211,7 @@ namespace LootOverhaul.Loot
             if (_buyMode == 3) { BuildArmor(top, left); return; }
             UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f,
                 $"<b>WEAPONS</b>   {stock.Count} in stock   <color=#9A9A9A>new stock in {minutesLeft} min</color>");
-            UiKit.Button(_buy, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f, top - 0.05f, 0f), $"RESTOCK {Shop.RestockPrice(inv)}g", () => { if (Shop.Restock()) Rebuild(); }, BtnScale);
+            UiKit.Button(_buy, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f, top - 0.05f, 0f), $"RESTOCK {Shop.RestockPrice(inv)} tk", () => { if (Shop.Restock()) Rebuild(); }, BtnScale);
 
             var y0 = top - 0.27f;
             var buyX = PanelWidth * 0.5f - 0.04f - BtnW * 0.5f;
@@ -218,11 +227,11 @@ namespace LootOverhaul.Loot
                 var afford = inv.Gold >= item.Value;
                 var priceColor = afford ? "#F5C542" : "#B04040";
                 UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), textW, 0.05f, 0.38f,
-                    $"{item.ColoredName}   <color={priceColor}>{item.Value} gold</color>");
-                UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), textW, 0.045f, 0.3f,
-                    $"<color=#9A9A9A>{LootTables.TypeName(item.PropType)}  tier {item.WeaponTier + 1}   wt {item.Weight:0.#}</color>   {stats}");
+                    $"{item.ColoredName}   <color={priceColor}>{item.Value} tokens</color>");
+                UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), textW, 0.045f, 0.27f,
+                    $"<color=#9A9A9A>{LootTables.TypeName(item.PropType)} t{item.WeaponTier + 1}</color>  {stats}");
                 var captured = item;
-                UiKit.Button(row.transform, new Vector3(buyX, 0f, 0f), afford ? "BUY" : $"NEED {item.Value}g", () => { if (Shop.Buy(captured)) Rebuild(); }, BtnScale, enabled: afford);
+                UiKit.Button(row.transform, new Vector3(buyX, 0f, 0f), afford ? "BUY" : $"NEED {item.Value} tk", () => { if (Shop.Buy(captured)) Rebuild(); }, BtnScale, enabled: afford);
             }
             if (stock.Count == 0)
                 UiKit.Text(_buy, new Vector3(0f, y0 - RowHeight, 0f), 0.8f, 0.06f, 0.4f, "Sold out.", TextAlignmentOptions.Center);
@@ -271,7 +280,7 @@ namespace LootOverhaul.Loot
                 {
                     var tier = t;
                     var price = Shop.TonicPrice(def, tier);
-                    UiKit.Button(row.transform, new Vector3(x, 0f, 0f), $"{Buffs.TierNames[tier].ToUpperInvariant()} {price}g", () => { if (Shop.BuyTonic(captured, tier)) BuildBuy(); }, BtnScale * 0.85f, enabled: inv.Gold >= price);
+                    UiKit.Button(row.transform, new Vector3(x, 0f, 0f), $"{Buffs.TierNames[tier].ToUpperInvariant()} {price} tk", () => { if (Shop.BuyTonic(captured, tier)) BuildBuy(); }, BtnScale * 0.85f, enabled: inv.Gold >= price);
                     x -= Mathf.Max(BtnW, 0.24f) * 0.85f + 0.05f;
                 }
             }
@@ -303,7 +312,7 @@ namespace LootOverhaul.Loot
                 weapons.Sort((a, b) => b.WeaponClass != a.WeaponClass ? b.WeaponClass.CompareTo(a.WeaponClass) : b.Value.CompareTo(a.Value));
                 var pages = Math.Max(1, (weapons.Count + RowsPerPage - 1) / RowsPerPage);
                 _enchantPage = Math.Max(0, Math.Min(_enchantPage, pages - 1));
-                UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f, $"<b>ENCHANT</b>   pick a weapon   <color=#9A9A9A>gold + a curio or artifact</color>");
+                UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f, $"<b>ENCHANT</b>   pick a weapon   <color=#9A9A9A>tokens + a curio or artifact</color>");
                 var y0 = top - 0.27f;
                 var start = _enchantPage * RowsPerPage;
                 var bx = PanelWidth * 0.5f - 0.04f - BtnW * 0.5f;
@@ -316,7 +325,7 @@ namespace LootOverhaul.Loot
                     UiKit.Preview(row.transform, new Vector3(left + 0.07f, 0f, -0.03f), item, 0.11f);
                     UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), 0.7f, 0.05f, 0.38f, $"{item.ColoredName}");
                     UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), 0.7f, 0.045f, 0.3f,
-                        $"<color=#9A9A9A>slots {Enchanting.UsedSlots(item)}/{Enchanting.Slots(item.WeaponClass)}   element {(item.DamageType < 0 ? "none" : Enchanting.Elements[Math.Min(2, item.DamageType)])}   {Enchanting.Price(item)} gold + {LootTables.JunkTierName(Enchanting.ReagentTier(item))}</color>");
+                        $"<color=#9A9A9A>slots {Enchanting.UsedSlots(item)}/{Enchanting.Slots(item.WeaponClass)}   element {(item.DamageType < 0 ? "none" : Enchanting.Elements[Math.Min(2, item.DamageType)])}   {Enchanting.Price(item)} tokens + {LootTables.JunkTierName(Enchanting.ReagentTier(item))}</color>");
                     var captured = item;
                     UiKit.Button(row.transform, new Vector3(bx, 0f, 0f), "SELECT", () => { _enchantTarget = captured.Id; BuildBuy(); }, BtnScale);
                 }
@@ -336,7 +345,7 @@ namespace LootOverhaul.Loot
             var reagent = Enchanting.FindReagent(inv, Enchanting.ReagentTier(target));
             UiKit.Text(_buy, new Vector3(left, top - 0.22f, 0f), PanelWidth - 0.08f, 0.05f, 0.3f,
                 $"<color=#9A9A9A>has: {Enchanting.PerkName(target.PerkA)} {Enchanting.PerkName(target.PerkB)} {Enchanting.PerkName(target.PerkC)}   element {(target.DamageType < 0 ? "none" : Enchanting.Elements[Math.Min(2, target.DamageType)])}   " +
-                $"price {Enchanting.Price(target)} gold + {(reagent == null ? "<color=#B04040>no reagent</color>" : reagent.Name)}</color>");
+                $"price {Enchanting.Price(target)} tokens + {(reagent == null ? "<color=#B04040>no reagent</color>" : reagent.Name)}</color>");
             var options = Enchanting.Options(target);
             var y1 = top - 0.28f;
             var col = 0; var rowI = 0;
@@ -401,16 +410,29 @@ namespace LootOverhaul.Loot
             var total = 0; var n = 0;
             foreach (var j in new List<LootItem>(inv.Items))
             {
-                if (j.IsWeapon || j.IsBuff || j.IsArmor) continue;
+                if (j.IsWeapon || j.IsBuff || j.IsArmor || j.Locked) continue;
                 total += SellPrice(j); n++;
                 inv.Remove(j.Id);
             }
             if (n == 0) { BagManager.Toast("No junk to sell."); return; }
             inv.Gold += total;
             inv.Save();
-            BagManager.Toast($"Sold {n} piece(s) of junk for <color=#F5C542>{total} gold</color>  (now {inv.Gold})");
-            ReconLog.Line($"sold {n} junk for {total} -> gold {inv.Gold}");
+            BagManager.Toast($"Sold {n} piece(s) of junk for <color=#F5C542>{total} tokens</color>  (now {inv.Gold})");
+            ReconLog.Line($"sold {n} junk for {total} -> tokens {inv.Gold}");
             Rebuild();
+            BagPanel.Refresh();
+        }
+
+        /// <summary>A locked item cannot be sold, dropped or trashed until it is unlocked here.</summary>
+        private static void ToggleLock(LootItem item)
+        {
+            var inv = BagManager.Inventory;
+            var live = inv.Find(item.Id);
+            if (live == null) { BagManager.Toast("Already gone."); Refresh(); return; }
+            live.Locked = !live.Locked;
+            inv.Save();
+            BagManager.Toast(live.Locked ? $"Locked {live.ColoredName}" : $"Unlocked {live.ColoredName}");
+            BuildSell();
             BagPanel.Refresh();
         }
 
@@ -421,12 +443,13 @@ namespace LootOverhaul.Loot
             if (live == null) { BagManager.Toast("Already gone."); Refresh(); return; }
             if (live.EquippedSlot >= 0) { BagManager.Toast("Unequip it first."); return; }
             if (live.WornSlot >= 0) { BagManager.Toast("Take it off first."); return; }
+            if (live.Locked) { BagManager.Toast("Locked."); return; }
             var price = SellPrice(live);
             inv.Remove(live.Id);
             inv.Gold += price;
             inv.Save();
-            BagManager.Toast($"Sold {live.ColoredName} for <color=#F5C542>{price} gold</color>  (now {inv.Gold})");
-            ReconLog.Line($"sold {live.Name} for {price} -> gold {inv.Gold}");
+            BagManager.Toast($"Sold {live.ColoredName} for <color=#F5C542>{price} tokens</color>  (now {inv.Gold})");
+            ReconLog.Line($"sold {live.Name} for {price} -> tokens {inv.Gold}");
             Rebuild();
             BagPanel.Refresh();
         }

@@ -36,6 +36,68 @@ gate rule is the same: private room, every occupant on the identical version and
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
 
+## 0.9.11 — locks, party scaling, tidier bodies
+
+- **LOCK / UNLOCK** per row on the kobold's sell panel. A locked item cannot be sold (SELL
+  ALL JUNK skips it), dropped from the bag, or trashed at the pedestal. Saved in the
+  inventory file; the bag panel marks locked rows.
+- **Party scaling.** Weapon and junk chances are multiplied by `1 + DropChancePerExtraPlayer
+  × (players − 1)` (default 0.35 per extra player). The drop line logs the player count.
+- **Pity** (`LegendaryPityKills`) is counted in the host's own file from every kill in the
+  room; a non-host's counter does not move. Documented in the setting.
+- **Bag full leaves the item on the floor.** The master's grant on the game's pickup RPC
+  (0.9.8) bypassed the picker's bag-full check and bagged it anyway; that path is gone.
+- **The rock body is retired** (spawned with nothing visible). **Bones are tinted** by tier
+  (brown, ivory, gold with a glow) so they read differently from the wolf's treats.
+- **Glow stays behind walls.** Some bodies ship with an always-on-top outline (mug, dice);
+  loot outlines are set to normal visibility.
+- **Beams** are narrower and only over items of `BeamMinClass` rarity or better (default 2:
+  Rare and Legendary weapons and armor, artifact junk). Beams are still off unless
+  `DropBeams` is on.
+- The pickup toast says `T` instead of `tokens`.
+
+## 0.9.10 — other players can grab loot, the kobold traveler, tokens
+
+- **Anyone can pick loot up.** The hand's grab rule, read from the game's code: a prop is
+  grabbable only when it is a *room object* (a scene view, owned by the room) or the
+  grabber's own. Every drop was a plain `PhotonNetwork.Instantiate` by the master, so the
+  master's personal property, and no other player could ever grab one (two runs, one with
+  the remote present from the start, one joining late: not one claim from the remote). Drops
+  are now `PhotonNetwork.InstantiateRoomObject`, the call the game's own `LootSpawner`
+  makes, with the game's room data for junk bodies. Only the master may create room objects,
+  so dropping an item from your bag on a non-master client asks the master to spawn it.
+- **Floor loot dies with the dungeon.** The pooled bodies survive a scene load and an
+  undestroyed room object stays in the room's event cache: the previous dungeon's drops
+  turned up in the next one, and a rejoining player got them all re-created upright in the
+  air. The master now network-destroys every unclaimed drop it controls on the game's
+  pre-scene-load event (fallback: scene initialised, gate closed, quit).
+- **Late joiners get the resting pose.** The master's re-send to a late joiner carries each
+  item's position and rotation, and the joiner's copy is moved there.
+- **The kobold traveler.** The stall is signed KOBOLD TRAVELER and the mod's currency is
+  *tokens* everywhere (the inventory file keeps its `Gold` field; nothing is lost). Tokens
+  are never the game's gold, by design.
+- **Trash pays nothing.** The pedestal's trash can removed a bag weapon *and* credited its
+  salvage value as real coins. The coin write is refused while a bag weapon is trashed.
+- **Rows without weight.** Bag, sell and shop rows show the weapon's stats on the second
+  line (type, tier, the game's stats text) and the price on the first; no `wt` anywhere but
+  the bag capacity line.
+- **Pedestal thumbnails** for bag weapons carry the LOOT tag again: the pedestal fills its
+  tiles through `SetCustomItemType`, which was not patched, and the tag is now placed on
+  the tile's own icon bounds.
+- **Drops spin** (a random tumble) and play the prop's throw/spin audio, which the game
+  networks; weapons and armor add the coin pile's chime when they land (`DropChime`).
+- **The pickup glow** the coins and vanilla drops have (`Prop.Outline`) is kept lit on floor
+  loot (`DropOutline`).
+- **The bag closes by itself** when you walk `BagAutoCloseMeters` (2 m) from it.
+- **Rates:** weapons 1.5% base (was 3.5%), junk 18% (was 35%). Bag base 30 wt; your
+  settings file still said 60 and was updated. SELL ALL JUNK is one and a half times bigger,
+  on its own band above the bag line.
+- **Force grab ended before the drop-back.** The best candidate for the "arm stretched out"
+  report: a force-grabbed drop ends in the same pickup we cancel a frame later. The pickup
+  hook now ends the force grab first and logs when it did (`pickup: force grab was in progress`).
+- A player whose grab reaches the master twice (the game's pickup RPC and our claim) no
+  longer gets a spurious "Taken." toast.
+
 ## 0.9.9 — armor at the shopkeeper, dungeon tier cap, smaller bag
 
 - **ARMOR tab** at the shopkeeper: the three slots with what is worn and TAKE OFF, then the

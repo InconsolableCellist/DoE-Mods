@@ -22,27 +22,9 @@ namespace LootOverhaul.Loot
         public static void Install()
         {
             Hooks.Patch(typeof(Prop), "PickUp", null, Hooks.Of(typeof(BagPickup), nameof(Postfix)));
-            // Belt and braces for other players: their pickup reaches every client as this RPC.
-            // On the master it is enough to grant the claim from here, whatever their own hook did.
-            Hooks.Patch(typeof(Prop), "Remote_Pickup", null, Hooks.Of(typeof(BagPickup), nameof(RemotePickup_Postfix)));
-        }
-
-        private static void RemotePickup_Postfix(Prop __instance, int __0)
-        {
-            try
-            {
-                if (!ModGate.Active || !PhotonNetwork.IsMasterClient || LootRegistry.Count == 0) return;
-                if (!Interop.Alive(__instance)) return;
-                var pv = __instance.GetComponent<PhotonView>();
-                if (!Interop.Alive(pv) || !LootRegistry.TryGet(pv.ViewID, out var tag)) return;
-                if (tag.Claimed) return;
-                var avatar = AvatarPlayer.Find(__0);
-                var player = Interop.Alive(avatar) ? AvatarPlayer.Find(avatar) : null;
-                if (player == null) { ReconLog.Line($"remote pickup of loot view {pv.ViewID} by player view {__0}: actor unknown"); return; }
-                ReconLog.Line($"remote pickup -> grant: view {pv.ViewID} {tag.Item.Name} to actor {player.ActorNumber} ({avatar.name})");
-                Claims.MasterGrant(pv.ViewID, player.ActorNumber);
-            }
-            catch (Exception e) { Core.Log.Warning($"Remote pickup grant failed: {e.GetType().Name}: {e.Message}"); }
+            // 0.9.8–0.9.10 also granted from the master's Prop.Remote_Pickup hook, which skipped
+            // the picker's own bag-full check and bagged the item anyway. Since 0.9.10 the
+            // remote's own pickup fires (room objects), so the claim path alone is used.
         }
 
         private static void Postfix(Prop __instance, PropRoot __0)
@@ -71,6 +53,23 @@ namespace LootOverhaul.Loot
             {
                 try
                 {
+                    // A force grab (pull the trigger at loot across the room) flies the prop to the
+                    // hand and ends in the same PickUp; leaving that state half-finished is the
+                    // best candidate for the "arm stretched out" report (2026-09-04), so end it first.
+                    try
+                    {
+                        if (Interop.Alive(hand) && Interop.Alive(prop))
+                        {
+                            var fg = hand.forceGrabProp;
+                            if (Interop.Alive(fg) && fg.Pointer == prop.Pointer)
+                            {
+                                ReconLog.Line($"pickup: force grab was in progress for view {tag.ViewId}; ending it before the release");
+                                try { prop.EndForceGrab(); } catch { }
+                                try { hand.forceGrabProp = null; } catch { }
+                            }
+                        }
+                    }
+                    catch { }
                     // Release through the HAND (PropRoot.Drop), which is what the game does when you
                     // open your fingers; Prop.Drop(root) left the hand still attached to the prop and
                     // it followed the object when the claim moved it (0.8: hand in the floor).
@@ -86,7 +85,7 @@ namespace LootOverhaul.Loot
                     if (tag.Claimed || tag.ClaimPending) continue;
                     if (!BagManager.CanCarry(tag.Item))
                     {
-                        BagManager.Toast($"Bag full — {tag.Item.ColoredName} weighs {tag.Item.Weight:0.#}");
+                        BagManager.Toast($"Bag full — {tag.Item.ColoredName} left on the floor");
                         continue;
                     }
                     ReconLog.Line($"pickup -> claim: view {tag.ViewId} {tag.Item.Name}");

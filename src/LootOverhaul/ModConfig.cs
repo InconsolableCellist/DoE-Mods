@@ -24,6 +24,10 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<float> BossDropChance;
         /// <summary>After this many kills without a Legendary, the next drop is one. 0 disables.</summary>
         public static MelonPreferences_Entry<int> LegendaryPityKills;
+        /// <summary>Drop-chance multiplier per player beyond the first.</summary>
+        public static MelonPreferences_Entry<float> DropChancePerExtraPlayer;
+        /// <summary>Lowest rarity that gets a beam.</summary>
+        public static MelonPreferences_Entry<int> BeamMinClass;
         /// <summary>Rarity-coloured beam over floor loot (off: the floating name label is the default).</summary>
         public static MelonPreferences_Entry<bool> DropBeams;
         /// <summary>Floating rarity-coloured name over floor loot.</summary>
@@ -32,6 +36,14 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<bool> DropLabelsOnHover;
         /// <summary>The coin pile's own sparkle, borrowed and placed over floor loot.</summary>
         public static MelonPreferences_Entry<bool> DropSparkles;
+        /// <summary>The game's own pickup glow (the outline coins and vanilla drops carry) kept lit on floor loot.</summary>
+        public static MelonPreferences_Entry<bool> DropOutline;
+        /// <summary>Throw/spin audio on the drop (networked by the game) and a chime when a weapon or armor lands.</summary>
+        public static MelonPreferences_Entry<bool> DropSounds;
+        /// <summary>Which coin-pile sound is the chime: start, finish, collected, or off.</summary>
+        public static MelonPreferences_Entry<string> DropChime;
+        /// <summary>The bag panel closes by itself when you walk this far from it (metres; 0 disables).</summary>
+        public static MelonPreferences_Entry<float> BagAutoCloseMeters;
         /// <summary>An invisible pointer target over each panel so the laser shows across the whole window.</summary>
         public static MelonPreferences_Entry<bool> PanelLaser;
         /// <summary>How the bag opens in VR: "back-grip" (right hand behind you, grip + stick up), "stick-hold" (right stick held up), or "off".</summary>
@@ -45,7 +57,7 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<float> TierUpChance;
         /// <summary>Share of successful weapon rolls that become armor instead, 0–1.</summary>
         public static MelonPreferences_Entry<float> ArmorShare;
-        /// <summary>Gold per point of the game's salvage value when selling at the booth.</summary>
+        /// <summary>Tokens per point of the game's salvage value when selling to the kobold.</summary>
         public static MelonPreferences_Entry<float> SellMultiplier;
         /// <summary>Shop asking price = the game's cost figure × this.</summary>
         public static MelonPreferences_Entry<float> ShopPriceMultiplier;
@@ -75,15 +87,21 @@ namespace LootOverhaul
             Main = MelonPreferences.CreateCategory("LootOverhaul");
             Enabled = Main.CreateEntry("Enabled", true);
             EnemyDropsEnabled = Main.CreateEntry("EnemyDropsEnabled", true);
-            BaseDropChance = Main.CreateEntry("BaseDropChance", 0.035f);
+            BaseDropChance = Main.CreateEntry("BaseDropChance", 0.015f);
             BagWeightCapacity = Main.CreateEntry("BagWeightCapacity", 30f);
             BossDropChance = Main.CreateEntry("BossDropChance", 1.0f);
-            LegendaryPityKills = Main.CreateEntry("LegendaryPityKills", 120);
+            LegendaryPityKills = Main.CreateEntry("LegendaryPityKills", 120, description: "Bad-luck protection: after this many kills by anyone in the room (counted in the host's own file) without a Legendary, the next drop is forced Legendary. 0 disables.");
+            DropChancePerExtraPlayer = Main.CreateEntry("DropChancePerExtraPlayer", 0.35f, description: "Weapon and junk chances are multiplied by 1 + this × (players − 1).");
+            BeamMinClass = Main.CreateEntry("BeamMinClass", 2, description: "Beam only over items of at least this rarity: 0 Common, 1 Unique, 2 Rare, 3 Legendary (junk: 2 = artifact).");
             DropBeams = Main.CreateEntry("DropBeams", false);
             DropLabels = Main.CreateEntry("DropLabels", true);
             DropLabelsOnHover = Main.CreateEntry("DropLabelsOnHover", true);
             DropSparkles = Main.CreateEntry("DropSparkles", true);
             PanelLaser = Main.CreateEntry("PanelLaser", true);
+            DropOutline = Main.CreateEntry("DropOutline", true);
+            DropSounds = Main.CreateEntry("DropSounds", true);
+            DropChime = Main.CreateEntry("DropChime", "start", description: "Coin-pile sound played where a weapon or armor lands: start, finish, collected, or off.");
+            BagAutoCloseMeters = Main.CreateEntry("BagAutoCloseMeters", 2.0f, description: "Walk this far from the open bag panel and it closes. 0 = never.");
             BagGesture = Main.CreateEntry("BagGesture", "stick-hold",
                 description: "back-grip = reach behind your back with the right hand, squeeze grip and push the stick up; stick-hold = hold the right stick up; off.");
             BagGestureHoldSeconds = Main.CreateEntry("BagGestureHoldSeconds", 0.7f);
@@ -91,7 +109,7 @@ namespace LootOverhaul
             WeightUnique = Main.CreateEntry("WeightUnique", 22f);
             WeightRare = Main.CreateEntry("WeightRare", 7f);
             WeightLegendary = Main.CreateEntry("WeightLegendary", 1f);
-            JunkDropChance = Main.CreateEntry("JunkDropChance", 0.35f);
+            JunkDropChance = Main.CreateEntry("JunkDropChance", 0.18f);
             TierUpChance = Main.CreateEntry("TierUpChance", 0.12f);
             ArmorShare = Main.CreateEntry("ArmorShare", 0.35f);
             SellMultiplier = Main.CreateEntry("SellMultiplier", 1.0f);
