@@ -2,6 +2,17 @@
 
 Versions are the mod's `Version` constant in `src/CustomAvatars/Core.cs`. This file was reconstructed from the git history on 2026-09-01.
 
+## 0.42.6 (2026-09-05)
+
+### Fixed
+- A peer's avatar no longer leans further forward than they do. The game's display body is 1.5 m tall for everyone; on a remote client it puts its head bone directly under the player's real head target in X and Z but pinned at 1.48 m — every dump of every peer in the 2026-09-05 session agreed to the millimetre, with the real head 13 to 29 cm higher. Reproducing a head that has moved forward with a spine that short makes the torso steeper than the real one, about half again as steep for a 1.77 m player, and copying that body's rotations copied the exaggeration, so the tallest player in the room leaned the most and their shoulders, and the arms solved from them, went with it. After the copy the torso is now turned about the first spine bone until the avatar's head lies on the line toward the real head target, which is networked and steady. The head keeps its own rotation, the legs are untouched, the arms are solved from the corrected shoulders. Direction only, never distance: the height fit already puts the head at the right height. Clamped at `PeerSpineToHeadMaxDegrees` (45°) and skipped when the target is nowhere near the body, so a ragdoll or a body still spawning is not followed. `PeerSpineToHead = false` restores the old behaviour.
+
+### Added
+- The peer pose line reports the game body's lean, the real lean to their head target, and how far the torso was turned.
+
+### Notes
+- If a peer's hands sit high and forward on your screen while they look fine to themselves, check `SwapSolvePeerArms` in your MelonPreferences.cfg. Its default changed from false to true on 2026-09-01, and MelonLoader keeps the value a client first wrote, so anyone who ran the earlier build still has false and copies peer arms instead of solving them. Two of three clients in the 2026-09-05 session did.
+
 ## 0.42.5 (2026-09-03)
 
 ### Fixed

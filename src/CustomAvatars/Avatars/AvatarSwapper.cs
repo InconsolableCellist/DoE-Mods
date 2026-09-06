@@ -80,6 +80,8 @@ namespace CustomAvatars.Avatars
         private float _hipsSteadyStart = -1f; // unscaled time the hips have been plausible since; -1 = not now
         private float _nextHipsLogAt;
         private int _hipsRebases;
+        // The peer torso correction, for the peer pose line. See PeerSpineToHead.
+        private float _leanPuppet = -1f, _leanReal = -1f, _leanApplied = -1f, _leanWanted = -1f;
         private float _nextHipsWarnAt;
         private const float HipsMinHeight = 0.45f;   // a hip lower than this, in body metres, is lying down
         private const float HipsMaxHeight = 1.5f;    // higher than this is being lifted, or is not a person
@@ -1078,6 +1080,7 @@ namespace CustomAvatars.Avatars
                 catch (Exception e) { Core.Log.Warning($"Retarget failed, disabling: {e.Message}"); _retarget = null; }
             }
 
+            PeerSpineToHead();
             LogPeerPose();
             WatchPeerHips();
 
@@ -1892,6 +1895,69 @@ namespace CustomAvatars.Avatars
         }
 
         /// <summary>
+        /// Put a peer's head where their head actually is.
+        ///
+        /// The game's display body is 1.5 m tall for everyone. On a remote client it puts its
+        /// head bone directly under the player's real head target in X and Z, but pinned at
+        /// 1.48 m — every dump of every peer agrees to the millimetre — so it reproduces a
+        /// forward lean of the head with a spine that is shorter than the player's, and the
+        /// torso comes out steeper than the real one: about half again as steep for a 1.77 m
+        /// player, a third again for 1.62 m. Copying that body's rotations copies the
+        /// exaggeration, and the tallest player in the room leans the most.
+        ///
+        /// The head target is networked, steady, and where their head is. So after the copy,
+        /// the torso is turned about the first spine bone until the avatar's head bone lies on
+        /// the line from that bone to the target. The head keeps its own world rotation (their
+        /// real gaze, which the game does network), the legs are untouched, and the arms are
+        /// solved afterwards from wherever the shoulders ended up. Only the direction is
+        /// corrected, never the distance: the height fit already puts the head at the right
+        /// height on a standing body.
+        ///
+        /// Clamped, because a target far from the body is a ragdoll or a body still spawning
+        /// and not a lean. Not for yourself: your own model is anchored by the head outright.
+        /// </summary>
+        private void PeerSpineToHead()
+        {
+            _leanPuppet = _leanReal = _leanApplied = _leanWanted = -1f;
+            if (IsSelf || _retarget == null || _ragdolling || !ModConfig.PeerSpineToHead.Value) return;
+            if (!Interop.Alive(_headBone) || !Interop.Alive(_player) || !Interop.Alive(_fullBody)) return;
+            try
+            {
+                var target = _player.IKTargetHead;
+                var pivot = _retarget.TargetOf(HumanBodyBones.Spine);
+                if (!Interop.Alive(target) || !Interop.Alive(pivot)) return;
+
+                var up = _fullBody.transform.up;
+                var theirHips = _retarget.SourceHipsPosition;
+                var theirHead = _retarget.SourceOf(HumanBodyBones.Head);
+                if (theirHips.HasValue && Interop.Alive(theirHead))
+                {
+                    _leanPuppet = Vector3.Angle(theirHead.position - theirHips.Value, up);
+                    _leanReal = Vector3.Angle(target.position - theirHips.Value, up);
+                }
+
+                var from = _headBone.position - pivot.position;
+                var to = target.position - pivot.position;
+                // A head that is not above the spine, or a target that is nowhere near the body,
+                // is not something to turn the torso after.
+                if (from.magnitude < 0.1f || to.magnitude < 0.1f || to.magnitude > 2.5f * from.magnitude) return;
+
+                var wanted = Vector3.Angle(from, to);
+                _leanWanted = wanted;
+                if (wanted < 0.05f) { _leanApplied = 0f; return; }
+                var applied = Mathf.Min(wanted, Mathf.Max(0f, ModConfig.PeerSpineToHeadMaxDegrees.Value));
+                var axis = Vector3.Cross(from, to);
+                if (axis.sqrMagnitude < 1e-10f) return;
+
+                var gaze = _headBone.rotation;
+                pivot.rotation = Quaternion.AngleAxis(applied, axis.normalized) * pivot.rotation;
+                _headBone.rotation = gaze;
+                _leanApplied = applied;
+            }
+            catch { }
+        }
+
+        /// <summary>
         /// One line a second saying why a peer's avatar is or isn't moving.
         ///
         /// Two playtests have now ended with "the peer slides around in an A-pose", and the
@@ -1957,9 +2023,18 @@ namespace CustomAvatars.Avatars
                 if (ours.HasValue && theirs.HasValue)
                     hips += $", ours {Vector3.Distance(ours.Value, theirs.Value) * 100f:0} cm from theirs";
 
+                var lean = "lean ?";
+                if (_leanPuppet >= 0f && _leanReal >= 0f)
+                    lean = $"lean: their body {_leanPuppet:0}°, really {_leanReal:0}°" +
+                           (_leanWanted >= 0f
+                               ? $", torso turned {_leanApplied:0.#}° of {_leanWanted:0.#}° toward their head" +
+                                 (_leanApplied + 0.05f < _leanWanted ? " (clamped)" : "")
+                               : ", torso not turned");
+                else if (!ModConfig.PeerSpineToHead.Value) lean = "lean: copied from their body";
+
                 Core.Log.Msg($"peer `{who}`: {reach} | {travel}" +
                              (stolen >= 0f ? $", {stolen:0.#}° taken back off us between frames" : "") +
-                             $" | {hips} | {vis} | {ik}");
+                             $" | {hips} | {lean} | {vis} | {ik}");
             }
             catch (Exception e) { Core.Log.Warning($"peer pose probe failed: {e.GetType().Name}: {e.Message}"); }
         }

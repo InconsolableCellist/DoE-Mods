@@ -703,6 +703,14 @@ namespace CustomAvatars.Avatars
             return Build(source, model, manifest);
         }
 
+        /// <summary>Our avatar's bone for this humanoid bone, or null if it wasn't paired.</summary>
+        public Transform TargetOf(HumanBodyBones bone)
+        {
+            foreach (var link in _links)
+                if (link.Bone == bone) return Interop.Alive(link.Target) ? link.Target : null;
+            return null;
+        }
+
         /// <summary>The game bone we read for this humanoid bone, or null if it wasn't paired.</summary>
         public Transform SourceOf(HumanBodyBones bone)
         {

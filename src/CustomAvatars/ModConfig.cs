@@ -144,6 +144,8 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<bool> SwapForceVanillaIK;
         public static MelonPreferences_Entry<float> RetargetHipsFollow;
         public static MelonPreferences_Entry<bool> RetargetHipsGuard;
+        public static MelonPreferences_Entry<bool> PeerSpineToHead;
+        public static MelonPreferences_Entry<float> PeerSpineToHeadMaxDegrees;
         public static MelonPreferences_Entry<float> DiagPeerPoseSeconds;
         public static MelonPreferences_Entry<string> SwapHideVanillaMeshMode;
         public static MelonPreferences_Entry<bool> SwapKeepVanillaMeshInView;
@@ -445,6 +447,16 @@ namespace CustomAvatars
                 "taken. A reference taken on a respawning peer — a ragdoll, or a body still " +
                 "being stood up — put their avatar a hip's height in the air with its legs " +
                 "stretched to the floor until they re-wore it. Off, the old behaviour.");
+            PeerSpineToHead = Dev.CreateEntry("PeerSpineToHead", true, description:
+                "Turn a peer's avatar torso so its head lands on their real head target instead " +
+                "of copying the game body's lean. The game body is 1.5 m tall for everyone: it puts " +
+                "its head directly under the player's real head but pinned at 1.48 m, so a taller " +
+                "player's forward lean is reproduced with a shorter spine and comes out steeper — " +
+                "half again as steep for a 1.77 m player. The head target is networked, steady, and " +
+                "where their head actually is. Off, the old behaviour: copy the game body's lean.");
+            PeerSpineToHeadMaxDegrees = Dev.CreateEntry("PeerSpineToHeadMaxDegrees", 45f, description:
+                "The most the torso correction may turn, in degrees. A head target far from the " +
+                "body — a ragdoll, a body still spawning — is not a lean and is not followed.");
             DiagPeerPoseSeconds = Dev.CreateEntry("DiagPeerPoseSeconds", 1.0f, description:
                 "Seconds between the one-line report on why a peer's avatar is or isn't moving. " +
                 "0 turns it off.");
