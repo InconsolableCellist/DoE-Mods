@@ -1,0 +1,77 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    VisualCues — a third, independent MelonLoader mod for Dungeons of Eternity.
+    Build settings (GameDir resolution, warning suppression) come from ../Directory.Build.props,
+    shared with CustomAvatars. This project references neither CustomAvatars.dll nor LootOverhaul.dll; it has no gate at all
+    (see README.md) and carries its own copy of the Photon inbound hook in Net/.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyName>VisualCues</AssemblyName>
+    <RootNamespace>VisualCues</RootNamespace>
+    <Version>0.1.0</Version>
+    <EnableDefaultItems>true</EnableDefaultItems>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <!-- Fail early and legibly rather than with 400 "type not found" errors. -->
+  <Target Name="CheckGameRefs" BeforeTargets="BeforeResolveReferences">
+    <Error Condition="!Exists('$(MelonNet6Dir)')"
+           Text="MelonLoader not found at '$(MelonNet6Dir)'. Set GameDir (see src/Directory.Build.props) or install MelonLoader into the game folder." />
+    <Error Condition="!Exists('$(Il2CppAssembliesDir)')"
+           Text="'$(Il2CppAssembliesDir)' is missing. Launch the game once with MelonLoader installed so it can generate the interop assemblies, then rebuild." />
+  </Target>
+
+  <ItemGroup>
+    <Reference Include="MelonLoader">
+      <HintPath>$(MelonNet6Dir)\MelonLoader.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(MelonNet6Dir)\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2CppInterop.Runtime">
+      <HintPath>$(MelonNet6Dir)\Il2CppInterop.Runtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2CppInterop.Common">
+      <HintPath>$(MelonNet6Dir)\Il2CppInterop.Common.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- Shipped by MelonLoader itself, so it is already loaded. -->
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(MelonNet6Dir)\Newtonsoft.Json.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- Reference every generated interop assembly; the set shifts with game updates. -->
+  <ItemGroup>
+    <Il2CppAssembly Include="$(Il2CppAssembliesDir)\*.dll" />
+  </ItemGroup>
+  <Target Name="AddIl2CppRefs" BeforeTargets="BeforeResolveReferences">
+    <ItemGroup>
+      <Reference Include="@(Il2CppAssembly->'%(Filename)')">
+        <HintPath>%(Il2CppAssembly.FullPath)</HintPath>
+        <Private>false</Private>
+      </Reference>
+    </ItemGroup>
+  </Target>
+
+  <!-- Build straight into the game's Mods folder; set NoDeploy=true to skip. -->
+  <Target Name="DeployToGame" AfterTargets="Build"
+          Condition="'$(NoDeploy)' != 'true' And Exists('$(GameModsDir)')">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(GameModsDir)"
+          Retries="0" ContinueOnError="WarnAndContinue">
+      <Output TaskParameter="CopiedFiles" ItemName="DeployedFiles" />
+    </Copy>
+    <Message Importance="high" Condition="'@(DeployedFiles)' != ''"
+             Text="Deployed $(TargetFileName) -> $(GameModsDir)" />
+    <Message Importance="high" Condition="'@(DeployedFiles)' == ''"
+             Text="NOT deployed: $(GameModsDir)\$(TargetFileName) is locked (game running?). Quit the game and rebuild." />
+  </Target>
+
+</Project>

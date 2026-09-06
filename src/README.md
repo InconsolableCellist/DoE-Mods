@@ -1,7 +1,9 @@
 # CustomAvatars — building
 
-This folder holds two independent mods: `CustomAvatars/` (this page) and `LootOverhaul/`
-(see [LootOverhaul/README.md](LootOverhaul/README.md)). They share only `Directory.Build.props`.
+This folder holds three independent mods: `CustomAvatars/` (this page), `LootOverhaul/`
+(see [LootOverhaul/README.md](LootOverhaul/README.md)) and `VisualCues/` (see
+[VisualCues/README.md](VisualCues/README.md); accessibility cues for deaf players, no gate).
+They share only `Directory.Build.props`.
 
 ## One-time prerequisites
 

@@ -13,8 +13,9 @@ tracking sync via VRCFaceTracking + OSC, and (stretch) custom inventory/loot.
   separate loot/inventory/shop mod built on the game's own weapon generator.
 - **[INSTALL.md](INSTALL.md)** — installing and (importantly) removing the mod. This is the
   page to hand to a friend; it assumes no knowledge of the project.
-- **[src/README.md](src/README.md)** — the mods themselves: `src/CustomAvatars/` and the
-  independent `src/LootOverhaul/` scaffold; how to build them.
+- **[src/README.md](src/README.md)** — the mods themselves: `src/CustomAvatars/`, the
+  independent `src/LootOverhaul/`, and `src/VisualCues/` (deaf-accessibility cues: a
+  stick-click call arrow and unseen-enemy noise markers; no gate); how to build them.
 - **tools/** — MelonLoader 0.7.3, Il2CppDumper, Cpp2IL, AssetRipper, UnityExplorer builds.
 
 Game install: `C:\Games\Steam\steamapps\common\Dungeons of Eternity`
