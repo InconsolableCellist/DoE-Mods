@@ -20,8 +20,14 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<float> BaseDropChance;
         /// <summary>Bag capacity in weight units. The weight table lives in code, by weapon type and tier.</summary>
         public static MelonPreferences_Entry<float> BagWeightCapacity;
-        /// <summary>Drop chance, 0–1, when a boss dies.</summary>
+        /// <summary>Chance, 0–1, for each piece of a boss's pile after the guaranteed first one.</summary>
         public static MelonPreferences_Entry<float> BossDropChance;
+        /// <summary>Pieces of loot (weapon or armor) a boss drops; the first is guaranteed.</summary>
+        public static MelonPreferences_Entry<int> BossDrops;
+        /// <summary>Pieces of loot a mini-boss drops; the first is guaranteed.</summary>
+        public static MelonPreferences_Entry<int> MiniBossDrops;
+        /// <summary>Rarity floor of the guaranteed first piece: 0 Common, 1 Unique, 2 Rare, 3 Legendary.</summary>
+        public static MelonPreferences_Entry<int> BossGuaranteedClass;
         /// <summary>After this many kills without a Legendary, the next drop is one. 0 disables.</summary>
         public static MelonPreferences_Entry<int> LegendaryPityKills;
         /// <summary>Drop-chance multiplier per player beyond the first.</summary>
@@ -89,7 +95,10 @@ namespace LootOverhaul
             EnemyDropsEnabled = Main.CreateEntry("EnemyDropsEnabled", true);
             BaseDropChance = Main.CreateEntry("BaseDropChance", 0.015f);
             BagWeightCapacity = Main.CreateEntry("BagWeightCapacity", 30f);
-            BossDropChance = Main.CreateEntry("BossDropChance", 1.0f);
+            BossDropChance = Main.CreateEntry("BossDropChance", 1.0f, description: "Chance, 0–1, for each piece of a boss's or mini-boss's pile after the guaranteed first one.");
+            BossDrops = Main.CreateEntry("BossDrops", 3, description: "Pieces of loot (weapon or armor) a boss drops. The first always drops at BossGuaranteedClass or better; the rest each roll BossDropChance.");
+            MiniBossDrops = Main.CreateEntry("MiniBossDrops", 2, description: "Pieces of loot a mini-boss drops, same rules as BossDrops.");
+            BossGuaranteedClass = Main.CreateEntry("BossGuaranteedClass", 2, description: "Rarity floor of a boss's or mini-boss's first piece: 0 Common, 1 Unique, 2 Rare, 3 Legendary.");
             LegendaryPityKills = Main.CreateEntry("LegendaryPityKills", 120, description: "Bad-luck protection: after this many kills by anyone in the room (counted in the host's own file) without a Legendary, the next drop is forced Legendary. 0 disables.");
             DropChancePerExtraPlayer = Main.CreateEntry("DropChancePerExtraPlayer", 0.35f, description: "Weapon and junk chances are multiplied by 1 + this × (players − 1).");
             BeamMinClass = Main.CreateEntry("BeamMinClass", 2, description: "Beam only over items of at least this rarity: 0 Common, 1 Unique, 2 Rare, 3 Legendary (junk: 2 = artifact).");

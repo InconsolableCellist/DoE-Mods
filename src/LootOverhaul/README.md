@@ -36,6 +36,17 @@ gate rule is the same: private room, every occupant on the identical version and
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
 
+## 0.9.12 — bosses drop a pile
+
+- **Bosses and mini-bosses drop several pieces.** `BossDrops` (3) for a boss, `MiniBossDrops`
+  (2) for a mini-boss, weapons or armor by `ArmorShare`. The first piece always drops and is
+  at least `BossGuaranteedClass` (2, Rare; pity still makes it Legendary); every further
+  piece drops with `BossDropChance` (1.0) on the boss rarity curve. The pieces are kicked out
+  around a circle so they land apart, and the boss still rolls its trinket on top.
+- **Mini-bosses count.** The game's `AI.IsBoss` is only the full Boss class; the rank now
+  comes from the class the enemy was spawned as (Miniboss 4, Boss 5). The drop line says
+  `boss` or `mini-boss` and `piece=n/m`.
+
 ## 0.9.11 — locks, party scaling, tidier bodies
 
 - **LOCK / UNLOCK** per row on the kobold's sell panel. A locked item cannot be sold (SELL

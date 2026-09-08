@@ -3,6 +3,17 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.9.12 (2026-09-07)
+
+### Added
+- Bosses and mini-bosses drop a pile. A boss drops `BossDrops` pieces (default 3) and a mini-boss `MiniBossDrops` (default 2), weapons or armor by the usual `ArmorShare`. The first piece always drops and is at least `BossGuaranteedClass` (default 2, Rare); pity still forces it Legendary. Each further piece drops with `BossDropChance` (default 1.0, so all of them) on the boss rarity curve (never Common, a 35% bump). Pieces are kicked out around a circle so they land apart. Bosses also roll their trinket (three times the normal `JunkDropChance`) on top of the pile; before, a boss's guaranteed weapon meant it never reached the junk roll.
+
+### Fixed
+- Mini-bosses are treated as bosses. The game's `AI.IsBoss` is exactly "spawned as the Boss class" (read from the assembly), so a mini-boss rolled like a regular enemy of its type. The rank now comes from the class the game spawned the enemy as: Miniboss (4) or Boss (5), with `IsBoss` as the fallback.
+
+### Changed
+- `BossDropChance` now means the chance of each extra piece, not whether a boss drops at all. The drop log line for a boss says `boss` or `mini-boss` and `piece=n/m`; the junk line carries `boss=`.
+
 ## 0.9.11 (2026-09-05)
 
 ### Added
