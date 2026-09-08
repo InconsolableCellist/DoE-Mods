@@ -2,6 +2,15 @@
 
 Versions are the mod's `Version` constant in `src/CustomAvatars/Core.cs`. This file was reconstructed from the git history on 2026-09-01.
 
+## 0.42.7 (2026-09-07)
+
+### Fixed
+- Peers no longer stand with their hips pushed forward and their chest leaning back. The hips-origin guard from 0.42.2 learned where a body stands as the highest its hips ever sat while solved and steady, on the reasoning that standing is the highest a body gets. In every log of the 2026-09-05 and 2026-09-07 sessions the game body's hips sat 25 to 36 cm off their standing spot for the three quarters of a second that rule needed, within a minute of every capture, and from then on the standing body read as 30 cm off its origin for the rest of the session. The avatar's hips were shoved that far, the 0.42.6 torso correction then bent the chest back to put the head on its target (22° on average, often at the 45° clamp, where a correct origin needs 6 to 14°), and every re-wear learned the same wrong origin a minute later. Whose avatar looked worst was whoever's excursion had been largest. The origin is now where the hips spend their time: a histogram of hips height over steady frames with a one-minute half-life, a candidate height needs a couple of seconds in all and a quarter of the busiest height's time, and the highest candidate wins, so standing still beats a crouch but a brief lift never becomes the origin.
+- Holding a T-pose now does exactly what two F4 presses do: the avatar comes off, and goes back on after `RebindGapSeconds` (1 s). Off-and-on inside one frame captured the new reference off a body we had only just let go of, and did not fix what two presses fixed. The same gap applies to the re-wear after a size change.
+
+### Added
+- A `hips origin learned` / `hips origin moved` line whenever the learned standing origin is set or moves, with the hips, head-target and foot heights at that moment, so whatever lifts a game body's hips off its standing spot can be named next time. The `hips origin re-based` line now says where the body stands and how many seconds of evidence back it.
+
 ## 0.42.6 (2026-09-05)
 
 ### Fixed

@@ -80,6 +80,9 @@ namespace CustomAvatars.Avatars
         private float _hipsSteadyStart = -1f; // unscaled time the hips have been plausible since; -1 = not now
         private float _nextHipsLogAt;
         private int _hipsRebases;
+        private struct HipsBin { public float Mass; public Vector3 Sum; }
+        private HipsBin[] _hipsBins;          // seconds spent at each hips height while steady, decayed
+        private float _hipsGoodMass;          // how many of those seconds back the learned origin
         // The peer torso correction, for the peer pose line. See PeerSpineToHead.
         private float _leanPuppet = -1f, _leanReal = -1f, _leanApplied = -1f, _leanWanted = -1f;
         private float _nextHipsWarnAt;
@@ -88,6 +91,11 @@ namespace CustomAvatars.Avatars
         private const float HipsMaxLateral = 0.4f;   // further than this from the root is a ragdoll that travelled
         private const float HipsSteadySeconds = 0.75f;
         private const float HipsRebaseMetres = 0.15f; // an origin further than this from the standing one is wrong
+        private const float HipsBinMetres = 0.025f;   // the height histogram's resolution, in body metres
+        private const float HipsLearnSeconds = 2f;    // a height has to hold this long, in all, to be a candidate
+        private const float HipsHalfLifeSeconds = 60f; // how quickly the histogram forgets
+        private const float HipsCandidateFraction = 0.25f; // a candidate has at least this share of the busiest height
+        private const float HipsRelearnMetres = 0.10f; // the learned origin only moves by more than this
 
         // Head-anchored placement, for ourselves only. See AlignToHead.
         private Transform _headBone;
@@ -1336,9 +1344,24 @@ namespace CustomAvatars.Avatars
         /// From their own side nothing was wrong, because their own reference was taken on
         /// their own machine at a different moment.
         ///
-        /// So the origin is learned rather than trusted: the highest the hips sit while the
-        /// body is solved, not ragdolled, and standing somewhere a person's hips can be, held
-        /// for a moment. Whenever a fresh reference disagrees with that by more than a crouch
+        /// So the origin is learned rather than trusted. The first version learned it as the
+        /// HIGHEST the hips sat while the body was solved, not ragdolled and standing somewhere
+        /// a person's hips can be, on the reasoning that standing is the highest a body gets.
+        /// It is not: within a minute of every capture, in every log of the 2026-09-05 and
+        /// 2026-09-07 sessions, the game body's hips sat 25 to 36 cm off their standing spot
+        /// for the three quarters of a second that rule needed, and from then on the standing
+        /// body it copied all session read as 30 cm off its origin. The avatar's hips were
+        /// shoved that far, the torso correction bent the chest back to put the head on its
+        /// target, and the peer stood with their hips forward and their chest leaning back
+        /// until the next re-wear — which learned the same wrong origin a minute later.
+        ///
+        /// Now the origin is where the hips spend their TIME: a histogram of hips height,
+        /// steady frames only, forgetting with a one-minute half-life. A height counts as a
+        /// candidate once the body has held it a couple of seconds in all and at least a
+        /// quarter as long as the height it holds most; among the candidates the highest one
+        /// wins, which is still standing over a crouch. A brief lift, however far, is a
+        /// second against the minutes spent standing and never becomes a candidate at all.
+        /// Whenever a fresh reference disagrees with the learned origin by more than a crouch
         /// would explain, the learned origin replaces it. Until anything has been learned, an
         /// origin that is not a standing body's is not followed at all — a rig at its bind
         /// pose is right to within a crouch, a rig shoved into the air is not right at all.
@@ -1379,20 +1402,25 @@ namespace CustomAvatars.Avatars
                 if (!steady) _hipsSteadyStart = -1f;
                 else if (_hipsSteadyStart < 0f) _hipsSteadyStart = Time.unscaledTime;
 
-                // Learn the standing origin: the highest the hips sit while steady. Standing
-                // is the highest a body gets — a crouch is lower, a corpse is lower, and the
-                // band above rules out the sky — so a crouch caught at capture is corrected
-                // the moment they stand up, not baked in.
+                // Learn the standing origin from where the hips spend their time. Only steady
+                // frames count, and only once the body has been steady for a moment, so the
+                // frames of a body still being stood up after a respawn never get in.
                 if (steady && Time.unscaledTime - _hipsSteadyStart >= HipsSteadySeconds)
                 {
-                    if (!_hipsGood.HasValue) _hipsGood = now;
-                    else
+                    var dt = Mathf.Clamp(Time.unscaledDeltaTime, 0f, 0.1f);
+                    SampleHipsHeight(nowHeight, now.Value, dt);
+                    if (TryLearnedHipsOrigin(out var learned, out var learnedMass))
                     {
-                        // A tenth of a metre of hysteresis: the hips rise a few centimetres
-                        // when a player reaches up or bobs, a crouch or a corpse is short by
-                        // thirty or more.
-                        Plausible(_hipsGood.Value, out var goodHeight);
-                        if (nowHeight > goodHeight + 0.10f) _hipsGood = now;
+                        var moved = !_hipsGood.HasValue ||
+                                    parent.TransformVector(learned - _hipsGood.Value).magnitude > HipsRelearnMetres * scale;
+                        if (moved)
+                        {
+                            var previous = _hipsGood;
+                            _hipsGood = learned;
+                            _hipsGoodMass = learnedMass;
+                            LogHipsOriginLearned(previous, learned, learnedMass, parent, root, scale, up);
+                        }
+                        else _hipsGoodMass = learnedMass;
                     }
                 }
 
@@ -1408,9 +1436,11 @@ namespace CustomAvatars.Avatars
                         {
                             _nextHipsLogAt = Time.unscaledTime + 5f;
                             Plausible(rest.Value, out var restHeight);
+                            Plausible(_hipsGood.Value, out var goodHeight);
                             Core.Log.Msg($"    hips origin re-based on {Who()}: the reference had the hips " +
                                          $"{off:0.00} m from where they stand (at {restHeight:0.00} m above the root" +
-                                         $"{(restOk ? "" : " — a ragdoll, or a body still spawning")}); " +
+                                         $"{(restOk ? "" : " — a ragdoll, or a body still spawning")}; they stand at " +
+                                         $"{goodHeight:0.00} m, {_hipsGoodMass:0.0} s of evidence); " +
                                          $"the avatar would have sat that far off for as long as it was worn.");
                         }
                     }
@@ -1429,6 +1459,99 @@ namespace CustomAvatars.Avatars
                 }
             }
             catch { _hipsSteadyStart = -1f; }
+        }
+
+        /// <summary>
+        /// One steady frame's worth of hips height into the histogram, with everything
+        /// already there forgetting a little. The local position goes in alongside the time
+        /// so a bin can say where, not just how high, the hips were while they sat there.
+        /// </summary>
+        private void SampleHipsHeight(float height, Vector3 local, float dt)
+        {
+            if (dt <= 0f) return;
+            _hipsBins ??= new HipsBin[Mathf.CeilToInt((HipsMaxHeight - HipsMinHeight) / HipsBinMetres) + 1];
+            var keep = Mathf.Exp(-dt * 0.6931472f / HipsHalfLifeSeconds);
+            for (var i = 0; i < _hipsBins.Length; i++)
+            {
+                _hipsBins[i].Mass *= keep;
+                _hipsBins[i].Sum *= keep;
+            }
+            var bin = Mathf.Clamp(Mathf.RoundToInt((height - HipsMinHeight) / HipsBinMetres), 0, _hipsBins.Length - 1);
+            _hipsBins[bin].Mass += dt;
+            _hipsBins[bin].Sum += local * dt;
+        }
+
+        /// <summary>
+        /// Where the hips stand, from the histogram: the highest height that has held long
+        /// enough to be believed. Each height is scored with its two neighbours so a body
+        /// standing on a bin boundary is not split in two. False until anything has.
+        /// </summary>
+        private bool TryLearnedHipsOrigin(out Vector3 origin, out float mass)
+        {
+            origin = Vector3.zero;
+            mass = 0f;
+            if (_hipsBins == null) return false;
+            var n = _hipsBins.Length;
+            var busiest = 0f;
+            for (var i = 0; i < n; i++) busiest = Mathf.Max(busiest, WindowMass(i));
+            if (busiest < HipsLearnSeconds) return false;
+
+            var floor = Mathf.Max(HipsLearnSeconds, busiest * HipsCandidateFraction);
+            for (var i = n - 1; i >= 0; i--)
+            {
+                var w = WindowMass(i);
+                if (w < floor) continue;
+                // A local peak, so the top edge of a busy band is not taken for a band of its own.
+                if (i > 0 && WindowMass(i - 1) > w) continue;
+                if (i < n - 1 && WindowMass(i + 1) > w) continue;
+                var sum = Vector3.zero;
+                for (var j = Mathf.Max(0, i - 1); j <= Mathf.Min(n - 1, i + 1); j++) sum += _hipsBins[j].Sum;
+                origin = sum / w;
+                mass = w;
+                return true;
+            }
+            return false;
+
+            float WindowMass(int i)
+            {
+                var m = _hipsBins[i].Mass;
+                if (i > 0) m += _hipsBins[i - 1].Mass;
+                if (i < n - 1) m += _hipsBins[i + 1].Mass;
+                return m;
+            }
+        }
+
+        /// <summary>
+        /// The learned origin was set, or moved. Rare, and the one moment worth describing in
+        /// full: the previous session's logs said the origin had moved without saying where
+        /// the head target or the feet were when it did, which is what would have named the
+        /// thing lifting the hips.
+        /// </summary>
+        private void LogHipsOriginLearned(Vector3? previous, Vector3 learned, float mass,
+                                          Transform parent, Transform root, float scale, Vector3 up)
+        {
+            try
+            {
+                string Describe(Vector3 local)
+                {
+                    var fromRoot = parent.TransformPoint(local) - root.position;
+                    var height = Vector3.Dot(fromRoot, up) / scale;
+                    var lateral = Vector3.ProjectOnPlane(fromRoot, up).magnitude / scale;
+                    return $"{height:0.00} m above the root, {lateral * 100f:0} cm out from under it";
+                }
+                string HeightOf(Transform t)
+                {
+                    if (!Interop.Alive(t)) return "?";
+                    return $"{Vector3.Dot(t.position - root.position, up) / scale:0.00} m";
+                }
+                var head = Interop.Alive(_player) ? _player.IKTargetHead : null;
+                var was = previous.HasValue ? $"; was {Describe(previous.Value)}" : "";
+                Core.Log.Msg($"    hips origin {(previous.HasValue ? "moved" : "learned")} on {Who()}: they stand with the hips " +
+                             $"{Describe(learned)} ({mass:0.0} s of evidence){was}. Right now: hips {HeightOf(_retarget.SourceOf(HumanBodyBones.Hips))}, " +
+                             $"head target {HeightOf(head)}, feet {HeightOf(_retarget.SourceOf(HumanBodyBones.LeftFoot))} / " +
+                             $"{HeightOf(_retarget.SourceOf(HumanBodyBones.RightFoot))} above the root, body scale x{scale:0.00}.");
+            }
+            catch { }
         }
 
         /// <summary>
@@ -2151,6 +2274,8 @@ namespace CustomAvatars.Avatars
             _wasAlive = true;
             _ragdolling = false;
             _hipsGood = null;
+            _hipsGoodMass = 0f;
+            _hipsBins = null;
             _hipsSteadyStart = -1f;
             _hipsRebases = 0;
             _nextHipsLogAt = 0f;

@@ -87,6 +87,9 @@ namespace CustomAvatars.Avatars
         /// <summary>F4. Returns the avatar now worn, or null if it was taken off or refused.</summary>
         public string ToggleSelf()
         {
+            // F4 in the gap of a re-wear is the second press itself; nothing is owed afterwards.
+            _rewearOnAt = 0f;
+            _rewearName = null;
             _self.Toggle(_library);
             _selfWanted = _self.AvatarName;   // null once taken off, so we don't re-apply it
             // Whichever way F4 went, that was a deliberate choice — don't put the avatar back on
@@ -137,6 +140,8 @@ namespace CustomAvatars.Avatars
         private void HealSelf()
         {
             if (string.IsNullOrEmpty(_selfWanted) || !ModGate.LocalVisuals) return;
+            // Half way through a re-wear the avatar is off on purpose; FinishReWear puts it back.
+            if (_rewearOnAt > 0f) return;
 
             AvatarPlayer local = null;
             try { local = AvatarPlayer.LocalAvatar; } catch { }
@@ -166,33 +171,37 @@ namespace CustomAvatars.Avatars
         private float _nextHealAt;
 
         /// <summary>
-        /// F4 twice, as one step: take the avatar off and put it straight back on.
+        /// F4 twice: take the avatar off, and put it back on a moment later.
         ///
         /// A re-bind that only re-captured the reference pose and rebuilt the solvers in place
         /// was tried first and was not the same thing — the avatar didn't come back to the
         /// position and fit a fresh swap gives it. A fresh swap is a new model instance in its
         /// bind pose, a new reference, a new fit, new springs, new everything; there is no
         /// cheaper equivalent, so this does the real thing.
+        ///
+        /// In two steps, with a gap, not off-and-on inside one frame. Two F4 presses have a
+        /// second or so between them, and in that second the game has the vanilla body back:
+        /// it solves it, sizes it and draws it, so the second press captures its reference off
+        /// a body that has settled without us. Off-and-on in one frame captured it off the
+        /// body as we had just left it, and testers could tell: a held T-pose did not fix
+        /// what two F4s fixed. So the T-pose now does exactly what the two presses do, with
+        /// `RebindGapSeconds` between them.
         /// </summary>
         private void ReWearSelf(string why)
         {
             var name = _self.AvatarName ?? _selfWanted;
             if (string.IsNullOrEmpty(name) || !ModGate.LocalVisuals) return;
+            if (_library.Get(name) == null) { Fbt.FbtAudio.Error(); return; }
 
-            AvatarPlayer local = null;
-            try { local = AvatarPlayer.LocalAvatar; } catch { }
-            if (!Interop.Alive(local)) { Fbt.FbtAudio.Error(); return; }
-
-            var manifest = _library.Get(name);
-            if (manifest == null) { Fbt.FbtAudio.Error(); return; }
-
-            Core.Log.Msg($"*** Re-wearing `{name}` ({why}) — off and straight back on.");
+            var gap = UnityEngine.Mathf.Max(0f, ModConfig.RebindGapSeconds.Value);
+            Core.Log.Msg($"*** Re-wearing `{name}` ({why}) — off now, back on in {gap:0.0} s.");
             // Start from the fit we had, moved by however much our size changed since it was
             // measured, so the second before the new measurement doesn't leave the feet in
             // the air. Exact when nothing but the size changed.
-            var guess = _self.IsActive && _self.HeightScale > 0f
+            _rewearFit = _self.IsActive && _self.HeightScale > 0f
                 ? _self.HeightScale * PlayerSize.Applied / UnityEngine.Mathf.Max(0.05f, _self.SizeAtFit)
                 : 0f;
+            _rewearName = name;
             _self.Revert(why);
             // Tell peers it came off BEFORE it goes back on, exactly as two F4 presses do. A
             // single "still wearing X" afterwards is read on their side as a resize, which
@@ -201,7 +210,28 @@ namespace CustomAvatars.Avatars
             // fresh one is the whole point of re-wearing. Both messages are reliable and
             // ordered, so they cannot land the other way round.
             SelfAvatarChanged?.Invoke();
-            _self.Apply(local, manifest, isSelf: true, initialFit: guess);
+            _rewearOnAt = UnityEngine.Time.unscaledTime + gap;
+        }
+
+        /// <summary>The second F4 of the two: put the avatar back on after the gap.</summary>
+        private void FinishReWear()
+        {
+            _rewearOnAt = 0f;
+            var name = _rewearName;
+            _rewearName = null;
+            if (string.IsNullOrEmpty(name) || !ModGate.LocalVisuals) return;
+            // Something else dressed us during the gap (F4, or a scene change healed): done.
+            if (_self.IsActive) return;
+
+            AvatarPlayer local = null;
+            try { local = AvatarPlayer.LocalAvatar; } catch { }
+            // No body to put it on: HealSelf dresses the next one, since it is still wanted.
+            if (!Interop.Alive(local)) { _selfWanted = name; return; }
+
+            var manifest = _library.Get(name);
+            if (manifest == null) { Fbt.FbtAudio.Error(); return; }
+
+            _self.Apply(local, manifest, isSelf: true, initialFit: _rewearFit);
             _selfWanted = _self.AvatarName ?? _selfWanted;
             SelfAvatarChanged?.Invoke();
 
@@ -266,12 +296,20 @@ namespace CustomAvatars.Avatars
 
         private float _rewearAt;
         private string _rewearSizeWhy;
+        // The re-wear's second half: what goes back on, at what fit, and when.
+        private float _rewearOnAt;
+        private string _rewearName;
+        private float _rewearFit;
 
         public void Tick(float deltaTime)
         {
             AutoWear();
             HealSelf();
-            if (_rewearWhy != null) { var why = _rewearWhy; _rewearWhy = null; ReWearSelf(why); }
+            if (_rewearOnAt > 0f)
+            {
+                if (UnityEngine.Time.unscaledTime >= _rewearOnAt) FinishReWear();
+            }
+            else if (_rewearWhy != null) { var why = _rewearWhy; _rewearWhy = null; ReWearSelf(why); }
             else if (_rewearAt > 0f && UnityEngine.Time.unscaledTime >= _rewearAt)
             {
                 _rewearAt = 0f;

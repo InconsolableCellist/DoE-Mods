@@ -87,6 +87,7 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<float> LegStretch;
         public static MelonPreferences_Entry<bool> LegLockFeet;
         public static MelonPreferences_Entry<float> RebindOnTposeSeconds;
+        public static MelonPreferences_Entry<float> RebindGapSeconds;
         public static MelonPreferences_Entry<float> SizeMoveSpeedBlend;
 
         public static MelonPreferences_Entry<float> FaceSmoothing;
@@ -288,6 +289,12 @@ namespace CustomAvatars
             // put straight back on. 0 turns it off.
             RebindOnTposeSeconds = Tuning.CreateEntry("RebindOnTposeSeconds", 1.5f, description:
                 "Hold a T-pose this many seconds to re-bind the avatar to your body. 0 disables.");
+            // The pause between the two F4s. Off and on in the same frame captured the new
+            // reference off a body we had only just let go of, and did not fix what two
+            // presses fixed.
+            RebindGapSeconds = Tuning.CreateEntry("RebindGapSeconds", 1.0f, description:
+                "Seconds the avatar stays off during a re-bind (held T-pose, size change) before it " +
+                "goes back on — the gap between two F4 presses.");
             // Stick speed and jump height are world metres, so a small player crosses a room
             // fast. 0 leaves the game alone; 1 makes a half-size player half as fast.
             SizeMoveSpeedBlend = Tuning.CreateEntry("SizeMoveSpeedBlend", 0f, description:
