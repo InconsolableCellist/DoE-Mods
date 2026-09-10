@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Standalone, and deliberately not part of the mod build: the mod itself only compiles
+    against the game's interop assemblies, while these two files have no game dependency at
+    all. Osc/OscPacket.cs and Osc/OscSender.cs are compiled from their real location, so the
+    tests cannot drift from the code they check.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyName>StayPutVRTests</AssemblyName>
+    <RootNamespace>StayPutVR.Tests</RootNamespace>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Osc\OscPacket.cs" />
+    <Compile Include="..\Osc\OscSender.cs" />
+    <Compile Include="Stubs.cs" />
+    <Compile Include="Tests.cs" />
+  </ItemGroup>
+
+</Project>

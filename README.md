@@ -11,11 +11,18 @@ tracking sync via VRCFaceTracking + OSC, and (stretch) custom inventory/loot.
   IDE reference). Regenerate after game updates with `tools/run_dumper.bat`.
 - **[docs/LOOT-OVERHAUL.md](docs/LOOT-OVERHAUL.md)** — feasibility investigation for a
   separate loot/inventory/shop mod built on the game's own weapon generator.
+- **[docs/STAYPUTVR.md](docs/STAYPUTVR.md)** — design notes for `src/StayPutVR/`: taking damage
+  in the dungeon fires a shock through the
+  [StayPutVR](https://github.com/InconsolableCellist/StayPutVR) app over OSC, and biting another
+  player fires theirs (2026-09-09). Where the damage hook is, why OSC Query has to be off, and the
+  consent design behind biting.
 - **[INSTALL.md](INSTALL.md)** — installing and (importantly) removing the mod. This is the
   page to hand to a friend; it assumes no knowledge of the project.
 - **[src/README.md](src/README.md)** — the mods themselves: `src/CustomAvatars/`, the
-  independent `src/LootOverhaul/`, and `src/VisualCues/` (deaf-accessibility cues: a
-  stick-click call arrow and unseen-enemy noise markers; no gate); how to build them.
+  independent `src/LootOverhaul/`, `src/VisualCues/` (deaf-accessibility cues: a
+  stick-click call arrow and unseen-enemy noise markers; no gate) and `src/StayPutVR/` (damage,
+  and biting another player, fire a shock through the StayPutVR app over OSC; no gate); how to
+  build them.
 - **tools/** — MelonLoader 0.7.3, Il2CppDumper, Cpp2IL, AssetRipper, UnityExplorer builds.
 
 Game install: `C:\Games\Steam\steamapps\common\Dungeons of Eternity`

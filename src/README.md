@@ -1,9 +1,11 @@
 # CustomAvatars — building
 
-This folder holds three independent mods: `CustomAvatars/` (this page), `LootOverhaul/`
-(see [LootOverhaul/README.md](LootOverhaul/README.md)) and `VisualCues/` (see
-[VisualCues/README.md](VisualCues/README.md); accessibility cues for deaf players, no gate).
-They share only `Directory.Build.props`.
+This folder holds four independent mods: `CustomAvatars/` (this page), `LootOverhaul/`
+(see [LootOverhaul/README.md](LootOverhaul/README.md)), `VisualCues/` (see
+[VisualCues/README.md](VisualCues/README.md); accessibility cues for deaf players, no gate) and
+`StayPutVR/` (see [StayPutVR/README.md](StayPutVR/README.md); taking damage, or being bitten,
+fires a shock through the StayPutVR app over OSC, no gate). They share only
+`Directory.Build.props`.
 
 ## One-time prerequisites
 
