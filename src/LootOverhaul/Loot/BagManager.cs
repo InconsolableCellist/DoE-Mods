@@ -91,6 +91,7 @@ namespace LootOverhaul.Loot
             item.FoundAt = DateTime.UtcNow;
             inv.Items.Add(item);
             inv.Save();
+            if (item.IsWeapon) { try { FabricatorBridge.RefreshArmories($"{item.Name} bagged"); } catch { } }
             Toast($"Bagged {item.ColoredName}  ({item.Value} T)  bag {inv.TotalWeight:0.#}/{Capacity:0}");
             BagPanel.Refresh();
             ReconLog.Line($"bag + {item.Name} [{LootTables.ClassName(item.WeaponClass)} {LootTables.TypeName(item.PropType)} t{item.WeaponTier + 1} seed {item.RandomSeed}] value={item.Value} weight={item.Weight:0.#} -> {inv.Items.Count} items, {inv.TotalWeight:0.#} wt");

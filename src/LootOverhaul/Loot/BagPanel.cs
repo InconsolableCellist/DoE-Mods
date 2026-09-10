@@ -174,7 +174,7 @@ namespace LootOverhaul.Loot
                 if (item.IsWeapon)
                 {
                     string stats = "";
-                    try { stats = Interop.OneLine(WeaponCodec.ToModule(item).GetStatsText()); } catch { }
+                    try { stats = UiKit.StatsLine(WeaponCodec.ToModule(item).GetStatsText()); } catch { }
                     second = $"<color=#9A9A9A>{LootTables.TypeName(item.PropType)} t{item.WeaponTier + 1}</color>  {stats}";
                 }
                 else if (item.IsBuff)
@@ -189,8 +189,8 @@ namespace LootOverhaul.Loot
                 var rowTextW = item.IsBuff || item.IsArmor ? twoBtnTextW : textW;
                 var worn = item.IsArmor && item.WornSlot >= 0 ? "   <color=#C9A86A>worn</color>" : "";
                 if (item.Locked) worn += "   <color=#9A9A9A>locked</color>";
-                UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), rowTextW, 0.05f, 0.38f, $"{item.ColoredName}{equipped}{worn}");
-                UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), rowTextW, 0.045f, item.IsWeapon ? 0.27f : 0.3f, second);
+                UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), rowTextW, 0.05f, 0.38f, $"{item.ColoredName}{equipped}{worn}", fit: true);
+                UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), rowTextW, 0.045f, item.IsWeapon ? 0.27f : 0.3f, second, fit: true);
 
                 var captured = item;
                 if (item.IsBuff)

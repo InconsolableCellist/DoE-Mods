@@ -171,8 +171,13 @@ namespace LootOverhaul.Loot
             }
         }
 
+        /// <summary>
+        /// A label. With <paramref name="fit"/> the font shrinks (to 60% of <paramref name="size"/>)
+        /// until the line fits the rect, so a long stats line is read in full instead of cut off
+        /// under the buttons (report 2026-09-08: two-perk weapons).
+        /// </summary>
         public static TextMeshPro Text(Transform parent, Vector3 localPos, float width, float height, float size, string text,
-                                       TextAlignmentOptions align = TextAlignmentOptions.Left)
+                                       TextAlignmentOptions align = TextAlignmentOptions.Left, bool fit = false)
         {
             try
             {
@@ -186,6 +191,12 @@ namespace LootOverhaul.Loot
                 if (Interop.Alive(_fontMaterial)) tmp.fontSharedMaterial = _fontMaterial;
                 // 3D TextMeshPro: fontSize 1 ≈ 0.1 m glyphs. 0.35 is a readable 3.5 cm line at arm's length.
                 tmp.fontSize = size;
+                if (fit)
+                {
+                    tmp.enableAutoSizing = true;
+                    tmp.fontSizeMax = size;
+                    tmp.fontSizeMin = size * 0.6f;
+                }
                 tmp.alignment = align;
                 tmp.enableWordWrapping = false;
                 // Truncate to the rect: a line that overflows runs under the buttons to its right.
@@ -201,6 +212,64 @@ namespace LootOverhaul.Loot
                 Core.Log.Warning($"Text failed: {e.GetType().Name}: {e.Message}");
                 return null;
             }
+        }
+
+        /// <summary>
+        /// The game's stats text on one short line: <c>GetStatsText()</c> returns lines like
+        /// "18 &lt;color=grey&gt;&lt;/color&gt;Damage" and "+ &lt;color=orange&gt;Criticals&lt;/color&gt;"; empty colour
+        /// tags go, lines are joined with a dot.
+        /// </summary>
+        public static string StatsLine(string raw)
+        {
+            if (string.IsNullOrEmpty(raw)) return "";
+            var s = System.Text.RegularExpressions.Regex.Replace(raw, @"<color=[^>]*>\s*</color>", "");
+            var parts = new System.Collections.Generic.List<string>();
+            foreach (var line in s.Replace("\r", "").Split(new[] { '\n', '|' }))
+            {
+                var t = System.Text.RegularExpressions.Regex.Replace(line, @"\s+", " ").Trim();
+                if (t.Length > 0) parts.Add(t);
+            }
+            return string.Join(" · ", parts);
+        }
+
+        /// <summary>
+        /// A bright rectangular frame: four thin bars around <paramref name="center"/> in the
+        /// parent's plane, unlit-looking (colour plus emission) so it reads in a dark room.
+        /// </summary>
+        public static GameObject Frame(Transform parent, Vector3 center, float width, float height, float thickness, Color color, float depth = 0.004f)
+        {
+            var root = new GameObject("Frame");
+            root.transform.SetParent(parent, false);
+            root.transform.localPosition = center;
+            root.transform.localRotation = Quaternion.identity;
+            var hw = width * 0.5f; var hh = height * 0.5f; var t = thickness;
+            var bars = new (Vector3 pos, Vector3 size)[]
+            {
+                (new Vector3(0f, hh - t * 0.5f, 0f), new Vector3(width, t, depth)),
+                (new Vector3(0f, -hh + t * 0.5f, 0f), new Vector3(width, t, depth)),
+                (new Vector3(-hw + t * 0.5f, 0f, 0f), new Vector3(t, height, depth)),
+                (new Vector3(hw - t * 0.5f, 0f, 0f), new Vector3(t, height, depth)),
+            };
+            foreach (var (pos, size) in bars)
+            {
+                var bar = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                bar.name = "Bar";
+                try { UnityEngine.Object.Destroy(bar.GetComponent<Collider>()); } catch { }
+                bar.transform.SetParent(root.transform, false);
+                bar.transform.localPosition = pos;
+                bar.transform.localRotation = Quaternion.identity;
+                bar.transform.localScale = size;
+                try
+                {
+                    var r = bar.GetComponent<Renderer>();
+                    r.material.color = color;
+                    try { r.material.EnableKeyword("_EMISSION"); r.material.SetColor("_EmissionColor", color * 1.5f); } catch { }
+                    r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                    r.receiveShadows = false;
+                }
+                catch { }
+            }
+            return root;
         }
 
         /// <summary>A flat dark backdrop. The default primitive material tinted; good enough until the booth gets art.</summary>

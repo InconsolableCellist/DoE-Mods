@@ -552,6 +552,55 @@ and recipes → scrolls that retune a bracelet → hazard contracts.
 - **0.9.11 (2026-09-05):** item locks, party-scaled drop chances, Remote_Pickup grant path
   removed (bag-full leak), Rocks_01 retired, Wolf_Treat tinted by tier, FXOutline visibility
   forced to Normal on loot, beams narrower and rarity-gated. Untested.
+- **0.9.12 (2026-09-07):** boss and mini-boss piles from `References.spawnedAsClass`
+  (`AI.IsBoss` is only class 5), guaranteed Rare first piece. Untested.
+- **0.9.13 (2026-09-08):** the tester's report, all from the assembly. `Weapon.get_outlineColor`
+  returns a constant (0,1,1,1): the game's pickup outline was never rarity-coloured, so loot
+  now sets `FXOutline.SetGlowColor` and the `Prop.outlineParameter` property-block vector from
+  the colour tag on the weapon's name. `AvatarCustomizer.EV_Salvage` (the armory's SALVAGE
+  button) calls `RemoveUnlockedWeapon` with the result ignored, `UnequipWeapon`, then
+  `IncrementCharacterData(Coins, GetData(Salvage))`, which is how a loot weapon left the
+  pedestal, stayed in the bag and paid coins: the salvage now sells for tokens and the coin
+  write is refused, a locked weapon is refused up front from the `EV_SelectModule` index
+  (`availItems[startingIdx + idx]`). Multi-bar bosses are `Specs.stages` (the `HealthBar`
+  instantiates one stage prefab per entry); `Specs.scale` sizes enemies and
+  `References.defaultScale` keeps the result, so the goblin is scaled from that. The loot
+  goblin is `References.IDHash == SauronKeys.IDHashLootGoblin`. Sandbox: `GameManager.IsSandboxScene`
+  / `AI.isSandboxSpawned`; its enemies despawn, so drops are off there. Untested.
+- **0.9.14 (2026-09-09):** `AvatarPlayer.Exosuit.Update(ExosuitModule)` writes that module's
+  stats absolutely (`GetMultiplier` / `GetProbability` into the float fields) and touches
+  nothing else; `ResetAll` zeroes. Multiplying live values after each recompute therefore
+  compounded every stat the recompute did not rewrite. Buffs now keep the game's value per
+  stat per exosuit instance (pointer-keyed) and restore before applying and in a prefix on
+  both recomputes. Session start: lobby scene init 19:24:30.16, gate ACTIVE 19:24:30.83, bag
+  loaded 19:24:30.85 — the holster fill and the exosuit compute both fall in the gap, so a
+  `Holster.InitHolsterContents` seen with the gate shut schedules `Loadout.ReapplyAll`
+  (ResetWeapon + AssignWeapon per loot slot) 1.5 s after the gate opens, and worn armor is
+  re-applied on gate open and 1 s after `RespawnLocalPlayer`. Untested.
+  Second report ("armor not working at all", a lobby + sandbox session): the leg multipliers are
+  read live (`UpdateJumping` multiplies by `LocalExoSuit.Legs_Jump`, `GetInputVelocity` by
+  `Legs_Leap`) but both reads sit behind `if (!GameManager.FriendlyFireEnabled)`, and
+  `SandboxUI.DelayedFriendlyFire` / `SetupEncounter` set that flag from the sandbox hazard
+  choice (`CleanupForSandbox` and the scene change clear it). `ResetLegs` writes 1.0, not 0.
+  The MelonLoader log now carries the applied values and the flag.
+  Third report: "take less damage" armor hurt more. `AvatarPlayer.OnDamaged` switch on
+  DamageType: Melee × `Chest_Armor`, Projectile × `Chest_Ricochet`, Magic × `Chest_Dispel`,
+  Fire × `Chest_Blast` (all incoming-damage multipliers, all skipped while FriendlyFireEnabled);
+  `PlayerState.Update` poison tick × `Chest_Antidote`; `PlayerState.GetDuration` ×
+  `Chest_Resilience` and × `Chest_Antifreeze`; `FellFromHeight` × `Legs_Absorb`;
+  `GetInputVelocity` stamina drain × `Legs_Endurance`; `Health.UpdateLocal` reads
+  `Chest_Vitality` (regen, 0.05 + 0.05/level); `HealthPotion.OnDrinkPotion` × `Chest_Heal`;
+  `VRControllerInput.Update` × `Legs_Haste` × `Legs_Juggernaut_Speed`; `DynamicAnchorStab.
+  ApplyDamageMultipliers` reads Critical/Might/Pierce/Power/Pullback/Impale; `Prop.
+  get_ballisticRange` × `Arms_Distance`. The perk table (`ExosuitModuleContainer`
+  MonoBehaviours in data.unity3d, parsed raw with UnityPy: perkType, description key,
+  unlockAtLevel, cost, useProbability, probability(+inc), multiplier(+inc)) has 30 perks;
+  Chest_Armor, Arms_Stun, Legs_Airtime/Shockwave/Swift and Mind_Crafter/Lucky/Perception/
+  Predator have exosuit fields but no perk (Chest_Armor is still read). Multipliers below 1
+  per level: Antidote, Blast, Dispel, Ricochet, Absorb, Endurance, Antifreeze. The armory
+  (`AvatarCustomizer`) builds `availableMeleeWeapons` etc. only in `InitWeaponModules`, called
+  from `OnPlayerProfileLoaded` — hence sold loot lingering as vanilla; the mod now calls it on
+  hidden customizers after every bag weapon change and keeps `RetiredGuids`.
 
 ## The basement vendors and where the kobold overlaps them (2026-09-04)
 

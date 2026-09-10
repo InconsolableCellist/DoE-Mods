@@ -62,10 +62,21 @@ namespace LootOverhaul.Loot
             // bag weapon the removal is ours and the coins must not happen.
             Hooks.Patch(typeof(Fabricator), "EV_TrashModule", Hooks.Of(t, nameof(Trash_Prefix)), Hooks.Of(t, nameof(Trash_Postfix)));
             Hooks.Patch(typeof(PlayerProfile), "IncrementCharacterData", Hooks.Of(t, nameof(Increment_Prefix)), null);
+            // The armory's SALVAGE button (AvatarCustomizer.EV_Salvage, read from the assembly
+            // 2026-09-08): RemoveUnlockedWeapon with the result ignored, UnequipWeapon, then
+            // IncrementCharacterData(Coins, salvage). For a bag weapon the removal is a sale for
+            // tokens (or refused when locked) and the coins never happen.
+            Hooks.Patch(typeof(AvatarCustomizer), "EV_Salvage", Hooks.Of(t, nameof(Salvage_Prefix)), Hooks.Of(t, nameof(Salvage_Postfix)));
+            Hooks.Patch(typeof(AvatarCustomizer), "EV_SelectModule", null, Hooks.Of(t, nameof(SelectModule_Postfix)));
         }
 
         private static int _trashingBagWeapon;
         public static int CoinsBlocked;
+        private static int _salvaging;
+        private static LootItem _salvageItem;        // the bag weapon the running EV_Salvage is about
+        private static bool _salvageRefused;         // it was locked: nothing sold, nothing paid
+        private static string _armorySelectedGuid;   // bag GUID shown on the armory pedestal, from EV_SelectModule
+        public static int ArmorySales, ArmoryRefusals;
 
         private static void Trash_Prefix(Fabricator __instance)
         {
@@ -74,10 +85,11 @@ namespace LootOverhaul.Loot
                 BaseModule sel = null;
                 try { sel = __instance.selectedModule; } catch { }
                 var wm = sel == null ? null : sel.TryCast<WeaponModule>();
-                if (wm != null && ModGate.Active && FindByGuid(GuidOf(wm)) != null)
+                var g = wm == null ? "" : GuidOf(wm);
+                if (wm != null && ModGate.Active && (FindByGuid(g) != null || IsRetired(g)))
                 {
                     _trashingBagWeapon++;
-                    ReconLog.Line($"fabricator: trashing bag weapon {Interop.OneLine(wm.GetDisplayName(false))}; salvage coins will be refused");
+                    ReconLog.Line($"fabricator: trashing bag weapon {Interop.OneLine(wm.GetDisplayName(false))}{(IsRetired(g) ? " (already gone)" : "")}; salvage coins will be refused");
                 }
             }
             catch (Exception e) { Core.Log.Warning($"Trash prefix failed: {e.GetType().Name}: {e.Message}"); }
@@ -86,16 +98,102 @@ namespace LootOverhaul.Loot
         private static void Trash_Postfix()
         {
             if (_trashingBagWeapon > 0) _trashingBagWeapon--;
+            _trashingRetired = false;
         }
+
+        private static bool _trashingRetired;
 
         private static bool Increment_Prefix(PlayerData.CharacterValues __0, int __1, ref bool __result)
         {
-            if (_trashingBagWeapon <= 0 || __0 != PlayerData.CharacterValues.Coins) return true;
+            if (__0 != PlayerData.CharacterValues.Coins) return true;
+            if (_salvaging > 0 && _salvageItem != null)
+            {
+                CoinsBlocked++;
+                ReconLog.Line($"armory: refused IncrementCharacterData(Coins, {__1}) for salvaged bag weapon {_salvageItem.Name}");
+                __result = true;
+                return false;
+            }
+            if (_trashingBagWeapon <= 0 && !_trashingRetired) return true;
             CoinsBlocked++;
             ReconLog.Line($"fabricator: refused IncrementCharacterData(Coins, {__1}) for a trashed bag weapon");
             BagManager.Toast("Trashed loot pays nothing here. The kobold buys shinies.");
             __result = true;
             return false;
+        }
+
+        // ---- the armory's salvage button ------------------------------------------------------
+
+        /// <summary>Remember what the armory pedestal shows, so a locked bag weapon can stop the salvage before the game touches anything.</summary>
+        private static void SelectModule_Postfix(AvatarCustomizer __instance, int __0)
+        {
+            try
+            {
+                _armorySelectedGuid = null;
+                if (!Interop.Alive(__instance)) return;
+                var items = __instance.availItems;
+                if (items == null) return;
+                var idx = __instance.startingIdx + __0;
+                if (idx < 0 || idx >= items.Count) return;
+                var wm = items[idx]?.TryCast<WeaponModule>();
+                if (wm == null) return;
+                var g = GuidOf(wm);
+                if (FindByGuid(g) != null || IsRetired(g)) _armorySelectedGuid = g;
+            }
+            catch (Exception e) { Core.Log.Warning($"Armory selection read failed: {e.GetType().Name}: {e.Message}"); }
+        }
+
+        private static bool Salvage_Prefix(AvatarCustomizer __instance)
+        {
+            _salvaging++;
+            _salvageItem = null;
+            _salvageRefused = false;
+            try
+            {
+                if (!ModGate.Active || string.IsNullOrEmpty(_armorySelectedGuid)) return true;
+                if (IsRetired(_armorySelectedGuid) && FindByGuid(_armorySelectedGuid) == null)
+                {
+                    ArmoryRefusals++; RetiredBlocked++;
+                    BagManager.Toast("That loot already left your bag. Reopen the armory to refresh it.");
+                    ReconLog.Line("armory: salvage refused before it started, the loot weapon already left the bag");
+                    RefreshArmories("stale entry salvaged");
+                    return false;
+                }
+                var item = FindByGuid(_armorySelectedGuid);
+                if (item == null || !item.Locked) return true;
+                // Locked: skip the whole method, so the game's own lists keep the weapon too.
+                ArmoryRefusals++;   // the postfix still runs and closes the counter
+                BagManager.Toast($"{item.ColoredName} is locked. Unlock it at the kobold first.");
+                ReconLog.Line($"armory: salvage refused before it started, bag weapon {item.Name} is locked");
+                return false;
+            }
+            catch (Exception e) { Core.Log.Warning($"Salvage prefix failed: {e.GetType().Name}: {e.Message}"); return true; }
+        }
+
+        private static void Salvage_Postfix()
+        {
+            if (_salvaging > 0) _salvaging--;
+            if (_salvaging == 0)
+            {
+                if (_salvageRefused && _salvageItem != null)
+                    BagManager.Toast($"{_salvageItem.ColoredName} is locked. Unlock it at the kobold first.");
+                _salvageItem = null;
+                _salvageRefused = false;
+            }
+        }
+
+        /// <summary>The armory sold a bag weapon: tokens at the kobold's price, never coins.</summary>
+        private static void SellFromArmory(LootItem item)
+        {
+            var inv = BagManager.Inventory;
+            var price = Booth.SellPrice(item);
+            inv.Remove(item.Id);
+            inv.Gold += price;
+            inv.Save();
+            ModuleCache.Remove(Norm(item.WeaponGuid));
+            ArmorySales++;
+            BagManager.Toast($"Sold {item.ColoredName} for <color=#F5C542>{price} tokens</color>  (now {inv.Gold})");
+            ReconLog.Line($"armory: sold bag weapon {item.Name} for {price} tokens -> {inv.Gold}; salvage coins will be refused");
+            BagPanel.Refresh(); Booth.Refresh();
         }
 
         private static void Suspend() => _suspend++;
@@ -110,6 +208,50 @@ namespace LootOverhaul.Loot
             foreach (var i in BagManager.Inventory.Items)
                 if (i.IsWeapon && Norm(i.WeaponGuid) == guidNorm) return i;
             return null;
+        }
+
+        /// <summary>A loot weapon that has left the bag but may still sit in the game's lists.</summary>
+        public static bool IsRetired(string guidNorm)
+        {
+            if (string.IsNullOrEmpty(guidNorm)) return false;
+            try { return BagManager.Inventory.RetiredGuids.Contains(guidNorm); } catch { return false; }
+        }
+
+        public static int Refreshed, RetiredBlocked;
+
+        /// <summary>
+        /// A weapon left the bag: forget its module and make the game's armory rebuild its
+        /// lists. The customizer builds them once per profile load (read from the assembly
+        /// 2026-09-09), so without this a sold weapon stayed on its pedestal as a vanilla-looking
+        /// item that the trash can would pay coins for. A customizer that is showing is left to
+        /// its retired-GUID guard until it is next opened, so its page indices stay valid.
+        /// </summary>
+        public static void OnBagWeaponGone(LootItem item)
+        {
+            ModuleCache.Remove(Norm(item.WeaponGuid));
+            RefreshArmories($"{item.Name} left the bag");
+        }
+
+        public static void RefreshArmories(string why)
+        {
+            var n = 0; var skipped = 0;
+            try
+            {
+                foreach (var c in UnityEngine.Object.FindObjectsOfType<AvatarCustomizer>(true))
+                {
+                    if (!Interop.Alive(c)) continue;
+                    try
+                    {
+                        if (c.visible) { skipped++; continue; }
+                        c.InitWeaponModules();
+                        n++;
+                    }
+                    catch (Exception e) { Core.Log.Warning($"Armory refresh failed on `{Interop.Name(c)}`: {e.GetType().Name}: {e.Message}"); }
+                }
+            }
+            catch (Exception e) { Core.Log.Warning($"Armory refresh failed: {e.GetType().Name}: {e.Message}"); }
+            Refreshed += n;
+            ReconLog.Line($"armory lists rebuilt on {n} customizer(s), {skipped} showing and left alone: {why}");
         }
 
         /// <summary>Is this module one of ours (a bag weapon injected into the game's lists)?</summary>
@@ -188,8 +330,9 @@ namespace LootOverhaul.Loot
             try
             {
                 if (!Active || string.IsNullOrEmpty(__result) || __result.Contains(Marker)) return;
-                if (FindByGuid(GuidOf(__instance)) == null) return;
-                __result = Marker + __result;
+                var g = GuidOf(__instance);
+                if (FindByGuid(g) != null) { __result = Marker + __result; return; }
+                if (IsRetired(g) && !__result.Contains("[SOLD]")) __result = "[SOLD] " + __result;
             }
             catch { }
         }
@@ -200,9 +343,11 @@ namespace LootOverhaul.Loot
         private static bool _tagLogged;
 
         /// <summary>
-        /// A small gold "LOOT" tag over the pedestal's thumbnail for a bag weapon. Placed on
-        /// the thumbnail's own icon bounds (the earlier version used the fabricate button's
-        /// width and drew off the tile, 2026-09-04) and kept at world scale under the tile.
+        /// A bright frame around the pedestal's thumbnail for a bag weapon (0.9.13; before, a
+        /// small gold "LOOT" word, which the 2026-09-08 report found too easy to miss against the
+        /// player room). Placed on the thumbnail's own icon bounds (the earlier version used the
+        /// fabricate button's width and drew off the tile, 2026-09-04) and kept at world scale
+        /// under the tile. `PedestalFrame = false` brings the word back.
         /// </summary>
         private static void TagButton(ModuleButton __instance, BaseModule module)
         {
@@ -236,15 +381,27 @@ namespace LootOverhaul.Loot
 
                 var tag = new GameObject("LootTag");
                 tag.transform.SetParent(__instance.transform, false);
-                // World scale one under a scaled tile, so the text size below is in metres.
+                // World scale one under a scaled tile, so the sizes below are in metres.
                 var ls = __instance.transform.lossyScale;
                 tag.transform.localScale = new Vector3(1f / Mathf.Max(0.001f, ls.x), 1f / Mathf.Max(0.001f, ls.y), 1f / Mathf.Max(0.001f, ls.z));
                 tag.transform.rotation = __instance.transform.rotation;
-                // Top-left corner of the tile, a hair toward the viewer.
                 var right = __instance.transform.right; var up = __instance.transform.up; var fwd = __instance.transform.forward;
-                tag.transform.position = tile.center - right * (tile.extents.x - 0.004f) + up * (tile.extents.y - 0.004f) - fwd * 0.004f;
-                UiKit.Text(tag.transform, Vector3.zero, h * 1.5f, h * 0.3f, h * 2.2f, "<color=#F5C542><b>LOOT</b></color>");
-                if (!_tagLogged) { _tagLogged = true; ReconLog.Line($"pedestal tag placed on tile {tile.size.x:0.###}×{tile.size.y:0.###} m (icon {(have ? "found" : "missing")}), tile scale {ls.x:0.###}"); }
+                if (ModConfig.PedestalFrame.Value)
+                {
+                    // The frame sits on the tile's bounds, a hair toward the viewer, a little outside the icon.
+                    if (!ColorUtility.TryParseHtmlString(ModConfig.PedestalFrameColor.Value ?? "", out var color)) color = new Color(1f, 0.82f, 0.29f, 1f);
+                    var w = Mathf.Clamp(tile.size.x, 0.03f, 0.4f); var hgt = Mathf.Clamp(tile.size.y, 0.03f, 0.4f);
+                    var thick = Mathf.Clamp(Mathf.Min(w, hgt) * 0.08f, 0.004f, 0.02f);
+                    tag.transform.position = tile.center - fwd * 0.006f;
+                    UiKit.Frame(tag.transform, Vector3.zero, w + thick * 2f, hgt + thick * 2f, thick, color);
+                }
+                else
+                {
+                    // Top-left corner of the tile, a hair toward the viewer.
+                    tag.transform.position = tile.center - right * (tile.extents.x - 0.004f) + up * (tile.extents.y - 0.004f) - fwd * 0.004f;
+                    UiKit.Text(tag.transform, Vector3.zero, h * 1.5f, h * 0.3f, h * 2.2f, "<color=#F5C542><b>LOOT</b></color>");
+                }
+                if (!_tagLogged) { _tagLogged = true; ReconLog.Line($"pedestal {(ModConfig.PedestalFrame.Value ? "frame" : "tag")} placed on tile {tile.size.x:0.###}×{tile.size.y:0.###} m (icon {(have ? "found" : "missing")}), tile scale {ls.x:0.###}"); }
             }
             catch (Exception e) { Core.Log.Warning($"ModuleButton tag failed: {e.GetType().Name}: {e.Message}"); }
         }
@@ -281,9 +438,12 @@ namespace LootOverhaul.Loot
             _suspend++;
             try
             {
-                if (!ModGate.Active || FindByGuid(GuidOf(__0)) == null) return true;
+                var g = GuidOf(__0);
+                var retired = IsRetired(g);
+                if (!retired && FindByGuid(g) == null) return true;
                 Blocked++;
-                ReconLog.Line($"fabricator: AddUnlockedWeapon on a bag weapon blocked ({Interop.OneLine(__0.GetDisplayName(false))})");
+                if (retired) { RetiredBlocked++; Core.Log.Msg($"armory: AddUnlockedWeapon on a loot weapon that already left the bag was blocked ({Interop.OneLine(__0.GetDisplayName(false))})"); }
+                else ReconLog.Line($"fabricator: AddUnlockedWeapon on a bag weapon blocked ({Interop.OneLine(__0.GetDisplayName(false))})");
                 __result = true;
                 return false;
             }
@@ -296,9 +456,42 @@ namespace LootOverhaul.Loot
             try
             {
                 if (!ModGate.Active) return true;
-                var item = FindByGuid(GuidOf(__0));
-                if (item == null) return true;
+                var g = GuidOf(__0);
+                var item = FindByGuid(g);
+                if (item == null)
+                {
+                    if (!IsRetired(g)) return true;
+                    // Sold at the kobold (or dropped, trashed, enchanted) while the armory still
+                    // listed it. Nothing to remove, nothing to pay: the coins step is refused below.
+                    Blocked++; RetiredBlocked++;
+                    if (_salvaging > 0) { _salvageItem = new LootItem { Name = "(already gone)", Kind = "weapon" }; _salvageRefused = false; }
+                    _trashingRetired = true;
+                    BagManager.Toast("That loot already left your bag. The armory list is stale until you reopen it.");
+                    Core.Log.Msg($"armory: removal of an already-gone loot weapon refused ({Interop.OneLine(__0.GetDisplayName(false))}); coins will be refused");
+                    RefreshArmories("stale entry used");
+                    __result = true;
+                    return false;
+                }
                 Blocked++;
+                if (_salvaging > 0)
+                {
+                    // The armory's salvage button. The game ignores this result and pays coins next;
+                    // the coins are refused either way (Increment_Prefix), and an unlocked weapon is
+                    // sold for tokens instead. A locked one stays in the bag; the pedestal forgets it
+                    // until its next refresh, nothing more.
+                    _salvageItem = item;
+                    if (item.Locked)
+                    {
+                        _salvageRefused = true;
+                        ArmoryRefusals++;
+                        ReconLog.Line($"armory: salvage of locked bag weapon {item.Name} refused (mid-call)");
+                        __result = false;
+                        return false;
+                    }
+                    SellFromArmory(item);
+                    __result = true;
+                    return false;
+                }
                 if (item.Locked)
                 {
                     BagManager.Toast($"{item.ColoredName} is locked. Unlock it at the kobold first.");
@@ -319,6 +512,6 @@ namespace LootOverhaul.Loot
             catch { return true; }
         }
 
-        public static string Describe() => $"injected {Injected} into the gear list, resolved {Resolved} holster lookups, {LoadoutWrites} loadout write(s) kept local, {Blocked} armory write(s) blocked, {CoinsBlocked} salvage coin write(s) refused";
+        public static string Describe() => $"injected {Injected} into the gear list, resolved {Resolved} holster lookups, {LoadoutWrites} loadout write(s) kept local, {Blocked} armory write(s) blocked, {CoinsBlocked} salvage coin write(s) refused, armory: {ArmorySales} sold for tokens, {ArmoryRefusals} locked refusal(s), {RetiredBlocked} stale-entry refusal(s), lists rebuilt {Refreshed}×";
     }
 }

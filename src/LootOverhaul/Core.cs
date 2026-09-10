@@ -6,7 +6,7 @@ using LootOverhaul.Loot;
 using LootOverhaul.Net;
 using LootOverhaul.Recon;
 
-[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.9.11", "dan")]
+[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.9.14", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace LootOverhaul
@@ -24,7 +24,7 @@ namespace LootOverhaul
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.9.12";
+        public const string Version = "0.9.14";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -61,6 +61,8 @@ namespace LootOverhaul
             BagPickup.Install();
             FabricatorBridge.Install();
             Buffs.Install();
+            Goblins.Install();
+            Loadout.Install();
 
             if (ModConfig.ReconEnabled.Value)
             {
@@ -88,6 +90,7 @@ namespace LootOverhaul
             BagGesture.Tick();
             BagPanel.Tick();
             Buffs.Tick();
+            Loadout.Tick();
             SceneExit.Tick();
             if (_templateCaptureAt > 0f && UnityEngine.Time.unscaledTime >= _templateCaptureAt)
             {
@@ -142,6 +145,7 @@ namespace LootOverhaul
                 ReconLog.Line($"- kills rolled on this master: {DropRoller.RollsSeen}, weapon drops: {DropRoller.Dropped}, junk drops: {DropRoller.JunkDropped}, pickups turned into claims: {BagPickup.Cancelled}");
                 ReconLog.Line($"- loadout: {Loadout.Describe()}");
                 ReconLog.Line($"- fabricator bridge: {FabricatorBridge.Describe()}");
+                ReconLog.Line($"- loot goblins resized: {Goblins.Resized}");
                 ReconLog.Line($"- shop: {Shop.Bought} bought, {Shop.Restocks} restock(s)");
                 ReconLog.Line($"- buffs active at quit: {Buffs.DescribeActive()}; worn: {Armor.DescribeWorn()}");
                 ReconLog.Line($"- enchanting: {Enchanting.SelfTestReport}");
@@ -158,7 +162,15 @@ namespace LootOverhaul
             // there is nothing to arm. Disarming means forgetting the floor loot: in a room
             // that just went vanilla, those weapons are ordinary weapons now.
             if (!active) { LootRegistry.Clear("gate closed", destroyOwned: true); Booth.Hide(); }
-            else if (Il2Cpp.GameManager.IsLobbyScene) _templateCaptureAt = UnityEngine.Time.unscaledTime + 1f;
+            else
+            {
+                if (Il2Cpp.GameManager.IsLobbyScene) _templateCaptureAt = UnityEngine.Time.unscaledTime + 1f;
+                // The bag is loaded here at the latest, so the worn armor goes onto the exosuit
+                // a moment later even when the avatar spawned first; loot weapons the holster
+                // missed while the gate was shut are re-applied by Loadout.
+                try { Buffs.RebuildWorn(); Buffs.RequestReapply(1.0f); } catch (Exception e) { LoggerInstance.Warning($"Worn rebuild on gate open threw: {e.GetType().Name}"); }
+            }
+            try { Loadout.OnGateChanged(active); } catch (Exception e) { LoggerInstance.Warning($"Loadout gate handler threw: {e.GetType().Name}"); }
         }
     }
 }

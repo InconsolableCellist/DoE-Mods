@@ -28,6 +28,24 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<int> MiniBossDrops;
         /// <summary>Rarity floor of the guaranteed first piece: 0 Common, 1 Unique, 2 Rare, 3 Legendary.</summary>
         public static MelonPreferences_Entry<int> BossGuaranteedClass;
+        /// <summary>Extra pile pieces per player beyond the first (boss / mini-boss), fractions rounded down.</summary>
+        public static MelonPreferences_Entry<float> BossDropsPerExtraPlayer, MiniBossDropsPerExtraPlayer;
+        /// <summary>Extra pile pieces per health bar beyond the first (the game's Specs.stages).</summary>
+        public static MelonPreferences_Entry<int> BossDropsPerExtraHealthBar;
+        /// <summary>Extra pile pieces for a boss of the Elite strength type; a Legend boss gets twice this.</summary>
+        public static MelonPreferences_Entry<int> EliteBossExtraDrops;
+        /// <summary>Pieces an Elite-type enemy always drops (0 = roll like the rest).</summary>
+        public static MelonPreferences_Entry<int> EliteDrops;
+        /// <summary>Pieces a Legend-type enemy always drops.</summary>
+        public static MelonPreferences_Entry<int> LegendDrops;
+        /// <summary>The loot goblin: pieces, rarity floor of the first, guaranteed trinket rolls, and its size.</summary>
+        public static MelonPreferences_Entry<int> GoblinDrops, GoblinGuaranteedClass, GoblinJunkRolls;
+        public static MelonPreferences_Entry<float> LootGoblinScale;
+        /// <summary>Roll drops for kills in the sandbox (the practice arena). Off: nothing drops there.</summary>
+        public static MelonPreferences_Entry<bool> SandboxDrops;
+        /// <summary>A bright frame around loot tiles at the fabricator and armory, and its colour.</summary>
+        public static MelonPreferences_Entry<bool> PedestalFrame;
+        public static MelonPreferences_Entry<string> PedestalFrameColor;
         /// <summary>After this many kills without a Legendary, the next drop is one. 0 disables.</summary>
         public static MelonPreferences_Entry<int> LegendaryPityKills;
         /// <summary>Drop-chance multiplier per player beyond the first.</summary>
@@ -99,6 +117,19 @@ namespace LootOverhaul
             BossDrops = Main.CreateEntry("BossDrops", 3, description: "Pieces of loot (weapon or armor) a boss drops. The first always drops at BossGuaranteedClass or better; the rest each roll BossDropChance.");
             MiniBossDrops = Main.CreateEntry("MiniBossDrops", 2, description: "Pieces of loot a mini-boss drops, same rules as BossDrops.");
             BossGuaranteedClass = Main.CreateEntry("BossGuaranteedClass", 2, description: "Rarity floor of a boss's or mini-boss's first piece: 0 Common, 1 Unique, 2 Rare, 3 Legendary.");
+            BossDropsPerExtraPlayer = Main.CreateEntry("BossDropsPerExtraPlayer", 1.0f, description: "Extra boss pile pieces per player beyond the first (rounded down).");
+            MiniBossDropsPerExtraPlayer = Main.CreateEntry("MiniBossDropsPerExtraPlayer", 0.5f, description: "Extra mini-boss pile pieces per player beyond the first (rounded down).");
+            BossDropsPerExtraHealthBar = Main.CreateEntry("BossDropsPerExtraHealthBar", 1, description: "Extra pile pieces per health bar beyond the first, for bosses that come with several.");
+            EliteBossExtraDrops = Main.CreateEntry("EliteBossExtraDrops", 1, description: "Extra pile pieces for a boss or mini-boss of the Elite strength type; a Legend-type one gets twice this.");
+            EliteDrops = Main.CreateEntry("EliteDrops", 1, description: "Pieces of loot an Elite-type enemy always drops, on the normal rarity curve. 0 = roll like everyone else.");
+            LegendDrops = Main.CreateEntry("LegendDrops", 2, description: "Pieces of loot a Legend-type enemy always drops.");
+            GoblinDrops = Main.CreateEntry("GoblinDrops", 3, description: "Pieces of loot the loot goblin drops; the first is at least GoblinGuaranteedClass.");
+            GoblinGuaranteedClass = Main.CreateEntry("GoblinGuaranteedClass", 1, description: "Rarity floor of the goblin's first piece: 0 Common, 1 Unique, 2 Rare, 3 Legendary.");
+            GoblinJunkRolls = Main.CreateEntry("GoblinJunkRolls", 3, description: "Trinkets the loot goblin always drops on top of its pile.");
+            LootGoblinScale = Main.CreateEntry("LootGoblinScale", 1.5f, description: "Size multiplier for the loot goblin (1 = the game's size). Applied on every modded client.");
+            SandboxDrops = Main.CreateEntry("SandboxDrops", false, description: "Roll drops for sandbox (practice arena) kills. Off by default: the arena despawns its enemies and would be free loot.");
+            PedestalFrame = Main.CreateEntry("PedestalFrame", true, description: "Draw a bright frame around loot weapons on the fabricator and armory tiles.");
+            PedestalFrameColor = Main.CreateEntry("PedestalFrameColor", "#FFD24A", description: "Frame colour as #RRGGBB.");
             LegendaryPityKills = Main.CreateEntry("LegendaryPityKills", 120, description: "Bad-luck protection: after this many kills by anyone in the room (counted in the host's own file) without a Legendary, the next drop is forced Legendary. 0 disables.");
             DropChancePerExtraPlayer = Main.CreateEntry("DropChancePerExtraPlayer", 0.35f, description: "Weapon and junk chances are multiplied by 1 + this × (players − 1).");
             BeamMinClass = Main.CreateEntry("BeamMinClass", 2, description: "Beam only over items of at least this rarity: 0 Common, 1 Unique, 2 Rare, 3 Legendary (junk: 2 = artifact).");

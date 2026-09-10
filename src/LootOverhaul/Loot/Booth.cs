@@ -133,8 +133,6 @@ namespace LootOverhaul.Loot
             var left = -PanelWidth * 0.5f + 0.04f;
             UiKit.Text(_sell, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f,
                 $"<b>SELL</b>   {inv.Items.Count} item(s)   <color=#F5C542>{inv.Gold} tokens</color>");
-            var junkCount = 0; var junkValue = 0;
-            foreach (var j in inv.Items) if (!j.IsWeapon && !j.IsBuff && !j.IsArmor && !j.Locked) { junkCount++; junkValue += SellPrice(j); }
 
             var y0 = top - 0.19f;
             var start = _sellPage * perPage;
@@ -150,12 +148,12 @@ namespace LootOverhaul.Loot
                 UiKit.Preview(row.transform, new Vector3(left + 0.07f, 0f, -0.03f), item, 0.11f);
                 var equipped = item.EquippedSlot >= 0 ? $"   <color=#F5C542>equipped: {Loadout.SlotNames[item.EquippedSlot]}</color>" : "";
                 string kind;
-                if (item.IsWeapon) { string stats = ""; try { stats = Interop.OneLine(WeaponCodec.ToModule(item).GetStatsText()); } catch { } kind = $"<color=#9A9A9A>{LootTables.TypeName(item.PropType)} t{item.WeaponTier + 1}</color>  {stats}"; }
+                if (item.IsWeapon) { string stats = ""; try { stats = UiKit.StatsLine(WeaponCodec.ToModule(item).GetStatsText()); } catch { } kind = $"<color=#9A9A9A>{LootTables.TypeName(item.PropType)} t{item.WeaponTier + 1}</color>  {stats}"; }
                 else if (item.IsBuff) kind = "<color=#9A9A9A>tonic</color>";
                 else if (item.IsArmor) kind = $"<color=#9A9A9A>{Armor.SlotNames[item.ArmorSlot].ToLowerInvariant()} armor · {Armor.DescribeStats(item)}</color>";
                 else kind = $"<color=#9A9A9A>{LootTables.JunkTierName(item.WeaponClass)}</color>";
-                UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), textW, 0.05f, 0.38f, $"{item.ColoredName}{equipped}   <color=#F5C542>{SellPrice(item)} tokens</color>");
-                UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), textW, 0.045f, item.IsWeapon ? 0.27f : 0.3f, kind);
+                UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), textW, 0.05f, 0.38f, $"{item.ColoredName}{equipped}   <color=#F5C542>{SellPrice(item)} tokens</color>", fit: true);
+                UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), textW, 0.045f, item.IsWeapon ? 0.27f : 0.3f, kind, fit: true);
                 var captured = item;
                 UiKit.Button(row.transform, new Vector3(lockX, 0f, 0f), item.Locked ? "UNLOCK" : "LOCK", () => ToggleLock(captured), BtnScale);
                 if (item.Locked)
@@ -171,9 +169,22 @@ namespace LootOverhaul.Loot
                 UiKit.Button(_sell, new Vector3(-0.22f - BtnW * 0.5f, bottom, 0f), "<", () => { _sellPage--; BuildSell(); }, BtnScale);
                 UiKit.Button(_sell, new Vector3(0.22f + BtnW * 0.5f, bottom, 0f), ">", () => { _sellPage++; BuildSell(); }, BtnScale);
             }
-            // SELL ALL JUNK, big, in the band between the last row and the bag line.
-            if (junkCount > 0)
-                UiKit.Button(_sell, new Vector3(PanelWidth * 0.5f - 0.04f - BtnW * 0.5f * 1.5f, bottom + 0.2f, 0f), $"SELL {junkCount} JUNK · {junkValue} tk", SellAllJunk, BtnScale * 1.5f);
+            // SELL ALL, in the band between the last row and the bag line: junk, then weapons and
+            // armor by rarity up to Rare (a Legendary is sold one at a time, on purpose). Locked,
+            // equipped and worn items are never swept. The caption carries the token totals.
+            var groups = new[] { (label: "JUNK", cls: -1), (label: "COMMON", cls: 0), (label: "UNIQUE", cls: 1), (label: "RARE", cls: 2) };
+            var caption = new System.Text.StringBuilder("<color=#9A9A9A>sell all (unlocked):</color>");
+            var gx = left + BtnW * 0.5f;
+            var ggap = BtnW * 1.2f + 0.03f;
+            foreach (var g in groups)
+            {
+                var (n, value) = SweepTotal(inv, g.cls);
+                caption.Append($"   {g.label.ToLowerInvariant()} {n} · <color=#F5C542>{value} tk</color>");
+                var cls = g.cls;
+                UiKit.Button(_sell, new Vector3(gx, bottom + 0.18f, 0f), $"{g.label} ×{n}", () => SellAll(cls), BtnScale, enabled: n > 0);
+                gx += ggap;
+            }
+            UiKit.Text(_sell, new Vector3(left, bottom + 0.245f, 0f), PanelWidth - 0.08f, 0.045f, 0.28f, caption.ToString(), fit: true);
             // A bigger bag, the kobold's token sink, on the row above the pager.
             var bagY = bottom + 0.09f;
             if (inv.BagLevel < BagManager.BagUpgrades.Length)
@@ -223,13 +234,13 @@ namespace LootOverhaul.Loot
                 row.transform.localPosition = new Vector3(0f, y0 - i * RowHeight, 0f);
                 UiKit.Preview(row.transform, new Vector3(left + 0.07f, 0f, -0.03f), item, 0.11f);
                 string stats = "";
-                try { stats = Interop.OneLine(WeaponCodec.ToModule(item).GetStatsText()); } catch { }
+                try { stats = UiKit.StatsLine(WeaponCodec.ToModule(item).GetStatsText()); } catch { }
                 var afford = inv.Gold >= item.Value;
                 var priceColor = afford ? "#F5C542" : "#B04040";
                 UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), textW, 0.05f, 0.38f,
-                    $"{item.ColoredName}   <color={priceColor}>{item.Value} tokens</color>");
+                    $"{item.ColoredName}   <color={priceColor}>{item.Value} tokens</color>", fit: true);
                 UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), textW, 0.045f, 0.27f,
-                    $"<color=#9A9A9A>{LootTables.TypeName(item.PropType)} t{item.WeaponTier + 1}</color>  {stats}");
+                    $"<color=#9A9A9A>{LootTables.TypeName(item.PropType)} t{item.WeaponTier + 1}</color>  {stats}", fit: true);
                 var captured = item;
                 UiKit.Button(row.transform, new Vector3(buyX, 0f, 0f), afford ? "BUY" : $"NEED {item.Value} tk", () => { if (Shop.Buy(captured)) Rebuild(); }, BtnScale, enabled: afford);
             }
@@ -404,21 +415,42 @@ namespace LootOverhaul.Loot
 
         public static int SellPrice(LootItem item) => Math.Max(1, (int)Math.Round(item.Value * ModConfig.SellMultiplier.Value));
 
-        private static void SellAllJunk()
+        /// <summary>
+        /// Is this item swept by the SELL ALL button for <paramref name="cls"/>? -1 is junk;
+        /// 0–2 are weapons and armor of that rarity. Never anything locked, equipped, worn, or a
+        /// tonic (drink it), never a Legendary.
+        /// </summary>
+        private static bool Sweepable(LootItem i, int cls)
+        {
+            if (i.Locked || i.EquippedSlot >= 0 || i.WornSlot >= 0 || i.IsBuff) return false;
+            if (cls < 0) return !i.IsWeapon && !i.IsArmor;
+            return (i.IsWeapon || i.IsArmor) && i.WeaponClass == cls;
+        }
+
+        private static (int count, int value) SweepTotal(LootInventory inv, int cls)
+        {
+            var n = 0; var v = 0;
+            foreach (var i in inv.Items) if (Sweepable(i, cls)) { n++; v += SellPrice(i); }
+            return (n, v);
+        }
+
+        private static string SweepName(int cls) => cls < 0 ? "junk" : LootTables.ClassName(cls).ToLowerInvariant();
+
+        private static void SellAll(int cls)
         {
             var inv = BagManager.Inventory;
             var total = 0; var n = 0;
             foreach (var j in new List<LootItem>(inv.Items))
             {
-                if (j.IsWeapon || j.IsBuff || j.IsArmor || j.Locked) continue;
+                if (!Sweepable(j, cls)) continue;
                 total += SellPrice(j); n++;
                 inv.Remove(j.Id);
             }
-            if (n == 0) { BagManager.Toast("No junk to sell."); return; }
+            if (n == 0) { BagManager.Toast($"No {SweepName(cls)} to sell."); return; }
             inv.Gold += total;
             inv.Save();
-            BagManager.Toast($"Sold {n} piece(s) of junk for <color=#F5C542>{total} tokens</color>  (now {inv.Gold})");
-            ReconLog.Line($"sold {n} junk for {total} -> tokens {inv.Gold}");
+            BagManager.Toast($"Sold {n} {SweepName(cls)} item(s) for <color=#F5C542>{total} tokens</color>  (now {inv.Gold})");
+            ReconLog.Line($"sold {n} {SweepName(cls)} for {total} -> tokens {inv.Gold}");
             Rebuild();
             BagPanel.Refresh();
         }

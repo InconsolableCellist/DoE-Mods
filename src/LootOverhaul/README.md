@@ -36,6 +36,48 @@ gate rule is the same: private room, every occupant on the identical version and
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
 
+## 0.9.14 — buffs never compound, damage-reduction stats divide, sold loot leaves the armory
+
+- **"Take less damage" no longer means more.** `AvatarPlayer.OnDamaged` multiplies incoming
+  damage by the chest stat for the damage type (melee × `Chest_Armor`, projectile ×
+  `Chest_Ricochet`, magic × `Chest_Dispel`, fire × `Chest_Blast`); the game's perks push those
+  below 1, the mod pushed them above. Every "less is better" stat now divides (those four,
+  poison, freeze duration, fall damage, stamina drain), shown as ÷ on armor.
+- **Sold loot leaves the armory.** The customizer builds its weapon lists once per profile
+  load, so a weapon sold at the kobold stayed on its pedestal looking vanilla and the trash can
+  paid coins for it. Weapons that leave the bag are remembered by GUID (`RetiredGuids`),
+  hidden armories rebuild at once, stale entries read `[SOLD]` and refuse salvage, trash and
+  unlock with the coin write blocked. Newly bagged weapons appear without a relog.
+- **Stat labels** say what the game does; nine stats nothing reads are gone.
+
+- **Armor and tonics multiply the game's value once.** The game's own stat values are kept
+  per exosuit instance and put back before every application and every game recompute
+  (`Exosuit.Update(module)` writes only its module's stats). Two 1.14/1.16 pieces are 1.32×,
+  not several times.
+- **First lobby of a session.** The holster fills before the gate opens; a fill seen with the
+  gate shut is re-applied 1.5 s after it opens, and worn armor is applied on gate open and a
+  second after every local respawn.
+
+## 0.9.13 — tester feedback: outlines, armory salvage, sell-all, bigger piles
+
+- **Rarity outlines.** The game's weapon outline is a constant cyan (`Weapon.outlineColor`);
+  loot now sets the glow and the outline shader colour to the rarity colour from the weapon's
+  own name tag.
+- **Armory SALVAGE** on a loot weapon sells it for tokens and refuses the game's coins; a
+  locked one is refused outright. The pedestal trash can already behaved this way.
+- **Stats lines fit.** Compacted stats text, rows shrink to fit.
+- **Sandbox kills drop nothing** (`SandboxDrops`); a body the game destroys takes its
+  sparkle and label with it.
+- **Frame instead of the "LOOT" word** on fabricator and armory tiles (`PedestalFrame`,
+  `PedestalFrameColor`).
+- **SELL ALL by rarity** at the kobold: JUNK / COMMON / UNIQUE / RARE, never locked, equipped
+  or worn items, never a Legendary.
+- **Elites and Legends always drop** (`EliteDrops` 1, `LegendDrops` 2).
+- **Boss piles scale** with players (`BossDropsPerExtraPlayer`), health bars
+  (`BossDropsPerExtraHealthBar`) and strength type (`EliteBossExtraDrops`).
+- **Loot goblin**: its own pile (`GoblinDrops`, `GoblinGuaranteedClass`, `GoblinJunkRolls`)
+  and `LootGoblinScale` (1.5) on every client.
+
 ## 0.9.12 — bosses drop a pile
 
 - **Bosses and mini-bosses drop several pieces.** `BossDrops` (3) for a boss, `MiniBossDrops`

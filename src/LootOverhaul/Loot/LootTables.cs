@@ -101,6 +101,12 @@ namespace LootOverhaul.Loot
         /// <summary>Junk tier roll: mostly trinkets.</summary>
         public static int RollJunkTier(double r) => r < 0.70 ? 0 : r < 0.94 ? 1 : 2;
 
+        /// <summary>The game's <c>AI.Type</c> names, the strength ranks the skulls over an enemy stand for.</summary>
+        public static string AiTypeName(int aiType) => aiType switch
+        {
+            0 => "Light", 1 => "Medium", 2 => "Heavy", 3 => "Elite", 4 => "Legend", 5 => "Fire", 6 => "Ice", 7 => "Poison", 8 => "Gold", _ => $"type{aiType}",
+        };
+
         public static string ClassName(int weaponClass) => weaponClass switch
         {
             0 => "Common", 1 => "Unique", 2 => "Rare", 3 => "Legendary", 4 => "Mythic", _ => "?",

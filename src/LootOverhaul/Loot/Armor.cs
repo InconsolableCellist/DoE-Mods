@@ -47,7 +47,8 @@ namespace LootOverhaul.Loot
         public static List<string> EligibleStats()
         {
             var list = new List<string>();
-            foreach (var d in Buffs.Catalogue) if (!d.Invert && Unlocks.PerkUnlocked(d.Stat)) list.Add(d.Stat);
+            // Inverted stats (less damage, slower drain) are fine on armor: the buff divides for those.
+            foreach (var d in Buffs.Catalogue) if (Unlocks.PerkUnlocked(d.Stat)) list.Add(d.Stat);
             return list;
         }
 
@@ -113,7 +114,7 @@ namespace LootOverhaul.Loot
         public static string DescribeStats(LootItem item)
         {
             var parts = new List<string>();
-            foreach (var (st, m) in Decode(item.ArmorStats)) { var d = Buffs.Find(st); parts.Add($"{(d == null ? st : d.Flavor)} ×{m:0.00}"); }
+            foreach (var (st, m) in Decode(item.ArmorStats)) { var d = Buffs.Find(st); parts.Add($"{(d == null ? st : d.Flavor)} {(d != null && d.Invert ? "÷" : "×")}{m:0.00}"); }
             return string.Join(", ", parts);
         }
 
@@ -137,6 +138,8 @@ namespace LootOverhaul.Loot
             inv.Save();
             Buffs.RebuildWorn();
             BagManager.Toast($"Wearing {live.ColoredName}: {DescribeStats(live)}");
+            if (Buffs.LegPerksGatedOff() && (live.ArmorStats ?? "").Contains("Legs_"))
+                BagManager.Toast("The game has friendly fire on here (the sandbox does this): it ignores every jump and leap perk until it is off.");
             ReconLog.Line($"armor: wear {live.Name} [{SlotNames[live.ArmorSlot]}] {DescribeStats(live)}");
             BagPanel.Refresh(); Booth.Refresh();
         }

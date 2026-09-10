@@ -24,6 +24,10 @@ namespace LootOverhaul.Loot
     /// 0.9.12: bosses and mini-bosses drop a pile (`BossDrops` / `MiniBossDrops` pieces), the
     /// first piece at least `BossGuaranteedClass` (Rare), plus their junk roll on top. The rank
     /// comes from the class the game spawned the enemy as, since `AI.IsBoss` ignores mini-bosses.
+    ///
+    /// 0.9.13: the pile grows with the party, with the boss's health bars (`Specs.stages`) and
+    /// with its strength type (Elite, Legend); Elite and Legend regulars always drop; the loot
+    /// goblin is a pile of its own with guaranteed trinkets; sandbox kills roll nothing.
     /// </summary>
     public static class DropRoller
     {
@@ -45,6 +49,13 @@ namespace LootOverhaul.Loot
                 if (!PhotonNetwork.IsMasterClient) return;
                 if (__0 < 0) return;                       // no killer: cleanup, scripted, environmental
                 if (!Interop.Alive(__instance)) return;
+                if (!ModConfig.SandboxDrops.Value && InSandbox(__instance))
+                {
+                    // The practice arena despawns its enemies and their bodies; loot there is free
+                    // loot and the despawn left our decorations behind (report 2026-09-08).
+                    if (!_sandboxLogged) { _sandboxLogged = true; ReconLog.Line("drop roll skipped: sandbox kill (SandboxDrops=false)"); }
+                    return;
+                }
 
                 RollsSeen++;
                 var aiType = 0; var family = -1;
@@ -52,6 +63,8 @@ namespace LootOverhaul.Loot
                 try { family = (int)__instance.references.family; } catch { }
                 var rank = BossRank(__instance);
                 var boss = rank > 0;
+                var goblin = Goblins.IsLootGoblin(__instance);
+                var stages = HealthBars(__instance);
 
                 var inv = BagManager.Inventory;
                 inv.KillsSinceLegendary++;
@@ -62,30 +75,64 @@ namespace LootOverhaul.Loot
                 var partyScale = 1f + Math.Max(0f, ModConfig.DropChancePerExtraPlayer.Value) * (players - 1);
                 var pity = ModConfig.LegendaryPityKills.Value > 0 && inv.KillsSinceLegendary >= ModConfig.LegendaryPityKills.Value;
                 var pos = __instance.transform.position + Vector3.up * 1.0f;
+                var who = $"family={family} type={aiType} ({LootTables.AiTypeName(aiType)}) stages={stages} players={players}";
 
-                if (boss)
+                if (boss || goblin)
                 {
-                    // A boss is a pile: the first piece is guaranteed and at least BossGuaranteedClass
+                    // A boss is a pile: the first piece is guaranteed and at least the class floor
                     // (pity still forces Legendary), every further piece rolls BossDropChance and
                     // the boss rarity curve. Pieces are kicked around a circle so they do not stack.
-                    var pieces = Math.Max(1, rank == 2 ? ModConfig.BossDrops.Value : ModConfig.MiniBossDrops.Value);
-                    var floor = Math.Max(0, Math.Min(3, ModConfig.BossGuaranteedClass.Value));
-                    var rankName = rank == 2 ? "boss" : "mini-boss";
+                    // The pile grows with the party, with extra health bars, and with the boss's
+                    // strength type (Elite, Legend): the many-skull bosses of the 2026-09-08 report.
+                    int pieces, floor; string rankName;
+                    if (goblin)
+                    {
+                        pieces = Math.Max(1, ModConfig.GoblinDrops.Value);
+                        floor = ModConfig.GoblinGuaranteedClass.Value;
+                        rankName = "loot goblin";
+                    }
+                    else
+                    {
+                        pieces = BossPieces(rank, aiType, players, stages);
+                        floor = ModConfig.BossGuaranteedClass.Value;
+                        rankName = rank == 2 ? "boss" : "mini-boss";
+                    }
+                    floor = Math.Max(0, Math.Min(3, floor));
                     for (var i = 0; i < pieces; i++)
                     {
                         if (i > 0 && Rng.NextDouble() >= ModConfig.BossDropChance.Value) continue;
                         var cls = i == 0 ? Math.Max(floor, RollClass(true, pity)) : RollClass(true, false);
                         if (cls == 3) inv.KillsSinceLegendary = 0;
                         DropPiece(cls, pos, ScatterKick(i, pieces), __0, __instance,
-                            $"family={family} type={aiType} {rankName} piece={i + 1}/{pieces} (players {players}) pity={i == 0 && pity}");
+                            $"{who} {rankName} piece={i + 1}/{pieces} pity={i == 0 && pity}");
                     }
                     inv.Save();
-                    RollJunk(__instance, __0, pos, family, boss, partyScale);
+                    // Bosses roll their trinket three times as often; the goblin always leaves a few.
+                    var junkRolls = goblin ? Math.Max(1, ModConfig.GoblinJunkRolls.Value) : 1;
+                    for (var j = 0; j < junkRolls; j++)
+                        RollJunk(__instance, __0, pos, family, boss || goblin, partyScale, goblin ? 1f : -1f);
                     return;
                 }
 
                 // Undead=0, Critter=1, Sorcerer=2, Monster=3. Critters carry nothing.
                 var canCarryWeapon = family != 1;
+
+                // Elites and Legends always leave something (report 2026-09-08), on the normal curve.
+                var sure = aiType == 3 ? ModConfig.EliteDrops.Value : aiType == 4 ? ModConfig.LegendDrops.Value : 0;
+                if (canCarryWeapon && sure > 0)
+                {
+                    for (var i = 0; i < sure; i++)
+                    {
+                        var cls = RollClass(false, i == 0 && pity);
+                        if (cls == 3) inv.KillsSinceLegendary = 0;
+                        DropPiece(cls, pos, ScatterKick(i, sure), __0, __instance,
+                            $"{who} {LootTables.AiTypeName(aiType).ToLowerInvariant()} piece={i + 1}/{sure} pity={i == 0 && pity}");
+                    }
+                    inv.Save();
+                    RollJunk(__instance, __0, pos, family, false, partyScale);
+                    return;
+                }
+
                 var chance = Math.Min(1f, ModConfig.BaseDropChance.Value * LootTables.EnemyMultiplier(aiType) * partyScale);
                 var roll = Rng.NextDouble();
                 if (canCarryWeapon && (roll < chance || pity))
@@ -95,13 +142,53 @@ namespace LootOverhaul.Loot
                     inv.Save();
                     var kick = Vector3.up * 2.5f + new Vector3((float)(Rng.NextDouble() - 0.5), 0f, (float)(Rng.NextDouble() - 0.5)) * 1.5f;
                     DropPiece(cls, pos, kick, __0, __instance,
-                        $"family={family} type={aiType} chance={chance:0.###} (players {players}) roll={roll:0.###} pity={pity}");
+                        $"{who} chance={chance:0.###} roll={roll:0.###} pity={pity}");
                     return;
                 }
                 inv.Save();
                 RollJunk(__instance, __0, pos, family, boss, partyScale);
             }
             catch (Exception e) { Core.Log.Error($"Drop roll failed: {e}"); }
+        }
+
+        private static bool _sandboxLogged;
+
+        /// <summary>The practice arena: its own scene, or an enemy the sandbox UI spawned.</summary>
+        private static bool InSandbox(AI ai)
+        {
+            try { if (GameManager.IsSandboxScene) return true; } catch { }
+            try { if (ai.isSandboxSpawned) return true; } catch { }
+            return false;
+        }
+
+        /// <summary>How many health bars the enemy came with (<c>Specs.stages</c>): 1 for almost everyone, more for the multi-bar bosses.</summary>
+        private static int HealthBars(AI ai)
+        {
+            try
+            {
+                var specs = ai.specs;
+                if (specs == null) return 1;
+                var st = specs.stages;
+                return st == null ? 1 : Math.Max(1, st.Length);
+            }
+            catch { return 1; }
+        }
+
+        /// <summary>
+        /// Pile size for a boss (rank 2) or mini-boss (rank 1): the base count, plus a share per
+        /// extra player, plus one per extra health bar, plus the strength-type bonus (Elite once,
+        /// Legend twice). Never fewer than one.
+        /// </summary>
+        public static int BossPieces(int rank, int aiType, int players, int stages)
+        {
+            var isBoss = rank == 2;
+            var basePieces = isBoss ? ModConfig.BossDrops.Value : ModConfig.MiniBossDrops.Value;
+            var perPlayer = isBoss ? ModConfig.BossDropsPerExtraPlayer.Value : ModConfig.MiniBossDropsPerExtraPlayer.Value;
+            var pieces = basePieces
+                + (int)Math.Floor(Math.Max(0f, perPlayer) * Math.Max(0, players - 1))
+                + Math.Max(0, ModConfig.BossDropsPerExtraHealthBar.Value) * Math.Max(0, stages - 1)
+                + (aiType == 3 ? 1 : aiType == 4 ? 2 : 0) * Math.Max(0, ModConfig.EliteBossExtraDrops.Value);
+            return Math.Max(1, Math.Min(12, pieces));
         }
 
         /// <summary>
@@ -174,10 +261,10 @@ namespace LootOverhaul.Loot
             return true;
         }
 
-        /// <summary>Maybe a trinket. Critters included (a scorpion can sit on a bone); bosses three times as often, on top of their pile.</summary>
-        private static void RollJunk(AI source, int killerActor, Vector3 pos, int family, bool boss, float partyScale)
+        /// <summary>Maybe a trinket. Critters included (a scorpion can sit on a bone); bosses three times as often, on top of their pile. <paramref name="chance"/> ≥ 0 overrides the roll (1 = always).</summary>
+        private static void RollJunk(AI source, int killerActor, Vector3 pos, int family, bool boss, float partyScale, float chance = -1f)
         {
-            var junkChance = Math.Min(1f, ModConfig.JunkDropChance.Value * (family == 1 ? 0.5f : 1f) * (boss ? 3f : 1f) * partyScale);
+            var junkChance = chance >= 0f ? chance : Math.Min(1f, ModConfig.JunkDropChance.Value * (family == 1 ? 0.5f : 1f) * (boss ? 3f : 1f) * partyScale);
             if (Rng.NextDouble() >= junkChance) return;
             var sourceName = "?"; try { sourceName = source.name; } catch { }
             // A prefab that refuses is retired inside SpawnLoot; try up to three bodies so the drop is not lost.

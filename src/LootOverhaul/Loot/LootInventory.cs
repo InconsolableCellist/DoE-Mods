@@ -38,6 +38,15 @@ namespace LootOverhaul.Loot
         /// <summary>Legendary pity counter: kills since the last legendary drop for this account.</summary>
         public int KillsSinceLegendary;
 
+        /// <summary>
+        /// Weapon GUIDs of loot that has left the bag (sold, dropped, trashed, enchanted into a
+        /// new one). The game's armory keeps the module objects it was handed until the
+        /// profile next loads (<c>AvatarCustomizer.InitWeaponModules</c> runs only from
+        /// <c>OnPlayerProfileLoaded</c>), so a sold weapon still sits on its pedestal looking
+        /// vanilla; these GUIDs keep it from ever being salvaged for coins or unlocked for real.
+        /// </summary>
+        public List<string> RetiredGuids = new List<string>();
+
         /// <summary>The broker's current stock for this player (Value holds the asking price) and when it was rolled.</summary>
         public List<LootItem> ShopStock = new List<LootItem>();
         public DateTime ShopGeneratedAt = DateTime.MinValue;
@@ -66,6 +75,7 @@ namespace LootOverhaul.Loot
             if (inv.Loadout == null || inv.Loadout.Length != 3) inv.Loadout = new LootItem[3];
             inv.Items ??= new List<LootItem>();
             inv.ShopStock ??= new List<LootItem>();
+            inv.RetiredGuids ??= new List<string>();
             return inv;
         }
 
@@ -93,7 +103,14 @@ namespace LootOverhaul.Loot
         {
             var idx = Items.FindIndex(i => i.Id == id);
             if (idx < 0) return false;
+            var gone = Items[idx];
             Items.RemoveAt(idx);
+            if (gone.IsWeapon && !string.IsNullOrEmpty(gone.WeaponGuid))
+            {
+                var g = FabricatorBridge.Norm(gone.WeaponGuid);
+                if (!RetiredGuids.Contains(g)) { RetiredGuids.Add(g); if (RetiredGuids.Count > 500) RetiredGuids.RemoveAt(0); }
+                try { FabricatorBridge.OnBagWeaponGone(gone); } catch { }
+            }
             for (var s = 0; s < Loadout.Length; s++)
                 if (Loadout[s] != null && Loadout[s].Id == id) Loadout[s] = null;
             return true;

@@ -28,6 +28,8 @@ namespace LootOverhaul.Loot
         public bool Outlined;
         public float NextOutlineAt;
         public bool SoundPlayed;
+        /// <summary>The object has been alive on this client at least once; if it is gone now, the game destroyed it.</summary>
+        public bool Seen;
     }
 
     /// <summary>
@@ -59,6 +61,7 @@ namespace LootOverhaul.Loot
         private static void Decorate(LootTag tag)
         {
             if (!Interop.Alive(tag.Object)) return;
+            tag.Seen = true;
             ApplyPose(tag);
             if (ModConfig.DropBeams.Value && tag.Beam == null && tag.Item.WeaponClass >= ModConfig.BeamMinClass.Value) tag.Beam = DropBeam.Attach(tag);
             JunkTint.Apply(tag);
@@ -144,9 +147,15 @@ namespace LootOverhaul.Loot
             catch { return null; }
         }
 
-        /// <summary>Retry object lookup for tags whose object had not replicated when the broadcast arrived; keep the decorations on the item.</summary>
+        /// <summary>
+        /// Retry object lookup for tags whose object had not replicated when the broadcast
+        /// arrived; keep the decorations on the item. An object that was here and is gone
+        /// without a claim was destroyed by the game (the sandbox despawns its enemies' bodies,
+        /// 2026-09-08): its tag goes too, so the sparkle and label do not hang in the air.
+        /// </summary>
         public static void Tick()
         {
+            List<int> gone = null;
             foreach (var tag in Tags.Values)
             {
                 if (tag.Claimed) continue;
@@ -156,20 +165,32 @@ namespace LootOverhaul.Loot
                     continue;
                 }
                 tag.Object = FindObject(tag.ViewId);
-                if (tag.Object != null) Decorate(tag);
+                if (tag.Object != null) { Decorate(tag); continue; }
+                if (tag.Seen) (gone ??= new List<int>()).Add(tag.ViewId);
+            }
+            if (gone == null) return;
+            foreach (var id in gone)
+            {
+                if (Tags.TryGetValue(id, out var t)) ReconLog.Line($"loot view {id} ({t.Item.Name}) vanished without a claim; forgetting it");
+                Remove(id);
             }
         }
     }
 
     /// <summary>
     /// The game's own pickup glow (<c>Prop.Outline</c>, the FXOutline the coins and the
-    /// vanilla drops carry), kept lit on every tagged floor item until it is taken. The
-    /// outline colour is the prop's own: rarity for weapons, the default for junk bodies.
+    /// vanilla drops carry), kept lit on every tagged floor item until it is taken, in the
+    /// item's rarity colour. The game's own colour is not rarity at all: <c>Weapon.outlineColor</c>
+    /// is a constant cyan for every weapon (read from the assembly 2026-09-08, the "all blue"
+    /// report), and the FXOutline glow colour is whatever the prefab was saved with. Both are
+    /// set here: the glow via <c>FXOutline.SetGlowColor</c>, and the shader parameter the prop
+    /// writes into its renderers' property blocks (<c>Prop.outlineParameter</c>).
     /// </summary>
     public static class DropOutline
     {
         private const int Frames = 120;
         private const float Every = 0.5f;
+        private static bool _colorLogged;
 
         public static void Refresh(LootTag tag)
         {
@@ -185,12 +206,80 @@ namespace LootOverhaul.Loot
                     // Some bodies (mugs, dice) ship with an always-on-top glow that shows through
                     // walls; loot should glow like the spoon does, only in sight.
                     try { var fx = prop.fxOutline; if (Interop.Alive(fx)) fx.glowVisibility = FXOutline.Visibility.Normal; } catch { }
+                    Colorize(tag, prop);
                 }
                 prop.Outline(Frames);
                 tag.Outlined = true;
                 tag.NextOutlineAt = now + Every;
             }
             catch (Exception e) { if (!tag.Outlined) Core.Log.Warning($"Outline failed for view {tag.ViewId}: {e.GetType().Name}"); tag.Outlined = true; tag.NextOutlineAt = now + 5f; }
+        }
+
+        /// <summary>The rarity colour onto the glow and the outline shader parameter. Junk keeps its tier colour.</summary>
+        private static void Colorize(LootTag tag, Prop prop)
+        {
+            var color = ColorFor(tag.Item);
+            var glow = false; var param = 0; string paramName = null;
+            try
+            {
+                var fx = prop.fxOutline;
+                if (Interop.Alive(fx)) { fx.SetGlowColor(color); glow = true; }
+            }
+            catch (Exception e) { if (!_colorLogged) Core.Log.Warning($"Outline glow colour failed: {e.GetType().Name}: {e.Message}"); }
+            try
+            {
+                paramName = prop.outlineParameter;
+                if (!string.IsNullOrEmpty(paramName))
+                {
+                    var block = new MaterialPropertyBlock();
+                    foreach (var r in prop.GetComponentsInChildren<Renderer>(true))
+                    {
+                        if (!Interop.Alive(r)) continue;
+                        try
+                        {
+                            r.GetPropertyBlock(block);
+                            block.SetVector(paramName, new Vector4(color.r, color.g, color.b, color.a));
+                            r.SetPropertyBlock(block);
+                            param++;
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch (Exception e) { if (!_colorLogged) Core.Log.Warning($"Outline parameter colour failed: {e.GetType().Name}: {e.Message}"); }
+            if (!_colorLogged)
+            {
+                _colorLogged = true;
+                ReconLog.Line($"outline colour for {tag.Item.Name}: {color} glow={glow} param=`{paramName}` on {param} renderer(s)");
+            }
+        }
+
+        /// <summary>
+        /// The game's own rarity colour, read from the colour tag the game put on the display
+        /// name; the mod's beam palette when there is none (junk carries its tier colour).
+        /// </summary>
+        public static Color ColorFor(LootItem item)
+        {
+            if (!item.IsWeapon && !item.IsArmor)
+            {
+                if (ColorUtility.TryParseHtmlString(LootTables.JunkColor(item.WeaponClass), out var jc)) return jc;
+            }
+            var tagged = TagColor(item.ColoredName);
+            if (tagged.HasValue) return tagged.Value;
+            if (item.IsArmor && ColorUtility.TryParseHtmlString(Armor.ClassColor(item.WeaponClass), out var ac)) return ac;
+            return DropBeam.RarityColor(item.WeaponClass);
+        }
+
+        /// <summary>The first <c>&lt;color=…&gt;</c> in a rich-text string, as a colour, or null.</summary>
+        public static Color? TagColor(string rich)
+        {
+            if (string.IsNullOrEmpty(rich)) return null;
+            var i = rich.IndexOf("<color=", StringComparison.OrdinalIgnoreCase);
+            if (i < 0) return null;
+            var j = rich.IndexOf('>', i);
+            if (j < 0) return null;
+            var spec = rich.Substring(i + 7, j - i - 7).Trim().Trim('"');
+            return ColorUtility.TryParseHtmlString(spec, out var c) ? c : (Color?)null;
         }
 
         public static void Stop(LootTag tag)
