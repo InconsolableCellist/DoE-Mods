@@ -1,17 +1,11 @@
 - [DoE-mod](#doe-mod)
   - [Quickstart](#quickstart)
   - [The mods](#the-mods)
-    - [CustomAvatars](#customavatars)
-    - [LootOverhaul](#lootoverhaul)
-    - [VisualCues](#visualcues)
-    - [Descent](#descent)
-    - [StayPutVR](#stayputvr)
   - [Ground rules](#ground-rules)
   - [Building from source](#building-from-source)
   - [Documentation](#documentation)
   - [Support](#support)
   - [License](#license)
-  - [Acknowledgments](#acknowledgments)
 
 # DoE-mod
 
