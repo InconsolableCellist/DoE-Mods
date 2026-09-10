@@ -21,12 +21,11 @@ tracking sync via VRCFaceTracking + OSC, and (stretch) custom inventory/loot.
   consent design behind biting.
 - **[INSTALL.md](INSTALL.md)** — installing and (importantly) removing the mod. This is the
   page to hand to a friend; it assumes no knowledge of the project.
-- **[src/README.md](src/README.md)** — the mods themselves: `src/CustomAvatars/`, the
-  independent `src/LootOverhaul/`, `src/VisualCues/` (deaf-accessibility cues: a
-  stick-click call arrow and unseen-enemy noise markers; no gate), `src/Descent/` (a
-  sixteen-floor dungeon out of the game's own generator; 0.1.0 untested) and
-  `src/StayPutVR/` (damage, and biting another player, fire a shock through the StayPutVR app
-  over OSC; no gate); how to build them.
+- **[src/README.md](src/README.md)** — the five mods with their versions, how to build any of
+  them, and the handful of things that bite across all of them. Each mod's own page lives beside
+  its code: [CustomAvatars](src/CustomAvatars/README.md),
+  [LootOverhaul](src/LootOverhaul/README.md), [VisualCues](src/VisualCues/README.md),
+  [Descent](src/Descent/README.md), [StayPutVR](src/StayPutVR/README.md).
 - **tools/** — MelonLoader 0.7.3, Il2CppDumper, Cpp2IL, AssetRipper, UnityExplorer builds.
 
 Game install: `C:\Games\Steam\steamapps\common\Dungeons of Eternity`

@@ -1,4 +1,4 @@
-# VisualCues
+# VisualCues 0.1.3
 
 A mod for **Dungeons of Eternity** designed to assist Deaf/HoH users:
 
