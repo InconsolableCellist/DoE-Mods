@@ -3,6 +3,15 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.9.17 (2026-09-12)
+
+### Fixed
+- Floor labels on armor said "trinket" / "curio" / "artifact": the caption used the junk tier name for the item's rarity number, and armor's placeholder body is the small reliquary chest, so a Rare piece was a "little artifact thingy" that the walk-over pickup (junk only) ignored (report 2026-09-12; the transcript shows every junk tier taken by walking over it and every armor bundle grabbed by hand). Armor is captioned "head armor" / "chest armor" / "legs armor", tonics "tonic".
+- The walk-over height check is measured from the head (within 2.2 m below the eyes) instead of from the rig root, which is not a reliable floor on every platform.
+
+### Added
+- `AutoPickupArmor` (default on): armor bundles are picked up by walking over them too, tossing trinkets to make room if the bag is full. Weapons remain a hand grab.
+
 ## 0.9.16 (2026-09-12)
 
 ### Changed

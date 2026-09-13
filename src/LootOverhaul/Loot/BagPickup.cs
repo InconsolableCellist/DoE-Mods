@@ -98,13 +98,14 @@ namespace LootOverhaul.Loot
     }
 
     /// <summary>
-    /// Everything that is not a weapon or armor is picked up by walking over it (0.9.15; 0.9.16
-    /// added tonics): junk of every tier (trinkets, curios, artifacts) and tonics, no reaching,
-    /// no gesture. A few times a second every unclaimed tag on this client is measured against
-    /// the local player's head, flat, within <c>JunkAutoPickupMeters</c> and below the head; one
+    /// Everything that is not a weapon is picked up by walking over it (0.9.15; 0.9.16 added
+    /// tonics, 0.9.17 armor behind <c>AutoPickupArmor</c>): junk of every tier (trinkets,
+    /// curios, artifacts), tonics and armor bundles, no reaching, no gesture. A few times a
+    /// second every unclaimed tag on this client is measured against the local player's head,
+    /// flat, within <c>JunkAutoPickupMeters</c>, and no more than a body length below it; one
     /// that is close enough, has been on the floor a moment, was not dropped here by this player
-    /// and fits in the bag is claimed exactly as a hand grab would claim it. Weapons and armor
-    /// are never taken this way: those are a deliberate grab.
+    /// and fits in the bag (tossing trinkets for armor if need be) is claimed exactly as a hand
+    /// grab would claim it. Weapons are never taken this way: those are a deliberate grab.
     /// </summary>
     public static class JunkAutoPickup
     {
@@ -128,21 +129,23 @@ namespace LootOverhaul.Loot
                 var head = local.Head;
                 if (!Interop.Alive(head)) return;
                 var eye = head.position;
-                var floorY = local.transform.position.y;
+                var armorToo = ModConfig.AutoPickupArmor.Value;
                 // A snapshot: on the master a claim is granted on the spot and removes its tag.
                 foreach (var tag in new System.Collections.Generic.List<LootTag>(LootRegistry.All))
                 {
                     var item = tag.Item;
                     if (tag.Claimed || tag.ClaimPending || item == null) continue;
-                    if (item.IsWeapon || item.IsArmor) continue;
+                    if (item.IsWeapon || (item.IsArmor && !armorToo)) continue;
                     if (now - tag.TaggedAt < SettleSeconds) continue;
                     if (BagManager.DroppedByMe.Contains(item.Id)) continue;
                     if (!Interop.Alive(tag.Object)) continue;
                     var p = tag.Object.transform.position;
                     var flat = p - eye; flat.y = 0f;
                     if (flat.sqrMagnitude > radius * radius) continue;
-                    if (p.y > eye.y || p.y < floorY - 0.6f) continue;
-                    if (!BagManager.CanCarry(item))
+                    // Below the eyes and within a body length under them (the rig root's height is
+                    // not a reliable floor on every platform or ledge).
+                    if (p.y > eye.y || p.y < eye.y - 2.2f) continue;
+                    if (!BagManager.CanCarry(item) && !BagManager.MakeRoomFor(item))
                     {
                         if (!tag.FullToasted) { tag.FullToasted = true; BagManager.Toast($"Bag full — {item.ColoredName} stays on the floor"); }
                         continue;

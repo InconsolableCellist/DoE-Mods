@@ -71,6 +71,8 @@ namespace LootOverhaul
         /// <summary>Walk over anything that is not a weapon or armor (junk of every tier, tonics) and it goes into the bag by itself, within this many metres (0 disables).</summary>
         public static MelonPreferences_Entry<bool> JunkAutoPickup;
         public static MelonPreferences_Entry<float> JunkAutoPickupMeters;
+        /// <summary>The walk-over pickup takes armor bundles too (weapons are always a hand grab).</summary>
+        public static MelonPreferences_Entry<bool> AutoPickupArmor;
         /// <summary>Grabbing a weapon or armor with a full bag tosses the cheapest unlocked trinkets onto the floor to make room.</summary>
         public static MelonPreferences_Entry<bool> TossJunkWhenFull;
         /// <summary>Enchanting price = the rarity's base price × ShopPriceMultiplier × this.</summary>
@@ -151,6 +153,7 @@ namespace LootOverhaul
             BagAutoCloseMeters = Main.CreateEntry("BagAutoCloseMeters", 2.0f, description: "Walk this far from the open bag panel and it closes. 0 = never.");
             JunkAutoPickup = Main.CreateEntry("JunkAutoPickup", true, description: "Junk of every tier (trinkets, curios, artifacts) and tonics you walk over go into the bag by themselves; no grab needed. Weapons and armor are always picked up by hand.");
             JunkAutoPickupMeters = Main.CreateEntry("JunkAutoPickupMeters", 0.6f, description: "How close (metres, measured flat from your head) an item must be to be picked up automatically.");
+            AutoPickupArmor = Main.CreateEntry("AutoPickupArmor", true, description: "Armor bundles (the small chests) are picked up by walking over them as well. Off: armor is a hand grab like weapons.");
             TossJunkWhenFull = Main.CreateEntry("TossJunkWhenFull", true, description: "Grabbing a weapon or armor that does not fit tosses the cheapest unlocked trinkets out of the bag to make room. Nothing equipped, worn or locked is ever tossed.");
             EnchantCostMultiplier = Main.CreateEntry("EnchantCostMultiplier", 1.0f, description: "Enchanting costs the rarity's base price (300 / 600 / 1200 / 2400 tokens) × ShopPriceMultiplier × this. No reagent is consumed.");
             BagGesture = Main.CreateEntry("BagGesture", "stick-hold",
