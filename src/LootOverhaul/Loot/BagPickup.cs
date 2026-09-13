@@ -98,12 +98,13 @@ namespace LootOverhaul.Loot
     }
 
     /// <summary>
-    /// Trinkets are picked up by walking over them (0.9.15): no reaching, no gesture. A few
-    /// times a second every unclaimed junk tag on this client is measured against the local
-    /// player's head, flat, within <c>JunkAutoPickupMeters</c> and below the head; one that is
-    /// close enough, has been on the floor a moment, was not dropped here by this player and
-    /// fits in the bag is claimed exactly as a hand grab would claim it. Weapons and armor are
-    /// never taken this way: those are a deliberate grab.
+    /// Everything that is not a weapon or armor is picked up by walking over it (0.9.15; 0.9.16
+    /// added tonics): junk of every tier (trinkets, curios, artifacts) and tonics, no reaching,
+    /// no gesture. A few times a second every unclaimed tag on this client is measured against
+    /// the local player's head, flat, within <c>JunkAutoPickupMeters</c> and below the head; one
+    /// that is close enough, has been on the floor a moment, was not dropped here by this player
+    /// and fits in the bag is claimed exactly as a hand grab would claim it. Weapons and armor
+    /// are never taken this way: those are a deliberate grab.
     /// </summary>
     public static class JunkAutoPickup
     {
@@ -133,7 +134,7 @@ namespace LootOverhaul.Loot
                 {
                     var item = tag.Item;
                     if (tag.Claimed || tag.ClaimPending || item == null) continue;
-                    if (item.IsWeapon || item.IsArmor || item.IsBuff) continue;
+                    if (item.IsWeapon || item.IsArmor) continue;
                     if (now - tag.TaggedAt < SettleSeconds) continue;
                     if (BagManager.DroppedByMe.Contains(item.Id)) continue;
                     if (!Interop.Alive(tag.Object)) continue;

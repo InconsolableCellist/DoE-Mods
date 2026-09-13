@@ -3,6 +3,11 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.9.16 (2026-09-12)
+
+### Changed
+- The walk-over pickup takes everything that is not a weapon or armor: junk of every tier (trinkets, curios, artifacts; it already did, the wording said "trinkets") and now tonics too. The settings text says so.
+
 ## 0.9.15 (2026-09-12)
 
 Fifteen points of feedback from the 2026-09-12 report. Untested in headset.

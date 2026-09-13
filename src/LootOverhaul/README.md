@@ -1,4 +1,4 @@
-# LootOverhaul 0.9.15 — building
+# LootOverhaul 0.9.16 — building
 
 A second, independent MelonLoader mod for Dungeons of Eternity. Design and game-internals
 findings: [docs/LOOT-OVERHAUL.md](../../docs/LOOT-OVERHAUL.md).
@@ -46,8 +46,8 @@ LootOverhaul inert for the whole room, by design.
   description (its language pack, in the current language) and the weapon types it fits.
 - **ARMOR tab compares.** One slot at a time (HEAD / CHEST / LEGS): the worn piece, then the
   bag's pieces for that slot, each stat marked better / worse / new against what is worn.
-- **Trinkets are picked up by walking over them** (`JunkAutoPickup`, `JunkAutoPickupMeters`
-  0.6). Weapons and armor are still a hand grab. A weapon or armor that does not fit tosses
+- **Junk of every tier and tonics are picked up by walking over them** (`JunkAutoPickup`,
+  `JunkAutoPickupMeters` 0.6; tonics since 0.9.16). Weapons and armor are still a hand grab. A weapon or armor that does not fit tosses
   the cheapest unlocked trinkets out to make room (`TossJunkWhenFull`).
 - **Beams wear the item's own colour** (the name colour; junk its tier colour) instead of the
   rarity hologram picked by class, which put artifacts under the Rare weapon hologram.
