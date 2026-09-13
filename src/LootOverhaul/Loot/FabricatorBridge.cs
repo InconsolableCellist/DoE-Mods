@@ -159,11 +159,13 @@ namespace LootOverhaul.Loot
                     return false;
                 }
                 var item = FindByGuid(_armorySelectedGuid);
-                if (item == null || !item.Locked) return true;
-                // Locked: skip the whole method, so the game's own lists keep the weapon too.
+                if (item == null) return true;
+                var equipped = BagManager.Inventory.InUse(item);
+                if (!item.Locked && !equipped) return true;
+                // Locked or equipped: skip the whole method, so the game's own lists keep the weapon too.
                 ArmoryRefusals++;   // the postfix still runs and closes the counter
-                BagManager.Toast($"{item.ColoredName} is locked. Unlock it at the kobold first.");
-                ReconLog.Line($"armory: salvage refused before it started, bag weapon {item.Name} is locked");
+                BagManager.Toast(item.Locked ? $"{item.ColoredName} is locked. Unlock it at the kobold first." : $"{item.ColoredName} is equipped. Unequip it first.");
+                ReconLog.Line($"armory: salvage refused before it started, bag weapon {item.Name} is {(item.Locked ? "locked" : "equipped")}");
                 return false;
             }
             catch (Exception e) { Core.Log.Warning($"Salvage prefix failed: {e.GetType().Name}: {e.Message}"); return true; }
@@ -175,7 +177,7 @@ namespace LootOverhaul.Loot
             if (_salvaging == 0)
             {
                 if (_salvageRefused && _salvageItem != null)
-                    BagManager.Toast($"{_salvageItem.ColoredName} is locked. Unlock it at the kobold first.");
+                    BagManager.Toast(_salvageItem.Locked ? $"{_salvageItem.ColoredName} is locked. Unlock it at the kobold first." : $"{_salvageItem.ColoredName} is equipped. Unequip it first.");
                 _salvageItem = null;
                 _salvageRefused = false;
             }
@@ -218,6 +220,38 @@ namespace LootOverhaul.Loot
         }
 
         public static int Refreshed, RetiredBlocked;
+        private static bool _refreshPending;
+        private static float _refreshAt = -1f;
+        private static string _refreshWhy;
+
+        /// <summary>
+        /// The gate closed and reopened (a player joined or left, a version check): the game's
+        /// lists may have been rebuilt while injection was off, so hidden armories are rebuilt
+        /// a moment after it opens, and any rebuild asked for while it was shut runs then too
+        /// (report 2026-09-12: an equipped loot weapon missing from the pedestal after a join or
+        /// a kobold visit until the next dungeon reloaded the profile).
+        /// </summary>
+        public static void OnGateChanged(bool active)
+        {
+            if (!active) return;
+            try { if (!HasBagWeapons()) return; } catch { return; }
+            _refreshAt = UnityEngine.Time.unscaledTime + 1.0f;
+            _refreshWhy = _refreshPending ? "gate opened (a rebuild was waiting)" : "gate opened";
+            _refreshPending = false;
+        }
+
+        public static void Tick()
+        {
+            if (_refreshAt < 0f || UnityEngine.Time.unscaledTime < _refreshAt) return;
+            _refreshAt = -1f;
+            RefreshArmories(_refreshWhy ?? "gate opened");
+        }
+
+        private static bool HasBagWeapons()
+        {
+            foreach (var i in BagManager.Inventory.Items) if (i.IsWeapon) return true;
+            return false;
+        }
 
         /// <summary>
         /// A weapon left the bag: forget its module and make the game's armory rebuild its
@@ -234,6 +268,13 @@ namespace LootOverhaul.Loot
 
         public static void RefreshArmories(string why)
         {
+            if (!ModGate.Active)
+            {
+                // Rebuilding now would hand the game a list with no loot in it; wait for the gate.
+                _refreshPending = true;
+                ReconLog.Line($"armory rebuild deferred until the gate opens: {why}");
+                return;
+            }
             var n = 0; var skipped = 0;
             try
             {
@@ -390,10 +431,11 @@ namespace LootOverhaul.Loot
                 {
                     // The frame sits on the tile's bounds, a hair toward the viewer, a little outside the icon.
                     if (!ColorUtility.TryParseHtmlString(ModConfig.PedestalFrameColor.Value ?? "", out var color)) color = new Color(1f, 0.82f, 0.29f, 1f);
+                    // A hairline (0.9.15; the 0.9.13 frame was 8% of the tile and read as a slab).
                     var w = Mathf.Clamp(tile.size.x, 0.03f, 0.4f); var hgt = Mathf.Clamp(tile.size.y, 0.03f, 0.4f);
-                    var thick = Mathf.Clamp(Mathf.Min(w, hgt) * 0.08f, 0.004f, 0.02f);
+                    var thick = Mathf.Clamp(Mathf.Min(w, hgt) * 0.03f, 0.0015f, 0.006f);
                     tag.transform.position = tile.center - fwd * 0.006f;
-                    UiKit.Frame(tag.transform, Vector3.zero, w + thick * 2f, hgt + thick * 2f, thick, color);
+                    UiKit.Frame(tag.transform, Vector3.zero, w + thick * 2f, hgt + thick * 2f, thick, color, emission: 0.8f);
                 }
                 else
                 {
@@ -480,11 +522,11 @@ namespace LootOverhaul.Loot
                     // sold for tokens instead. A locked one stays in the bag; the pedestal forgets it
                     // until its next refresh, nothing more.
                     _salvageItem = item;
-                    if (item.Locked)
+                    if (item.Locked || BagManager.Inventory.InUse(item))
                     {
                         _salvageRefused = true;
                         ArmoryRefusals++;
-                        ReconLog.Line($"armory: salvage of locked bag weapon {item.Name} refused (mid-call)");
+                        ReconLog.Line($"armory: salvage of {(item.Locked ? "locked" : "equipped")} bag weapon {item.Name} refused (mid-call)");
                         __result = false;
                         return false;
                     }

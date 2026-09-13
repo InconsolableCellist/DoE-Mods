@@ -3,6 +3,33 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.9.15 (2026-09-12)
+
+Fifteen points of feedback from the 2026-09-12 report. Untested in headset.
+
+### Fixed
+- An equipped weapon can be enchanted. The ENCHANT list hid equipped weapons and the table refused them ("unequip it at the pedestal first"); now every bag weapon is listed, equipped ones marked, and the enchanted record takes the old one's battle slot and goes into the hand at once through the same `AssignWeapon` the pedestal uses. Its lock carries over.
+- Beams are the item's own colour. The beam wore the game's rarity hologram material indexed by `WeaponClass`, which for junk is the junk tier, so an artifact (tier 2) stood under the Rare weapon hologram; the hologram tint is not the name colour either. The hologram material is now cloned for its look and every colour property on it set to the colour the game puts on the item's name (junk: its tier colour); with no hologram material, a plain emissive one in that colour. The transcript's `beam for …` line says which shader and properties were used.
+- Text at the kobold no longer runs under buttons. The WEAPONS header ran under RESTOCK, the TONICS rows under the third price button, and the enchant and armor rows were fixed-width; every line now stops where its button column begins and shrinks to fit.
+- Tokens refresh after buying a tonic or enchanting: both panels rebuild, and the balance is shown in the header of every buy page, next to where it is spent.
+- Equipped and worn items are never sold, swept, dropped, tossed or salvaged. One check (`LootInventory.InUse`, from the loadout table the holster reads) replaces the scattered `EquippedSlot` tests; the armory's SALVAGE now refuses an equipped loot weapon as it refuses a locked one.
+- Two candidate causes of an equipped loot weapon missing from the pedestal until the next dungeon: hidden armories are rebuilt a second after the gate reopens (a player joining closes and reopens it) and never while it is shut (a rebuild asked for then waits); and the bag no longer switches to an empty `nick-…` file when PlayFab's player id is momentarily unreadable, which would have made every list built meanwhile show no loot. Not reproduced; the transcript logs `armory rebuild deferred` and `Bag: account changed` when either fires.
+- The dice bodies are out of the junk pool: they are the lobby's map-table dice and play that object's sound. Dice already bagged still drop and sell.
+
+### Added
+- HELP on the ENCHANT tab: every perk and element the table can add, with the game's own name and description for it (from its language pack, in the current language; `perk.<id>.name` / `.description`) and the weapon types it fits.
+- The ARMOR tab compares. One slot at a time (HEAD / CHEST / LEGS tabs with counts): the piece worn there with TAKE OFF, then every bag piece for that slot with WEAR, each stat shown with its difference against the worn piece — green better, red worse, blue new, and in red any worn stat the candidate lacks. Paged.
+- Trinkets are picked up by walking over them (`JunkAutoPickup`, default on; `JunkAutoPickupMeters`, 0.6 m flat from the head): a settled, unclaimed trinket close enough and below head height is claimed as a hand grab would claim it. Weapons and armor are never taken this way. Something you dropped yourself is left alone until the scene changes.
+- A weapon or armor that does not fit tosses trinkets to make room (`TossJunkWhenFull`, default on): the cheapest unlocked ones, fewest tokens first, until it fits; never anything equipped, worn, locked, or a weapon, armor or tonic. The toss says what it threw out.
+- Three more bag tiers above the Bag of Holding: Traveller's Pack (+85 wt, 6000), Porter's Harness (+120, 12000), Caravan Trunk (+160, 24000). Saved levels keep their meaning.
+- Bag rows show what the kobold pays and the weight on the name line.
+
+### Changed
+- Enchanting consumes no reagent; the price is doubled (300 / 600 / 1200 / 2400 by rarity, × `ShopPriceMultiplier`, × the new `EnchantCostMultiplier`).
+- The SELL ALL buttons read `SELL 3 JUNK`, `SELL 2 COMMON` and so on, under a caption that says they sell and what they never touch.
+- The bag-upgrade button is just BUY; the line beside it names the tier and price.
+- The pedestal frame is a hairline (3% of the tile, at most 6 mm) with a softer glow.
+
 ## 0.9.14 (2026-09-09)
 
 ### Fixed

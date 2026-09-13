@@ -83,7 +83,8 @@ namespace LootOverhaul.Loot
                     if (Interop.Alive(hand)) { try { hand.ClearLastProp(); } catch { } }
 
                     if (tag.Claimed || tag.ClaimPending) continue;
-                    if (!BagManager.CanCarry(tag.Item))
+                    // A weapon or armor that does not fit may toss trinkets out to make room (0.9.15).
+                    if (!BagManager.CanCarry(tag.Item) && !BagManager.MakeRoomFor(tag.Item))
                     {
                         BagManager.Toast($"Bag full — {tag.Item.ColoredName} left on the floor");
                         continue;
@@ -93,6 +94,64 @@ namespace LootOverhaul.Loot
                 }
                 catch (Exception e) { Core.Log.Error($"BagPickup tick threw: {e}"); }
             }
+        }
+    }
+
+    /// <summary>
+    /// Trinkets are picked up by walking over them (0.9.15): no reaching, no gesture. A few
+    /// times a second every unclaimed junk tag on this client is measured against the local
+    /// player's head, flat, within <c>JunkAutoPickupMeters</c> and below the head; one that is
+    /// close enough, has been on the floor a moment, was not dropped here by this player and
+    /// fits in the bag is claimed exactly as a hand grab would claim it. Weapons and armor are
+    /// never taken this way: those are a deliberate grab.
+    /// </summary>
+    public static class JunkAutoPickup
+    {
+        private const float Every = 0.2f;
+        private const float SettleSeconds = 1.5f;
+        private static float _nextAt;
+        public static int Taken;
+
+        public static void Tick()
+        {
+            if (!ModConfig.JunkAutoPickup.Value || !ModGate.Active || LootRegistry.Count == 0) return;
+            var now = UnityEngine.Time.unscaledTime;
+            if (now < _nextAt) return;
+            _nextAt = now + Every;
+            var radius = ModConfig.JunkAutoPickupMeters.Value;
+            if (radius <= 0f) return;
+            try
+            {
+                var local = AvatarPlayer.LocalAvatar;
+                if (!Interop.Alive(local)) return;
+                var head = local.Head;
+                if (!Interop.Alive(head)) return;
+                var eye = head.position;
+                var floorY = local.transform.position.y;
+                // A snapshot: on the master a claim is granted on the spot and removes its tag.
+                foreach (var tag in new System.Collections.Generic.List<LootTag>(LootRegistry.All))
+                {
+                    var item = tag.Item;
+                    if (tag.Claimed || tag.ClaimPending || item == null) continue;
+                    if (item.IsWeapon || item.IsArmor || item.IsBuff) continue;
+                    if (now - tag.TaggedAt < SettleSeconds) continue;
+                    if (BagManager.DroppedByMe.Contains(item.Id)) continue;
+                    if (!Interop.Alive(tag.Object)) continue;
+                    var p = tag.Object.transform.position;
+                    var flat = p - eye; flat.y = 0f;
+                    if (flat.sqrMagnitude > radius * radius) continue;
+                    if (p.y > eye.y || p.y < floorY - 0.6f) continue;
+                    if (!BagManager.CanCarry(item))
+                    {
+                        if (!tag.FullToasted) { tag.FullToasted = true; BagManager.Toast($"Bag full — {item.ColoredName} stays on the floor"); }
+                        continue;
+                    }
+                    Taken++;
+                    ReconLog.Line($"walk-over pickup -> claim: view {tag.ViewId} {item.Name} at {flat.magnitude:0.00} m");
+                    Claims.Request(tag);
+                }
+            }
+            catch (Exception e) { Core.Log.Warning($"Junk auto-pickup threw: {e.GetType().Name}: {e.Message}"); _nextAt = now + 2f; }
         }
     }
 }

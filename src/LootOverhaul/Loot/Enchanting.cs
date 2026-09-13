@@ -11,8 +11,10 @@ namespace LootOverhaul.Loot
     /// The enchanting table, on the game's own "manual" weapon module: a module that carries
     /// chosen perks, an element and a damage figure explicitly (the mythic path uses it; the
     /// game networks it as 11 values). Enchanting a bag weapon writes a new manual record
-    /// with one more perk or an element, for tokens and a reagent (a curio or artifact from
-    /// the junk pile). Slots by rarity: Common 1, Unique 2, Rare 2, Legendary 3.
+    /// with one more perk or an element, for tokens alone (0.9.15; until then a curio or
+    /// artifact from the junk pile was consumed too, and the price was half). An equipped
+    /// weapon may be enchanted in place: the new record takes its slot and goes into the
+    /// hand at once. Slots by rarity: Common 1, Unique 2, Rare 2, Legendary 3.
     ///
     /// The one unknown is how the game names a manual module. <see cref="SelfTest"/> builds
     /// candidates in the lobby, asks the game to serialise each, and keeps the first whose
@@ -50,17 +52,94 @@ namespace LootOverhaul.Loot
 
         public static int Slots(int weaponClass) => weaponClass switch { 0 => 1, 1 => 2, 2 => 2, _ => 3 };
 
-        /// <summary>Token cost of one enchantment by rarity, before the shop multiplier.</summary>
-        public static int Price(LootItem item) => (int)Math.Round((item.WeaponClass switch { 0 => 150, 1 => 300, 2 => 600, _ => 1200 }) * ModConfig.ShopPriceMultiplier.Value);
-
-        /// <summary>Reagent tier needed: a curio for Common/Unique, an artifact for Rare/Legendary.</summary>
-        public static int ReagentTier(LootItem item) => item.WeaponClass >= 2 ? 2 : 1;
+        /// <summary>
+        /// Token cost of one enchantment by rarity: the 0.9.14 price doubled, since the reagent
+        /// (a curio or artifact from the junk pile) is no longer consumed; times the shop
+        /// multiplier and <c>EnchantCostMultiplier</c>.
+        /// </summary>
+        public static int Price(LootItem item) => Math.Max(1, (int)Math.Round((item.WeaponClass switch { 0 => 300, 1 => 600, 2 => 1200, _ => 2400 })
+            * ModConfig.ShopPriceMultiplier.Value * Math.Max(0f, ModConfig.EnchantCostMultiplier.Value)));
 
         public static string PerkName(int id)
         {
             foreach (var p in GenericPerks) if (p.id == id) return p.name;
             foreach (var kv in TypePerks) foreach (var p in kv.Value) if (p.id == id) return p.name;
             return id == 0 ? "" : $"perk {id}";
+        }
+
+        /// <summary>
+        /// One line of the table's HELP page: the mod's short perk name, the game's own name for
+        /// it, what the game says it does, and which weapon types can carry it. The text is the
+        /// game's (its language pack, `perk.&lt;id&gt;.name` / `.description`, read 2026-09-12);
+        /// at runtime the current language is asked first and the English is the fallback.
+        /// </summary>
+        public class PerkDoc
+        {
+            public string Name;         // the mod's short name, as on the buttons
+            public string Key;          // the game's localisation key stem, e.g. "perk.swordvampire"
+            public string GameName;     // English name from the game's language pack
+            public string Description;  // English description from the game's language pack
+            public string Types;        // "every weapon" or a list of types
+            public string Title => GameName == Name ? Name : $"{Name} <color=#9A9A9A>({GameName})</color>";
+        }
+
+        private static readonly PerkDoc[] Docs =
+        {
+            new PerkDoc { Name = "Power",        Key = "perk.attackpower",      GameName = "Power",              Description = "Increases damage by 5-35%", Types = "every weapon" },
+            new PerkDoc { Name = "Criticals",    Key = "perk.attackcritical",   GameName = "Criticals",          Description = "Gives 20-32% chance to critically strike for 300% damage", Types = "every weapon" },
+            new PerkDoc { Name = "Shatter",      Key = "perk.enemyshatter",     GameName = "Undead Damage",      Description = "Increases damage by 5-35% to undead enemies", Types = "every weapon" },
+            new PerkDoc { Name = "Vanquish",     Key = "perk.enemyvanquish",    GameName = "Monster Damage",     Description = "Increases damage by 5-35% to monsters", Types = "every weapon" },
+            new PerkDoc { Name = "Exterminate",  Key = "perk.enemyexterminate", GameName = "Critter Damage",     Description = "Increases damage by 5-35% to critters", Types = "every weapon" },
+            new PerkDoc { Name = "Banish",       Key = "perk.enemybanish",      GameName = "Sorcerer Damage",    Description = "Increases damage by 5-35% to sorcerer enemies", Types = "every weapon" },
+            new PerkDoc { Name = "Dismantle",    Key = "perk.enemydismantle",   GameName = "Elemental Damage",   Description = "Increases damage by 5-35% to elemental enemies", Types = "every weapon" },
+            new PerkDoc { Name = "Elite Slayer", Key = "perk.enemyelite",       GameName = "Elite Damage",       Description = "Increases damage by 5-35% to elite enemies", Types = "every weapon" },
+            new PerkDoc { Name = "Vampire",      Key = "perk.swordvampire",     GameName = "Vampire",            Description = "Gives 20-32% chance to heal 25% of player health", Types = "sword, dagger, longsword" },
+            new PerkDoc { Name = "Spire",        Key = "perk.swordspire",       GameName = "Throwable",          Description = "Allows sword to be thrown", Types = "sword" },
+            new PerkDoc { Name = "Pierce",       Key = "perk.swordpierce",      GameName = "Stab Damage",        Description = "Increases damage by 50%", Types = "sword, longsword" },
+            new PerkDoc { Name = "Distance",     Key = "perk.axedistance",      GameName = "Throw Distance",     Description = "Increases throwing range by 10-70%", Types = "axe, hammer, dagger, long axe, spear" },
+            new PerkDoc { Name = "Might",        Key = "perk.axemight",         GameName = "Throw Damage",       Description = "Increases throwing damage by 5-35%", Types = "axe, long axe, spear" },
+            new PerkDoc { Name = "Explode",      Key = "perk.axeexplode",       GameName = "Explosions",         Description = "Gives 20-32% chance to explode for 200% damage", Types = "axe, long axe, spear" },
+            new PerkDoc { Name = "Slow",         Key = "perk.hammerslow",       GameName = "Slowing",            Description = "Gives 20-32% chance to slow enemy", Types = "hammer, bow, crossbow" },
+            new PerkDoc { Name = "Smash",        Key = "perk.hammersmash",      GameName = "Area Damage",        Description = "Gives 20-32% chance to explode for 200% damage", Types = "hammer" },
+            new PerkDoc { Name = "Smash",        Key = "perk.longswordsmash",   GameName = "Unblockable",        Description = "Attacks cannot be blocked", Types = "longsword" },
+            new PerkDoc { Name = "Poison",       Key = "perk.daggerpoison",     GameName = "Poison",             Description = "Gives 20-32% chance to poison enemy", Types = "dagger" },
+            new PerkDoc { Name = "Farshot",      Key = "perk.bowfarshot",       GameName = "Shot Distance",      Description = "Increases shooting range by 10-70%", Types = "bow" },
+            new PerkDoc { Name = "Reload",       Key = "perk.crossbowreload",   GameName = "Reload",             Description = "Gives 1-7 extra shots per reload", Types = "crossbow" },
+            new PerkDoc { Name = "Knockback",    Key = "perk.shieldknockback",  GameName = "Knockback Distance", Description = "Increases shield knockback by 10-70%", Types = "shield" },
+            new PerkDoc { Name = "Knockback",    Key = "perk.knockback",        GameName = "Knockback",          Description = "Increases knockback by 10-70%", Types = "longsword, long axe" },
+            new PerkDoc { Name = "Absorb",       Key = "perk.shieldabsorb",     GameName = "Absorb",             Description = "Heals 4-29% of player health when blocking", Types = "shield" },
+        };
+
+        /// <summary>The elements, described in the mod's words: the game names them and colours them but has no perk text for them.</summary>
+        private static readonly PerkDoc[] ElementDocs =
+        {
+            new PerkDoc { Name = "Fire",   Key = "", GameName = "Fire",   Description = "Hits set the enemy burning for damage over time", Types = "any weapon without an element" },
+            new PerkDoc { Name = "Ice",    Key = "", GameName = "Ice",    Description = "Hits chill the enemy, slowing it", Types = "any weapon without an element" },
+            new PerkDoc { Name = "Poison", Key = "", GameName = "Poison", Description = "Hits poison the enemy for damage over time", Types = "any weapon without an element" },
+        };
+
+        /// <summary>Every enchantment the table offers, documented: the perks (deduplicated by what they do), then the elements.</summary>
+        public static List<PerkDoc> Documentation()
+        {
+            var list = new List<PerkDoc>();
+            foreach (var d in Docs) list.Add(Localized(d));
+            foreach (var d in ElementDocs) list.Add(d);
+            return list;
+        }
+
+        /// <summary>The same entry in the game's current language when it has one; the English otherwise.</summary>
+        private static PerkDoc Localized(PerkDoc d)
+        {
+            if (string.IsNullOrEmpty(d.Key)) return d;
+            try
+            {
+                var name = LocalizationManager.GetLocalizedText(d.Key + ".name", d.GameName);
+                var desc = LocalizationManager.GetLocalizedText(d.Key + ".description", d.Description);
+                if (string.IsNullOrWhiteSpace(name) || name.Contains("{0}")) name = d.GameName;   // "Reload: {0} Shots" is a format string
+                if (string.IsNullOrWhiteSpace(desc)) desc = d.Description;
+                return new PerkDoc { Name = d.Name, Key = d.Key, GameName = name.Trim(), Description = desc.Trim(), Types = d.Types };
+            }
+            catch { return d; }
         }
 
         /// <summary>What may still be added to this weapon: perks valid for its type it does not have, and an element if it has none.</summary>
@@ -79,16 +158,12 @@ namespace LootOverhaul.Loot
 
         public static int UsedSlots(LootItem item) => (item.PerkA > 0 ? 1 : 0) + (item.PerkB > 0 ? 1 : 0) + (item.PerkC > 0 ? 1 : 0);
 
-        /// <summary>The cheapest junk item of at least the needed tier, or null.</summary>
-        public static LootItem FindReagent(LootInventory inv, int tier)
-        {
-            LootItem best = null;
-            foreach (var j in inv.Items)
-                if (!j.IsWeapon && !j.IsBuff && !j.IsArmor && j.WeaponClass >= tier && (best == null || j.Value < best.Value)) best = j;
-            return best;
-        }
-
-        /// <summary>Apply one enchantment. Returns the new item (the old one is replaced in the bag) or null with a toast.</summary>
+        /// <summary>
+        /// Apply one enchantment. Returns the new item (the old one is replaced in the bag) or
+        /// null with a toast. An equipped weapon keeps its slot: the new record is put into the
+        /// loadout and the hand straight away (report 2026-09-12: "unequip it first" was the
+        /// most common thing the table said).
+        /// </summary>
         public static LootItem Enchant(LootItem item, int perkId, int element)
         {
             var inv = BagManager.Inventory;
@@ -96,11 +171,9 @@ namespace LootOverhaul.Loot
             if (!ModGate.Active) { BagManager.Toast("Not in a modded room."); return null; }
             var live = inv.Find(item.Id);
             if (live == null || !live.IsWeapon) { BagManager.Toast("That's gone."); return null; }
-            if (live.EquippedSlot >= 0) { BagManager.Toast("Unequip it at the pedestal first."); return null; }
             var price = Price(live);
             if (inv.Gold < price) { BagManager.Toast($"Enchanting costs {price} tokens; you have {inv.Gold}."); return null; }
-            var reagent = FindReagent(inv, ReagentTier(live));
-            if (reagent == null) { BagManager.Toast($"Needs a {LootTables.JunkTierName(ReagentTier(live))} from your junk as a reagent."); return null; }
+            var slot = inv.EquippedSlotOf(live);
 
             var enchanted = Clone(live);
             enchanted.Id = Guid.NewGuid().ToString("N");
@@ -129,14 +202,17 @@ namespace LootOverhaul.Loot
             catch (Exception e) { BagManager.Toast("That enchantment didn't take."); Core.Log.Warning($"Enchant failed: {e.GetType().Name}: {e.Message}"); return null; }
 
             inv.Gold -= price;
-            inv.Remove(reagent.Id);
-            inv.Remove(live.Id);
+            enchanted.Locked = live.Locked;
+            inv.Remove(live.Id);            // clears its loadout slot and retires the old GUID
             inv.Items.Add(enchanted);
             inv.Save();
             var what = perkId > 0 ? PerkName(perkId) : Elements[element];
-            BagManager.Toast($"Enchanted: {enchanted.ColoredName} gains <b>{what}</b>  (−{price} tokens, −{reagent.Name})");
-            ReconLog.Line($"enchant: {live.Name} + {what} -> {enchanted.Name} [{enchanted.ModuleName}] perks {enchanted.PerkA}/{enchanted.PerkB}/{enchanted.PerkC} element {enchanted.DamageType}; paid {price} + {reagent.Name}");
-            BagPanel.Refresh(); Booth.Refresh();
+            BagManager.Toast($"Enchanted: {enchanted.ColoredName} gains <b>{what}</b>  (−{price} tokens, now {inv.Gold})");
+            ReconLog.Line($"enchant: {live.Name} + {what} -> {enchanted.Name} [{enchanted.ModuleName}] perks {enchanted.PerkA}/{enchanted.PerkB}/{enchanted.PerkC} element {enchanted.DamageType}; paid {price}; slot {slot}");
+            // The armory rebuilt its lists when the old record left; the new one is in the bag now.
+            try { FabricatorBridge.RefreshArmories($"{enchanted.Name} enchanted"); } catch { }
+            if (slot >= 0) Loadout.Set(slot, enchanted, apply: true);
+            BagPanel.Refresh();
             return enchanted;
         }
 
@@ -149,6 +225,7 @@ namespace LootOverhaul.Loot
                 ModuleName = a.ModuleName, ModuleType = a.ModuleType, PropType = a.PropType, Name = a.Name, ColoredName = a.ColoredName,
                 Weight = a.Weight, Value = a.Value, FoundInRealm = a.FoundInRealm, FoundAt = a.FoundAt, FoundBy = a.FoundBy, Source = a.Source,
                 Manual = a.Manual, PerkA = a.PerkA, PerkB = a.PerkB, PerkC = a.PerkC, DamageMin = a.DamageMin, DamageType = a.DamageType, Superior = a.Superior,
+                Locked = a.Locked,
             };
         }
 

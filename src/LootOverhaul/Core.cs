@@ -6,7 +6,7 @@ using LootOverhaul.Loot;
 using LootOverhaul.Net;
 using LootOverhaul.Recon;
 
-[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.9.14", "dan")]
+[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.9.15", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace LootOverhaul
@@ -24,7 +24,7 @@ namespace LootOverhaul
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.9.14";
+        public const string Version = "0.9.15";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -86,7 +86,9 @@ namespace LootOverhaul
             ModNet.Pump();
             LootRegistry.Tick();
             BagPickup.Tick();
+            JunkAutoPickup.Tick();
             Claims.Tick();
+            FabricatorBridge.Tick();
             BagGesture.Tick();
             BagPanel.Tick();
             Buffs.Tick();
@@ -121,6 +123,7 @@ namespace LootOverhaul
             // The pooled loot bodies outlive the scene; whatever the pre-load hook did not
             // catch is destroyed here, while the room is still the same one.
             LootRegistry.Clear($"scene changed to {sceneName}", destroyOwned: true);
+            BagManager.DroppedByMe.Clear();
             Unlocks.Invalidate();
             if (sceneName == Il2Cpp.GameManager.LOBBY_SCENE || sceneName == Il2Cpp.GameManager.MAINMENU_SCENE) Buffs.ClearAll($"entered {sceneName}");
             BagPanel.Hide();
@@ -142,7 +145,7 @@ namespace LootOverhaul
             if (ModConfig.ReconEnabled.Value)
             {
                 ReconLog.Section("Loot loop counters");
-                ReconLog.Line($"- kills rolled on this master: {DropRoller.RollsSeen}, weapon drops: {DropRoller.Dropped}, junk drops: {DropRoller.JunkDropped}, pickups turned into claims: {BagPickup.Cancelled}");
+                ReconLog.Line($"- kills rolled on this master: {DropRoller.RollsSeen}, weapon drops: {DropRoller.Dropped}, junk drops: {DropRoller.JunkDropped}, pickups turned into claims: {BagPickup.Cancelled}, walk-over pickups: {JunkAutoPickup.Taken}");
                 ReconLog.Line($"- loadout: {Loadout.Describe()}");
                 ReconLog.Line($"- fabricator bridge: {FabricatorBridge.Describe()}");
                 ReconLog.Line($"- loot goblins resized: {Goblins.Resized}");
@@ -171,6 +174,7 @@ namespace LootOverhaul
                 try { Buffs.RebuildWorn(); Buffs.RequestReapply(1.0f); } catch (Exception e) { LoggerInstance.Warning($"Worn rebuild on gate open threw: {e.GetType().Name}"); }
             }
             try { Loadout.OnGateChanged(active); } catch (Exception e) { LoggerInstance.Warning($"Loadout gate handler threw: {e.GetType().Name}"); }
+            try { FabricatorBridge.OnGateChanged(active); } catch (Exception e) { LoggerInstance.Warning($"Armory gate handler threw: {e.GetType().Name}"); }
         }
     }
 }

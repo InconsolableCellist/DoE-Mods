@@ -18,6 +18,12 @@ namespace LootOverhaul.Loot
     {
         private static LootInventory _inv;
         private static string _account;
+        /// <summary>
+        /// Ids of items this player put on the floor on purpose (DROP, ], the bag-full toss),
+        /// so the walk-over pickup does not scoop them straight back up. A hand grab still takes
+        /// them. Forgotten on every scene change.
+        /// </summary>
+        public static readonly System.Collections.Generic.HashSet<string> DroppedByMe = new System.Collections.Generic.HashSet<string>();
 
         public static LootInventory Inventory
         {
@@ -26,6 +32,7 @@ namespace LootOverhaul.Loot
                 var account = AccountId();
                 if (_inv == null || account != _account)
                 {
+                    if (_inv != null) Core.Log.Msg($"Bag: account changed `{_account}` -> `{account}`; loading that bag.");
                     _account = account;
                     _inv = LootInventory.Load(ModPaths.InventoryFile(account));
                     Core.Log.Msg($"Bag loaded for `{account}`: {_inv.Items.Count} item(s), {_inv.TotalWeight:0.#} wt, {_inv.Gold} tokens.");
@@ -47,13 +54,24 @@ namespace LootOverhaul.Loot
                 }
             }
             catch { }
+            // PlayFab's id can be momentarily unreadable (a reconnect, a join). Once a real
+            // account's bag is open, keep it rather than swap in an empty nickname bag, which
+            // would make every list built meanwhile (armory, booth) show no loot (0.9.15).
+            if (!string.IsNullOrEmpty(_account) && !_account.StartsWith("nick-") && _account != "default") return _account;
             try { var n = PhotonNetwork.NickName; if (!string.IsNullOrEmpty(n)) return "nick-" + n; } catch { }
             return "default";
         }
 
+        /// <summary>
+        /// The bag tiers, in order; <see cref="LootInventory.BagLevel"/> counts how many have been
+        /// bought and the capacity is the setting plus the bonus of the last one. The first three
+        /// are the 0.9.9 tiers; 0.9.15 added three more above them, so a saved level keeps its
+        /// meaning.
+        /// </summary>
         public static readonly (string name, float bonus, int price)[] BagUpgrades =
         {
             ("Satchel", 15f, 400), ("Backpack", 30f, 1200), ("Bag of Holding", 55f, 3000),
+            ("Traveller's Pack", 85f, 6000), ("Porter's Harness", 120f, 12000), ("Caravan Trunk", 160f, 24000),
         };
 
         /// <summary>Bag capacity: the setting plus whatever the player has bought.</summary>
@@ -67,6 +85,36 @@ namespace LootOverhaul.Loot
         }
 
         public static bool CanCarry(LootItem item) => Inventory.CanCarry(item.Weight, Capacity);
+
+        /// <summary>
+        /// Make room for a weapon or armor that does not fit by tossing the cheapest unlocked
+        /// trinkets onto the floor, fewest tokens first, until it does. Nothing equipped, worn,
+        /// locked, or a weapon, armor or tonic is ever tossed; a trinket never makes room for
+        /// another trinket. Returns true when the item now fits.
+        /// </summary>
+        public static bool MakeRoomFor(LootItem item)
+        {
+            var inv = Inventory;
+            if (inv.CanCarry(item.Weight, Capacity)) return true;
+            if (!ModConfig.TossJunkWhenFull.Value || !(item.IsWeapon || item.IsArmor)) return false;
+            var junk = new System.Collections.Generic.List<LootItem>();
+            foreach (var j in inv.Items) if (!j.IsWeapon && !j.IsArmor && !j.IsBuff && !j.Locked && !inv.InUse(j)) junk.Add(j);
+            junk.Sort((a, b) => a.Value != b.Value ? a.Value.CompareTo(b.Value) : b.Weight.CompareTo(a.Weight));
+            var need = inv.TotalWeight + item.Weight - Capacity;
+            var toss = new System.Collections.Generic.List<LootItem>();
+            var freed = 0f;
+            foreach (var j in junk) { if (freed >= need) break; toss.Add(j); freed += j.Weight; }
+            if (freed < need) return false;
+            var tossed = 0; var value = 0;
+            foreach (var j in toss)
+            {
+                if (!Drop(j, quiet: true)) break;
+                tossed++; value += j.Value;
+            }
+            if (tossed > 0) Toast($"Tossed {tossed} trinket(s) worth {value} T to make room for {item.ColoredName}");
+            ReconLog.Line($"bag: tossed {tossed}/{toss.Count} trinket(s) ({freed:0.#} wt) to make room for {item.Name} ({item.Weight:0.#} wt)");
+            return inv.CanCarry(item.Weight, Capacity);
+        }
 
         /// <summary>Buy the next bag upgrade with tokens.</summary>
         public static bool BuyBagUpgrade()
@@ -106,35 +154,40 @@ namespace LootOverhaul.Loot
         }
 
         /// <summary>Drop one bag item at your feet as tagged loot. The panel's per-row Drop uses this.</summary>
-        public static void Drop(LootItem item)
+        public static bool Drop(LootItem item, bool quiet = false)
         {
             var inv = Inventory;
-            if (item == null || inv.Find(item.Id) == null) { Toast("That's gone."); return; }
-            if (inv.Find(item.Id).EquippedSlot >= 0) { Toast("Unequip it at the pedestal first."); return; }
-            if (inv.Find(item.Id).Locked) { Toast("Locked. Unlock it at the kobold first."); return; }
-            if (!Gate.ModGate.Active) { Toast("Not in a modded room."); return; }
+            var live = item == null ? null : inv.Find(item.Id);
+            if (live == null) { Toast("That's gone."); return false; }
+            if (inv.EquippedSlotOf(live) >= 0) { Toast("Unequip it at the pedestal first."); return false; }
+            if (live.WornSlot >= 0) { Toast("Take it off first."); return false; }
+            if (live.Locked) { Toast("Locked. Unlock it at the kobold first."); return false; }
+            if (!Gate.ModGate.Active) { Toast("Not in a modded room."); return false; }
             try
             {
                 var local = AvatarPlayer.LocalAvatar;
-                if (!Interop.Alive(local)) { Toast("No avatar to drop from."); return; }
+                if (!Interop.Alive(local)) { Toast("No avatar to drop from."); return false; }
                 var head = local.Head;
                 var fwd = head.forward; fwd.y = 0f; fwd.Normalize();
                 var pos = head.position + fwd * 0.5f + Vector3.down * 0.3f;
                 var vel = Vector3.up * 1.0f + fwd * 1.2f;
+                // The walk-over pickup must not take it straight back; a hand grab still may.
+                DroppedByMe.Add(live.Id);
                 // Floor loot is a room object, which only the master can create; everyone else asks.
                 if (PhotonNetwork.IsMasterClient)
                 {
-                    var tag = DropRoller.SpawnLoot(item, pos, vel);
-                    if (tag == null) { Toast("Drop failed — see log."); return; }
+                    var tag = DropRoller.SpawnLoot(live, pos, vel);
+                    if (tag == null) { Toast("Drop failed — see log."); return false; }
                 }
-                else if (!LootNet.SendDropRequest(item, pos, vel)) { Toast("Drop failed — no host to ask."); return; }
-                inv.Remove(item.Id);
+                else if (!LootNet.SendDropRequest(live, pos, vel)) { Toast("Drop failed — no host to ask."); return false; }
+                inv.Remove(live.Id);
                 inv.Save();
-                Toast($"Dropped {item.ColoredName}");
+                if (!quiet) Toast($"Dropped {live.ColoredName}");
                 BagPanel.Refresh();
                 Booth.Refresh();
+                return true;
             }
-            catch (Exception e) { Core.Log.Error($"Drop failed: {e}"); }
+            catch (Exception e) { Core.Log.Error($"Drop failed: {e}"); return false; }
         }
 
         public static void SummaryToast()

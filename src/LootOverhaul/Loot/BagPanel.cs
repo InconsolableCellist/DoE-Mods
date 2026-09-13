@@ -10,8 +10,8 @@ namespace LootOverhaul.Loot
 {
     /// <summary>
     /// Milestone L2: the bag as a world-space panel in front of the player. Rows show the
-    /// weapon's own generated mesh, its rarity-coloured name and stats line, weight and
-    /// value, with a Drop button per row. Sort by newest, value, weight or rarity; page
+    /// weapon's own generated mesh, its rarity-coloured name and stats line, what the kobold
+    /// pays for it and what it weighs, with a Drop button per row. Sort by newest, value, weight or rarity; page
     /// through. Rebuilt from scratch whenever it is shown or changed — a bag is small and
     /// this keeps the code honest.
     /// </summary>
@@ -169,7 +169,8 @@ namespace LootOverhaul.Loot
 
                 UiKit.Preview(row.transform, new Vector3(left + 0.07f, 0f, -0.03f), item, 0.11f);
 
-                var equipped = item.EquippedSlot >= 0 ? $"   <color=#F5C542>equipped: {Loadout.SlotNames[item.EquippedSlot]}</color>" : "";
+                var slot = inv.EquippedSlotOf(item);
+                var equipped = slot >= 0 ? $"   <color=#F5C542>equipped: {Loadout.SlotNames[slot]}</color>" : "";
                 string second;
                 if (item.IsWeapon)
                 {
@@ -185,11 +186,13 @@ namespace LootOverhaul.Loot
                 else if (item.IsArmor)
                     second = $"<color=#9A9A9A>{Armor.SlotNames[item.ArmorSlot].ToLowerInvariant()} armor · {Armor.DescribeStats(item)}</color>";
                 else
-                    second = $"<color=#9A9A9A>{LootTables.JunkTierName(item.WeaponClass)}</color>   <color=#F5C542>{item.Value} tokens</color>";
+                    second = $"<color=#9A9A9A>{LootTables.JunkTierName(item.WeaponClass)}</color>";
                 var rowTextW = item.IsBuff || item.IsArmor ? twoBtnTextW : textW;
                 var worn = item.IsArmor && item.WornSlot >= 0 ? "   <color=#C9A86A>worn</color>" : "";
                 if (item.Locked) worn += "   <color=#9A9A9A>locked</color>";
-                UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), rowTextW, 0.05f, 0.38f, $"{item.ColoredName}{equipped}{worn}", fit: true);
+                // What the kobold pays and what it weighs, on every row (asked for 2026-09-12).
+                var worth = $"   <color=#F5C542>{Booth.SellPrice(item)} T</color> <color=#9A9A9A>· {item.Weight:0.#} wt</color>";
+                UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), rowTextW, 0.05f, 0.38f, $"{item.ColoredName}{equipped}{worn}{worth}", fit: true);
                 UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), rowTextW, 0.045f, item.IsWeapon ? 0.27f : 0.3f, second, fit: true);
 
                 var captured = item;
@@ -208,7 +211,7 @@ namespace LootOverhaul.Loot
                         UiKit.Button(row.transform, new Vector3(dropX - BtnW * 1.2f - 0.03f, 0f, 0f), "DROP", () => BagManager.Drop(captured), BtnScale);
                     }
                 }
-                else if (item.EquippedSlot < 0)
+                else if (slot < 0)
                     UiKit.Button(row.transform, new Vector3(dropX, 0f, 0f), "DROP", () => BagManager.Drop(captured), BtnScale);
             }
 

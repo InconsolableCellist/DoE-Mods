@@ -1,4 +1,4 @@
-# LootOverhaul 0.9.14 — building
+# LootOverhaul 0.9.15 — building
 
 A second, independent MelonLoader mod for Dungeons of Eternity. Design and game-internals
 findings: [docs/LOOT-OVERHAUL.md](../../docs/LOOT-OVERHAUL.md).
@@ -35,6 +35,32 @@ Both prefixes coexist: Harmony chains them and each mod ignores the other's code
 gate rule is the same: private room, every occupant on the identical version and DLL hash of
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
+
+## 0.9.15 — enchant what you hold, compare armor, walk-over trinkets
+
+- **Enchant an equipped weapon.** The ENCHANT list shows every bag weapon, equipped ones
+  marked; the enchanted record takes the same slot and goes into the hand at once.
+- **Enchanting costs tokens only.** No reagent is consumed; the price is doubled
+  (300 / 600 / 1200 / 2400 × `ShopPriceMultiplier` × `EnchantCostMultiplier`).
+- **HELP on the ENCHANT tab** lists every perk and element with the game's own name and
+  description (its language pack, in the current language) and the weapon types it fits.
+- **ARMOR tab compares.** One slot at a time (HEAD / CHEST / LEGS): the worn piece, then the
+  bag's pieces for that slot, each stat marked better / worse / new against what is worn.
+- **Trinkets are picked up by walking over them** (`JunkAutoPickup`, `JunkAutoPickupMeters`
+  0.6). Weapons and armor are still a hand grab. A weapon or armor that does not fit tosses
+  the cheapest unlocked trinkets out to make room (`TossJunkWhenFull`).
+- **Beams wear the item's own colour** (the name colour; junk its tier colour) instead of the
+  rarity hologram picked by class, which put artifacts under the Rare weapon hologram.
+- **Bag rows show the sell value and weight.** Three more bag tiers: Traveller's Pack (+85),
+  Porter's Harness (+120), Caravan Trunk (+160).
+- **Sell buttons say SELL** (`SELL 3 JUNK`), and equipped or worn items are never sold, swept,
+  dropped, tossed or salvaged, by one check everywhere (the loadout table).
+- **Tokens shown on every buy page** and refreshed on both panels after a purchase.
+- **Dice retired** from the junk pool (they made the map-table sound).
+- **Armory lists rebuild when the gate reopens** (a player joined) and never while it is shut;
+  the bag never swaps to an empty nickname file when PlayFab's id is momentarily unreadable.
+  Best candidates for the equipped loot weapon missing from the pedestal until the next dungeon.
+- **Thinner pedestal frame.** Long lines at the kobold stop before their buttons and shrink to fit.
 
 ## 0.9.14 — buffs never compound, damage-reduction stats divide, sold loot leaves the armory
 

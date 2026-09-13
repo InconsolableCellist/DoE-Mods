@@ -68,6 +68,13 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<string> DropChime;
         /// <summary>The bag panel closes by itself when you walk this far from it (metres; 0 disables).</summary>
         public static MelonPreferences_Entry<float> BagAutoCloseMeters;
+        /// <summary>Walk over a trinket and it goes into the bag by itself, within this many metres (0 disables).</summary>
+        public static MelonPreferences_Entry<bool> JunkAutoPickup;
+        public static MelonPreferences_Entry<float> JunkAutoPickupMeters;
+        /// <summary>Grabbing a weapon or armor with a full bag tosses the cheapest unlocked trinkets onto the floor to make room.</summary>
+        public static MelonPreferences_Entry<bool> TossJunkWhenFull;
+        /// <summary>Enchanting price = the rarity's base price × ShopPriceMultiplier × this.</summary>
+        public static MelonPreferences_Entry<float> EnchantCostMultiplier;
         /// <summary>An invisible pointer target over each panel so the laser shows across the whole window.</summary>
         public static MelonPreferences_Entry<bool> PanelLaser;
         /// <summary>How the bag opens in VR: "back-grip" (right hand behind you, grip + stick up), "stick-hold" (right stick held up), or "off".</summary>
@@ -142,6 +149,10 @@ namespace LootOverhaul
             DropSounds = Main.CreateEntry("DropSounds", true);
             DropChime = Main.CreateEntry("DropChime", "start", description: "Coin-pile sound played where a weapon or armor lands: start, finish, collected, or off.");
             BagAutoCloseMeters = Main.CreateEntry("BagAutoCloseMeters", 2.0f, description: "Walk this far from the open bag panel and it closes. 0 = never.");
+            JunkAutoPickup = Main.CreateEntry("JunkAutoPickup", true, description: "Trinkets (junk) you walk over go into the bag by themselves; no grab needed. Weapons and armor are always picked up by hand.");
+            JunkAutoPickupMeters = Main.CreateEntry("JunkAutoPickupMeters", 0.6f, description: "How close (metres, measured flat from your head) a trinket must be to be picked up automatically.");
+            TossJunkWhenFull = Main.CreateEntry("TossJunkWhenFull", true, description: "Grabbing a weapon or armor that does not fit tosses the cheapest unlocked trinkets out of the bag to make room. Nothing equipped, worn or locked is ever tossed.");
+            EnchantCostMultiplier = Main.CreateEntry("EnchantCostMultiplier", 1.0f, description: "Enchanting costs the rarity's base price (300 / 600 / 1200 / 2400 tokens) × ShopPriceMultiplier × this. No reagent is consumed.");
             BagGesture = Main.CreateEntry("BagGesture", "stick-hold",
                 description: "back-grip = reach behind your back with the right hand, squeeze grip and push the stick up; stick-hold = hold the right stick up; off.");
             BagGestureHoldSeconds = Main.CreateEntry("BagGestureHoldSeconds", 0.7f);

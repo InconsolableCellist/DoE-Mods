@@ -118,6 +118,36 @@ namespace LootOverhaul.Loot
             return string.Join(", ", parts);
         }
 
+        /// <summary>
+        /// A candidate's stats against the piece worn in the same slot, for the ARMOR tab: each
+        /// stat with its multiplier, and in brackets how it compares — green when better, red
+        /// when worse, blue when the worn piece has no such stat — then, in red, any stat the
+        /// worn piece has that the candidate lacks. A bigger multiplier is always the better one
+        /// (the ÷ stats divide by it).
+        /// </summary>
+        public static string Compare(LootItem candidate, LootItem worn)
+        {
+            var wornStats = new Dictionary<string, float>();
+            if (worn != null) foreach (var (st, m) in Decode(worn.ArmorStats)) wornStats[st] = m;
+            var parts = new List<string>();
+            var seen = new HashSet<string>();
+            foreach (var (st, m) in Decode(candidate.ArmorStats))
+            {
+                seen.Add(st);
+                var d = Buffs.Find(st);
+                var label = $"{(d == null ? st : d.Flavor)} {(d != null && d.Invert ? "÷" : "×")}{m:0.00}";
+                if (worn == null) { parts.Add(label); continue; }
+                if (!wornStats.TryGetValue(st, out var w)) { parts.Add($"{label} <color=#7FD8FF>(new)</color>"); continue; }
+                var diff = m - w;
+                var color = diff > 0.0005f ? "#5BD75B" : diff < -0.0005f ? "#E06060" : "#9A9A9A";
+                parts.Add($"{label} <color={color}>({diff:+0.00;-0.00;=})</color>");
+            }
+            if (worn != null)
+                foreach (var kv in wornStats)
+                    if (!seen.Contains(kv.Key)) { var d = Buffs.Find(kv.Key); parts.Add($"<color=#E06060>loses {(d == null ? kv.Key : d.Flavor)}</color>"); }
+            return string.Join(", ", parts);
+        }
+
         // ---- wearing ------------------------------------------------------------------------
 
         public static LootItem Worn(int slot)

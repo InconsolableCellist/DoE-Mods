@@ -67,17 +67,17 @@ namespace LootOverhaul.Loot
         // not grabbable). The roller still retires a prefab that refuses, and the `-` probe
         // tests candidates one by one. The namer picks the words; these rows pick body, tier,
         // value range and weight. Rocks_01 retired 2026-09-05: it spawned with nothing visible.
+        // Dice retired 2026-09-12: the body is the lobby's map-table dice and plays that
+        // object's sound when handled. Dice already in a bag still drop and sell as before.
         public static readonly Junk[] JunkTable =
         {
             // trinkets (grey)
             new Junk("Dog Treat",           "Wolf_Treat",           0, 2,   8,   0.3f),
-            new Junk("Chipped Dice",        "Dice",                 0, 4,   14,  0.2f),
             new Junk("Clay Mug",            "Mug_01",               0, 3,   12,  0.5f),
             new Junk("Cracked Tankard",     "Mug_02",               0, 3,   12,  0.5f),
             new Junk("Tarnished Chalice",   "Chalice",              0, 8,   25,  0.6f),
             new Junk("Bent Spoon",          "Tools/Spoon_02",       0, 2,   9,   0.1f),
             // curios (white)
-            new Junk("Weighted Dice",       "Dice",                 1, 25,  70,  0.2f),
             new Junk("Engraved Tankard",    "Mug_02",               1, 30,  90,  0.6f),
             new Junk("Silver Chalice",      "Tools/Chalice_Silver", 1, 50,  140, 0.7f),
             new Junk("Silver Spoon",        "Tools/Spoon_02",       1, 20,  60,  0.1f),
@@ -92,7 +92,6 @@ namespace LootOverhaul.Loot
             new Junk("Gilded Skull Crown",  "Trophy_SkullCrown",    2, 200, 500, 1.5f),
             new Junk("Religious Icon",      "Trophy_NovaGuild",     2, 150, 400, 1.2f),
             new Junk("Reliquary Chest",     "Trophy_Chest_01",      2, 180, 450, 2.0f),
-            new Junk("Gambler's Relic",     "Dice",                 2, 180, 450, 0.2f),
         };
 
         public static string JunkTierName(int tier) => tier switch { 0 => "trinket", 1 => "curio", _ => "artifact" };

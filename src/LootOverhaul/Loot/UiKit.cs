@@ -236,7 +236,7 @@ namespace LootOverhaul.Loot
         /// A bright rectangular frame: four thin bars around <paramref name="center"/> in the
         /// parent's plane, unlit-looking (colour plus emission) so it reads in a dark room.
         /// </summary>
-        public static GameObject Frame(Transform parent, Vector3 center, float width, float height, float thickness, Color color, float depth = 0.004f)
+        public static GameObject Frame(Transform parent, Vector3 center, float width, float height, float thickness, Color color, float depth = 0.004f, float emission = 1.5f)
         {
             var root = new GameObject("Frame");
             root.transform.SetParent(parent, false);
@@ -263,7 +263,7 @@ namespace LootOverhaul.Loot
                 {
                     var r = bar.GetComponent<Renderer>();
                     r.material.color = color;
-                    try { r.material.EnableKeyword("_EMISSION"); r.material.SetColor("_EmissionColor", color * 1.5f); } catch { }
+                    try { r.material.EnableKeyword("_EMISSION"); r.material.SetColor("_EmissionColor", color * emission); } catch { }
                     r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                     r.receiveShadows = false;
                 }

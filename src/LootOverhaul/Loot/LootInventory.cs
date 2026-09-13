@@ -32,7 +32,7 @@ namespace LootOverhaul.Loot
         /// </summary>
         public LootItem[] Loadout = new LootItem[3];
 
-        /// <summary>Bag upgrades bought at the broker: 0 none, 1 satchel, 2 pack, 3 porter's harness.</summary>
+        /// <summary>Bag upgrades bought at the kobold: an index into <see cref="BagManager.BagUpgrades"/> (0 = none).</summary>
         public int BagLevel;
 
         /// <summary>Legendary pity counter: kills since the last legendary drop for this account.</summary>
@@ -98,6 +98,23 @@ namespace LootOverhaul.Loot
         public bool CanCarry(float extraWeight, float capacity) => TotalWeight + extraWeight <= capacity;
 
         public LootItem Find(string id) => Items.Find(i => i.Id == id);
+
+        /// <summary>
+        /// The battle slot this item is in, or -1, from the loadout table, which is what the
+        /// holster fill reads. The item's own <see cref="LootItem.EquippedSlot"/> is a display
+        /// hint kept in step by <see cref="Loadout.Set"/>; every sell, sweep, drop and toss asks
+        /// here instead, so the two can never disagree about what may leave the bag (0.9.15).
+        /// </summary>
+        public int EquippedSlotOf(LootItem item)
+        {
+            if (item == null) return -1;
+            for (var s = 0; s < Loadout.Length; s++)
+                if (Loadout[s] != null && Loadout[s].Id == item.Id) return s;
+            return -1;
+        }
+
+        /// <summary>Equipped in a battle slot (weapons) or worn (armor): never sold, swept, dropped or tossed.</summary>
+        public bool InUse(LootItem item) => item != null && (EquippedSlotOf(item) >= 0 || item.WornSlot >= 0);
 
         public bool Remove(string id)
         {

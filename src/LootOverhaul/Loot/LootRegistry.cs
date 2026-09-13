@@ -30,6 +30,10 @@ namespace LootOverhaul.Loot
         public bool SoundPlayed;
         /// <summary>The object has been alive on this client at least once; if it is gone now, the game destroyed it.</summary>
         public bool Seen;
+        /// <summary>When this client tagged it (unscaled time); the walk-over pickup waits for the body to settle.</summary>
+        public float TaggedAt = Time.unscaledTime;
+        /// <summary>The walk-over pickup already said the bag is full for this item.</summary>
+        public bool FullToasted;
     }
 
     /// <summary>
@@ -393,12 +397,19 @@ namespace LootOverhaul.Loot
     }
 
     /// <summary>
-    /// The Diablo beam: a thin glowing column over the item, in the game's own rarity
-    /// hologram material so it matches the chest holograms. Purely local, per client.
+    /// The Diablo beam: a thin glowing column over the item in the item's own colour, the one
+    /// the game puts on its name (junk: its tier colour). Until 0.9.14 the beam wore the game's
+    /// rarity hologram material picked by <c>WeaponClass</c>, which for junk is the junk tier,
+    /// so an artifact (tier 2) stood under the Rare weapon hologram, and a hologram material's
+    /// own tint is not the name colour either. Now the hologram material is cloned for its look
+    /// and every colour property on it is set to the item's colour; without one, a plain
+    /// emissive material in that colour. Purely local, per client.
     /// </summary>
     public static class DropBeam
     {
         private static float Height(LootItem item) => item.WeaponClass >= 3 ? 3.0f : item.WeaponClass == 2 ? 2.2f : 1.5f;
+        private static readonly string[] ColorProperties = { "_Color", "_BaseColor", "_TintColor", "_EmissionColor", "_RimColor", "_GlowColor", "_MainColor" };
+        private static bool _logged;
 
         public static GameObject Attach(LootTag tag)
         {
@@ -420,24 +431,44 @@ namespace LootOverhaul.Loot
                 var r = beam.GetComponent<Renderer>();
                 if (Interop.Alive(r))
                 {
-                    Material mat = null;
+                    var color = DropOutline.ColorFor(tag.Item);
+                    Material mat = null; string from = "primitive";
                     try
                     {
                         var wf = WeaponFactory.Instance;
+                        Material holo = null;
                         if (Interop.Alive(wf))
-                            mat = tag.Item.WeaponClass switch
+                            holo = tag.Item.WeaponClass switch
                             {
                                 0 => wf.commonHologramMaterial,
                                 1 => wf.uniqueHologramMaterial,
                                 2 => wf.rareHologramMaterial,
                                 _ => wf.legendaryHologramMaterial,
                             };
+                        if (Interop.Alive(holo)) { mat = new Material(holo); from = holo.name; }
                     }
                     catch { }
-                    if (Interop.Alive(mat)) r.sharedMaterial = mat;
-                    else r.material.color = RarityColor(tag.Item.WeaponClass);
+                    var set = new List<string>();
+                    if (mat != null)
+                    {
+                        // A copy of the game's hologram look, every colour on it turned to the item's.
+                        var tinted = new Color(color.r, color.g, color.b, 0.85f);
+                        foreach (var prop in ColorProperties)
+                        {
+                            try { if (mat.HasProperty(prop)) { mat.SetColor(prop, prop == "_EmissionColor" ? tinted * 1.5f : tinted); set.Add(prop); } } catch { }
+                        }
+                        try { mat.color = tinted; } catch { }
+                        r.material = mat;
+                    }
+                    else
+                    {
+                        mat = r.material;
+                        try { mat.color = color; } catch { }
+                        try { mat.EnableKeyword("_EMISSION"); mat.SetColor("_EmissionColor", color * 1.5f); set.Add("_EmissionColor"); } catch { }
+                    }
                     r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                     r.receiveShadows = false;
+                    if (!_logged) { _logged = true; ReconLog.Line($"beam for {tag.Item.Name}: colour {color} on `{from}` (shader `{Shader(mat)}`), properties set: {(set.Count == 0 ? "none" : string.Join(" ", set))}"); }
                 }
                 return beam;
             }
@@ -467,6 +498,8 @@ namespace LootOverhaul.Loot
             try { if (Interop.Alive(tag.Beam)) UnityEngine.Object.Destroy(tag.Beam); } catch { }
             tag.Beam = null;
         }
+
+        private static string Shader(Material m) { try { return m == null || m.shader == null ? "?" : m.shader.name; } catch { return "?"; } }
 
         public static Color RarityColor(int weaponClass) => weaponClass switch
         {
