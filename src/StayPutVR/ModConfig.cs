@@ -62,7 +62,7 @@ namespace StayPutVR
             Host = Main.CreateEntry("Host", "127.0.0.1", description: "Host and Port are the fallback, used only while the StayPutVR app is not found over OSC Query.");
             Port = Main.CreateEntry("Port", 9001, description: "The app's Settings > OSC receive port, which it only keeps with OSC Query off there.");
             ShockPath = Main.CreateEntry("ShockPath", "/avatar/parameters/Shock");
-            ValueType = Main.CreateEntry("ValueType", "bool", description: "bool, int or float. float sends how hard the hit was, 0 to 1, and needs the StayPutVR app 1.5.2 or newer; bool is the plain shock.");
+            ValueType = Main.CreateEntry("ValueType", "float", description: "float, bool or int. float sends how hard the hit was, 0 to 1, and needs the StayPutVR app 1.5.2 or newer; bool is the plain shock.");
             SeverityCurve = Main.CreateEntry("SeverityCurve", 0.7f, description: "float only. Exponent on the share of your remaining health a hit took; below 1 lifts small hits.");
             FallSeverityFloor = Main.CreateEntry("FallSeverityFloor", 0.5f, description: "float only. Fall damage counts as at least this share, 0 to 1.");
             ReleaseSeconds = Main.CreateEntry("ReleaseSeconds", 0.15f, description: "Seconds between the trigger and the false that releases it.");

@@ -41,15 +41,16 @@ two is in use.
 **Enable the Shock trigger** — *Integrations → OSC Triggers* → **Shock**, and set its intensity and
 duration. That is where intensity lives. For biting, enable **Bite** on the same tab.
 
-**To shock harder for worse hits**, set `ValueType` to `float` below and set **Shock max intensity**
-on the same tab: a hit then lands somewhere between *Shock intensity* and that max, depending on
-how bad it was. With *Use per-device disobedience intensities* on, each PiShock or OpenShock device
-has its own *Shock max* in its tab. Needs the app at **1.5.2 or newer**; an older app drops light
-hits sent as floats, so `bool` is the default.
+**Set Shock max intensity** on the same tab. A hit lands somewhere between *Shock intensity* and
+that max, depending on how bad it was; see the next section. With *Use per-device disobedience
+intensities* on, each PiShock or OpenShock device has its own *Shock max* in its tab. This needs
+the app at **1.5.2 or newer**: an older app drops light hits, because it reads the value as a bool
+with a 0.5 threshold. If you must run an older app, set `ValueType` to `bool` and every hit is the
+plain shock.
 
 ## How hard it shocks
 
-With `ValueType=float` the mod sends how hard the hit was, 0 to 1, and the app scales the shock
+The mod sends how hard the hit was, 0 to 1, and the app scales the shock
 between its intensity and its max. The measure is the share of the health you had that the hit
 took: 10% at full health is 0.1, the same hit with 20% left is 0.5, and the killing blow is 1.
 `SeverityCurve` is an exponent on that share, 0.7 by default, which lifts small hits so a chip is
@@ -111,7 +112,7 @@ file on quit.
 | `Armed` | — | Remembered from your last session. The sticks change it. |
 | `Host` / `Port` | `127.0.0.1` / `9001` | Fallback, used only while the app is not found over OSC Query. |
 | `ShockPath` | `/avatar/parameters/Shock` | What a hit fires. |
-| `ValueType` | `bool` | `bool`, `int` or `float`. `float` sends how hard the hit was; app 1.5.2 or newer. |
+| `ValueType` | `float` | `float` sends how hard the hit was and needs app 1.5.2 or newer. `bool` or `int` is the plain shock. |
 | `SeverityCurve` | `0.7` | `float` only. Exponent on the share of remaining health a hit took; below 1 lifts small hits. |
 | `FallSeverityFloor` | `0.5` | `float` only. A fall counts as at least this share. |
 | `ReleaseSeconds` | `0.15` | Gap before the `false` that releases the trigger. |

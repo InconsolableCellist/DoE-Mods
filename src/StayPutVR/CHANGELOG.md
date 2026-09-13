@@ -17,14 +17,15 @@ no new inbound listener and nothing for the firewall to ask about. Answering tha
 change in StayPutVR 1.5.2; VRChat's and VRCFaceTracking's own discovery are untouched by it, and
 CustomAvatars needed no change.
 
-**Worse hits shock harder.** With `ValueType=float` the trigger carries how hard the hit was, 0 to
-1, and the app (1.5.2, which learned to read a float on the Shock parameter for this) scales the
+**Worse hits shock harder.** The trigger now carries how hard the hit was, 0 to 1, and the app (1.5.2, which learned to read a float on the Shock parameter for this) scales the
 shock between its Shock intensity and a new Shock max. The measure is the share of the health you
 had that the hit took, so the same blow hurts more the closer to death it leaves you, a bigger blow
 hurts more at the same health, and the killing blow is the worst. `SeverityCurve` (0.7) lifts small
 hits; `FallSeverityFloor` (0.5) makes a tumble read as a serious hit. The health left after a hit is
-read off the game's health object in the same postfix. `bool` stays the default because an app older
-than 1.5.2 drops floats under 0.5.
+read off the game's health object in the same postfix. `ValueType=float` is the default and needs
+the app at 1.5.2, which every tester can install; an older app drops floats under 0.5, and `bool`
+is there for it. An install that already has `ValueType=bool` from 0.3.0 keeps it, because
+MelonLoader keeps what it wrote, and the console says so at startup.
 
 Tested: the question and the parser against bytes produced by the app's own mDNS library
 (`tests/MdnsAnswerDump.cpp`), the discovery thread against a fake app on loopback — found, lost

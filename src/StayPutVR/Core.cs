@@ -80,6 +80,10 @@ namespace StayPutVR
             var (host, port) = Discovery.Target(ModConfig.Host.Value, ModConfig.Port.Value);
             OscSender.Ensure(host, port);
             Discovery.Start();
+            // MelonLoader keeps whatever an older build wrote, so an install from 0.3.0 still says
+            // bool here; say so once rather than let severity be silently off.
+            if (!ShockPolicy.SendsMagnitude)
+                LoggerInstance.Msg($"ValueType={ModConfig.ValueType.Value}: every hit sends the plain shock. Set ValueType=float (the default since 0.4.0; needs the app 1.5.2) to shock harder for worse hits.");
 
             ShockLog.Headline($"StayPutVR {Version} started. Damage hook {(DamageWatch.Installed ? "installed" : "MISSING")}; link {OscSender.TargetDescription} ({Discovery.Describe()}).");
             // Whatever it was last session, that is what it is now.

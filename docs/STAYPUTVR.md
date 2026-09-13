@@ -165,8 +165,8 @@ below the floor counts as the floor. Zero is the release and fires nothing.
 The mod's side is `Trigger/Severity.cs`: share = damage ÷ health before the hit, the killing
 blow is 1, fall damage has a floor, and a curve exponent lifts small hits. The remaining health
 is `health.normalizedHP` read in the same postfix, after the game applied the hit; if it cannot
-be read the hit is treated as coming off a full bar, the lightest reading. `ValueType=float`
-turns it on. The table of example values is in the README and pinned by the tests.
+be read the hit is treated as coming off a full bar, the lightest reading. `ValueType=float` is
+the default; `bool` is the plain shock for an app older than 1.5.2. The table of example values is in the README and pinned by the tests.
 
 ### Intensity is not ours
 
