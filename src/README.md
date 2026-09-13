@@ -9,7 +9,7 @@ Five independent MelonLoader mods for Dungeons of Eternity. They share only
 | [LootOverhaul](LootOverhaul/README.md) | 0.9.14 | Loot, a bag, shops and buffs built on the game's own weapon generator. Gated. |
 | [VisualCues](VisualCues/README.md) | 0.1.3 | Accessibility cues for deaf players: a stick-click call arrow and unseen-enemy noise markers. No gate. |
 | [Descent](Descent/README.md) | 0.1.0 | A sixteen-floor dungeon out of the game's own generator. Gated. |
-| [StayPutVR](StayPutVR/README.md) | 0.3.0 | Taking damage, or being bitten by another player, fires a shock through the StayPutVR app over OSC. No gate. |
+| [StayPutVR](StayPutVR/README.md) | 0.4.0 | Taking damage, or being bitten by another player, fires a shock through the StayPutVR app over OSC. No gate. |
 
 ## One-time prerequisites
 

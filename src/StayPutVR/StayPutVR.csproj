@@ -10,7 +10,7 @@
     <TargetFramework>net6.0</TargetFramework>
     <AssemblyName>StayPutVR</AssemblyName>
     <RootNamespace>StayPutVR</RootNamespace>
-    <Version>0.3.0</Version>
+    <Version>0.4.0</Version>
     <EnableDefaultItems>true</EnableDefaultItems>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>

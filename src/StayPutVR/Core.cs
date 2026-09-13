@@ -6,7 +6,7 @@ using StayPutVR.Net;
 using StayPutVR.Osc;
 using StayPutVR.Trigger;
 
-[assembly: MelonInfo(typeof(StayPutVR.Core), "StayPutVR", "0.3.0", "dan")]
+[assembly: MelonInfo(typeof(StayPutVR.Core), "StayPutVR", "0.4.0", "dan")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace StayPutVR
@@ -18,9 +18,9 @@ namespace StayPutVR
     /// hit that lands on your own avatar; <see cref="ShockPolicy"/> decides whether it should
     /// fire; <see cref="OscSender"/> sends one OSC datagram to StayPutVR's receive port. The
     /// traffic is one-way — StayPutVR's shock and bite parameters are fire-and-forget triggers,
-    /// so there is no OSCQuery handshake and nothing to read back. That does mean OSC Query has
-    /// to be <b>off</b> in StayPutVR, because with it on StayPutVR binds a random receive port
-    /// instead of the configured one. See README.md.
+    /// so nothing is read back. The one question asked of the app is where it is:
+    /// <see cref="Discovery"/> finds its receive port over OSC Query, and the <c>Port</c> setting
+    /// is the fallback while nothing answers. See README.md.
     ///
     /// Arming is a single gesture — both thumbsticks clicked in, briefly to disarm and longer to
     /// arm — and there are no keyboard keys at all. The state is written back to
@@ -42,7 +42,7 @@ namespace StayPutVR
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.3.0";
+        public const string Version = "0.4.0";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -60,9 +60,8 @@ namespace StayPutVR
                 return;
             }
 
-            LoggerInstance.Msg($"StayPutVR {Version} — a hit fires {ModConfig.ShockPath.Value} at {ModConfig.Host.Value}:{ModConfig.Port.Value}. Logs in {ModPaths.LogDir}");
+            LoggerInstance.Msg($"StayPutVR {Version} — a hit fires {ModConfig.ShockPath.Value} at the StayPutVR app, found over OSC Query; until it is, at {ModConfig.Host.Value}:{ModConfig.Port.Value}. Logs in {ModPaths.LogDir}");
             LoggerInstance.Msg("Click BOTH thumbsticks in: a moment disarms, a second and a half arms. There are no keyboard keys.");
-            LoggerInstance.Warning("The StayPutVR app must have OSC Query OFF for its receive port to be the configured one.");
 
             Hooks.Init(HarmonyInstance);
             DamageWatch.Install();
@@ -78,9 +77,11 @@ namespace StayPutVR
             else
                 LoggerInstance.Msg("Biting is off at both ends (BiteEnabled and BiteVictimEnabled).");
 
-            OscSender.Ensure(ModConfig.Host.Value, ModConfig.Port.Value);
+            var (host, port) = Discovery.Target(ModConfig.Host.Value, ModConfig.Port.Value);
+            OscSender.Ensure(host, port);
+            Discovery.Start();
 
-            ShockLog.Headline($"StayPutVR {Version} started. Damage hook {(DamageWatch.Installed ? "installed" : "MISSING")}; link {OscSender.TargetDescription}.");
+            ShockLog.Headline($"StayPutVR {Version} started. Damage hook {(DamageWatch.Installed ? "installed" : "MISSING")}; link {OscSender.TargetDescription} ({Discovery.Describe()}).");
             // Whatever it was last session, that is what it is now.
             if (ModConfig.Armed.Value) ShockPolicy.SetArmed(true, "remembered from last session");
             else LoggerInstance.Msg("Disarmed. Hold both thumbsticks in to arm.");
@@ -90,6 +91,7 @@ namespace StayPutVR
         {
             if (!ModConfig.Enabled.Value) return;
 
+            Discovery.Pump();
             ShockPolicy.Tick();
             VrToggle.Tick();
             BiteNet.Pump();
@@ -114,7 +116,8 @@ namespace StayPutVR
             // flushes a pending release, and the flush covers the already-disarmed case.
             if (ModConfig.Enabled.Value) ShockPolicy.SetArmed(false, "quitting");
             ShockPolicy.FlushRelease();
-            ShockLog.Headline($"Quit. {ShockPolicy.Stats()}; {DamageWatch.Stats()}; {BiteSense.Describe()}; {JawWatch.Describe()}; {BiteNet.Stats()}; panel {StatusHud.Describe()}.");
+            ShockLog.Headline($"Quit. {ShockPolicy.Stats()}; {Discovery.Stats()}; {DamageWatch.Stats()}; {BiteSense.Describe()}; {JawWatch.Describe()}; {BiteNet.Stats()}; panel {StatusHud.Describe()}.");
+            Discovery.Stop();
             ShockLog.Close();
             OscSender.Close();
         }

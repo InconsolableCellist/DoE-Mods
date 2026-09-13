@@ -1,4 +1,4 @@
-# StayPutVR (Dungeons of Eternity mod) — 0.3.0
+# StayPutVR (Dungeons of Eternity mod) — 0.4.0
 
 Take damage in the dungeon and your shock device fires, through the
 [StayPutVR](https://github.com/InconsolableCellist/StayPutVR) app. Bite another player and theirs
@@ -19,22 +19,24 @@ Nothing is written to your profile, character, progression or saves.
 4. **Launch.** The MelonLoader console should show:
 
    ```
-   StayPutVR 0.3.0 — a hit fires /avatar/parameters/Shock at 127.0.0.1:9001. Logs in ...
+   StayPutVR 0.4.0 — a hit fires /avatar/parameters/Shock at the StayPutVR app, found over OSC Query; until it is, at 127.0.0.1:9001. Logs in ...
    patch ok: AvatarPlayer.OnDamaged @0x...
    Patches: 1 installed, 0 refused, 0 failed.
    PhotonHook installed on LoadBalancingClient.OnEvent.
+   OSC Query: the StayPutVR app is at 127.0.0.1:51234 (answer from 192.168.1.20:5353). The Port setting is not used while it answers.
    ```
+
+   The last line appears once the app is running; the port in it is whatever the app bound.
 
 ## Set up the StayPutVR app
 
-**Turn OSC Query off** — *Settings → OSC*, clear **Enable OSC Query**, restart its OSC. With it on
-the app binds a *random* receive port and advertises it over mDNS for VRChat to find. This mod
-sends to a port you name, so with OSC Query on the messages go nowhere. Nothing is lost: OSC Query
-exists to pair the app with VRChat, and a shock trigger is one datagram in one direction with no
-reply.
+**Use 1.5.2 or newer and leave OSC Query on** (*Settings → OSC*; it is on by default). The app
+binds whatever receive port is free and advertises it. The mod asks for it the same way VRChat
+does and follows it, across an app restart too. There is nothing to copy between the two.
 
-**Note the receive port** on the same tab and put it in `Port` below. It defaults to 9001 but is
-easy to have changed.
+With an older app, or OSC Query turned off, the mod sends to `Host` and `Port` below instead, and
+then `Port` has to match the receive port on that tab. The panel's `Link:` line says which of the
+two is in use.
 
 **Enable the Shock trigger** — *Integrations → OSC Triggers* → **Shock**, and set its intensity and
 duration. That is where intensity lives: the mod only decides *whether* to fire. For biting, enable
@@ -84,7 +86,7 @@ file on quit.
 |---|---|---|
 | `Enabled` | `true` | `false` installs nothing and draws nothing. |
 | `Armed` | — | Remembered from your last session. The sticks change it. |
-| `Host` / `Port` | `127.0.0.1` / `9001` | Where the StayPutVR app is listening. |
+| `Host` / `Port` | `127.0.0.1` / `9001` | Fallback, used only while the app is not found over OSC Query. |
 | `ShockPath` | `/avatar/parameters/Shock` | What a hit fires. |
 | `ValueType` | `bool` | `bool`, `int` or `float`. |
 | `ReleaseSeconds` | `0.15` | Gap before the `false` that releases the trigger. |
@@ -124,9 +126,11 @@ Delete `Mods\StayPutVR.dll`.
 chomp with how long it was held and how fast it shut. `MelonLoader\Latest.log` keeps the console
 lines.
 
-**Nothing fires.** Arm it: hold both sticks until the panel says `ARMED`. If the log says the
-datagram went out and nothing happened, the problem is between the StayPutVR app and the device,
-and it is almost always OSC Query still on.
+**Nothing fires.** Arm it: hold both sticks until the panel says `ARMED`. Then read the panel's
+`Link:` line. `via OSC Query` means the app answered and the port is right. `Port setting` means it
+did not: the app is older than 1.5.2, or OSC Query is off there, and `Port` has to match the app's
+receive port by hand. If the link is right and the log says the datagram went out, the problem is
+between the app and the device.
 
 **The panel is amber.** The socket is failing and the reason is on it.
 
@@ -140,7 +144,7 @@ src/StayPutVR/
 ├── Interop.cs           Il2CppInterop null/name/path helpers
 ├── Hooks.cs             guarded Harmony patching (shared-stub check)
 ├── ShockLog.cs          session log: every hit and every decision
-├── Osc/                 OSC 1.0 encoder, the one outbound socket
+├── Osc/                 OSC 1.0 encoder, the one outbound socket, OSC Query discovery
 ├── Trigger/             the damage hook, the policy, the stick gesture
 ├── Bite/                the jaw, the chomp, who gets bitten
 ├── Net/                 consent and bites, Photon events 180-181

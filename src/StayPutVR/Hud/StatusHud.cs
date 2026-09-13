@@ -82,7 +82,7 @@ namespace StayPutVR.Hud
             stateColor = armed ? ArmedColor : DisarmedColor;
 
             Lines.Clear();
-            Lines.Add($"Link: {OscSender.TargetDescription}   {ShockPolicy.PathSummary()}");
+            Lines.Add($"Link: {OscSender.TargetDescription} ({Discovery.Describe()})   {ShockPolicy.PathSummary()}");
             Lines.Add($"Limits: {ShockPolicy.LimitSummary()}");
 
             var last = ShockPolicy.LastFireAt > 0f ? $"{Time.unscaledTime - ShockPolicy.LastFireAt:0} s ago" : "never";

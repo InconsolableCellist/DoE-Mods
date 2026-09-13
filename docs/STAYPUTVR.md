@@ -105,7 +105,7 @@ treats `> 0.5` / `!= 0` / `T` as truthy. Nothing is read back, no sender identit
 session is established. The bite family (`/avatar/parameters/SPVR_Bite` plus the six per-zone
 suffixes, `wiki/OSC.md`) behaves the same way through `bite_callback_`.
 
-### Why OSC Query has to be off
+### Finding the app over OSC Query
 
 `application/src/ui/UIManager.cpp:205`:
 
@@ -122,22 +122,35 @@ local_addr.sin_port = htons(static_cast<u_short>(use_ephemeral_receive_port ? 0 
 ```
 
 With OSC Query enabled StayPutVR binds port **0** — the OS hands it a random free port — and
-advertises the real one over mDNS for VRChat to discover, precisely so two OSC apps cannot
-collide on 9001. A sender that does not do mDNS discovery therefore cannot find it.
+advertises the real one over mDNS as `StayPutVR._osc._udp.local.`, precisely so two OSC apps
+cannot collide on 9001. Until 0.4.0 the mod's answer was to ask the user to turn OSC Query off.
+That worked, but it was the one setup step people got wrong, and it put the app back on a fixed
+port that VRCFaceTracking also listens on by default, so on a face-tracking machine the port had
+to be moved by hand as well (9005 here). 0.4.0 finds the port instead: `Osc/Discovery.cs` and
+`Osc/MdnsPacket.cs`.
 
-Three ways out, and the cheapest is the right one here:
+Two things made that small. The app already advertises an SRV record on that name carrying the
+port, which is all the mod needs — no OSCQuery HTTP tree, and nothing to advertise of its own,
+since nothing ever flows toward the mod. And the app's responder (`common/OSCQueryServer.cpp`,
+`MDNSListenCallback`) used to answer every question by multicast only, so a plain UDP socket
+could ask and never hear the reply. StayPutVR 1.5.2 answers a question from any port other than
+5353 by unicast to the asker, which is what RFC 6762 §6.7 asks of a responder anyway. VRChat,
+VRCFaceTracking and the Windows resolver all ask from 5353 and still get multicast; the change
+is invisible to them.
 
-1. **Ask the user to turn OSC Query off**, so the bind uses `osc_receive_port` (default 9001).
-   One checkbox, once. Nothing is lost: OSC Query exists to pair StayPutVR with VRChat, and this
-   link is one-way with no reply to route.
-2. Implement an mDNS browser in the mod and discover the port. StayPutVR vendors one
-   (`thirdparty/mdns`) but the mod would need its own, in C# inside Il2CppInterop, to solve a
-   problem the user can solve with a checkbox.
-3. Read the port out of StayPutVR's log or config file. Brittle and surprising.
+So the mod's side is one ordinary UDP socket on an ephemeral port. A PTR question for
+`_osc._udp.local.` goes to 224.0.0.251:5353, once per IPv4 interface because the app listens
+per interface and not on loopback, and then up to a second of answers is read. The first answer
+naming `StayPutVR` from this machine wins and is reached over loopback; one from elsewhere on
+the LAN is reached where it answered from. The mod never binds 5353, never joins the group, and
+opens no inbound listener — the reply is the response to a send, which Windows Firewall allows
+by default for a few seconds after a multicast send. A background thread asks every two seconds
+until the app answers, then every ten, so a restart (new ephemeral port) is noticed inside about
+ten seconds; after 35 s of silence the `Port` setting takes over again. The thread only writes
+fields; `Discovery.Pump` on the main thread logs the transitions.
 
-The mod does (1) and says so in three places: the console banner at startup, the README, and
-this document. **This is the single most likely reason a first-time setup appears to do
-nothing**, which is why the test key exists.
+CustomAvatars needed no change: VRCFaceTracking only retargets its sends to a service named
+like VRChat's, ignores `StayPutVR`, and falls back to port 9000, where CustomAvatars listens.
 
 ### Intensity is not ours
 
@@ -338,6 +351,13 @@ flood the console.
 - **Those same bytes through oscpp** — the header-only parser StayPutVR itself vendors — with
   StayPutVR's tag switch replayed around it. `T`, `int 1` and `float 1.0` on
   `/avatar/parameters/Shock` all reach the fire decision; `F` correctly does not.
+- **The mDNS question and the app's answer (0.4.0).** `tests/MdnsAnswerDump.cpp` calls the
+  app's own vendored mdns library with the records `OSCQueryServer.cpp` answers with and captures
+  the bytes. The C# suite parses those (compression pointers, SRV port, A record), refuses every
+  truncation without throwing, and runs the discovery thread against a fake app on loopback:
+  found, lost after silence, back on a new port, moved, another app's answer ignored, a dead
+  target silent. The same program pushes the mod's question through the library's listen path
+  and sees a PTR question for `_osc._udp.local.`. Not yet run against the real app.
 - **The mod compiles clean** against the game's interop assemblies, no warnings.
 - **It loads and patches in a live game.** From `MelonLoader/Latest.log`, 2026-09-09 15:41:
 

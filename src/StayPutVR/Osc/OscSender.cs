@@ -7,8 +7,8 @@ namespace StayPutVR.Osc
     /// <summary>
     /// The one place bytes leave the process: a single UDP socket that sends OSC messages to
     /// StayPutVR's receive port. One-way by design — StayPutVR's shock and bite paths are
-    /// fire-and-forget triggers, so nothing is ever read back and no OSCQuery handshake is
-    /// needed on this side.
+    /// fire-and-forget triggers, so nothing is ever read back on this socket. Which port to
+    /// send to is <see cref="Discovery"/>'s business; this just goes where it is pointed.
     ///
     /// The socket is deliberately left *unconnected* and every datagram goes out through
     /// <c>SendTo</c>. A connected UDP socket on Windows surfaces the ICMP "port unreachable"
@@ -68,7 +68,7 @@ namespace StayPutVR.Osc
                 _socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
                 _target = new IPEndPoint(ip, port);
                 _targetKey = key;
-                Core.Log.Msg($"OSC link opened to {TargetDescription} (send only; no OSCQuery).");
+                Core.Log.Msg($"OSC link opened to {TargetDescription} (send only).");
                 ShockLog.Line($"OSC link opened to {TargetDescription}");
                 return true;
             }

@@ -57,8 +57,8 @@ namespace StayPutVR
             Enabled = Main.CreateEntry("Enabled", true);
             Armed = Main.CreateEntry("Armed", false, description: "Remembered from your last session. Click both sticks to change it.");
 
-            Host = Main.CreateEntry("Host", "127.0.0.1");
-            Port = Main.CreateEntry("Port", 9001, description: "StayPutVR's OSC receive port. Turn OSC Query off in StayPutVR or it binds a random port instead.");
+            Host = Main.CreateEntry("Host", "127.0.0.1", description: "Host and Port are the fallback, used only while the StayPutVR app is not found over OSC Query.");
+            Port = Main.CreateEntry("Port", 9001, description: "The app's Settings > OSC receive port, which it only keeps with OSC Query off there.");
             ShockPath = Main.CreateEntry("ShockPath", "/avatar/parameters/Shock");
             ValueType = Main.CreateEntry("ValueType", "bool", description: "bool, int or float.");
             ReleaseSeconds = Main.CreateEntry("ReleaseSeconds", 0.15f, description: "Seconds between the trigger and the false that releases it.");

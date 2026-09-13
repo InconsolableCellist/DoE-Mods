@@ -206,7 +206,8 @@ namespace StayPutVR.Trigger
                 ShockLog.Headline($"{what} — refused: {LastHold}");
                 return false;
             }
-            if (!OscSender.Ensure(ModConfig.Host.Value, ModConfig.Port.Value))
+            var (host, port) = Discovery.Target(ModConfig.Host.Value, ModConfig.Port.Value);
+            if (!OscSender.Ensure(host, port))
             {
                 HeldBack++;
                 LastHold = "no OSC socket";

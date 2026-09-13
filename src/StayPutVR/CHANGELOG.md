@@ -1,5 +1,27 @@
 # StayPutVR changelog
 
+## 0.4.0 — 2026-09-12 (OSC Query discovery; untested in the headset)
+
+**The port is found, not configured.** The StayPutVR app advertises its receive port over OSC
+Query, and the mod now asks for it: one small mDNS question every couple of seconds until the app
+answers, then every ten to catch a restart, which puts the app on a new port. With app 1.5.2 or
+newer and OSC Query left on — its default — there is nothing to copy between the two, and the
+fight over port 9001 with VRCFaceTracking, which is what made turning OSC Query off necessary in
+the first place, is gone. `Host` and `Port` stay as the fallback while nothing answers: an older
+app, OSC Query off, or the app not running yet. The panel's `Link:` line says which is in use, and
+the console and session log say when the app is found, moves, or goes quiet.
+
+The mod never binds the mDNS port or joins the multicast group. It asks from an ordinary socket
+and the app answers straight back to it — a legacy unicast query in RFC 6762's words — so there is
+no new inbound listener and nothing for the firewall to ask about. Answering that way is the
+change in StayPutVR 1.5.2; VRChat's and VRCFaceTracking's own discovery are untouched by it, and
+CustomAvatars needed no change.
+
+Tested: the question and the parser against bytes produced by the app's own mDNS library
+(`tests/MdnsAnswerDump.cpp`), and the discovery thread against a fake app on loopback — found,
+lost after silence, back on a new port, moved, another app's answer ignored, a dead target silent.
+Not tested: a live session with the real app.
+
 ## 0.2.1 — 2026-09-09
 
 **The link no longer disarms itself.** The in-headset gesture was a double click of either stick,

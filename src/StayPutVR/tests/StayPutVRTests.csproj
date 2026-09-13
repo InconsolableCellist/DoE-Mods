@@ -3,7 +3,7 @@
   <!--
     Standalone, and deliberately not part of the mod build: the mod itself only compiles
     against the game's interop assemblies, while these two files have no game dependency at
-    all. Osc/OscPacket.cs and Osc/OscSender.cs are compiled from their real location, so the
+    all. The Osc/ files are compiled from their real location, so the
     tests cannot drift from the code they check.
   -->
   <PropertyGroup>
@@ -19,6 +19,8 @@
   <ItemGroup>
     <Compile Include="..\Osc\OscPacket.cs" />
     <Compile Include="..\Osc\OscSender.cs" />
+    <Compile Include="..\Osc\MdnsPacket.cs" />
+    <Compile Include="..\Osc\Discovery.cs" />
     <Compile Include="Stubs.cs" />
     <Compile Include="Tests.cs" />
   </ItemGroup>
