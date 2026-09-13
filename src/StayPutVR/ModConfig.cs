@@ -61,7 +61,7 @@ namespace StayPutVR
             Host = Main.CreateEntry("Host", "127.0.0.1", description: "Host and Port are the fallback, used only while the StayPutVR app is not found over OSC Query.");
             Port = Main.CreateEntry("Port", 9001, description: "The app's Settings > OSC receive port, which it only keeps with OSC Query off there.");
             ShockPath = Main.CreateEntry("ShockPath", "/avatar/parameters/Shock");
-            SeverityCurve = Main.CreateEntry("SeverityCurve", 0.7f, description: "Exponent on the share of your remaining health a hit took; below 1 lifts small hits.");
+            SeverityCurve = Main.CreateEntry("SeverityCurve", 0.5f, description: "Exponent on the share of your remaining health a hit took; below 1 lifts small hits.");
             FallSeverityFloor = Main.CreateEntry("FallSeverityFloor", 0.5f, description: "Fall damage counts as at least this share, 0 to 1.");
             ReleaseSeconds = Main.CreateEntry("ReleaseSeconds", 0.15f, description: "Seconds between the trigger and the false that releases it.");
 

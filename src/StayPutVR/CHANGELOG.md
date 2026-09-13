@@ -21,7 +21,7 @@ CustomAvatars needed no change.
 (1.5.2, which learned to read a float on the Shock parameter for this) fires at that fraction of
 a new Shock max, the whole range from nothing up to it. The measure is the share of the health you
 had that the hit took, so the same blow hurts more the closer to death it leaves you, a bigger blow
-hurts more at the same health, and the killing blow is the worst. `SeverityCurve` (0.7) lifts small
+hurts more at the same health, and the killing blow is the worst. `SeverityCurve` (0.5) lifts small
 hits; `FallSeverityFloor` (0.5) makes a tumble read as a serious hit. The health left after a hit is
 read off the game's health object in the same postfix.
 
@@ -42,7 +42,7 @@ Tested: the question and the parser against bytes produced by the app's own mDNS
 (`tests/MdnsAnswerDump.cpp`), the discovery thread against a fake app on loopback — found, lost
 after silence, back on a new port, moved, another app's answer ignored, a dead target silent — and
 the severity numbers against the table in the README. Not tested: a live session with the real app,
-and whether 0.7 and 0.5 feel right in a dungeon.
+and whether a curve of 0.5 and a fall floor of 0.5 feel right in a dungeon.
 
 ## 0.2.1 — 2026-09-09
 

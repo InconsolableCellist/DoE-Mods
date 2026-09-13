@@ -56,19 +56,19 @@ older app reads a float under 0.5 as false, so light hits would go missing.
 The mod sends how hard the hit was, 0 to 1, and the app fires at that fraction of its Shock max.
 The measure is the share of the health you had that the hit took: 10% at full health is 0.1, the
 same hit with 20% left is 0.5, and the killing blow is 1. `SeverityCurve` is an exponent on that
-share, 0.7 by default, which lifts small hits so a chip is still felt. `FallSeverityFloor` makes a
+share, 0.5 by default, which lifts small hits so a chip is still felt. `FallSeverityFloor` makes a
 fall count as at least that share. With a 0.75 max:
 
 | Hit | Share | Sent | Intensity |
 |---|---|---|---|
-| 8% chip at full health | 0.08 | 0.17 | 0.13 |
-| 25% at full health | 0.25 | 0.38 | 0.28 |
-| 10% with 20% left | 0.50 | 0.62 | 0.46 |
-| 50% at full health | 0.50 | 0.62 | 0.46 |
+| 8% chip at full health | 0.08 | 0.28 | 0.21 |
+| 25% at full health | 0.25 | 0.50 | 0.38 |
+| 10% with 20% left | 0.50 | 0.71 | 0.53 |
+| 50% at full health | 0.50 | 0.71 | 0.53 |
 | Killing blow, or last chance | 1.00 | 1.00 | 0.75 |
 
-If the chips are too faint, lower `SeverityCurve`: at 0.5 the same rows send 0.28, 0.50, 0.71,
-0.71 and 1.00.
+A higher `SeverityCurve` makes the small hits fainter and leaves the top alone: at 0.7 the same
+rows send 0.17, 0.38, 0.62, 0.62 and 1.00; at 1 they send the plain share.
 
 Bites always send 1, since the app's bite parameter has no magnitude.
 
@@ -118,7 +118,7 @@ file on quit.
 | `Armed` | — | Remembered from your last session. The sticks change it. |
 | `Host` / `Port` | `127.0.0.1` / `9001` | Fallback, used only while the app is not found over OSC Query. |
 | `ShockPath` | `/avatar/parameters/Shock` | What a hit fires. |
-| `SeverityCurve` | `0.7` | Exponent on the share of remaining health a hit took; below 1 lifts small hits. |
+| `SeverityCurve` | `0.5` | Exponent on the share of remaining health a hit took; below 1 lifts small hits. |
 | `FallSeverityFloor` | `0.5` | A fall counts as at least this share. |
 | `ReleaseSeconds` | `0.15` | Gap before the `false` that releases the trigger. |
 | `MinDamage` | `0` | Ignore hits under this many HP. |

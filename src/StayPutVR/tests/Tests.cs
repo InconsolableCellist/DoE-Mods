@@ -433,7 +433,7 @@ class Tests
     static void Hurt()
     {
         Console.WriteLine("\n== Severity ==");
-        const float curve = 0.7f, fallFloor = 0.5f;
+        const float curve = 0.5f, fallFloor = 0.5f;
         float V(float fraction, float remaining, string type = "Melee", bool downed = false) =>
             Severity.Compute(fraction, remaining, type, downed, curve, fallFloor);
         bool Near(float a, float b) => Math.Abs(a - b) < 0.005f;
@@ -442,9 +442,9 @@ class Tests
         var lowChip = V(0.10f, 0.10f);
         var half = V(0.50f, 0.50f);
         var fatal = V(0.20f, 0f, downed: true);
-        Say(Near(chip, 0.20f), $"10% at full health -> {chip:0.00} (share 0.10 ^ 0.7)");
-        Say(Near(lowChip, 0.62f), $"10% with 20% left -> {lowChip:0.00} (share 0.50 ^ 0.7)");
-        Say(Near(half, 0.62f), $"50% at full health -> {half:0.00}, the same as 10% at 20%");
+        Say(Near(chip, 0.32f), $"10% at full health -> {chip:0.00} (share 0.10 ^ 0.5)");
+        Say(Near(lowChip, 0.71f), $"10% with 20% left -> {lowChip:0.00} (share 0.50 ^ 0.5)");
+        Say(Near(half, 0.71f), $"50% at full health -> {half:0.00}, the same as 10% at 20%");
         Say(chip < lowChip && lowChip < fatal, "the ordering is chip < low chip < fatal");
         Say(Near(fatal, 1f), $"the killing blow is 1 ({fatal:0.00})");
         Say(Near(V(1f, 0f), 1f), "taking the whole bar is 1 even when not flagged downed");
