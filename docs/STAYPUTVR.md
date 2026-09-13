@@ -157,10 +157,12 @@ like VRChat's, ignores `StayPutVR`, and falls back to port 9000, where CustomAva
 The app's Shock trigger used to be a bool, and its parser turned a float into a bool at 0.5, so
 nothing under that fired at all. 1.5.2 reads a float on the Shock path as a magnitude in (0, 1]:
 `OSCManager.cpp` hands it to the callback (or -1 for a bool/int), and `Config::ScaleShock`
-places the shock between the configured intensity and a new `osc_shock_max_intensity` — per
-device for PiShock and OpenShock via new `*_individual_shock_max_intensities` arrays when
-per-device intensities are on; the global max for DG-Lab and the PiShock legacy API. A ceiling
-below the floor counts as the floor. Zero is the release and fires nothing.
+fires at magnitude × a new `osc_shock_max_intensity` — per device for PiShock and OpenShock via
+new `*_individual_shock_max_intensities` arrays when per-device intensities are on; the global
+max for DG-Lab and the PiShock legacy API. The bool intensity plays no part in a float: the
+first cut scaled between the two sliders, which made the plain intensity a floor and put the
+lightest chip at 60 of a 75 max in the first live run, so the float got the whole range. Zero
+is the release and fires nothing.
 
 The mod's side is `Trigger/Severity.cs`: share = damage ÷ health before the hit, the killing
 blow is 1, fall damage has a floor, and a curve exponent lifts small hits. The remaining health

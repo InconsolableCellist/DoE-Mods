@@ -42,28 +42,33 @@ two is in use.
 **Enable the Shock trigger** — *Integrations → OSC Triggers* → **Shock**, and set its intensity and
 duration. That is where intensity lives. For biting, enable **Bite** on the same tab.
 
-**Set Shock max intensity** on the same tab. A hit lands somewhere between *Shock intensity* and
-that max, depending on how bad it was; see the next section. With *Use per-device disobedience
-intensities* on, each PiShock or OpenShock device has its own *Shock max* in its tab.
+**Set Shock max intensity** on the same tab. A hit lands somewhere between nothing and that max,
+depending on how bad it was; see the next section. The *Shock intensity* slider next to it is for
+bool triggers from other things, like a VRChat prefab, and plays no part here. With *Use
+per-device disobedience intensities* on, each PiShock or OpenShock device has its own *Shock max*
+in its tab.
 
 **The app must be 1.5.2 or newer.** The mod always sends how hard the hit was as a float, and an
 older app reads a float under 0.5 as false, so light hits would go missing.
 
 ## How hard it shocks
 
-The mod sends how hard the hit was, 0 to 1, and the app scales the shock
-between its intensity and its max. The measure is the share of the health you had that the hit
-took: 10% at full health is 0.1, the same hit with 20% left is 0.5, and the killing blow is 1.
-`SeverityCurve` is an exponent on that share, 0.7 by default, which lifts small hits so a chip is
-still felt. `FallSeverityFloor` makes a fall count as at least that share. With a 0.57 intensity and
-a 0.8 max:
+The mod sends how hard the hit was, 0 to 1, and the app fires at that fraction of its Shock max.
+The measure is the share of the health you had that the hit took: 10% at full health is 0.1, the
+same hit with 20% left is 0.5, and the killing blow is 1. `SeverityCurve` is an exponent on that
+share, 0.7 by default, which lifts small hits so a chip is still felt. `FallSeverityFloor` makes a
+fall count as at least that share. With a 0.75 max:
 
 | Hit | Share | Sent | Intensity |
 |---|---|---|---|
-| 10% at full health | 0.10 | 0.20 | 0.62 |
-| 10% with 20% left | 0.50 | 0.62 | 0.71 |
-| 50% at full health | 0.50 | 0.62 | 0.71 |
-| Killing blow, or last chance | 1.00 | 1.00 | 0.80 |
+| 8% chip at full health | 0.08 | 0.17 | 0.13 |
+| 25% at full health | 0.25 | 0.38 | 0.28 |
+| 10% with 20% left | 0.50 | 0.62 | 0.46 |
+| 50% at full health | 0.50 | 0.62 | 0.46 |
+| Killing blow, or last chance | 1.00 | 1.00 | 0.75 |
+
+If the chips are too faint, lower `SeverityCurve`: at 0.5 the same rows send 0.28, 0.50, 0.71,
+0.71 and 1.00.
 
 Bites always send 1, since the app's bite parameter has no magnitude.
 
