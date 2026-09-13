@@ -15,9 +15,15 @@ namespace StayPutVR.Trigger
     /// log, so an unexpected shock — or an unexpectedly quiet run — has a paper trail.
     ///
     /// Intensity is the StayPutVR app's: it holds the intensity and duration for each parameter
-    /// it listens on. What this end can say, with <c>ValueType=float</c> and app 1.5.2 or newer,
-    /// is how hard the hit was — a magnitude from 0 to 1 that the app scales between its
-    /// configured intensity and its configured max. <see cref="Severity"/> decides the number.
+    /// it listens on. What this end says is how hard the hit was — a float from 0 to 1 that the
+    /// app (1.5.2 and up) scales between its configured intensity and its configured max.
+    /// <see cref="Severity"/> decides the number. Every trigger is a float; there is no bool
+    /// mode, because an older app reads a float under 0.5 as false and would drop light hits,
+    /// and a setting that quietly kept an old install on bool was worse than requiring the app.
+    ///
+    /// Going down is one shock, not a stream. The game keeps reporting hits while you lie there
+    /// waiting for rescue, every one of them flagged as downed; the first is the killing blow
+    /// and is allowed past the cooldown and the ceiling, the rest are held until you are up.
     /// </summary>
     public static class ShockPolicy
     {
@@ -29,6 +35,9 @@ namespace StayPutVR.Trigger
         private static float _pendingReleaseAt = -1f;
         private static float _suppressUntil = -1f;
         private static readonly List<float> RecentBites = new List<float>();
+
+        /// <summary>Set by the hit that put you down, cleared by the first hit taken standing or by a scene change.</summary>
+        private static bool _down;
 
         private static string _ignoreSource;
         private static readonly HashSet<string> Ignored = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -111,11 +120,15 @@ namespace StayPutVR.Trigger
                                              ModConfig.SeverityCurve.Value, ModConfig.FallSeverityFloor.Value);
             LastHit = $"{damage:0.#} HP ({fraction * 100f:0}% of max, {Severity.Share(fraction, remaining) * 100f:0}% of what was left) {damageType}{(downed ? ", downed" : "")}";
 
-            // The killing blow is the one hit allowed past the cooldown and the ceiling.
-            var lethal = downed;
+            // The killing blow is the one hit allowed past the cooldown and the ceiling. Only the
+            // first one: hits keep arriving while you are down, and they are not more deaths.
+            var lethal = downed && !_down;
+            var alreadyDown = downed && _down;
+            _down = downed;
 
             string hold = null;
             if (!_armed) hold = "disarmed";
+            else if (alreadyDown) hold = "already down; one shock per death";
             else if (IsIgnoredType(damageType)) hold = $"{damageType} is in IgnoreDamageTypes";
             else if (damage < ModConfig.MinDamage.Value) hold = $"{damage:0.#} HP is under MinDamage {ModConfig.MinDamage.Value:0.#}";
             else if (fraction < ModConfig.MinDamageFraction.Value) hold = $"{fraction * 100f:0}% is under MinDamageFraction {ModConfig.MinDamageFraction.Value * 100f:0}%";
@@ -136,7 +149,7 @@ namespace StayPutVR.Trigger
             var pastLimits = lethal && (now - _lastFireAt < ModConfig.CooldownSeconds.Value || OverBudget(now));
 
             if (Fire(path, $"hit {LastHit}", magnitude) && ModConfig.LogEveryHit.Value)
-                ShockLog.Line($"hit {LastHit} — fired {path}{(SendsMagnitude ? $" at {magnitude:0.00}" : "")}{(pastLimits ? " (lethal, allowed past the limits)" : "")}");
+                ShockLog.Line($"hit {LastHit} — fired {path} at {magnitude:0.00}{(pastLimits ? " (lethal, allowed past the limits)" : "")}");
         }
 
         /// <summary>
@@ -202,10 +215,10 @@ namespace StayPutVR.Trigger
 
         // ---- sending ---------------------------------------------------------------------
 
-        /// <summary>Whether the datagram carries how hard the hit was: only the float value type can.</summary>
-        public static bool SendsMagnitude => (ModConfig.ValueType.Value ?? "bool").Trim().Equals("float", StringComparison.OrdinalIgnoreCase);
+        /// <summary>Forget that you were down, so the next downed hit counts as a death again.</summary>
+        public static void ClearDown() => _down = false;
 
-        /// <param name="magnitude">How hard, 0..1; only the float value type sends it. Bites send 1.</param>
+        /// <param name="magnitude">How hard, 0..1. Bites send 1.</param>
         private static bool Fire(string path, string what, float magnitude = 1f)
         {
             if (!OscPacket.IsUsableAddress(path))
@@ -224,7 +237,7 @@ namespace StayPutVR.Trigger
             }
 
             var datagram = Encode(path, true, magnitude);
-            if (ModConfig.LogDatagrams.Value) ShockLog.Line($"-> {path} {(SendsMagnitude ? magnitude.ToString("0.00") : "true")}, {datagram.Length} bytes: {BitConverter.ToString(datagram)}");
+            if (ModConfig.LogDatagrams.Value) ShockLog.Line($"-> {path} {magnitude:0.00}, {datagram.Length} bytes: {BitConverter.ToString(datagram)}");
             if (!OscSender.Send(datagram, what))
             {
                 HeldBack++;
@@ -240,16 +253,9 @@ namespace StayPutVR.Trigger
             return true;
         }
 
-        /// <summary>A float carries the magnitude on the trigger and 0 on the release; bool and int cannot carry it.</summary>
+        /// <summary>Always a float: the magnitude on the trigger, 0 on the release.</summary>
         private static byte[] Encode(string path, bool value, float magnitude = 1f)
-        {
-            switch ((ModConfig.ValueType.Value ?? "bool").Trim().ToLowerInvariant())
-            {
-                case "int": return OscPacket.Int(path, value ? 1 : 0);
-                case "float": return OscPacket.Float(path, value ? Mathf.Clamp(magnitude, Severity.Least, 1f) : 0f);
-                default: return OscPacket.Bool(path, value);
-            }
-        }
+            => OscPacket.Float(path, value ? Mathf.Clamp(magnitude, Severity.Least, 1f) : 0f);
 
         /// <summary>Called every frame: sends the release that follows a trigger, and forgets fires older than a minute.</summary>
         public static void Tick()

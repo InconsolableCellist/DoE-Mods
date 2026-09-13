@@ -22,10 +22,20 @@ shock between its Shock intensity and a new Shock max. The measure is the share 
 had that the hit took, so the same blow hurts more the closer to death it leaves you, a bigger blow
 hurts more at the same health, and the killing blow is the worst. `SeverityCurve` (0.7) lifts small
 hits; `FallSeverityFloor` (0.5) makes a tumble read as a serious hit. The health left after a hit is
-read off the game's health object in the same postfix. `ValueType=float` is the default and needs
-the app at 1.5.2, which every tester can install; an older app drops floats under 0.5, and `bool`
-is there for it. An install that already has `ValueType=bool` from 0.3.0 keeps it, because
-MelonLoader keeps what it wrote, and the console says so at startup.
+read off the game's health object in the same postfix.
+
+**`ValueType` is gone and the app must be 1.5.2 or newer.** Every trigger is a float now. The
+setting shipped in 0.3.0 as `bool`, and MelonLoader keeps what it wrote, so a default of `float`
+would never have reached an existing install without a hand edit; the first live run proved it,
+with every hit landing at the plain intensity. A stale line in the config file is ignored.
+
+**One shock per death.** The game keeps reporting hits while you lie there waiting for rescue,
+every one flagged as downed, and "death always fires" let each of them past the cooldown and the
+ceiling — nine shocks in four seconds in that same first run. Now the hit that puts you down is
+the one allowed past the limits, and the rest are held until you are back up or the scene
+changes.
+
+The quit summary was written twice because the game calls the quit hook twice; it is now once.
 
 Tested: the question and the parser against bytes produced by the app's own mDNS library
 (`tests/MdnsAnswerDump.cpp`), the discovery thread against a fake app on loopback — found, lost

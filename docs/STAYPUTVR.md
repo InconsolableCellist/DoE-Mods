@@ -165,8 +165,14 @@ below the floor counts as the floor. Zero is the release and fires nothing.
 The mod's side is `Trigger/Severity.cs`: share = damage ÷ health before the hit, the killing
 blow is 1, fall damage has a floor, and a curve exponent lifts small hits. The remaining health
 is `health.normalizedHP` read in the same postfix, after the game applied the hit; if it cannot
-be read the hit is treated as coming off a full bar, the lightest reading. `ValueType=float` is
-the default; `bool` is the plain shock for an app older than 1.5.2. The table of example values is in the README and pinned by the tests.
+be read the hit is treated as coming off a full bar, the lightest reading. Every trigger is a
+float; the `ValueType` setting is gone, because it shipped as `bool` in 0.3.0 and MelonLoader keeps
+what it wrote, so no default could have reached an existing install. The app must be 1.5.2.
+
+The first live run (2026-09-12) also showed that hits keep arriving while you lie downed, each
+flagged as such, and "death always fires" let all of them past the limits: nine shocks in four
+seconds. Now only the hit that puts you down is lethal; the rest are held until a hit is taken
+standing or the scene changes. The table of example values is in the README and pinned by the tests.
 
 ### Intensity is not ours
 

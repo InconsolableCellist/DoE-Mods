@@ -80,10 +80,6 @@ namespace StayPutVR
             var (host, port) = Discovery.Target(ModConfig.Host.Value, ModConfig.Port.Value);
             OscSender.Ensure(host, port);
             Discovery.Start();
-            // MelonLoader keeps whatever an older build wrote, so an install from 0.3.0 still says
-            // bool here; say so once rather than let severity be silently off.
-            if (!ShockPolicy.SendsMagnitude)
-                LoggerInstance.Msg($"ValueType={ModConfig.ValueType.Value}: every hit sends the plain shock. Set ValueType=float (the default since 0.4.0; needs the app 1.5.2) to shock harder for worse hits.");
 
             ShockLog.Headline($"StayPutVR {Version} started. Damage hook {(DamageWatch.Installed ? "installed" : "MISSING")}; link {OscSender.TargetDescription} ({Discovery.Describe()}).");
             // Whatever it was last session, that is what it is now.
@@ -112,10 +108,17 @@ namespace StayPutVR
         {
             // The roster is per-room; actor numbers do not survive a scene change.
             BiteNet.Clear($"scene changed to {sceneName}");
+            // A new scene means a new body; nobody arrives in it already down.
+            ShockPolicy.ClearDown();
         }
+
+        private static bool _quit;
 
         public override void OnApplicationQuit()
         {
+            // The game calls this twice on the way out; the second pass has nothing left to say.
+            if (_quit) return;
+            _quit = true;
             // Never leave the parameter latched true in StayPutVR on the way out: disarming
             // flushes a pending release, and the flush covers the already-disarmed case.
             if (ModConfig.Enabled.Value) ShockPolicy.SetArmed(false, "quitting");

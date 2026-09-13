@@ -11,6 +11,7 @@ Nothing is written to your profile, character, progression or saves.
 
 ## Install
 
+0. **The StayPutVR app at 1.5.2 or newer.** Older ones drop light hits; see below.
 1. **MelonLoader 0.7.3** in the game folder — `version.dll` and the `MelonLoader` folder next to
    `DoE.exe`. Skip if you already run CustomAvatars, LootOverhaul, VisualCues or Descent.
 2. **Launch once and quit.** The first launch takes several minutes while MelonLoader unpacks the
@@ -43,10 +44,10 @@ duration. That is where intensity lives. For biting, enable **Bite** on the same
 
 **Set Shock max intensity** on the same tab. A hit lands somewhere between *Shock intensity* and
 that max, depending on how bad it was; see the next section. With *Use per-device disobedience
-intensities* on, each PiShock or OpenShock device has its own *Shock max* in its tab. This needs
-the app at **1.5.2 or newer**: an older app drops light hits, because it reads the value as a bool
-with a 0.5 threshold. If you must run an older app, set `ValueType` to `bool` and every hit is the
-plain shock.
+intensities* on, each PiShock or OpenShock device has its own *Shock max* in its tab.
+
+**The app must be 1.5.2 or newer.** The mod always sends how hard the hit was as a float, and an
+older app reads a float under 0.5 as false, so light hits would go missing.
 
 ## How hard it shocks
 
@@ -112,9 +113,8 @@ file on quit.
 | `Armed` | — | Remembered from your last session. The sticks change it. |
 | `Host` / `Port` | `127.0.0.1` / `9001` | Fallback, used only while the app is not found over OSC Query. |
 | `ShockPath` | `/avatar/parameters/Shock` | What a hit fires. |
-| `ValueType` | `float` | `float` sends how hard the hit was and needs app 1.5.2 or newer. `bool` or `int` is the plain shock. |
-| `SeverityCurve` | `0.7` | `float` only. Exponent on the share of remaining health a hit took; below 1 lifts small hits. |
-| `FallSeverityFloor` | `0.5` | `float` only. A fall counts as at least this share. |
+| `SeverityCurve` | `0.7` | Exponent on the share of remaining health a hit took; below 1 lifts small hits. |
+| `FallSeverityFloor` | `0.5` | A fall counts as at least this share. |
 | `ReleaseSeconds` | `0.15` | Gap before the `false` that releases the trigger. |
 | `MinDamage` | `0` | Ignore hits under this many HP. |
 | `MinDamageFraction` | `0` | Ignore hits under this share of max HP. |
