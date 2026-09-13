@@ -21,6 +21,7 @@
     <Compile Include="..\Osc\OscSender.cs" />
     <Compile Include="..\Osc\MdnsPacket.cs" />
     <Compile Include="..\Osc\Discovery.cs" />
+    <Compile Include="..\Trigger\Severity.cs" />
     <Compile Include="Stubs.cs" />
     <Compile Include="Tests.cs" />
   </ItemGroup>

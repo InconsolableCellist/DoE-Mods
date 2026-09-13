@@ -17,10 +17,20 @@ no new inbound listener and nothing for the firewall to ask about. Answering tha
 change in StayPutVR 1.5.2; VRChat's and VRCFaceTracking's own discovery are untouched by it, and
 CustomAvatars needed no change.
 
+**Worse hits shock harder.** With `ValueType=float` the trigger carries how hard the hit was, 0 to
+1, and the app (1.5.2, which learned to read a float on the Shock parameter for this) scales the
+shock between its Shock intensity and a new Shock max. The measure is the share of the health you
+had that the hit took, so the same blow hurts more the closer to death it leaves you, a bigger blow
+hurts more at the same health, and the killing blow is the worst. `SeverityCurve` (0.7) lifts small
+hits; `FallSeverityFloor` (0.5) makes a tumble read as a serious hit. The health left after a hit is
+read off the game's health object in the same postfix. `bool` stays the default because an app older
+than 1.5.2 drops floats under 0.5.
+
 Tested: the question and the parser against bytes produced by the app's own mDNS library
-(`tests/MdnsAnswerDump.cpp`), and the discovery thread against a fake app on loopback — found,
-lost after silence, back on a new port, moved, another app's answer ignored, a dead target silent.
-Not tested: a live session with the real app.
+(`tests/MdnsAnswerDump.cpp`), the discovery thread against a fake app on loopback — found, lost
+after silence, back on a new port, moved, another app's answer ignored, a dead target silent — and
+the severity numbers against the table in the README. Not tested: a live session with the real app,
+and whether 0.7 and 0.5 feel right in a dungeon.
 
 ## 0.2.1 — 2026-09-09
 

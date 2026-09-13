@@ -14,8 +14,10 @@ namespace StayPutVR.Trigger
     /// allowed past the cooldown and the limit. Every refusal is named and written to the session
     /// log, so an unexpected shock — or an unexpectedly quiet run — has a paper trail.
     ///
-    /// Intensity is not ours to set: the StayPutVR app holds the intensity and duration for each
-    /// parameter it listens on, and the trigger this end sends carries no magnitude.
+    /// Intensity is the StayPutVR app's: it holds the intensity and duration for each parameter
+    /// it listens on. What this end can say, with <c>ValueType=float</c> and app 1.5.2 or newer,
+    /// is how hard the hit was — a magnitude from 0 to 1 that the app scales between its
+    /// configured intensity and its configured max. <see cref="Severity"/> decides the number.
     /// </summary>
     public static class ShockPolicy
     {
@@ -87,10 +89,11 @@ namespace StayPutVR.Trigger
 
         /// <summary>
         /// One hit on the local player, already confirmed to have landed. <paramref name="fraction"/>
-        /// is the share of max HP it removed, which is what severity is judged on;
-        /// <paramref name="damage"/> is the raw HP for the absolute floor.
+        /// is the share of max HP it removed and <paramref name="remaining"/> the share left after
+        /// it, which between them say how hard it was; <paramref name="damage"/> is the raw HP for
+        /// the absolute floor.
         /// </summary>
-        public static void OnHit(float damage, float fraction, string damageType, bool downed)
+        public static void OnHit(float damage, float fraction, float remaining, string damageType, bool downed)
         {
             var now = Time.unscaledTime;
 
@@ -104,7 +107,9 @@ namespace StayPutVR.Trigger
             }
 
             LastHitAt = now;
-            LastHit = $"{damage:0.#} HP ({fraction * 100f:0}%) {damageType}{(downed ? ", downed" : "")}";
+            var magnitude = Severity.Compute(fraction, remaining, damageType, downed,
+                                             ModConfig.SeverityCurve.Value, ModConfig.FallSeverityFloor.Value);
+            LastHit = $"{damage:0.#} HP ({fraction * 100f:0}% of max, {Severity.Share(fraction, remaining) * 100f:0}% of what was left) {damageType}{(downed ? ", downed" : "")}";
 
             // The killing blow is the one hit allowed past the cooldown and the ceiling.
             var lethal = downed;
@@ -130,8 +135,8 @@ namespace StayPutVR.Trigger
             // Noted before Fire() moves _lastFireAt: this is the one hit the limits let through.
             var pastLimits = lethal && (now - _lastFireAt < ModConfig.CooldownSeconds.Value || OverBudget(now));
 
-            if (Fire(path, $"hit {LastHit}") && ModConfig.LogEveryHit.Value)
-                ShockLog.Line($"hit {LastHit} — fired {path}{(pastLimits ? " (lethal, allowed past the limits)" : "")}");
+            if (Fire(path, $"hit {LastHit}", magnitude) && ModConfig.LogEveryHit.Value)
+                ShockLog.Line($"hit {LastHit} — fired {path}{(SendsMagnitude ? $" at {magnitude:0.00}" : "")}{(pastLimits ? " (lethal, allowed past the limits)" : "")}");
         }
 
         /// <summary>
@@ -197,7 +202,11 @@ namespace StayPutVR.Trigger
 
         // ---- sending ---------------------------------------------------------------------
 
-        private static bool Fire(string path, string what)
+        /// <summary>Whether the datagram carries how hard the hit was: only the float value type can.</summary>
+        public static bool SendsMagnitude => (ModConfig.ValueType.Value ?? "bool").Trim().Equals("float", StringComparison.OrdinalIgnoreCase);
+
+        /// <param name="magnitude">How hard, 0..1; only the float value type sends it. Bites send 1.</param>
+        private static bool Fire(string path, string what, float magnitude = 1f)
         {
             if (!OscPacket.IsUsableAddress(path))
             {
@@ -214,8 +223,8 @@ namespace StayPutVR.Trigger
                 return false;
             }
 
-            var datagram = Encode(path, true);
-            if (ModConfig.LogDatagrams.Value) ShockLog.Line($"-> {path} true, {datagram.Length} bytes: {BitConverter.ToString(datagram)}");
+            var datagram = Encode(path, true, magnitude);
+            if (ModConfig.LogDatagrams.Value) ShockLog.Line($"-> {path} {(SendsMagnitude ? magnitude.ToString("0.00") : "true")}, {datagram.Length} bytes: {BitConverter.ToString(datagram)}");
             if (!OscSender.Send(datagram, what))
             {
                 HeldBack++;
@@ -231,12 +240,13 @@ namespace StayPutVR.Trigger
             return true;
         }
 
-        private static byte[] Encode(string path, bool value)
+        /// <summary>A float carries the magnitude on the trigger and 0 on the release; bool and int cannot carry it.</summary>
+        private static byte[] Encode(string path, bool value, float magnitude = 1f)
         {
             switch ((ModConfig.ValueType.Value ?? "bool").Trim().ToLowerInvariant())
             {
                 case "int": return OscPacket.Int(path, value ? 1 : 0);
-                case "float": return OscPacket.Float(path, value ? 1f : 0f);
+                case "float": return OscPacket.Float(path, value ? Mathf.Clamp(magnitude, Severity.Least, 1f) : 0f);
                 default: return OscPacket.Bool(path, value);
             }
         }

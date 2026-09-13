@@ -31,6 +31,10 @@ found within a few seconds, the `Port` fallback until then, dropped after silenc
 on a new port, a move noticed, another OSC app's answer ignored, a dead target silent. Each state
 change is checked to log exactly once.
 
+And `Severity`, the pure function behind the float Shock value: the README's worked table, the
+ordering chip < low chip < fatal, the fall floor, a curve of 1 being linear and 0 being treated
+as 1, never sending zero for a hit, and monotonic from a full bar.
+
 `Stubs.cs` is the minimum host the Osc/ files need outside the game: a logger, the session log,
 and `UnityEngine.Time.unscaledTime`. Nothing under test is reimplemented there.
 

@@ -152,6 +152,22 @@ fields; `Discovery.Pump` on the main thread logs the transitions.
 CustomAvatars needed no change: VRCFaceTracking only retargets its sends to a service named
 like VRChat's, ignores `StayPutVR`, and falls back to port 9000, where CustomAvatars listens.
 
+### How hard: the float Shock parameter
+
+The app's Shock trigger used to be a bool, and its parser turned a float into a bool at 0.5, so
+nothing under that fired at all. 1.5.2 reads a float on the Shock path as a magnitude in (0, 1]:
+`OSCManager.cpp` hands it to the callback (or -1 for a bool/int), and `Config::ScaleShock`
+places the shock between the configured intensity and a new `osc_shock_max_intensity` — per
+device for PiShock and OpenShock via new `*_individual_shock_max_intensities` arrays when
+per-device intensities are on; the global max for DG-Lab and the PiShock legacy API. A ceiling
+below the floor counts as the floor. Zero is the release and fires nothing.
+
+The mod's side is `Trigger/Severity.cs`: share = damage ÷ health before the hit, the killing
+blow is 1, fall damage has a floor, and a curve exponent lifts small hits. The remaining health
+is `health.normalizedHP` read in the same postfix, after the game applied the hit; if it cannot
+be read the hit is treated as coming off a full bar, the lightest reading. `ValueType=float`
+turns it on. The table of example values is in the README and pinned by the tests.
+
 ### Intensity is not ours
 
 StayPutVR holds intensity and duration per parameter — `osc_shock_intensity`,

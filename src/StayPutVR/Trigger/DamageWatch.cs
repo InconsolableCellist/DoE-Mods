@@ -17,9 +17,11 @@ namespace StayPutVR.Trigger
     /// same method runs for other people's avatars on this client too — only your own hits are
     /// yours to be shocked for.
     ///
-    /// Severity is the fraction of max HP the hit removed, not the raw number: weapon and
-    /// difficulty scaling move raw damage around between runs, while "a third of your health"
-    /// means the same thing in every dungeon.
+    /// Severity is judged in fractions of max HP, not raw numbers: weapon and difficulty
+    /// scaling move raw damage around between runs, while "a third of your health" means the
+    /// same thing in every dungeon. The health left after the hit goes along too, because how
+    /// hard a hit should shock depends on how close to death it left you — see
+    /// <see cref="Severity"/>.
     /// </summary>
     public static class DamageWatch
     {
@@ -51,11 +53,14 @@ namespace StayPutVR.Trigger
                 _seen++;
                 var damage = __0;
                 var maxHp = 0f;
+                var remaining = -1f;
                 var downed = false;
                 try
                 {
                     var health = __instance.health;
                     maxHp = health.maxHP;
+                    // The postfix runs after the game applied the hit, so this is what is left.
+                    try { remaining = health.normalizedHP; } catch { }
                     // "Downed" covers both outright death and the last-chance state the game
                     // puts you in when a party could still revive you; either one ends the run
                     // as far as being hit is concerned.
@@ -67,16 +72,21 @@ namespace StayPutVR.Trigger
                 }
 
                 var fraction = maxHp > 0.01f ? Mathf.Clamp01(damage / maxHp) : 0f;
+                // If the remaining health cannot be read, assume the hit came off a full bar,
+                // which is the lightest reading and so the safe one.
+                if (remaining < 0f) remaining = Mathf.Clamp01(1f - fraction);
+                else remaining = Mathf.Clamp01(remaining);
+                if (downed) remaining = 0f;
                 var type = "Other";
                 try { type = __3.ToString(); } catch { }
 
                 if (!_loggedFirst)
                 {
                     _loggedFirst = true;
-                    Core.Log.Msg($"First local hit seen: {damage:0.#} HP of {maxHp:0.#} max ({fraction * 100f:0}%), type {type}. The damage hook works.");
+                    Core.Log.Msg($"First local hit seen: {damage:0.#} HP of {maxHp:0.#} max ({fraction * 100f:0}%), {remaining * 100f:0}% left, type {type}. The damage hook works.");
                 }
 
-                ShockPolicy.OnHit(damage, fraction, type, downed);
+                ShockPolicy.OnHit(damage, fraction, remaining, type, downed);
             }
             catch (Exception e)
             {
