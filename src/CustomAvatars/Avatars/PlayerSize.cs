@@ -378,6 +378,85 @@ namespace CustomAvatars.Avatars
             ApplyBody(sizeChanged: false);
         }
 
+        // ---- the game's own height calibration ------------------------------------------
+
+        /// <summary>
+        /// <c>OpenVRRig.CalibrateHeight</c> is how the game puts every player's eyes at the
+        /// same 1.78 m: it measures <c>eye.y − rig.y</c> in WORLD metres and writes
+        /// <c>up × (1.78 − h)</c> to the camera rig's LOCAL position — and that camera rig is
+        /// a child of the play space we scale. Under x1.15 the measurement is 15 % too big and
+        /// the write is scaled 15 % again, so the eyes land at 2.05 − 0.15·h ≈ 1.75 m instead
+        /// of 2.05 m and the tracking floor sinks ~0.26 m below the game's floor: feet in the
+        /// ground, the capsule catching stair lips, and no T-pose can touch it (2026-09-13).
+        /// It runs from the rig's Awake and on recentre — every scene load — long after the
+        /// spawn gate in <see cref="Tick"/> has let the size in, and the objects it lives on
+        /// survive the scene change, so the gate never sees a new body. So: rest scale for the
+        /// one call, our scale straight after. Nothing is measured, nothing feeds back.
+        /// </summary>
+        public static void InstallHeightCalibrationHook(HarmonyLib.Harmony harmony)
+        {
+            try
+            {
+                var target = HarmonyLib.AccessTools.Method(typeof(OpenVRRig), "CalibrateHeight");
+                if (target == null)
+                {
+                    Core.Log.Warning("Size: OpenVRRig.CalibrateHeight not found — the game will measure your " +
+                                     "height at whatever size you are, and sink you by 15 % of it per scene load.");
+                    return;
+                }
+                harmony.Patch(target,
+                    prefix: new HarmonyLib.HarmonyMethod(HarmonyLib.AccessTools.Method(typeof(PlayerSize), nameof(CalibrateHeight_Prefix))),
+                    postfix: new HarmonyLib.HarmonyMethod(HarmonyLib.AccessTools.Method(typeof(PlayerSize), nameof(CalibrateHeight_Postfix))));
+                Core.Log.Msg("Size: OpenVRRig.CalibrateHeight bracketed — the game measures your height at vanilla scale.");
+            }
+            catch (Exception e)
+            {
+                Core.Log.Warning($"Size: could not hook OpenVRRig.CalibrateHeight ({e.GetType().Name}: {e.Message}).");
+            }
+        }
+
+        private static bool _calibrationUnscaled;
+        private static float _calibrationOffsetBefore = float.NaN;
+
+        private static void CalibrateHeight_Prefix(OpenVRRig __instance)
+        {
+            // Never throw out of here: it runs inside the rig's Awake.
+            _calibrationUnscaled = false;
+            _calibrationOffsetBefore = float.NaN;
+            try
+            {
+                try { if (Interop.Alive(__instance)) _calibrationOffsetBefore = __instance.transform.localPosition.y; } catch { }
+                var me = _instance;
+                if (me == null || !me._engaged || !Interop.Alive(me._rig)) return;
+                if (Mathf.Abs(me._applied - 1f) < 0.0005f) return;
+                me._rig.localScale = me._rigRest;
+                _calibrationUnscaled = true;
+            }
+            catch { }
+        }
+
+        private static void CalibrateHeight_Postfix(OpenVRRig __instance)
+        {
+            try
+            {
+                var me = _instance;
+                var applied = 1f;
+                if (_calibrationUnscaled && me != null && me._engaged && Interop.Alive(me._rig))
+                {
+                    me._rig.localScale = me._rigRest * me._applied;
+                    applied = me._applied;
+                }
+
+                var after = float.NaN;
+                try { if (Interop.Alive(__instance)) after = __instance.transform.localPosition.y; } catch { }
+                Core.Log.Msg($"Size: the game re-measured your height" +
+                             (_calibrationUnscaled ? $" — rig held at x1.00 for the call, back to x{applied:0.00}" : " at x1.00") +
+                             $"; camera rig offset {_calibrationOffsetBefore:0.000} → {after:0.000} m.");
+            }
+            catch { }
+            finally { _calibrationUnscaled = false; }
+        }
+
         // ---- the body's comings and goings ------------------------------------------------
 
         private const float SpawnSettleSeconds = 1.0f;

@@ -1,4 +1,4 @@
-# CustomAvatars 0.42.7
+# CustomAvatars 0.42.8
 
 Wear a VRChat-style avatar in Dungeons of Eternity, in a private lobby with friends who run the
 same build. Face and eye tracking come from VRCFaceTracking over OSC, full-body tracking from
@@ -19,7 +19,9 @@ The design notes are in [docs/PLAN.md](../../docs/PLAN.md) and
 - **Full-body tracking** from SteamVR pucks, with a T-pose calibration, and synced to peers.
 - **Hand poses** from trigger and grip, and **spring bones** for secondary motion, rebuilt from the
   captured PhysBone setup.
-- **Player sizing** — your avatar's real height, applied after spawn.
+- **Player sizing** — your avatar's real height, applied after spawn. The game's own height
+  calibration, which runs at every scene load, is held at vanilla scale for its one call so a
+  sized player is not sunk into the floor by it.
 
 ## The gate
 

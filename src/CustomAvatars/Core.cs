@@ -6,7 +6,7 @@ using CustomAvatars.Gate;
 using CustomAvatars.Net;
 using CustomAvatars.Recon;
 
-[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.42.7", "Foxipso")]
+[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.42.8", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace CustomAvatars
@@ -25,7 +25,7 @@ namespace CustomAvatars
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.42.7";
+        public const string Version = "0.42.8";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -85,6 +85,7 @@ namespace CustomAvatars
             // body together, and the avatar is re-fitted to wherever your head ends up.
             _trackers = new Fbt.TrackerReader();
             _size = new PlayerSize(_trackers);
+            PlayerSize.InstallHeightCalibrationHook(HarmonyInstance);
             _size.Changed += size => _swaps.OnSelfSizeChanged(size);
             if (Math.Abs(PlayerSize.Wanted() - 1f) > 0.0005f)
                 LoggerInstance.Msg($"Size: AvatarSize is {PlayerSize.Wanted():0.00} — you will be that size once you have spawned. Home puts it back to 1.");
