@@ -118,6 +118,21 @@ namespace LootOverhaul.Loot
             return string.Join(", ", parts);
         }
 
+        /// <summary>The stat's two-or-three-word label for comparison lines (report 2026-09-13: the full sentences ran off the row).</summary>
+        private static string ShortLabel(string stat)
+        {
+            var d = Buffs.Find(stat);
+            return d == null ? stat : string.IsNullOrEmpty(d.Short) ? d.Flavor : d.Short;
+        }
+
+        /// <summary>The stats in short labels, for the worn piece's line on the ARMOR tab.</summary>
+        public static string DescribeStatsShort(LootItem item)
+        {
+            var parts = new List<string>();
+            foreach (var (st, m) in Decode(item.ArmorStats)) { var d = Buffs.Find(st); parts.Add($"{ShortLabel(st)} {(d != null && d.Invert ? "÷" : "×")}{m:0.00}"); }
+            return string.Join(", ", parts);
+        }
+
         /// <summary>
         /// A candidate's stats against the piece worn in the same slot, for the ARMOR tab: each
         /// stat with its multiplier, and in brackets how it compares — green when better, red
@@ -135,7 +150,7 @@ namespace LootOverhaul.Loot
             {
                 seen.Add(st);
                 var d = Buffs.Find(st);
-                var label = $"{(d == null ? st : d.Flavor)} {(d != null && d.Invert ? "÷" : "×")}{m:0.00}";
+                var label = $"{ShortLabel(st)} {(d != null && d.Invert ? "÷" : "×")}{m:0.00}";
                 if (worn == null) { parts.Add(label); continue; }
                 if (!wornStats.TryGetValue(st, out var w)) { parts.Add($"{label} <color=#7FD8FF>(new)</color>"); continue; }
                 var diff = m - w;
@@ -144,7 +159,7 @@ namespace LootOverhaul.Loot
             }
             if (worn != null)
                 foreach (var kv in wornStats)
-                    if (!seen.Contains(kv.Key)) { var d = Buffs.Find(kv.Key); parts.Add($"<color=#E06060>loses {(d == null ? kv.Key : d.Flavor)}</color>"); }
+                    if (!seen.Contains(kv.Key)) parts.Add($"<color=#E06060>loses {ShortLabel(kv.Key)}</color>");
             return string.Join(", ", parts);
         }
 

@@ -23,6 +23,7 @@ namespace LootOverhaul.Loot
             public string Stat;      // Exosuit field name
             public string Name;      // tonic name
             public string Flavor;    // what it does, plainly
+            public string Short;     // the same in two or three words, for comparison lines
             public float[] Mults = { 1.15f, 1.30f, 1.50f };
             public int[] Prices = { 60, 160, 400 };
             public float Weight = 0.4f;
@@ -41,32 +42,32 @@ namespace LootOverhaul.Loot
         // perks (Grounded, Gemini, Unburdened, Juggernaut) are not offered.
         public static readonly Def[] Catalogue =
         {
-            new Def { Stat = "Arms_Critical",     Name = "Keen Edge Oil",      Flavor = "stronger critical hits" },
-            new Def { Stat = "Arms_Distance",     Name = "Long Arm Liniment",  Flavor = "throw farther" },
-            new Def { Stat = "Arms_Farshot",      Name = "Hawkeye Drops",      Flavor = "shoot farther" },
-            new Def { Stat = "Arms_Impale",       Name = "Skewer Salve",       Flavor = "stronger impales" },
-            new Def { Stat = "Arms_Knockback",    Name = "Ram's Draught",      Flavor = "stronger knockbacks" },
-            new Def { Stat = "Arms_Might",        Name = "Ogre Blood",         Flavor = "more axe/spear damage" },
-            new Def { Stat = "Arms_Pierce",       Name = "Needle Tincture",    Flavor = "more pierce damage" },
-            new Def { Stat = "Arms_Power",        Name = "Bruiser's Brew",     Flavor = "more weapon damage" },
-            new Def { Stat = "Arms_Pullback",     Name = "Bowstring Balm",     Flavor = "more crossbow/staff damage" },
-            new Def { Stat = "Chest_Antidote",    Name = "Antidote Tonic",     Flavor = "poison does less damage", Invert = true },
-            new Def { Stat = "Chest_Armor",       Name = "Ironskin Tonic",     Flavor = "melee hits do less damage", Invert = true },
-            new Def { Stat = "Chest_Blast",       Name = "Powderkeg Brew",     Flavor = "fire does less damage", Invert = true },
-            new Def { Stat = "Chest_Dispel",      Name = "Cleansing Draught",  Flavor = "magic does less damage", Invert = true },
-            new Def { Stat = "Chest_Heal",        Name = "Mending Tonic",      Flavor = "potions heal more" },
-            new Def { Stat = "Chest_Resilience",  Name = "Stalwart Brew",      Flavor = "self-effects last longer" },
-            new Def { Stat = "Chest_Ricochet",    Name = "Mirror Elixir",      Flavor = "arrows and bolts do less damage", Invert = true },
-            new Def { Stat = "Chest_Vitality",    Name = "Hearty Draught",     Flavor = "health regenerates faster" },
-            new Def { Stat = "Chest_Antifreeze",  Name = "Ember Tea",          Flavor = "freezing wears off sooner", Invert = true },
-            new Def { Stat = "Legs_Absorb",       Name = "Cushion Cordial",    Flavor = "less fall damage", Invert = true },
-            new Def { Stat = "Legs_Endurance",    Name = "Marathon Brew",      Flavor = "stamina drains slower", Invert = true },
-            new Def { Stat = "Legs_Haste",        Name = "Quicksilver",        Flavor = "run faster" },
-            new Def { Stat = "Legs_Jump",         Name = "Springheel",         Flavor = "jump higher" },
-            new Def { Stat = "Legs_Leap",         Name = "Grasshopper Gin",    Flavor = "leap farther" },
-            new Def { Stat = "Mind_Fortune",      Name = "Lucky Coin Tea",     Flavor = "more coins from piles" },
-            new Def { Stat = "Mind_Mystify",      Name = "Mystic Draught",     Flavor = "mystify (staff magic) stronger" },
-            new Def { Stat = "Mind_Stillness",    Name = "Still Water",        Flavor = "stillness (slowed time) stronger" },
+            new Def { Stat = "Arms_Critical",     Name = "Keen Edge Oil",      Flavor = "stronger critical hits", Short = "crits" },
+            new Def { Stat = "Arms_Distance",     Name = "Long Arm Liniment",  Flavor = "throw farther", Short = "throw range" },
+            new Def { Stat = "Arms_Farshot",      Name = "Hawkeye Drops",      Flavor = "shoot farther", Short = "shot range" },
+            new Def { Stat = "Arms_Impale",       Name = "Skewer Salve",       Flavor = "stronger impales", Short = "impales" },
+            new Def { Stat = "Arms_Knockback",    Name = "Ram's Draught",      Flavor = "stronger knockbacks", Short = "knockback" },
+            new Def { Stat = "Arms_Might",        Name = "Ogre Blood",         Flavor = "more axe/spear damage", Short = "axe/spear dmg" },
+            new Def { Stat = "Arms_Pierce",       Name = "Needle Tincture",    Flavor = "more pierce damage", Short = "pierce dmg" },
+            new Def { Stat = "Arms_Power",        Name = "Bruiser's Brew",     Flavor = "more weapon damage", Short = "weapon dmg" },
+            new Def { Stat = "Arms_Pullback",     Name = "Bowstring Balm",     Flavor = "more crossbow/staff damage", Short = "xbow/staff dmg" },
+            new Def { Stat = "Chest_Antidote",    Name = "Antidote Tonic",     Flavor = "poison does less damage", Short = "poison taken", Invert = true },
+            new Def { Stat = "Chest_Armor",       Name = "Ironskin Tonic",     Flavor = "melee hits do less damage", Short = "melee taken", Invert = true },
+            new Def { Stat = "Chest_Blast",       Name = "Powderkeg Brew",     Flavor = "fire does less damage", Short = "fire taken", Invert = true },
+            new Def { Stat = "Chest_Dispel",      Name = "Cleansing Draught",  Flavor = "magic does less damage", Short = "magic taken", Invert = true },
+            new Def { Stat = "Chest_Heal",        Name = "Mending Tonic",      Flavor = "potions heal more", Short = "potion heal" },
+            new Def { Stat = "Chest_Resilience",  Name = "Stalwart Brew",      Flavor = "self-effects last longer", Short = "self-effects" },
+            new Def { Stat = "Chest_Ricochet",    Name = "Mirror Elixir",      Flavor = "arrows and bolts do less damage", Short = "arrows taken", Invert = true },
+            new Def { Stat = "Chest_Vitality",    Name = "Hearty Draught",     Flavor = "health regenerates faster", Short = "regen" },
+            new Def { Stat = "Chest_Antifreeze",  Name = "Ember Tea",          Flavor = "freezing wears off sooner", Short = "freeze time", Invert = true },
+            new Def { Stat = "Legs_Absorb",       Name = "Cushion Cordial",    Flavor = "less fall damage", Short = "fall dmg", Invert = true },
+            new Def { Stat = "Legs_Endurance",    Name = "Marathon Brew",      Flavor = "stamina drains slower", Short = "stamina drain", Invert = true },
+            new Def { Stat = "Legs_Haste",        Name = "Quicksilver",        Flavor = "run faster", Short = "run speed" },
+            new Def { Stat = "Legs_Jump",         Name = "Springheel",         Flavor = "jump higher", Short = "jump" },
+            new Def { Stat = "Legs_Leap",         Name = "Grasshopper Gin",    Flavor = "leap farther", Short = "leap" },
+            new Def { Stat = "Mind_Fortune",      Name = "Lucky Coin Tea",     Flavor = "more coins from piles", Short = "coins" },
+            new Def { Stat = "Mind_Mystify",      Name = "Mystic Draught",     Flavor = "mystify (staff magic) stronger", Short = "mystify" },
+            new Def { Stat = "Mind_Stillness",    Name = "Still Water",        Flavor = "stillness (slowed time) stronger", Short = "stillness" },
         };
         public static readonly string[] TierNames = { "Minor", "Major", "Grand" };
 

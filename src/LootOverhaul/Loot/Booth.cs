@@ -464,15 +464,16 @@ namespace LootOverhaul.Loot
                 tx += tw + 0.09f;
             }
 
-            // The worn piece for this slot.
+            // The worn piece for this slot. Stat lines are short labels on up to two lines
+            // (report 2026-09-13: three stats plus their differences ran off the row).
             var worn = Armor.Worn(_armorSlot);
-            var wy = top - 0.36f;
+            var wy = top - 0.35f;
             var textW = WidthBefore(bx, left);
-            UiKit.Text(_buy, new Vector3(left, wy + 0.025f, 0f), textW, 0.05f, 0.36f,
+            UiKit.Text(_buy, new Vector3(left, wy + 0.03f, 0f), textW, 0.05f, 0.36f,
                 $"<color=#C9A86A>wearing:</color>   {(worn == null ? "<color=#9A9A9A>nothing</color>" : worn.ColoredName)}", fit: true);
             if (worn != null)
             {
-                UiKit.Text(_buy, new Vector3(left, wy - 0.025f, 0f), textW, 0.045f, 0.28f, $"<color=#9A9A9A>{Armor.DescribeStats(worn)}</color>", fit: true);
+                UiKit.Text(_buy, new Vector3(left, wy - 0.025f, 0f), textW, 0.075f, 0.27f, $"<color=#9A9A9A>{Armor.DescribeStatsShort(worn)}</color>", fit: true, lines: 2);
                 var capturedWorn = worn;
                 UiKit.Button(_buy, new Vector3(bx, wy, 0f), "TAKE OFF", () => { Armor.Remove(capturedWorn); BuildBuy(); }, BtnScale);
             }
@@ -481,12 +482,12 @@ namespace LootOverhaul.Loot
             var pieces = new List<LootItem>();
             foreach (var i in inv.Items) if (i.IsArmor && i.WornSlot < 0 && i.ArmorSlot == _armorSlot) pieces.Add(i);
             pieces.Sort((a, b) => b.WeaponClass != a.WeaponClass ? b.WeaponClass.CompareTo(a.WeaponClass) : b.Value.CompareTo(a.Value));
-            const int rows = 5;
-            const float rowH = 0.1f;
+            const int rows = 4;
+            const float rowH = 0.13f;
             var pages = Math.Max(1, (pieces.Count + rows - 1) / rows);
             _armorPage = Math.Max(0, Math.Min(_armorPage, pages - 1));
-            var y1 = wy - 0.1f;
-            UiKit.Text(_buy, new Vector3(left, y1 + 0.035f, 0f), PanelWidth - 0.08f, 0.045f, 0.3f,
+            var y1 = wy - 0.11f;
+            UiKit.Text(_buy, new Vector3(left, y1 + 0.02f, 0f), PanelWidth - 0.08f, 0.045f, 0.3f,
                 pieces.Count == 0 ? $"<color=#9A9A9A>No {Armor.SlotNames[_armorSlot].ToLowerInvariant()} armor in the bag.</color>"
                                   : $"<color=#9A9A9A>in the bag ({pieces.Count}){(worn == null ? "" : " — against what you wear: <color=#5BD75B>better</color> <color=#E06060>worse</color> <color=#7FD8FF>new</color>")}</color>", fit: true);
             var start = _armorPage * rows;
@@ -494,9 +495,9 @@ namespace LootOverhaul.Loot
             {
                 var item = pieces[start + i];
                 var row = new GameObject($"ArmorPiece_{i}"); row.transform.SetParent(_buy, false);
-                row.transform.localPosition = new Vector3(0f, y1 - 0.04f - i * rowH, 0f);
-                UiKit.Text(row.transform, new Vector3(left, 0.02f, 0f), textW, 0.05f, 0.34f, $"{item.ColoredName}{(item.Locked ? "   <color=#9A9A9A>locked</color>" : "")}", fit: true);
-                UiKit.Text(row.transform, new Vector3(left, -0.028f, 0f), textW, 0.045f, 0.28f, $"<color=#9A9A9A>{Armor.Compare(item, worn)}</color>", fit: true);
+                row.transform.localPosition = new Vector3(0f, y1 - 0.05f - i * rowH, 0f);
+                UiKit.Text(row.transform, new Vector3(left, 0.045f, 0f), textW, 0.05f, 0.34f, $"{item.ColoredName}{(item.Locked ? "   <color=#9A9A9A>locked</color>" : "")}", fit: true);
+                UiKit.Text(row.transform, new Vector3(left, -0.02f, 0f), textW, 0.075f, 0.27f, $"<color=#9A9A9A>{Armor.Compare(item, worn)}</color>", fit: true, lines: 2);
                 var captured = item;
                 UiKit.Button(row.transform, new Vector3(bx, 0f, 0f), "WEAR", () => { Armor.Wear(captured); BuildBuy(); }, BtnScale);
             }

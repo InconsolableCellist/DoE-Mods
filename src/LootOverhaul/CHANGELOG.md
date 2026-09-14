@@ -3,6 +3,11 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.9.18 (2026-09-13)
+
+### Fixed
+- The ARMOR tab's comparison lines were cut off: three stats with their differences, plus a "loses" entry each, in full-sentence labels outran the row. Comparisons and the worn piece's line now use two-or-three-word stat labels ("stamina drain ÷1.09 (+0.02)", "poison taken", "weapon dmg"), wrap onto two lines before shrinking, and the tab shows four taller rows per page instead of five.
+
 ## 0.9.17 (2026-09-12)
 
 ### Fixed

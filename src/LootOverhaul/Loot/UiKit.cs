@@ -174,10 +174,12 @@ namespace LootOverhaul.Loot
         /// <summary>
         /// A label. With <paramref name="fit"/> the font shrinks (to 60% of <paramref name="size"/>)
         /// until the line fits the rect, so a long stats line is read in full instead of cut off
-        /// under the buttons (report 2026-09-08: two-perk weapons).
+        /// under the buttons (report 2026-09-08: two-perk weapons). With <paramref name="lines"/>
+        /// above 1 the text wraps onto that many lines first and shrinks only after that; the
+        /// block is centred vertically on <paramref name="localPos"/>.
         /// </summary>
         public static TextMeshPro Text(Transform parent, Vector3 localPos, float width, float height, float size, string text,
-                                       TextAlignmentOptions align = TextAlignmentOptions.Left, bool fit = false)
+                                       TextAlignmentOptions align = TextAlignmentOptions.Left, bool fit = false, int lines = 1)
         {
             try
             {
@@ -198,11 +200,11 @@ namespace LootOverhaul.Loot
                     tmp.fontSizeMin = size * 0.6f;
                 }
                 tmp.alignment = align;
-                tmp.enableWordWrapping = false;
+                tmp.enableWordWrapping = lines > 1;
                 // Truncate to the rect: a line that overflows runs under the buttons to its right.
                 tmp.overflowMode = TextOverflowModes.Truncate;
                 tmp.richText = true;
-                tmp.rectTransform.sizeDelta = new Vector2(width, Mathf.Max(height, size * 0.14f));
+                tmp.rectTransform.sizeDelta = new Vector2(width, Mathf.Max(height, size * 0.14f * Mathf.Max(1, lines)));
                 tmp.rectTransform.pivot = new Vector2(align == TextAlignmentOptions.Center ? 0.5f : 0f, 0.5f);
                 tmp.text = text;
                 return tmp;
