@@ -6,7 +6,7 @@ using VisualCues.Cues;
 using VisualCues.Hud;
 using VisualCues.Net;
 
-[assembly: MelonInfo(typeof(Core), "VisualCues", "0.1.3", "dan")]
+[assembly: MelonInfo(typeof(Core), "VisualCues", "0.1.3", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace VisualCues

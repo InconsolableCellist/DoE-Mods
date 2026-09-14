@@ -6,7 +6,7 @@ using StayPutVR.Net;
 using StayPutVR.Osc;
 using StayPutVR.Trigger;
 
-[assembly: MelonInfo(typeof(StayPutVR.Core), "StayPutVR", "0.4.0", "dan")]
+[assembly: MelonInfo(typeof(StayPutVR.Core), "StayPutVR", "0.4.0", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace StayPutVR

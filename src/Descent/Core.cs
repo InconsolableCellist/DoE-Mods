@@ -7,7 +7,7 @@ using Descent.Hub;
 using Descent.Net;
 using Descent.Recon;
 
-[assembly: MelonInfo(typeof(Core), "Descent", "0.1.0", "dan")]
+[assembly: MelonInfo(typeof(Core), "Descent", "0.1.0", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace Descent
