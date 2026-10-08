@@ -35,14 +35,16 @@ namespace LootOverhaul.Gate
         /// <summary>Raised whenever any peer's identity or mod status changed.</summary>
         public event Action RosterChanged;
 
-        public void Tick(float dt)
+        /// <summary>Polls at 2 Hz. Returns true on the frames it polled, so the gate only re-checks then.</summary>
+        public bool Tick(float dt)
         {
             _cooldown -= dt;
-            if (_cooldown > 0f) return;
+            if (_cooldown > 0f) return false;
             _cooldown = PollSeconds;
 
             try { Poll(); }
             catch (Exception e) { Core.Log.Warning($"ModRoster poll failed: {e.GetType().Name}: {e.Message}"); }
+            return true;
         }
 
         private void Poll()

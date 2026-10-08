@@ -34,6 +34,10 @@ namespace LootOverhaul.Loot
         public float TaggedAt = Time.unscaledTime;
         /// <summary>The walk-over pickup already said the bag is full for this item.</summary>
         public bool FullToasted;
+        /// <summary>Next time to look for an object that has not replicated yet (throttled).</summary>
+        public float NextLookupAt;
+        /// <summary>Next time to move the decorations of an item far from the player (throttled).</summary>
+        public float NextFarUpdateAt;
     }
 
     /// <summary>
@@ -151,6 +155,13 @@ namespace LootOverhaul.Loot
             catch { return null; }
         }
 
+        // Items farther than this from the player get their decorations moved a few times a
+        // second instead of every frame; nobody sees a far label or sparkle lag by 0.25 s.
+        private const float NearMeters = 15f;
+        private const float FarUpdateEvery = 0.25f;
+        // A missing object is looked up again at this rate, not every frame.
+        private const float LookupEvery = 0.25f;
+
         /// <summary>
         /// Retry object lookup for tags whose object had not replicated when the broadcast
         /// arrived; keep the decorations on the item. An object that was here and is gone
@@ -159,15 +170,26 @@ namespace LootOverhaul.Loot
         /// </summary>
         public static void Tick()
         {
+            if (Tags.Count == 0) return;
+            var now = Time.unscaledTime;
+            var view = DropLabel.View();   // the player's head and hand, read once per frame
             List<int> gone = null;
             foreach (var tag in Tags.Values)
             {
                 if (tag.Claimed) continue;
                 if (Interop.Alive(tag.Object))
                 {
+                    if (view.Valid && now < tag.NextFarUpdateAt) continue;
+                    if (view.Valid)
+                    {
+                        var d = tag.Object.transform.position - view.Eye; d.y = 0f;
+                        tag.NextFarUpdateAt = d.sqrMagnitude > NearMeters * NearMeters ? now + FarUpdateEvery : 0f;
+                    }
                     DropBeam.Follow(tag); DropLabel.Follow(tag); DropSparkle.Follow(tag); DropOutline.Refresh(tag);
                     continue;
                 }
+                if (now < tag.NextLookupAt) continue;
+                tag.NextLookupAt = now + LookupEvery;
                 tag.Object = FindObject(tag.ViewId);
                 if (tag.Object != null) { Decorate(tag); continue; }
                 if (tag.Seen) (gone ??= new List<int>()).Add(tag.ViewId);
@@ -338,9 +360,13 @@ namespace LootOverhaul.Loot
             catch (Exception e) { Core.Log.Warning($"Throw audio failed: {e.GetType().Name}: {e.Message}"); }
         }
 
+        private static string _chimeRaw, _chimeMode = "";
+
         private static SoundFXRef Chime()
         {
-            var which = (ModConfig.DropChime.Value ?? "").Trim().ToLowerInvariant();
+            var raw = ModConfig.DropChime.Value;
+            if (!ReferenceEquals(raw, _chimeRaw)) { _chimeRaw = raw; _chimeMode = (raw ?? "").Trim().ToLowerInvariant(); }
+            var which = _chimeMode;
             if (which == "off" || which == "") return null;
             if (_chime != null) return _chime;
             if (_searched) return null;
@@ -544,6 +570,32 @@ namespace LootOverhaul.Loot
 
         public static void Follow(LootTag tag) => Follow(tag, tag.Label);
 
+        /// <summary>The local player's head and right hand, read from the game once per frame.</summary>
+        public struct PlayerView { public bool Valid; public Vector3 Eye, Forward; public Vector3? Hand; }
+        private static PlayerView _view;
+        private static int _viewFrame = -1;
+
+        public static PlayerView View()
+        {
+            var frame = Time.frameCount;
+            if (frame == _viewFrame) return _view;
+            _viewFrame = frame;
+            var v = new PlayerView();
+            try
+            {
+                var local = AvatarPlayer.LocalAvatar;
+                var head = local.Head;
+                if (Interop.Alive(head))
+                {
+                    v.Eye = head.position; v.Forward = head.forward; v.Valid = true;
+                    try { var h = local.RightHand; if (Interop.Alive(h)) v.Hand = h.position; } catch { }
+                }
+            }
+            catch { }
+            _view = v;
+            return v;
+        }
+
         private static void Follow(LootTag tag, GameObject label)
         {
             if (!Interop.Alive(label)) return;
@@ -552,14 +604,10 @@ namespace LootOverhaul.Loot
             {
                 var pos = tag.Object.transform.position + Vector3.up * 0.35f;
                 label.transform.position = pos;
-                Vector3 eye, fwd; Vector3? hand = null;
-                try
-                {
-                    var head = AvatarPlayer.LocalAvatar.Head;
-                    eye = head.position; fwd = head.forward;
-                    try { var h = AvatarPlayer.LocalAvatar.RightHand; if (Interop.Alive(h)) hand = h.position; } catch { }
-                }
-                catch { eye = pos + Vector3.forward; fwd = -Vector3.forward; }
+                var v = View();
+                Vector3 eye, fwd; Vector3? hand = v.Hand;
+                if (v.Valid) { eye = v.Eye; fwd = v.Forward; }
+                else { eye = pos + Vector3.forward; fwd = -Vector3.forward; }
                 var toEye = pos - eye; toEye.y = 0f;
                 if (toEye.sqrMagnitude > 0.0001f) label.transform.rotation = Quaternion.LookRotation(toEye, Vector3.up);
 

@@ -16,6 +16,9 @@ namespace LootOverhaul.Net
         /// <summary>(code, senderActorNumber, content). Raised on Photon's dispatch, main thread.</summary>
         public static event Action<byte, int, Il2CppSystem.Object> RawEvent;
 
+        /// <summary>Every inbound event code, nothing else read. For the recon tally.</summary>
+        public static event Action<byte> CodeSeen;
+
         public static bool Installed { get; private set; }
 
         public static void Install(HarmonyLib.Harmony harmony)
@@ -48,7 +51,13 @@ namespace LootOverhaul.Net
             try
             {
                 if (ReferenceEquals(photonEvent, null)) return;
-                RawEvent?.Invoke(photonEvent.Code, photonEvent.Sender, photonEvent.CustomData);
+                // Every event of every player passes through here (enemy spawns, hits, deaths),
+                // so read only the code first. Sender and payload cost an interop call and an
+                // allocation each, and only our own block 150-159 needs them.
+                var code = photonEvent.Code;
+                CodeSeen?.Invoke(code);
+                if (code < ModNet.CodeMin || code > ModNet.CodeMax) return;
+                RawEvent?.Invoke(code, photonEvent.Sender, photonEvent.CustomData);
             }
             catch (Exception e)
             {

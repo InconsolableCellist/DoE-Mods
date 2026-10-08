@@ -3,6 +3,24 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.10.1 (2026-10-08)
+
+### Performance
+Fewer checks per frame, aimed at the stutter in full 4-player parties when enemies spawn or die
+and when a lot of loot lies on the floor. Nothing a player sees or plays changes.
+- **The co-op gate re-checks only when the roster refreshes** (twice a second) instead of every
+  frame. Between refreshes a cheap live check still fails closed at once: room went public, room
+  left, or a player the roster has not vetted yet.
+- **Network events are filtered by code first.** Every Photon event from every player used to have
+  its sender and payload read; now only events in our own block 150–159 do. The recon tally still
+  counts every code.
+- **Floor loot does less work per item.** The player's head and hand are read once per frame
+  instead of once per label; items farther than 15 m have their label, sparkle and glow moved four
+  times a second instead of every frame; an object that has not replicated yet is looked up four
+  times a second instead of every frame.
+- **Settings are parsed once.** `BagGesture` and `DropChime` were trimmed and lower-cased on every
+  read, and the bag gesture read the input system's type name every frame for a one-time log line.
+
 ## 0.10.0 (2026-10-07)
 
 ### Changed

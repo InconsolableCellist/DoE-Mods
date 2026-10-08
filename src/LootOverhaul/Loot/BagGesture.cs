@@ -22,9 +22,19 @@ namespace LootOverhaul.Loot
         private static bool _fired, _loggedOnce, _readyLogged;
         private static int _failures;
 
+        // The setting, parsed once and again only when its text changes (not every frame).
+        private static string _modeRaw, _mode = "off";
+
+        private static string Mode()
+        {
+            var raw = ModConfig.BagGesture.Value;
+            if (!ReferenceEquals(raw, _modeRaw)) { _modeRaw = raw; _mode = (raw ?? "off").Trim().ToLowerInvariant(); }
+            return _mode;
+        }
+
         public static void Tick()
         {
-            var mode = (ModConfig.BagGesture.Value ?? "off").Trim().ToLowerInvariant();
+            var mode = Mode();
             if (mode == "off") return;
             if (Time.unscaledTime < _retryAt) return;
             try
@@ -36,7 +46,9 @@ namespace LootOverhaul.Loot
                 var xr = XRInput.IsValid ? XRInput.Instance : null;
                 if (xr != null)
                 {
-                    stick = xr.rightThumbstick; grip = xr.rightHandTrigger; source = xr.GetIl2CppType().Name;
+                    stick = xr.rightThumbstick; grip = xr.rightHandTrigger;
+                    // The type name is only for the one-time log line; reading it every frame cost an interop call and a string.
+                    source = _readyLogged ? null : xr.GetIl2CppType().Name;
                 }
                 else
                 {

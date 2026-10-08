@@ -73,8 +73,38 @@ namespace LootOverhaul.Gate
             }
         }
 
+        /// <summary>
+        /// Called every frame. The full check (peers, versions, hashes, reason text) only runs
+        /// when the roster has just polled; it is the only thing that can change its answer.
+        /// In between, a cheap live check keeps the fail-closed rule: if the room went public,
+        /// was left, or holds someone the roster has not vetted yet, the full check runs now.
+        /// </summary>
+        public static void Evaluate(ModRoster roster, bool rosterPolled)
+        {
+            if (!rosterPolled && !LiveStateChanged(roster)) return;
+            Evaluate(roster);
+        }
+
+        /// <summary>True when the room no longer matches what the last full check saw.</summary>
+        private static bool LiveStateChanged(ModRoster roster)
+        {
+            try
+            {
+                var inRoom = PhotonNetwork.InRoom;
+                if (!_active) return inRoom != _lastInRoom;
+                if (!inRoom) return true;
+                var room = PhotonNetwork.CurrentRoom;
+                if (ReferenceEquals(room, null) || room.IsVisible) return true;
+                return room.PlayerCount != roster.Peers.Count;
+            }
+            catch { return true; }
+        }
+
+        private static bool _lastInRoom;
+
         public static void Evaluate(ModRoster roster)
         {
+            try { _lastInRoom = PhotonNetwork.InRoom; } catch { _lastInRoom = false; }
             var shouldBeActive = Compute(roster, out var reason);
 
             if (shouldBeActive == _active)

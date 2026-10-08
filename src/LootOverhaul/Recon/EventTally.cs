@@ -16,7 +16,7 @@ namespace LootOverhaul.Recon
 
         public static void Install()
         {
-            PhotonHook.RawEvent += (code, sender, content) =>
+            PhotonHook.CodeSeen += code =>
             {
                 if (code >= 200) return;
                 lock (Gate)
