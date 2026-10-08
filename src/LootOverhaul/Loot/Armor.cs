@@ -39,25 +39,43 @@ namespace LootOverhaul.Loot
         private static readonly float[] BaseWeight = { 1.5f, 4.0f, 3.0f };
         private static readonly int[] BaseValue = { 40, 120, 300, 800 };
 
-        /// <summary>Number of stat bonuses by rarity and their strength band.</summary>
-        private static int StatCount(int cls) => cls switch { 0 => 1, 1 => 1, 2 => 2, _ => 3 };
-        private static (float lo, float hi) Band(int cls) => cls switch { 0 => (1.04f, 1.08f), 1 => (1.06f, 1.12f), 2 => (1.10f, 1.18f), _ => (1.15f, 1.28f) };
+        /// <summary>One stat per piece; a Legendary carries two. Band = the strength a stat rolls in.</summary>
+        private static int StatCount(int cls) => cls >= 3 ? 2 : 1;
+        public static (float lo, float hi) Band(int cls) => cls switch { 0 => (1.04f, 1.08f), 1 => (1.06f, 1.12f), 2 => (1.10f, 1.18f), _ => (1.15f, 1.28f) };
 
-        /// <summary>Exosuit stats armor may carry: the unlocked perks that are not "reduction" stats.</summary>
-        public static List<string> EligibleStats()
+        /// <summary>
+        /// Which stats each slot rolls, so no stat can sit on two worn pieces: head is offense,
+        /// chest is defense, legs are utility (the game's exosuit groups its perks the same way:
+        /// arms, chest, legs). The mind perks have no slot of their own: enemy aim and standing-still
+        /// regeneration are defensive, run coins is a utility.
+        /// </summary>
+        private static readonly string[][] SlotStats =
+        {
+            new[] { "Arms_Power", "Arms_Critical", "Arms_Knockback", "Arms_Distance", "Arms_Farshot" },
+            new[] { "Chest_Armor", "Chest_Ricochet", "Chest_Dispel", "Chest_Blast", "Chest_Antidote", "Chest_Antifreeze",
+                    "Chest_Heal", "Chest_Vitality", "Chest_Resilience", "Mind_Stillness", "Mind_Mystify" },
+            new[] { "Legs_Haste", "Legs_Jump", "Legs_Leap", "Legs_Absorb", "Mind_Fortune" },
+        };
+
+        /// <summary>The slot's stats whose perk the player has unlocked (retired ones never).</summary>
+        public static List<string> EligibleStats(int slot)
         {
             var list = new List<string>();
+            if (slot < 0 || slot >= SlotStats.Length) return list;
             // Inverted stats (less damage, slower drain) are fine on armor: the buff divides for those.
-            foreach (var d in Buffs.Catalogue) if (Unlocks.PerkUnlocked(d.Stat)) list.Add(d.Stat);
+            foreach (var st in SlotStats[slot]) { var d = Buffs.Find(st); if (d != null && !d.Retired && Unlocks.PerkUnlocked(st)) list.Add(st); }
             return list;
         }
 
         public static LootItem Roll(int cls, int realm, System.Random rng)
         {
-            var stats = EligibleStats();
-            if (stats.Count == 0) return null;
+            // Only slots that have something unlocked can roll (a fresh profile may have nothing for the legs).
+            var open = new List<int>();
+            for (var s = 0; s < 3; s++) if (EligibleStats(s).Count > 0) open.Add(s);
+            if (open.Count == 0) return null;
             cls = Math.Max(0, Math.Min(3, cls));
-            var slot = rng.Next(3);
+            var slot = open[rng.Next(open.Count)];
+            var stats = EligibleStats(slot);
             var piece = Pieces[slot][rng.Next(Pieces[slot].Length)];
             var mat = Materials[cls][rng.Next(Materials[cls].Length)];
             var name = $"{mat.Item1} {piece}";
@@ -69,7 +87,7 @@ namespace LootOverhaul.Loot
             for (var i = 0; i < StatCount(cls) && pool.Count > 0; i++)
             {
                 var st = pool[rng.Next(pool.Count)]; pool.Remove(st);
-                var m = (float)Math.Round(lo + rng.NextDouble() * (hi - lo), 3);
+                var m = (float)Math.Round(lo + rng.NextDouble() * (hi - lo), 2);   // hundredths, so each upgrade step lands on one
                 chosen.Add((st, m));
             }
             var item = new LootItem
@@ -212,6 +230,54 @@ namespace LootOverhaul.Loot
             }
             return rows;
         }
+        // ---- upgrading ----------------------------------------------------------------------
+
+        public const float UpgradeStep = 0.01f;
+
+        /// <summary>The strongest a stat on a piece of this rarity can be.</summary>
+        public static float MaxMult(int cls) => Band(Math.Max(0, Math.Min(3, cls))).hi;
+
+        public static bool AtMax(LootItem item, float m) => m >= MaxMult(item.WeaponClass) - 0.0005f;
+
+        /// <summary>One step up, never past the rarity's maximum.</summary>
+        public static float NextMult(LootItem item, float m) => AtMax(item, m) ? m : Math.Min(MaxMult(item.WeaponClass), (float)Math.Round(m + UpgradeStep, 3));
+
+        /// <summary>
+        /// Token price of one upgrade step: fixed by the piece's rarity, the same for every step
+        /// and every stat (300 / 600 / 1200 / 2400 × ShopPriceMultiplier × ArmorUpgradeCostMultiplier,
+        /// the same base as an enchantment: 750 / 1,500 / 3,000 / 6,000 at the defaults).
+        /// </summary>
+        public static int UpgradePrice(LootItem item)
+        {
+            var baseCost = Math.Max(0, Math.Min(3, item.WeaponClass)) switch { 0 => 300, 1 => 600, 2 => 1200, _ => 2400 };
+            return Math.Max(1, (int)Math.Round(baseCost * ModConfig.ShopPriceMultiplier.Value * Math.Max(0f, ModConfig.ArmorUpgradeCostMultiplier.Value)));
+        }
+
+        /// <summary>Raise one stat of a bag or worn piece by a step. The piece's sell value is not touched.</summary>
+        public static bool Upgrade(LootItem item, int index)
+        {
+            var inv = BagManager.Inventory;
+            if (!ModGate.Active) { BagManager.Toast("Not in a modded room."); return false; }
+            var live = item == null ? null : inv.Find(item.Id);
+            if (live == null || !live.IsArmor) { BagManager.Toast("That's gone."); return false; }
+            var stats = Decode(live.ArmorStats);
+            if (index < 0 || index >= stats.Count) return false;
+            var (st, m) = stats[index];
+            if (AtMax(live, m)) { BagManager.Toast("That stat is already at its best."); return false; }
+            var next = NextMult(live, m);
+            var price = UpgradePrice(live);
+            if (inv.Gold < price) { BagManager.Toast($"Upgrading costs {price} tokens; you have {inv.Gold}."); return false; }
+            inv.Gold -= price;
+            stats[index] = (st, next);
+            live.ArmorStats = Encode(stats);
+            inv.Save();
+            if (live.WornSlot >= 0) Buffs.RebuildWorn();
+            ReconLog.Line($"armor: upgrade {live.Name} [{SlotNames[live.ArmorSlot]}] {st} {m:0.###} -> {next:0.###} for {price} -> tokens {inv.Gold}");
+            BagManager.Toast($"{ShortLabel(st)} {m:0.00} → {next:0.00} for {price} tokens");
+            BagPanel.Refresh(); Booth.Refresh();
+            return true;
+        }
+
         // ---- wearing ------------------------------------------------------------------------
 
         public static LootItem Worn(int slot)

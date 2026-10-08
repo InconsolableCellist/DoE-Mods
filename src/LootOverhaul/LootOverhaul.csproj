@@ -10,7 +10,7 @@
     <TargetFramework>net6.0</TargetFramework>
     <AssemblyName>LootOverhaul</AssemblyName>
     <RootNamespace>LootOverhaul</RootNamespace>
-    <Version>0.10.3</Version>
+    <Version>0.10.4</Version>
     <EnableDefaultItems>true</EnableDefaultItems>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>

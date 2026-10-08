@@ -38,6 +38,8 @@ namespace LootOverhaul.Loot
             /// Zero = the getter's default (1).
             /// </summary>
             public float Floor;
+            /// <summary>Kept so tonics and armor already in a bag still read and work, but no longer sold or rolled.</summary>
+            public bool Retired;
         }
 
         /// <summary>
@@ -62,12 +64,12 @@ namespace LootOverhaul.Loot
             new Def { Stat = "Arms_Critical",     Name = "Keen Edge Oil",      Flavor = "stronger critical hits", Short = "crits" },
             new Def { Stat = "Arms_Distance",     Name = "Long Arm Liniment",  Flavor = "throw farther", Short = "throw range" },
             new Def { Stat = "Arms_Farshot",      Name = "Hawkeye Drops",      Flavor = "shoot farther", Short = "shot range" },
-            new Def { Stat = "Arms_Impale",       Name = "Skewer Salve",       Flavor = "stronger impales", Short = "impales" },
+            new Def { Stat = "Arms_Impale",       Name = "Skewer Salve",       Flavor = "stronger impales", Short = "impales", Retired = true },
             new Def { Stat = "Arms_Knockback",    Name = "Ram's Draught",      Flavor = "stronger knockbacks", Short = "knockback" },
-            new Def { Stat = "Arms_Might",        Name = "Ogre Blood",         Flavor = "more axe/spear damage", Short = "axe/spear dmg" },
-            new Def { Stat = "Arms_Pierce",       Name = "Needle Tincture",    Flavor = "more pierce damage", Short = "pierce dmg" },
+            new Def { Stat = "Arms_Might",        Name = "Ogre Blood",         Flavor = "more axe/spear damage", Short = "axe/spear dmg", Retired = true },
+            new Def { Stat = "Arms_Pierce",       Name = "Needle Tincture",    Flavor = "more pierce damage", Short = "pierce dmg", Retired = true },
             new Def { Stat = "Arms_Power",        Name = "Bruiser's Brew",     Flavor = "more weapon damage", Short = "weapon dmg" },
-            new Def { Stat = "Arms_Pullback",     Name = "Bowstring Balm",     Flavor = "more crossbow/staff damage", Short = "xbow/staff dmg" },
+            new Def { Stat = "Arms_Pullback",     Name = "Bowstring Balm",     Flavor = "more crossbow/staff damage", Short = "xbow/staff dmg", Retired = true },
             new Def { Stat = "Chest_Antidote",    Name = "Antidote Tonic",     Flavor = "poison does less damage", Short = "poison taken", Invert = true },
             new Def { Stat = "Chest_Armor",       Name = "Ironskin Tonic",     Flavor = "melee hits do less damage", Short = "melee taken", Invert = true },
             new Def { Stat = "Chest_Blast",       Name = "Powderkeg Brew",     Flavor = "fire does less damage", Short = "fire taken", Invert = true },
@@ -78,7 +80,7 @@ namespace LootOverhaul.Loot
             new Def { Stat = "Chest_Vitality",    Name = "Hearty Draught",     Flavor = "health regenerates faster", Short = "regen", Floor = 0.10f },
             new Def { Stat = "Chest_Antifreeze",  Name = "Ember Tea",          Flavor = "freezing wears off sooner", Short = "freeze time", Invert = true },
             new Def { Stat = "Legs_Absorb",       Name = "Cushion Cordial",    Flavor = "less fall damage", Short = "fall dmg", Invert = true },
-            new Def { Stat = "Legs_Endurance",    Name = "Marathon Brew",      Flavor = "stamina drains slower", Short = "stamina drain", Invert = true },
+            new Def { Stat = "Legs_Endurance",    Name = "Marathon Brew",      Flavor = "stamina drains slower", Short = "stamina drain", Invert = true, Retired = true },
             new Def { Stat = "Legs_Haste",        Name = "Quicksilver",        Flavor = "run faster", Short = "run speed", Floor = HasteFloor },
             new Def { Stat = "Legs_Jump",         Name = "Springheel",         Flavor = "jump higher", Short = "jump" },
             new Def { Stat = "Legs_Leap",         Name = "Grasshopper Gin",    Flavor = "leap farther", Short = "leap" },
@@ -148,7 +150,7 @@ namespace LootOverhaul.Loot
         public static List<Def> Offered()
         {
             var list = new List<Def> { LightPotion.Def };   // no perk behind it
-            foreach (var d in Catalogue) if (Unlocks.PerkUnlocked(d.Stat)) list.Add(d);
+            foreach (var d in Catalogue) if (!d.Retired && Unlocks.PerkUnlocked(d.Stat)) list.Add(d);
             return list;
         }
 

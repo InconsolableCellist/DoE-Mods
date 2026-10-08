@@ -3,6 +3,22 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.10.4 (2026-10-08)
+
+### Changed
+- **Armor has one perk, a Legendary two.** Common, Unique and Rare pieces roll one stat, a Legendary two. The strength bands are unchanged. Rolls are now whole hundredths (×1.12, not ×1.123) so every upgrade step lands cleanly.
+- **Stats follow the slot.** Head is offense (weapon damage, crits, knockback, throw range, shot range), chest is defense (melee, arrows, magic, fire and poison taken, freeze time, potion heal, regeneration, standing-still regeneration, self-effects, enemy aim), legs are utility (run speed, jump, leap, fall damage, run coins). No stat is on two slots, so worn pieces can no longer stack the same stat. Armor already in a bag keeps its old stats.
+- **Five stats retired.** Axe/spear damage, pierce damage, crossbow/staff damage (general weapon damage covers them), impales and stamina drain are no longer rolled on armor or sold as tonics. Tonics and armor already in a bag keep working.
+
+### Added
+- **ENCHANT now opens on a menu: WEAPON or ARMOR.** WEAPON is the table as it was (a MENU button leads back). ARMOR shows the piece worn on head, chest or legs (name and rarity) and a card per stat: current, next and max as +xx%, a slim bar of the rarity's range with "5/13 Upgrades", the price and an up-arrow button that raises that one stat by 0.01. A stat at its maximum shows MAXED.
+- **A fixed price per upgrade step**, set by the piece's rarity and the same for every step and every stat: 750 Common, 1,500 Unique, 3,000 Rare, 6,000 Legendary at the defaults (the enchanting base price × ShopPriceMultiplier). It never rises with the number of upgrades. A luxury and a token sink. Setting: `ArmorUpgradeCostMultiplier` (default 1.0).
+- **Upgrading never changes the sell price**; the item's value is not touched.
+
+### Fixed
+- **WEAR and SELL flickered on the armor page.** The two buttons sat so close that their glow edges touched, and the pointer flipped between them. They are now slightly smaller with a clear gap between them.
+- Review fixes from 0.10.2 are included: a stat only one piece has counts from the neutral 1.0 in the armor comparison, the shop button shows the missing price, and the enchant price colour matches.
+
 ## 0.10.3 (2026-10-08)
 
 ### Changed

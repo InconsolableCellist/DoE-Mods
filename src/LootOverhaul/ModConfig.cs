@@ -77,6 +77,8 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<bool> TossJunkWhenFull;
         /// <summary>Enchanting price = the rarity's base price × ShopPriceMultiplier × this.</summary>
         public static MelonPreferences_Entry<float> EnchantCostMultiplier;
+        /// <summary>Armor upgrade price per step = the rarity base price × ShopPriceMultiplier × this.</summary>
+        public static MelonPreferences_Entry<float> ArmorUpgradeCostMultiplier;
         /// <summary>An invisible pointer target over each panel so the laser shows across the whole window.</summary>
         public static MelonPreferences_Entry<bool> PanelLaser;
         /// <summary>How the bag opens in VR: "back-grip" (right hand behind you, grip + stick up), "stick-hold" (right stick held up), or "off".</summary>
@@ -188,6 +190,7 @@ namespace LootOverhaul
             AutoPickupArmor = Main.CreateEntry("AutoPickupArmor", true, description: "Armor bundles (the small chests) are picked up by walking over them as well. Off: armor is a hand grab like weapons.");
             TossJunkWhenFull = Main.CreateEntry("TossJunkWhenFull", true, description: "Grabbing a weapon or armor that does not fit tosses the cheapest unlocked trinkets out of the bag to make room. Nothing equipped, worn or locked is ever tossed.");
             EnchantCostMultiplier = Main.CreateEntry("EnchantCostMultiplier", 1.0f, description: "Enchanting costs the rarity's base price (300 / 600 / 1200 / 2400 tokens) × ShopPriceMultiplier × this. No reagent is consumed.");
+            ArmorUpgradeCostMultiplier = Main.CreateEntry("ArmorUpgradeCostMultiplier", 1.0f, description: "Every armor upgrade step (0.01 on one stat) costs the rarity base price (300 / 600 / 1200 / 2400 tokens) × ShopPriceMultiplier × this: 750 / 1,500 / 3,000 / 6,000 at the defaults. The price is the same for every step.");
             BagGesture = Main.CreateEntry("BagGesture", "stick-hold",
                 description: "back-grip = reach behind your back with the right hand, squeeze grip and push the stick up; stick-hold = hold the right stick up; off.");
             BagGestureHoldSeconds = Main.CreateEntry("BagGestureHoldSeconds", 0.7f);
