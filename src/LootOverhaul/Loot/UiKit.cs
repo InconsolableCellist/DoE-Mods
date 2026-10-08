@@ -234,6 +234,41 @@ namespace LootOverhaul.Loot
             return string.Join(" · ", parts);
         }
 
+        /// <summary>Row layout, from the row's left edge: icon, then the type tag, then the text.</summary>
+        public const float TagX = 0.17f, TextX = 0.245f;
+
+        /// <summary>
+        /// The small type tag between a row's icon and its name, centred on two lines:
+        /// "Sword" over "T7" for a weapon, "Head" over "armor", "Tonic", "Junk". It replaces the
+        /// "Sword t7" that used to lead the stats line, so the line starts with the numbers.
+        /// </summary>
+        public static void TypeTag(Transform row, Vector3 localPos, LootItem item)
+        {
+            string text;
+            if (item.IsWeapon) text = $"<color=#C8C8C8>{LootTables.TypeName(item.PropType)}</color>\n<color=#F5C542>T{item.WeaponTier + 1}</color>";
+            else if (item.IsArmor) text = $"<color=#C8C8C8>{Armor.SlotNames[item.ArmorSlot]}</color>\n<color=#B0B0B0>armor</color>";
+            else if (item.IsBuff) text = "<color=#7FD8FF>Tonic</color>";
+            else text = "<color=#B0B0B0>Junk</color>";
+            Text(row, localPos, 0.13f, 0.07f, 0.26f, text, TextAlignmentOptions.Center, fit: true, lines: 2);
+        }
+        /// <summary>
+        /// The game's stats text one stat per line: "44 Fire Damage",
+        /// "Elite Damage". The leading "+ " the game puts before perks is dropped.
+        /// </summary>
+        public static string StatsList(string raw)
+        {
+            if (string.IsNullOrEmpty(raw)) return "";
+            var s = System.Text.RegularExpressions.Regex.Replace(raw, @"<color=[^>]*>\s*</color>", "");
+            var lines = new System.Collections.Generic.List<string>();
+            foreach (var line in s.Replace("\r", "").Split(new[] { '\n', '|' }))
+            {
+                var t = System.Text.RegularExpressions.Regex.Replace(line, @"\s+", " ").Trim();
+                t = System.Text.RegularExpressions.Regex.Replace(t, @"^\+\s*", "");
+                if (t.Length > 0) lines.Add(t);
+            }
+            return string.Join("\n", lines);
+        }
+
         /// <summary>
         /// A bright rectangular frame: four thin bars around <paramref name="center"/> in the
         /// parent's plane, unlit-looking (colour plus emission) so it reads in a dark room.
@@ -272,6 +307,76 @@ namespace LootOverhaul.Loot
                 catch { }
             }
             return root;
+        }
+
+        /// <summary>
+        /// A lit-from-within flat strip (row stripe, divider, active-tab underline). Emissive so it
+        /// shows in a dark room (the plain tinted backdrop renders near black there); no laser
+        /// catcher, so it never steals the pointer from the buttons on top of it.
+        /// </summary>
+        public static GameObject Bar(Transform parent, Vector3 localPos, float width, float height, Color color)
+        {
+            var quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            quad.name = "Bar";
+            try { UnityEngine.Object.Destroy(quad.GetComponent<Collider>()); } catch { }
+            quad.transform.SetParent(parent, false);
+            quad.transform.localPosition = localPos;
+            quad.transform.localRotation = Quaternion.identity;
+            quad.transform.localScale = new Vector3(width, height, 1f);
+            try
+            {
+                var r = quad.GetComponent<Renderer>();
+                r.material.color = color;
+                try { r.material.EnableKeyword("_EMISSION"); r.material.SetColor("_EmissionColor", color); } catch { }
+                r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                r.receiveShadows = false;
+            }
+            catch { }
+            return quad;
+        }
+
+        /// <summary>
+        /// A pointable with nothing drawn: a button clone with its renderers off, sized to
+        /// <paramref name="width"/> × <paramref name="height"/> metres, that runs
+        /// <paramref name="onPressed"/>. The caller draws whatever it should look like.
+        /// </summary>
+        public static InteractableButton HitBox(Transform parent, Vector3 localPos, float width, float height, Action onPressed)
+        {
+            if (!Interop.Alive(_buttonTemplate)) return null;
+            try
+            {
+                var go = UnityEngine.Object.Instantiate(_buttonTemplate, parent);
+                go.name = "HitBox";
+                go.transform.localPosition = localPos;
+                go.transform.localRotation = Quaternion.identity;
+                var baseScale = _buttonTemplate.transform.localScale;
+                go.transform.localScale = new Vector3(baseScale.x * width / ButtonSize.x, baseScale.y * height / ButtonSize.y, baseScale.z);
+                go.SetActive(true);
+                foreach (var r in go.GetComponentsInChildren<Renderer>(true)) if (Interop.Alive(r)) r.enabled = false;
+                var btn = go.GetComponent<InteractableButton>();
+                if (!Interop.Alive(btn)) return null;
+                btn.scaleOnHoverAndPress = false;
+                if (onPressed != null) btn.onPressed.AddListener(DelegateSupport.ConvertDelegate<UnityAction>(onPressed));
+                return btn;
+            }
+            catch (Exception e)
+            {
+                Core.Log.Warning($"Hit box failed: {e.GetType().Name}: {e.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// A small padlock that toggles on press: gold with the shackle closed when
+        /// <paramref name="locked"/>, grey with the shackle lifted when not. Drawn from bars,
+        /// so it needs no font glyph.
+        /// </summary>
+        public static void LockIcon(Transform parent, Vector3 localPos, bool locked, Action onPressed)
+        {
+            var c = locked ? new Color(0.96f, 0.77f, 0.26f, 1f) : new Color(0.5f, 0.54f, 0.62f, 1f);
+            Bar(parent, localPos + new Vector3(0f, -0.014f, -0.004f), 0.05f, 0.036f, c);
+            Frame(parent, localPos + new Vector3(locked ? 0f : 0.01f, locked ? 0.016f : 0.03f, 0f), 0.03f, 0.032f, 0.007f, c);
+            HitBox(parent, localPos, 0.11f, 0.09f, onPressed);
         }
 
         /// <summary>A flat dark backdrop. The default primitive material tinted; good enough until the booth gets art.</summary>

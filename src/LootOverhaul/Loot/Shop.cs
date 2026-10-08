@@ -120,7 +120,6 @@ namespace LootOverhaul.Loot
             inv.Items.Add(bought);
             inv.Save();
             Bought++;
-            BagManager.Toast($"Bought {bought.ColoredName} for <color=#F5C542>{price} tokens</color>  (now {inv.Gold})");
             ReconLog.Line($"shop: bought {bought.Name} for {price} -> tokens {inv.Gold}");
             BagPanel.Refresh();
             return true;
@@ -140,7 +139,6 @@ namespace LootOverhaul.Loot
             inv.Items.Add(item);
             inv.Save();
             Bought++;
-            BagManager.Toast($"Bought {item.ColoredName} for <color=#F5C542>{price} tokens</color>  (now {inv.Gold})");
             ReconLog.Line($"shop: bought tonic {item.Name} for {price} -> tokens {inv.Gold}");
             BagPanel.Refresh();
             return true;
@@ -156,7 +154,6 @@ namespace LootOverhaul.Loot
             inv.Gold -= price;
             inv.Save();
             EnsureStock(force: true);
-            BagManager.Toast($"Restocked for <color=#F5C542>{price} tokens</color>");
             return true;
         }
     }

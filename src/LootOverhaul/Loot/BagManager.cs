@@ -127,7 +127,6 @@ namespace LootOverhaul.Loot
             inv.Gold -= price;
             inv.BagLevel++;
             inv.Save();
-            Toast($"Bought a {next.name}: bag capacity is now {Capacity:0} wt.");
             ReconLog.Line($"bag upgrade {inv.BagLevel} ({next.name}) for {price} -> tokens {inv.Gold}");
             BagPanel.Refresh(); Booth.Refresh();
             return true;

@@ -21,11 +21,38 @@ namespace LootOverhaul.Loot
     public static class Booth
     {
         private const int RowsPerPage = 6;
-        private const float RowHeight = 0.12f;
-        private const float PanelWidth = 1.25f;
-        private const float BtnScale = 0.34f;
+        // Readability pass (report 2026-10-08: tiny text, cramped rows, hard to steer): roomier rows,
+        // larger type, a price column of its own, striped rows, and the whole stall scaled up.
+        private const float RowHeight = 0.14f;
+        private const float PanelWidth = 1.45f;
+        private const float PanelScale = 1.1f;
+        private const float BtnScale = 0.36f;
+        private const float TitleSize = 0.46f;
+        private const float SubSize = 0.34f;
+        private const float HeadSize = 0.56f;
+        private const float PriceW = 0.2f;
+        private static readonly Color StripeSell = new Color(0.16f, 0.12f, 0.08f, 1f);
+        private static readonly Color StripeBuy = new Color(0.08f, 0.12f, 0.18f, 1f);
         private static float BtnW => UiKit.ButtonSize.x * BtnScale;
 
+        /// <summary>Every other row gets a lit stripe so the eye can follow a row from name to button.</summary>
+        private static void Stripe(Transform row, int i, Color color)
+        {
+            if (i % 2 == 0) UiKit.Bar(row, new Vector3(0f, 0f, 0.006f), PanelWidth - 0.03f, RowHeight - 0.008f, color);
+        }
+
+        /// <summary>A price centred on <paramref name="centerX"/>, in the middle of the row.</summary>
+        private static void PriceText(Transform row, float centerX, string text)
+            => UiKit.Text(row, new Vector3(centerX, 0f, 0f), PriceW, 0.05f, 0.4f, text, TextAlignmentOptions.Center, fit: true);
+
+        /// <summary>One stat per line for a bag item.</summary>
+        private static string StatList(LootItem item)
+        {
+            if (item.IsWeapon) { try { return UiKit.StatsList(WeaponCodec.ToModule(item).GetStatsText()); } catch { return ""; } }
+            if (item.IsBuff) return $"<color=#B0B0B0>{Buffs.Effect(item.BuffStat, item.BuffMult)}</color>";
+            if (item.IsArmor) return "<color=#B0B0B0>" + Armor.DescribeStatsShort(item).Replace(", ", "\n") + "</color>";
+            return $"<color=#B0B0B0>{LootTables.JunkTierName(item.WeaponClass)}</color>";
+        }
         private static GameObject _root;
         private static Transform _sell, _buy;
         private static int _sellPage, _tonicPage, _enchantPage, _helpPage, _armorPage;
@@ -94,12 +121,14 @@ namespace LootOverhaul.Loot
             var buy = new GameObject("Buy"); buy.transform.SetParent(_root.transform, false);
             _sell = sell.transform; _buy = buy.transform;
             // Two panels side by side, each a little over a metre wide, angled toward the visitor.
-            _sell.localPosition = new Vector3(-0.70f, 1.3f, 0f);
-            _sell.localRotation = Quaternion.Euler(0f, -14f, 0f);
-            _buy.localPosition = new Vector3(0.70f, 1.3f, 0f);
-            _buy.localRotation = Quaternion.Euler(0f, 14f, 0f);
-            UiKit.Text(_root.transform, new Vector3(0f, 2.02f, 0f), 1.6f, 0.15f, 0.9f, "<b>KOBOLD TRAVELER</b>", TextAlignmentOptions.Center);
-            UiKit.Text(_root.transform, new Vector3(0f, 1.9f, 0f), 1.6f, 0.06f, 0.36f, "<color=#9A9A9A>shinies from the dungeon for tokens</color>", TextAlignmentOptions.Center);
+            _sell.localPosition = new Vector3(-0.90f, 1.4f, 0f);
+            _sell.localRotation = Quaternion.Euler(0f, -18f, 0f);
+            _sell.localScale = Vector3.one * PanelScale;
+            _buy.localPosition = new Vector3(0.90f, 1.4f, 0f);
+            _buy.localRotation = Quaternion.Euler(0f, 18f, 0f);
+            _buy.localScale = Vector3.one * PanelScale;
+            UiKit.Text(_root.transform, new Vector3(0f, 2.27f, 0f), 1.8f, 0.15f, 0.9f, "<b>KOBOLD TRAVELER</b>", TextAlignmentOptions.Center);
+            UiKit.Text(_root.transform, new Vector3(0f, 2.14f, 0f), 1.8f, 0.06f, 0.4f, "<color=#B0B0B0>shinies from the dungeon for tokens</color>", TextAlignmentOptions.Center);
         }
 
         private static void PlaceFromConfig()
@@ -135,36 +164,40 @@ namespace LootOverhaul.Loot
             UiKit.Backdrop(_sell, new Vector3(0f, 0f, 0.01f), PanelWidth, height, new Color(0.08f, 0.06f, 0.04f, 1f));
             var top = height * 0.5f;
             var left = -PanelWidth * 0.5f + 0.04f;
-            UiKit.Text(_sell, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f,
+            UiKit.Text(_sell, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, HeadSize,
                 $"<b>SELL</b>   {inv.Items.Count} item(s)   <color=#F5C542>{inv.Gold} tokens</color>", fit: true);
 
             var y0 = top - 0.19f;
             var start = _sellPage * perPage;
+            // Right side, from the panel edge: SELL button, padlock, the price (centred), then the text.
             var sellX = PanelWidth * 0.5f - 0.04f - BtnW * 0.5f;
-            var lockX = sellX - BtnW * 1.2f - 0.03f;
-            // One row fewer so the bag line fits above the pager; two buttons per row (LOCK, SELL).
-            var textW = lockX - BtnW * 0.5f - 0.02f - (left + 0.16f);
+            var lockX = sellX - BtnW * 0.6f - 0.07f;
+            var priceX = lockX - 0.07f - PriceW * 0.5f;
+            var textStart = left + UiKit.TextX;
+            var textEnd = priceX - PriceW * 0.5f - 0.02f;
+            var nameW = (textEnd - textStart) * 0.54f;     // name on the left, one stat per line on the right
+            var statX = textStart + nameW + 0.02f;
+            var statW = textEnd - statX;
             for (var i = 0; i < RowsPerPage - 1 && start + i < items.Count; i++)
             {
                 var item = items[start + i];
                 var row = new GameObject($"SellRow_{i}"); row.transform.SetParent(_sell, false);
                 row.transform.localPosition = new Vector3(0f, y0 - i * RowHeight, 0f);
-                UiKit.Preview(row.transform, new Vector3(left + 0.07f, 0f, -0.03f), item, 0.11f);
+                Stripe(row.transform, i, StripeSell);
+                UiKit.Preview(row.transform, new Vector3(left + 0.055f, 0f, -0.03f), item, 0.1f);
+                UiKit.TypeTag(row.transform, new Vector3(left + UiKit.TagX, 0f, 0f), item);
                 var slot = inv.EquippedSlotOf(item);
-                var equipped = slot >= 0 ? $"   <color=#F5C542>equipped: {Loadout.SlotNames[slot]}</color>" : item.WornSlot >= 0 ? "   <color=#C9A86A>worn</color>" : "";
-                string kind;
-                if (item.IsWeapon) { string stats = ""; try { stats = UiKit.StatsLine(WeaponCodec.ToModule(item).GetStatsText()); } catch { } kind = $"<color=#9A9A9A>{LootTables.TypeName(item.PropType)} t{item.WeaponTier + 1}</color>  {stats}"; }
-                else if (item.IsBuff) kind = "<color=#9A9A9A>tonic</color>";
-                else if (item.IsArmor) kind = $"<color=#9A9A9A>{Armor.SlotNames[item.ArmorSlot].ToLowerInvariant()} armor · {Armor.DescribeStats(item)}</color>";
-                else kind = $"<color=#9A9A9A>{LootTables.JunkTierName(item.WeaponClass)}</color>";
-                UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), textW, 0.05f, 0.38f, $"{item.ColoredName}{equipped}   <color=#F5C542>{SellPrice(item)} tokens</color>", fit: true);
-                UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), textW, 0.045f, item.IsWeapon ? 0.27f : 0.3f, kind, fit: true);
+                UiKit.Text(row.transform, new Vector3(textStart, 0f, 0f), nameW, 0.09f, TitleSize, item.ColoredName, fit: true, lines: 2);
+                UiKit.Text(row.transform, new Vector3(statX, 0f, 0f), statW, 0.13f, 0.26f, StatList(item), fit: true, lines: 4);
+                PriceText(row.transform, priceX, $"<color=#F5C542>{SellPrice(item)} tk</color>");
                 var captured = item;
-                UiKit.Button(row.transform, new Vector3(lockX, 0f, 0f), item.Locked ? "UNLOCK" : "LOCK", () => ToggleLock(captured), BtnScale);
+                UiKit.LockIcon(row.transform, new Vector3(lockX, 0f, 0f), item.Locked, () => ToggleLock(captured));
+                // State text sits where the SELL button would be.
                 if (item.Locked)
-                    UiKit.Text(row.transform, new Vector3(sellX - BtnW * 0.5f, 0f, 0f), BtnW, 0.05f, 0.3f, "<color=#9A9A9A>locked</color>", TextAlignmentOptions.Center);
+                    UiKit.Text(row.transform, new Vector3(sellX, 0f, 0f), 0.15f, 0.05f, 0.3f, "<color=#B0B0B0>locked</color>", TextAlignmentOptions.Center, fit: true);
                 else if (inv.InUse(item))
-                    UiKit.Text(row.transform, new Vector3(sellX - BtnW * 0.5f, 0f, 0f), BtnW, 0.05f, 0.3f, slot >= 0 ? "<color=#9A9A9A>equipped</color>" : "<color=#9A9A9A>worn</color>", TextAlignmentOptions.Center);
+                    UiKit.Text(row.transform, new Vector3(sellX, 0f, 0f), 0.15f, 0.05f, 0.3f,
+                        slot >= 0 ? "<color=#F5C542>equipped</color>" : "<color=#C9A86A>worn</color>", TextAlignmentOptions.Center, fit: true);
                 else
                     UiKit.Button(row.transform, new Vector3(sellX, 0f, 0f), "SELL", () => Sell(captured), BtnScale);
             }
@@ -181,7 +214,7 @@ namespace LootOverhaul.Loot
             // equipped and worn items are never swept. The buttons say SELL so they are not taken
             // for sort buttons (report 2026-09-12); the caption carries the token totals.
             var groups = new[] { (label: "JUNK", cls: -1), (label: "COMMON", cls: 0), (label: "UNIQUE", cls: 1), (label: "RARE", cls: 2) };
-            var caption = new System.Text.StringBuilder("<b>SELL ALL</b> <color=#9A9A9A>of a kind — never locked, equipped or worn:</color>");
+            var caption = new System.Text.StringBuilder("<b>SELL ALL</b> <color=#B0B0B0>of a kind — never locked, equipped or worn:</color>");
             var gx = left + BtnW * 0.5f;
             var ggap = BtnW * 1.2f + 0.03f;
             foreach (var g in groups)
@@ -192,7 +225,7 @@ namespace LootOverhaul.Loot
                 UiKit.Button(_sell, new Vector3(gx, bottom + 0.18f, 0f), n > 0 ? $"SELL {n} {g.label}" : $"SELL {g.label}", () => SellAll(cls), BtnScale, enabled: n > 0);
                 gx += ggap;
             }
-            UiKit.Text(_sell, new Vector3(left, bottom + 0.245f, 0f), PanelWidth - 0.08f, 0.045f, 0.28f, caption.ToString(), fit: true);
+            UiKit.Text(_sell, new Vector3(left, bottom + 0.245f, 0f), PanelWidth - 0.08f, 0.045f, 0.32f, caption.ToString(), fit: true);
             // A bigger bag, the kobold's token sink, on the row above the pager.
             var bagY = bottom + 0.09f;
             if (inv.BagLevel < BagManager.BagUpgrades.Length)
@@ -200,12 +233,12 @@ namespace LootOverhaul.Loot
                 var next = BagManager.BagUpgrades[inv.BagLevel];
                 var price = (int)Math.Round(next.price * ModConfig.ShopPriceMultiplier.Value);
                 var bagBtnX = PanelWidth * 0.5f - 0.04f - BtnW * 0.5f;
-                UiKit.Text(_sell, new Vector3(left, bagY, 0f), WidthBefore(bagBtnX, left), 0.05f, 0.32f,
-                    $"<color=#9A9A9A>bag {inv.TotalWeight:0.#} / {BagManager.Capacity:0} wt   ·   {next.name} (+{next.bonus:0} wt)  <color=#F5C542>{price} tokens</color></color>", fit: true);
+                UiKit.Text(_sell, new Vector3(left, bagY, 0f), WidthBefore(bagBtnX, left), 0.05f, 0.36f,
+                    $"<color=#B0B0B0>bag {inv.TotalWeight:0.#} / {BagManager.Capacity:0} wt   ·   {next.name} (+{next.bonus:0} wt)  <color=#F5C542>{price} tokens</color></color>", fit: true);
                 UiKit.Button(_sell, new Vector3(bagBtnX, bagY, 0f), "BUY", () => { BagManager.BuyBagUpgrade(); }, BtnScale, enabled: inv.Gold >= price);
             }
             else
-                UiKit.Text(_sell, new Vector3(left, bagY, 0f), PanelWidth - 0.08f, 0.05f, 0.32f, $"<color=#9A9A9A>bag {inv.TotalWeight:0.#} / {BagManager.Capacity:0} wt   ·   {BagManager.BagUpgrades[^1].name}, the biggest there is</color>", fit: true);
+                UiKit.Text(_sell, new Vector3(left, bagY, 0f), PanelWidth - 0.08f, 0.05f, 0.36f, $"<color=#B0B0B0>bag {inv.TotalWeight:0.#} / {BagManager.Capacity:0} wt   ·   {BagManager.BagUpgrades[^1].name}, the biggest there is</color>", fit: true);
             if (items.Count == 0)
                 UiKit.Text(_sell, new Vector3(0f, y0 - RowHeight, 0f), 0.8f, 0.06f, 0.4f, "Nothing to sell.", TextAlignmentOptions.Center);
         }
@@ -230,27 +263,30 @@ namespace LootOverhaul.Loot
             if (_buyMode == 2) { BuildEnchant(top, left); return; }
             if (_buyMode == 3) { BuildArmor(top, left); return; }
             var restockX = PanelWidth * 0.5f - 0.04f - BtnW * 0.5f;
-            UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), WidthBefore(restockX, left), 0.06f, 0.5f,
-                $"<b>WEAPONS</b>   {Tokens(inv)}   <color=#9A9A9A>{stock.Count} in stock · new in {minutesLeft} min</color>", fit: true);
+            UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), WidthBefore(restockX, left), 0.06f, HeadSize,
+                $"<b>WEAPONS</b>   {Tokens(inv)}   <color=#B0B0B0>{stock.Count} in stock · new in {minutesLeft} min</color>", fit: true);
             UiKit.Button(_buy, new Vector3(restockX, top - 0.05f, 0f), $"RESTOCK {Shop.RestockPrice(inv)} tk", () => { if (Shop.Restock()) Rebuild(); }, BtnScale);
 
             var y0 = top - 0.27f;
             var buyX = PanelWidth * 0.5f - 0.04f - BtnW * 0.5f;
-            var textW = buyX - BtnW * 0.5f - 0.02f - (left + 0.16f);
+            var priceX = buyX - BtnW * 0.6f - 0.02f - PriceW * 0.5f;
+            var textStart = left + UiKit.TextX;
+            var textW = priceX - PriceW * 0.5f - 0.02f - textStart;
             for (var i = 0; i < RowsPerPage && i < stock.Count; i++)
             {
                 var item = stock[i];
                 var row = new GameObject($"BuyRow_{i}"); row.transform.SetParent(_buy, false);
                 row.transform.localPosition = new Vector3(0f, y0 - i * RowHeight, 0f);
-                UiKit.Preview(row.transform, new Vector3(left + 0.07f, 0f, -0.03f), item, 0.11f);
+                Stripe(row.transform, i, StripeBuy);
+                UiKit.Preview(row.transform, new Vector3(left + 0.055f, 0f, -0.03f), item, 0.1f);
+                UiKit.TypeTag(row.transform, new Vector3(left + UiKit.TagX, 0f, 0f), item);
                 string stats = "";
                 try { stats = UiKit.StatsLine(WeaponCodec.ToModule(item).GetStatsText()); } catch { }
                 var afford = inv.Gold >= item.Value;
-                var priceColor = afford ? "#F5C542" : "#B04040";
-                UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), textW, 0.05f, 0.38f,
-                    $"{item.ColoredName}   <color={priceColor}>{item.Value} tokens</color>", fit: true);
-                UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), textW, 0.045f, 0.27f,
-                    $"<color=#9A9A9A>{LootTables.TypeName(item.PropType)} t{item.WeaponTier + 1}</color>  {stats}", fit: true);
+                var priceColor = afford ? "#F5C542" : "#E06060";
+                UiKit.Text(row.transform, new Vector3(textStart, 0.03f, 0f), textW, 0.05f, TitleSize, item.ColoredName, fit: true);
+                UiKit.Text(row.transform, new Vector3(textStart, -0.03f, 0f), textW, 0.045f, SubSize, stats, fit: true);
+                PriceText(row.transform, priceX, $"<color={priceColor}>{item.Value} tk</color>");
                 var captured = item;
                 UiKit.Button(row.transform, new Vector3(buyX, 0f, 0f), afford ? "BUY" : $"NEED {item.Value} tk", () => { if (Shop.Buy(captured)) Rebuild(); }, BtnScale, enabled: afford);
             }
@@ -264,10 +300,13 @@ namespace LootOverhaul.Loot
         private static void BuyTabs(float top, float left)
         {
             var y = top - 0.15f;
-            var tabScale = BtnScale * 0.8f;
-            var w = Mathf.Max(BtnW * 0.8f, 0.2f);
-            var gap = w + 0.09f;
+            var tabScale = BtnScale * 0.9f;
+            var w = Mathf.Max(BtnW * 0.9f, 0.22f);
+            var gap = w + 0.1f;
             var x = left + w * 0.5f;
+            // A gold bar under the open tab and a rule under the row, so the current page is never in doubt.
+            UiKit.Bar(_buy, new Vector3(left + w * 0.5f + _buyMode * gap, y - 0.045f, 0.004f), w + 0.04f, 0.012f, new Color(0.96f, 0.77f, 0.26f, 1f));
+            UiKit.Bar(_buy, new Vector3(0f, y - 0.058f, 0.004f), PanelWidth - 0.04f, 0.004f, new Color(0.25f, 0.3f, 0.4f, 1f));
             UiKit.Button(_buy, new Vector3(x, y, 0f), _buyMode == 0 ? "• WEAPONS" : "WEAPONS", () => { _buyMode = 0; BuildBuy(); }, tabScale); x += gap;
             UiKit.Button(_buy, new Vector3(x, y, 0f), _buyMode == 1 ? "• TONICS" : "TONICS", () => { _buyMode = 1; BuildBuy(); }, tabScale); x += gap;
             UiKit.Button(_buy, new Vector3(x, y, 0f), _buyMode == 2 ? "• ENCHANT" : "ENCHANT", () => { _buyMode = 2; _enchantTarget = null; _enchantHelp = false; BuildBuy(); }, tabScale); x += gap;
@@ -278,8 +317,8 @@ namespace LootOverhaul.Loot
         {
             var inv = BagManager.Inventory;
             var offered = Buffs.Offered();
-            UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f,
-                $"<b>TONICS</b>   {Tokens(inv)}   <color=#9A9A9A>good for one excursion · {offered.Count} brew(s)</color>", fit: true);
+            UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, HeadSize,
+                $"<b>TONICS</b>   {Tokens(inv)}   <color=#B0B0B0>good for one excursion · {offered.Count} brew(s)</color>", fit: true);
             if (offered.Count == 0)
             {
                 UiKit.Text(_buy, new Vector3(0f, top - 0.4f, 0f), 1.1f, 0.06f, 0.36f, "Unlock exosuit perks to use potions with those perks.", TextAlignmentOptions.Center);
@@ -302,8 +341,9 @@ namespace LootOverhaul.Loot
                 var def = offered[start + i];
                 var row = new GameObject($"TonicRow_{i}"); row.transform.SetParent(_buy, false);
                 row.transform.localPosition = new Vector3(0f, y0 - i * 0.14f, 0f);
-                UiKit.Text(row.transform, new Vector3(left, 0.03f, 0f), textW, 0.05f, 0.38f, $"<color=#7FD8FF>{def.Name}</color>", fit: true);
-                UiKit.Text(row.transform, new Vector3(left, -0.03f, 0f), textW, 0.045f, 0.3f, $"<color=#9A9A9A>{def.Flavor} · {Buffs.Tiers(def)}</color>", fit: true);
+                Stripe(row.transform, i, StripeBuy);
+                UiKit.Text(row.transform, new Vector3(left, 0.03f, 0f), textW, 0.05f, TitleSize, $"<color=#7FD8FF>{def.Name}</color>", fit: true);
+                UiKit.Text(row.transform, new Vector3(left, -0.03f, 0f), textW, 0.045f, SubSize, $"<color=#B0B0B0>{def.Flavor} · {Buffs.Tiers(def)}</color>", fit: true);
                 var captured = def;
                 var x = rightX;
                 for (var t = 2; t >= 0; t--)
@@ -335,7 +375,7 @@ namespace LootOverhaul.Loot
             var headerW = WidthBefore(bx, left);
             if (!Enchanting.Ready)
             {
-                UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), headerW, 0.06f, 0.5f, "<b>ENCHANT</b>   <color=#9A9A9A>unavailable</color>", fit: true);
+                UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), headerW, 0.06f, HeadSize, "<b>ENCHANT</b>   <color=#B0B0B0>unavailable</color>", fit: true);
                 UiKit.Text(_buy, new Vector3(0f, top - 0.4f, 0f), 1.1f, 0.06f, 0.34f, "Enchanting is unavailable in this game version.", TextAlignmentOptions.Center);
                 return;
             }
@@ -348,10 +388,10 @@ namespace LootOverhaul.Loot
                 weapons.Sort((a, b) => b.WeaponClass != a.WeaponClass ? b.WeaponClass.CompareTo(a.WeaponClass) : b.Value.CompareTo(a.Value));
                 var pages = Math.Max(1, (weapons.Count + RowsPerPage - 1) / RowsPerPage);
                 _enchantPage = Math.Max(0, Math.Min(_enchantPage, pages - 1));
-                UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), headerW, 0.06f, 0.5f, $"<b>ENCHANT</b>   {Tokens(inv)}   <color=#9A9A9A>pick a weapon</color>", fit: true);
+                UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), headerW, 0.06f, HeadSize, $"<b>ENCHANT</b>   {Tokens(inv)}   <color=#B0B0B0>pick a weapon</color>", fit: true);
                 var y0 = top - 0.27f;
                 var start = _enchantPage * RowsPerPage;
-                var textX = left + 0.16f;
+                var textX = left + UiKit.TextX;
                 var textW = WidthBefore(bx, textX);
                 for (var i = 0; i < RowsPerPage && start + i < weapons.Count; i++)
                 {
@@ -359,14 +399,16 @@ namespace LootOverhaul.Loot
                     Enchanting.ReadRolledPerks(item);
                     var row = new GameObject($"EnchRow_{i}"); row.transform.SetParent(_buy, false);
                     row.transform.localPosition = new Vector3(0f, y0 - i * RowHeight, 0f);
-                    UiKit.Preview(row.transform, new Vector3(left + 0.07f, 0f, -0.03f), item, 0.11f);
+                    Stripe(row.transform, i, StripeBuy);
+                    UiKit.Preview(row.transform, new Vector3(left + 0.055f, 0f, -0.03f), item, 0.1f);
+                UiKit.TypeTag(row.transform, new Vector3(left + UiKit.TagX, 0f, 0f), item);
                     var slot = inv.EquippedSlotOf(item);
                     var equipped = slot >= 0 ? $"   <color=#F5C542>equipped: {Loadout.SlotNames[slot]}</color>" : "";
                     var price = Enchanting.Price(item);
                     var afford = inv.Gold >= price;
-                    UiKit.Text(row.transform, new Vector3(textX, 0.025f, 0f), textW, 0.05f, 0.38f, $"{item.ColoredName}{equipped}", fit: true);
-                    UiKit.Text(row.transform, new Vector3(textX, -0.025f, 0f), textW, 0.045f, 0.3f,
-                        $"<color=#9A9A9A>slots {Enchanting.UsedSlots(item)}/{Enchanting.Slots(item.WeaponClass)}   element {(item.DamageType < 0 ? "none" : Enchanting.Elements[Math.Min(2, item.DamageType)])}   <color={(afford ? "#F5C542" : "#B04040")}>{price} tokens</color> per enchantment</color>", fit: true);
+                    UiKit.Text(row.transform, new Vector3(textX, 0.03f, 0f), textW, 0.05f, TitleSize, $"{item.ColoredName}{equipped}", fit: true);
+                    UiKit.Text(row.transform, new Vector3(textX, -0.03f, 0f), textW, 0.045f, SubSize,
+                        $"<color=#B0B0B0>slots {Enchanting.UsedSlots(item)}/{Enchanting.Slots(item.WeaponClass)}   element {(item.DamageType < 0 ? "none" : Enchanting.Elements[Math.Min(2, item.DamageType)])}   <color={(afford ? "#F5C542" : "#E06060")}>{price} tokens</color> per enchantment</color>", fit: true);
                     var captured = item;
                     UiKit.Button(row.transform, new Vector3(bx, 0f, 0f), "SELECT", () => { _enchantTarget = captured.Id; BuildBuy(); }, BtnScale);
                 }
@@ -383,11 +425,11 @@ namespace LootOverhaul.Loot
 
             Enchanting.ReadRolledPerks(target);
             var tslot = inv.EquippedSlotOf(target);
-            UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), headerW, 0.06f, 0.5f, $"<b>ENCHANT</b>   {target.ColoredName}{(tslot >= 0 ? $"   <color=#F5C542>equipped: {Loadout.SlotNames[tslot]}</color>" : "")}", fit: true);
+            UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), headerW, 0.06f, HeadSize, $"<b>ENCHANT</b>   {target.ColoredName}{(tslot >= 0 ? $"   <color=#F5C542>equipped: {Loadout.SlotNames[tslot]}</color>" : "")}", fit: true);
             var tprice = Enchanting.Price(target);
-            UiKit.Text(_buy, new Vector3(left, top - 0.22f, 0f), PanelWidth - 0.08f, 0.05f, 0.3f,
-                $"<color=#9A9A9A>has: {Enchanting.PerkName(target.PerkA)} {Enchanting.PerkName(target.PerkB)} {Enchanting.PerkName(target.PerkC)}   element {(target.DamageType < 0 ? "none" : Enchanting.Elements[Math.Min(2, target.DamageType)])}   " +
-                $"each costs <color={(inv.Gold >= tprice ? "#F5C542" : "#B04040")}>{tprice} tokens</color> · you have {inv.Gold}{(tslot >= 0 ? " · stays in your hand" : "")}</color>", fit: true);
+            UiKit.Text(_buy, new Vector3(left, top - 0.22f, 0f), PanelWidth - 0.08f, 0.05f, 0.34f,
+                $"<color=#B0B0B0>has: {Enchanting.PerkName(target.PerkA)} {Enchanting.PerkName(target.PerkB)} {Enchanting.PerkName(target.PerkC)}   element {(target.DamageType < 0 ? "none" : Enchanting.Elements[Math.Min(2, target.DamageType)])}   " +
+                $"each costs <color={(inv.Gold >= tprice ? "#F5C542" : "#E06060")}>{tprice} tokens</color> · you have {inv.Gold}{(tslot >= 0 ? " · stays in your hand" : "")}</color>", fit: true);
             var options = Enchanting.Options(target);
             var y1 = top - 0.28f;
             var col = 0; var rowI = 0;
@@ -411,22 +453,23 @@ namespace LootOverhaul.Loot
         private static void BuildEnchantHelp(float top, float left, float bx)
         {
             UiKit.Button(_buy, new Vector3(bx, top - 0.05f, 0f), "BACK", () => { _enchantHelp = false; BuildBuy(); }, BtnScale);
-            UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), WidthBefore(bx, left), 0.06f, 0.5f, "<b>ENCHANT</b>   <color=#9A9A9A>what the enchantments do</color>", fit: true);
+            UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), WidthBefore(bx, left), 0.06f, HeadSize, "<b>ENCHANT</b>   <color=#B0B0B0>what the enchantments do</color>", fit: true);
             var docs = Enchanting.Documentation();
             const int perPage = 9;
             var pages = Math.Max(1, (docs.Count + perPage - 1) / perPage);
             _helpPage = Math.Max(0, Math.Min(_helpPage, pages - 1));
-            UiKit.Text(_buy, new Vector3(left, top - 0.215f, 0f), PanelWidth - 0.08f, 0.045f, 0.28f,
-                $"<color=#9A9A9A>Common weapons hold 1 perk, Unique and Rare 2, Legendary 3, plus one element. The game's own words for each:</color>", fit: true);
+            UiKit.Text(_buy, new Vector3(left, top - 0.215f, 0f), PanelWidth - 0.08f, 0.045f, 0.32f,
+                $"<color=#B0B0B0>Common weapons hold 1 perk, Unique and Rare 2, Legendary 3, plus one element. The game's own words for each:</color>", fit: true);
             var y0 = top - 0.29f;
             var start = _helpPage * perPage;
             for (var i = 0; i < perPage && start + i < docs.Count; i++)
             {
                 var d = docs[start + i];
-                var y = y0 - i * 0.078f;
-                UiKit.Text(_buy, new Vector3(left, y + 0.018f, 0f), PanelWidth - 0.08f, 0.045f, 0.32f,
-                    $"<color=#7FD8FF>{d.Title}</color>   <size=80%><color=#9A9A9A>{d.Types}</color></size>", fit: true);
-                UiKit.Text(_buy, new Vector3(left, y - 0.022f, 0f), PanelWidth - 0.08f, 0.04f, 0.27f, $"<color=#D0D0D0>{d.Description}</color>", fit: true);
+                var y = y0 - i * 0.09f;
+                if (i % 2 == 0) UiKit.Bar(_buy, new Vector3(0f, y - 0.002f, 0.006f), PanelWidth - 0.03f, 0.086f, StripeBuy);
+                UiKit.Text(_buy, new Vector3(left, y + 0.022f, 0f), PanelWidth - 0.08f, 0.045f, 0.36f,
+                    $"<color=#7FD8FF>{d.Title}</color>   <size=80%><color=#B0B0B0>{d.Types}</color></size>", fit: true);
+                UiKit.Text(_buy, new Vector3(left, y - 0.025f, 0f), PanelWidth - 0.08f, 0.04f, 0.3f, $"<color=#D0D0D0>{d.Description}</color>", fit: true);
             }
             var bottom = -top + 0.06f;
             UiKit.Text(_buy, new Vector3(0f, bottom, 0f), 0.3f, 0.06f, 0.35f, $"page {_helpPage + 1} / {pages}", TextAlignmentOptions.Center);
@@ -438,78 +481,104 @@ namespace LootOverhaul.Loot
         }
 
         /// <summary>
-        /// Armor has no vanilla screen, so the kobold is where it is worn. One slot at a time
-        /// (HEAD / CHEST / LEGS): what is worn there with TAKE OFF, then every piece in the bag
-        /// for that slot with WEAR, each stat marked against the worn piece (green better, red
-        /// worse, blue new). Report 2026-09-12: the mixed list gave no way to compare.
+        /// Armor has no vanilla screen, so the kobold is where it is worn. A table (report
+        /// 2026-10-08). One compact row for the three slots (HEAD / CHEST / LEGS, each with the
+        /// piece worn there). Below, three columns, one stat per row: WEARING, IN THE BAG and
+        /// IF YOU SWAP (Diablo style: "Leap -1.15" in red, "Melee taken +1.21" in green). TAKE OFF
+        /// sits under the worn piece, WEAR (and the &lt; &gt; pager) under the bag piece.
         /// </summary>
         private static void BuildArmor(float top, float left)
         {
             var inv = BagManager.Inventory;
             _armorSlot = Math.Max(0, Math.Min(2, _armorSlot));
-            var bx = PanelWidth * 0.5f - 0.04f - BtnW * 0.5f;
-            UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, 0.5f, "<b>ARMOR</b>   <color=#9A9A9A>compare and wear, one slot at a time</color>", fit: true);
+            UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, HeadSize,
+                "<b>ARMOR</b>   <color=#B0B0B0>what you wear, and what a swap changes</color>", fit: true);
 
-            // Slot tabs, under the mode tabs.
-            var ty = top - 0.245f;
-            var tabScale = BtnScale * 0.8f;
-            var tw = Mathf.Max(BtnW * 0.8f, 0.2f);
-            var tx = left + tw * 0.5f;
-            for (var s2 = 0; s2 < 3; s2++)
+            // ---- the three slots, one compact row: tab (with spare count) and the worn piece under it
+            var colW = (PanelWidth - 0.08f) / 3f;
+            for (var s = 0; s < 3; s++)
             {
-                var slot = s2;
-                var count = 0; foreach (var i in inv.Items) if (i.IsArmor && i.WornSlot < 0 && i.ArmorSlot == slot) count++;
-                var label = (slot == _armorSlot ? "• " : "") + Armor.SlotNames[slot].ToUpperInvariant() + (count > 0 ? $" ({count})" : "");
-                UiKit.Button(_buy, new Vector3(tx, ty, 0f), label, () => { _armorSlot = slot; _armorPage = 0; BuildBuy(); }, tabScale);
-                tx += tw + 0.09f;
+                var slot = s;
+                var cx = left + colW * (s + 0.5f);
+                var w = Armor.Worn(s);
+                var spare = 0; foreach (var i in inv.Items) if (i.IsArmor && i.WornSlot < 0 && i.ArmorSlot == s) spare++;
+                var label = Armor.SlotNames[s].ToUpperInvariant() + (spare > 0 ? $" ({spare})" : "");
+                UiKit.Button(_buy, new Vector3(cx, top - 0.26f, 0f), label, () => { _armorSlot = slot; _armorPage = 0; BuildBuy(); }, BtnScale * 0.9f);
+                if (s == _armorSlot) UiKit.Bar(_buy, new Vector3(cx, top - 0.30f, 0.004f), BtnW * 1.2f, 0.012f, new Color(0.96f, 0.77f, 0.26f, 1f));
+                UiKit.Text(_buy, new Vector3(cx, top - 0.34f, 0f), colW - 0.04f, 0.05f, 0.34f,
+                    w == null ? "<color=#B0B0B0>nothing worn</color>" : w.ColoredName, TextAlignmentOptions.Center, fit: true);
             }
+            UiKit.Bar(_buy, new Vector3(0f, top - 0.385f, 0.004f), PanelWidth - 0.04f, 0.004f, new Color(0.25f, 0.3f, 0.4f, 1f));
 
-            // The worn piece for this slot. Stat lines are short labels on up to two lines
-            // (report 2026-09-13: three stats plus their differences ran off the row).
+            // ---- the open slot
             var worn = Armor.Worn(_armorSlot);
-            var wy = top - 0.35f;
-            var textW = WidthBefore(bx, left);
-            UiKit.Text(_buy, new Vector3(left, wy + 0.03f, 0f), textW, 0.05f, 0.36f,
-                $"<color=#C9A86A>wearing:</color>   {(worn == null ? "<color=#9A9A9A>nothing</color>" : worn.ColoredName)}", fit: true);
-            if (worn != null)
-            {
-                UiKit.Text(_buy, new Vector3(left, wy - 0.025f, 0f), textW, 0.075f, 0.27f, $"<color=#9A9A9A>{Armor.DescribeStatsShort(worn)}</color>", fit: true, lines: 2);
-                var capturedWorn = worn;
-                UiKit.Button(_buy, new Vector3(bx, wy, 0f), "TAKE OFF", () => { Armor.Remove(capturedWorn); BuildBuy(); }, BtnScale);
-            }
-
-            // Candidates in the bag for this slot, best rarity first.
             var pieces = new List<LootItem>();
             foreach (var i in inv.Items) if (i.IsArmor && i.WornSlot < 0 && i.ArmorSlot == _armorSlot) pieces.Add(i);
             pieces.Sort((a, b) => b.WeaponClass != a.WeaponClass ? b.WeaponClass.CompareTo(a.WeaponClass) : b.Value.CompareTo(a.Value));
-            const int rows = 4;
-            const float rowH = 0.13f;
-            var pages = Math.Max(1, (pieces.Count + rows - 1) / rows);
-            _armorPage = Math.Max(0, Math.Min(_armorPage, pages - 1));
-            var y1 = wy - 0.11f;
-            UiKit.Text(_buy, new Vector3(left, y1 + 0.02f, 0f), PanelWidth - 0.08f, 0.045f, 0.3f,
-                pieces.Count == 0 ? $"<color=#9A9A9A>No {Armor.SlotNames[_armorSlot].ToLowerInvariant()} armor in the bag.</color>"
-                                  : $"<color=#9A9A9A>in the bag ({pieces.Count}){(worn == null ? "" : " — against what you wear: <color=#5BD75B>better</color> <color=#E06060>worse</color> <color=#7FD8FF>new</color>")}</color>", fit: true);
-            var start = _armorPage * rows;
-            for (var i = 0; i < rows && start + i < pieces.Count; i++)
-            {
-                var item = pieces[start + i];
-                var row = new GameObject($"ArmorPiece_{i}"); row.transform.SetParent(_buy, false);
-                row.transform.localPosition = new Vector3(0f, y1 - 0.05f - i * rowH, 0f);
-                UiKit.Text(row.transform, new Vector3(left, 0.045f, 0f), textW, 0.05f, 0.34f, $"{item.ColoredName}{(item.Locked ? "   <color=#9A9A9A>locked</color>" : "")}", fit: true);
-                UiKit.Text(row.transform, new Vector3(left, -0.02f, 0f), textW, 0.075f, 0.27f, $"<color=#9A9A9A>{Armor.Compare(item, worn)}</color>", fit: true, lines: 2);
-                var captured = item;
-                UiKit.Button(row.transform, new Vector3(bx, 0f, 0f), "WEAR", () => { Armor.Wear(captured); BuildBuy(); }, BtnScale);
-            }
-            var bottom = -top + 0.06f;
-            if (pages > 1)
-            {
-                UiKit.Text(_buy, new Vector3(0f, bottom, 0f), 0.3f, 0.06f, 0.35f, $"page {_armorPage + 1} / {pages}", TextAlignmentOptions.Center);
-                UiKit.Button(_buy, new Vector3(-0.22f - BtnW * 0.5f, bottom, 0f), "<", () => { _armorPage--; BuildBuy(); }, BtnScale);
-                UiKit.Button(_buy, new Vector3(0.22f + BtnW * 0.5f, bottom, 0f), ">", () => { _armorPage++; BuildBuy(); }, BtnScale);
-            }
-        }
+            _armorPage = pieces.Count == 0 ? 0 : Math.Max(0, Math.Min(_armorPage, pieces.Count - 1));
+            var cand = pieces.Count == 0 ? null : pieces[_armorPage];
+            var slotName = Armor.SlotNames[_armorSlot].ToLowerInvariant();
+            var rows = Armor.CompareRows(cand, worn);
+            var better = 0; var worse = 0;
+            foreach (var r in rows) { if (r.Verdict > 0) better++; else if (r.Verdict < 0) worse++; }
 
+            const float colWidth = 0.44f;
+            float[] cx3 = { left + colW * 0.5f, left + colW * 1.5f, left + colW * 2.5f };
+            var hy = top - 0.43f;       // captions
+            var ny = top - 0.505f;      // names, two lines
+            var by = top - 0.595f;      // buttons
+            UiKit.Text(_buy, new Vector3(cx3[0], hy, 0f), colWidth, 0.04f, 0.3f, "<color=#C9A86A>WEARING</color>", TextAlignmentOptions.Center, fit: true);
+            UiKit.Text(_buy, new Vector3(cx3[1], hy, 0f), colWidth, 0.04f, 0.3f,
+                cand == null ? "<color=#7FD8FF>IN THE BAG</color>" : $"<color=#7FD8FF>IN THE BAG</color> <color=#B0B0B0>{_armorPage + 1} / {pieces.Count}</color>", TextAlignmentOptions.Center, fit: true);
+            UiKit.Text(_buy, new Vector3(cx3[2], hy, 0f), colWidth, 0.04f, 0.3f, "<color=#F5C542>IF YOU SWAP</color>", TextAlignmentOptions.Center, fit: true);
+            UiKit.Text(_buy, new Vector3(cx3[0], ny, 0f), colWidth, 0.08f, 0.38f,
+                worn == null ? $"<color=#B0B0B0>no {slotName} armor worn</color>" : worn.ColoredName, TextAlignmentOptions.Center, fit: true, lines: 2);
+            UiKit.Text(_buy, new Vector3(cx3[1], ny, 0f), colWidth, 0.08f, 0.38f,
+                cand == null ? $"<color=#B0B0B0>no spare {slotName} armor</color>" : $"{cand.ColoredName}{(cand.Locked ? "  <color=#F5C542>locked</color>" : "")}", TextAlignmentOptions.Center, fit: true, lines: 2);
+            string verdict;
+            if (cand == null) verdict = "<color=#B0B0B0>nothing to compare</color>";
+            else if (worn == null) verdict = $"<color=#5BD75B>adds {rows.Count} stat(s)</color>";
+            else verdict = $"<color=#5BD75B>{better} better</color>\n<color=#E06060>{worse} worse</color>";
+            UiKit.Text(_buy, new Vector3(cx3[2], ny, 0f), colWidth, 0.08f, 0.38f, verdict, TextAlignmentOptions.Center, fit: true, lines: 2);
+
+            // Buttons belong to the piece above them.
+            if (worn != null)
+            {
+                var capturedWorn = worn;
+                UiKit.Button(_buy, new Vector3(cx3[0], by, 0f), "TAKE OFF", () => { Armor.Remove(capturedWorn); BuildBuy(); }, BtnScale);
+            }
+            if (cand != null)
+            {
+                var capturedCand = cand;
+                UiKit.Button(_buy, new Vector3(cx3[1] - 0.11f, by, 0f), "WEAR", () => { Armor.Wear(capturedCand); BuildBuy(); }, BtnScale);
+                // Sell the piece you just compared, right here; a locked one has to be unlocked on the SELL page first.
+                UiKit.Button(_buy, new Vector3(cx3[1] + 0.11f, by, 0f), "SELL", () => { Sell(capturedCand); }, BtnScale, enabled: !cand.Locked);
+                UiKit.Text(_buy, new Vector3(cx3[2], by, 0f), colWidth, 0.05f, 0.34f,
+                    cand.Locked ? "<color=#B0B0B0>locked, cannot sell</color>" : $"<color=#B0B0B0>sells for</color> <color=#F5C542>{SellPrice(cand)} tk</color>", TextAlignmentOptions.Center, fit: true);
+                if (pieces.Count > 1)
+                {
+                    var n = pieces.Count;
+                    UiKit.Button(_buy, new Vector3(cx3[1] - 0.2f, hy, 0f), "<", () => { _armorPage = (_armorPage + n - 1) % n; BuildBuy(); }, BtnScale * 0.55f);
+                    UiKit.Button(_buy, new Vector3(cx3[1] + 0.2f, hy, 0f), ">", () => { _armorPage = (_armorPage + 1) % n; BuildBuy(); }, BtnScale * 0.55f);
+                }
+            }
+            UiKit.Bar(_buy, new Vector3(0f, top - 0.655f, 0.004f), PanelWidth - 0.04f, 0.004f, new Color(0.25f, 0.3f, 0.4f, 1f));
+
+            // ---- one stat per row
+            var y0 = top - 0.72f;
+            const float pitch = 0.085f;
+            for (var r = 0; r < rows.Count && r < 6; r++)
+            {
+                var row = rows[r];
+                var y = y0 - r * pitch;
+                if (r % 2 == 0) UiKit.Bar(_buy, new Vector3(0f, y, 0.006f), PanelWidth - 0.03f, pitch - 0.004f, StripeBuy);
+                UiKit.Text(_buy, new Vector3(cx3[0], y, 0f), colWidth, 0.05f, 0.4f, row.WornText, TextAlignmentOptions.Center, fit: true);
+                UiKit.Text(_buy, new Vector3(cx3[1], y, 0f), colWidth, 0.05f, 0.4f, row.NewText, TextAlignmentOptions.Center, fit: true);
+                UiKit.Text(_buy, new Vector3(cx3[2], y, 0f), colWidth, 0.05f, 0.4f, row.Net, TextAlignmentOptions.Center, fit: true);
+            }
+            if (rows.Count == 0)
+                UiKit.Text(_buy, new Vector3(0f, y0 - pitch, 0f), 1.1f, 0.06f, 0.4f, $"Nothing worn and nothing spare for {slotName} armor.", TextAlignmentOptions.Center);
+        }
         public static int SellPrice(LootItem item) => Math.Max(1, (int)Math.Round(item.Value * ModConfig.SellMultiplier.Value));
 
         /// <summary>
@@ -546,7 +615,6 @@ namespace LootOverhaul.Loot
             if (n == 0) { BagManager.Toast($"No {SweepName(cls)} to sell."); return; }
             inv.Gold += total;
             inv.Save();
-            BagManager.Toast($"Sold {n} {SweepName(cls)} item(s) for <color=#F5C542>{total} tokens</color>  (now {inv.Gold})");
             ReconLog.Line($"sold {n} {SweepName(cls)} for {total} -> tokens {inv.Gold}");
             Rebuild();
             BagPanel.Refresh();
@@ -560,8 +628,7 @@ namespace LootOverhaul.Loot
             if (live == null) { BagManager.Toast("Already gone."); Refresh(); return; }
             live.Locked = !live.Locked;
             inv.Save();
-            BagManager.Toast(live.Locked ? $"Locked {live.ColoredName}" : $"Unlocked {live.ColoredName}");
-            BuildSell();
+            Rebuild();
             BagPanel.Refresh();
         }
 
@@ -577,7 +644,6 @@ namespace LootOverhaul.Loot
             inv.Remove(live.Id);
             inv.Gold += price;
             inv.Save();
-            BagManager.Toast($"Sold {live.ColoredName} for <color=#F5C542>{price} tokens</color>  (now {inv.Gold})");
             ReconLog.Line($"sold {live.Name} for {price} -> tokens {inv.Gold}");
             Rebuild();
             BagPanel.Refresh();

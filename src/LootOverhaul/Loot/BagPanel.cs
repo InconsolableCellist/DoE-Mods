@@ -20,9 +20,9 @@ namespace LootOverhaul.Loot
         private enum Sort { Newest, Value, Weight, Rarity }
 
         private const int RowsPerPage = 6;
-        private const float RowHeight = 0.12f;
-        private const float Width = 1.25f;
-        private const float BtnScale = 0.34f;
+        private const float RowHeight = 0.14f;
+        private const float Width = 1.45f;
+        private const float BtnScale = 0.36f;
         private static float BtnW => UiKit.ButtonSize.x * BtnScale;
 
         private static GameObject _root;
@@ -104,6 +104,7 @@ namespace LootOverhaul.Loot
                 var pos = head.position + fwd * 0.85f + Vector3.down * 0.15f;
                 _root.transform.position = pos;
                 _root.transform.rotation = Quaternion.LookRotation(fwd, Vector3.up);
+                _root.transform.localScale = Vector3.one * 1.1f;
             }
             catch (Exception e) { Core.Log.Warning($"Bag panel placement failed: {e.GetType().Name}"); }
         }
@@ -136,7 +137,7 @@ namespace LootOverhaul.Loot
 
             var top = height * 0.5f;
             var left = -Width * 0.5f + 0.04f;
-            UiKit.Text(_content, new Vector3(left, top - 0.05f, 0f), Width - 0.08f, 0.06f, 0.5f,
+            UiKit.Text(_content, new Vector3(left, top - 0.05f, 0f), Width - 0.08f, 0.06f, 0.56f,
                 $"<b>BAG</b>   {inv.Items.Count} item(s)   {inv.TotalWeight:0.#} / {BagManager.Capacity:0} wt   <color=#F5C542>{inv.Gold} tokens</color>");
             var status = "";
             if (Buffs.AnyWorn) status += $"<color=#C9A86A>wearing:</color> {Armor.DescribeWorn()}   ";
@@ -157,7 +158,7 @@ namespace LootOverhaul.Loot
             var y0 = top - 0.30f;
             var start = _page * RowsPerPage;
             var dropX = Width * 0.5f - 0.04f - BtnW * 0.5f;
-            var textW = dropX - BtnW * 0.5f - 0.02f - (left + 0.16f);
+            var textW = dropX - BtnW * 0.5f - 0.02f - (left + UiKit.TextX);
             var twoBtnTextW = textW - BtnW * 1.2f - 0.03f;
             for (var i = 0; i < RowsPerPage && start + i < items.Count; i++)
             {
@@ -166,8 +167,10 @@ namespace LootOverhaul.Loot
                 var row = new GameObject($"Row_{i}");
                 row.transform.SetParent(_content, false);
                 row.transform.localPosition = new Vector3(0f, y, 0f);
+                if (i % 2 == 0) UiKit.Bar(row.transform, new Vector3(0f, 0f, 0.006f), Width - 0.03f, RowHeight - 0.008f, new Color(0.12f, 0.12f, 0.18f, 1f));
 
-                UiKit.Preview(row.transform, new Vector3(left + 0.07f, 0f, -0.03f), item, 0.11f);
+                UiKit.Preview(row.transform, new Vector3(left + 0.055f, 0f, -0.03f), item, 0.1f);
+                UiKit.TypeTag(row.transform, new Vector3(left + UiKit.TagX, 0f, 0f), item);
 
                 var slot = inv.EquippedSlotOf(item);
                 var equipped = slot >= 0 ? $"   <color=#F5C542>equipped: {Loadout.SlotNames[slot]}</color>" : "";
@@ -176,23 +179,23 @@ namespace LootOverhaul.Loot
                 {
                     string stats = "";
                     try { stats = UiKit.StatsLine(WeaponCodec.ToModule(item).GetStatsText()); } catch { }
-                    second = $"<color=#9A9A9A>{LootTables.TypeName(item.PropType)} t{item.WeaponTier + 1}</color>  {stats}";
+                    second = stats;
                 }
                 else if (item.IsBuff)
                 {
-                    second = $"<color=#9A9A9A>tonic · {Buffs.Effect(item.BuffStat, item.BuffMult)}</color>";
+                    second = $"<color=#B0B0B0>{Buffs.Effect(item.BuffStat, item.BuffMult)}</color>";
                 }
                 else if (item.IsArmor)
-                    second = $"<color=#9A9A9A>{Armor.SlotNames[item.ArmorSlot].ToLowerInvariant()} armor · {Armor.DescribeStats(item)}</color>";
+                    second = $"<color=#B0B0B0>{Armor.DescribeStats(item)}</color>";
                 else
-                    second = $"<color=#9A9A9A>{LootTables.JunkTierName(item.WeaponClass)}</color>";
+                    second = $"<color=#B0B0B0>{LootTables.JunkTierName(item.WeaponClass)}</color>";
                 var rowTextW = item.IsBuff || item.IsArmor ? twoBtnTextW : textW;
                 var worn = item.IsArmor && item.WornSlot >= 0 ? "   <color=#C9A86A>worn</color>" : "";
-                if (item.Locked) worn += "   <color=#9A9A9A>locked</color>";
+                if (item.Locked) worn += "   <color=#B0B0B0>locked</color>";
                 // What the kobold pays and what it weighs, on every row (asked for 2026-09-12).
-                var worth = $"   <color=#F5C542>{Booth.SellPrice(item)} T</color> <color=#9A9A9A>· {item.Weight:0.#} wt</color>";
-                UiKit.Text(row.transform, new Vector3(left + 0.16f, 0.025f, 0f), rowTextW, 0.05f, 0.38f, $"{item.ColoredName}{equipped}{worn}{worth}", fit: true);
-                UiKit.Text(row.transform, new Vector3(left + 0.16f, -0.025f, 0f), rowTextW, 0.045f, item.IsWeapon ? 0.27f : 0.3f, second, fit: true);
+                var worth = $"   <color=#F5C542>{Booth.SellPrice(item)} T</color> <color=#B0B0B0>· {item.Weight:0.#} wt</color>";
+                UiKit.Text(row.transform, new Vector3(left + UiKit.TextX, 0.03f, 0f), rowTextW, 0.05f, 0.46f, $"{item.ColoredName}{equipped}{worn}{worth}", fit: true);
+                UiKit.Text(row.transform, new Vector3(left + UiKit.TextX, -0.03f, 0f), rowTextW, 0.045f, 0.34f, second, fit: true);
 
                 var captured = item;
                 if (item.IsBuff)

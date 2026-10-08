@@ -163,6 +163,55 @@ namespace LootOverhaul.Loot
             return string.Join(", ", parts);
         }
 
+        /// <summary>One stat of the ARMOR table: what is worn, what the bag piece has, and what a swap changes.</summary>
+        public struct CompareRow
+        {
+            public string Label;       // "Run speed"
+            public string WornText;    // "Run speed ×1.20", or "-" when the worn piece lacks it
+            public string NewText;     // same for the bag piece
+            public string Net;         // the change only, coloured: "+0.21", "-0.15", "+0.07" (the stat name is already in the row); empty without a bag piece
+            public int Verdict;        // 1 better or new, -1 worse or lost, 0 same
+        }
+
+        /// <summary>
+        /// The ARMOR table's rows: every stat on either piece, the bag piece's stats first.
+        /// Either piece may be null (nothing worn, or no piece in the bag). A bigger multiplier
+        /// is always the better one (the ÷ stats divide by it).
+        /// </summary>
+        public static List<CompareRow> CompareRows(LootItem candidate, LootItem worn)
+        {
+            var rows = new List<CompareRow>();
+            var wornStats = new Dictionary<string, float>();
+            var candStats = new Dictionary<string, float>();
+            var order = new List<string>();
+            if (candidate != null) foreach (var (st, m) in Decode(candidate.ArmorStats)) { candStats[st] = m; order.Add(st); }
+            if (worn != null) foreach (var (st, m) in Decode(worn.ArmorStats)) { wornStats[st] = m; if (!order.Contains(st)) order.Add(st); }
+            foreach (var st in order)
+            {
+                var d = Buffs.Find(st);
+                var sign = d != null && d.Invert ? "÷" : "×";
+                var label = ShortLabel(st);
+                var row = new CompareRow { Label = label, WornText = "-", NewText = "-", Net = "" };
+                var hasW = wornStats.TryGetValue(st, out var w);
+                var hasC = candStats.TryGetValue(st, out var c);
+                if (hasW) row.WornText = $"{label} {sign}{w:0.00}";
+                if (hasC) row.NewText = $"{label} {sign}{c:0.00}";
+                if (candidate != null)
+                {
+                    if (hasC && !hasW) { row.Net = $"<color=#5BD75B>+{c - 1f:0.00}</color>"; row.Verdict = 1; }
+                    else if (hasW && !hasC) { row.Net = $"<color=#E06060>-{w - 1f:0.00}</color>"; row.Verdict = -1; }
+                    else
+                    {
+                        var diff = c - w;
+                        if (diff > 0.0005f) { row.Net = $"<color=#5BD75B>+{diff:0.00}</color>"; row.Verdict = 1; }
+                        else if (diff < -0.0005f) { row.Net = $"<color=#E06060>{diff:0.00}</color>"; row.Verdict = -1; }
+                        else row.Net = $"<color=#B0B0B0>=</color>";
+                    }
+                }
+                rows.Add(row);
+            }
+            return rows;
+        }
         // ---- wearing ------------------------------------------------------------------------
 
         public static LootItem Worn(int slot)
@@ -182,7 +231,6 @@ namespace LootOverhaul.Loot
             live.WornSlot = live.ArmorSlot;
             inv.Save();
             Buffs.RebuildWorn();
-            BagManager.Toast($"Wearing {live.ColoredName}: {DescribeStats(live)}");
             if (Buffs.LegPerksGatedOff() && (live.ArmorStats ?? "").Contains("Legs_"))
                 BagManager.Toast("The game has friendly fire on here (the sandbox does this): it ignores every run speed, jump and leap perk until it is off.");
             ReconLog.Line($"armor: wear {live.Name} [{SlotNames[live.ArmorSlot]}] {DescribeStats(live)}");
@@ -197,7 +245,6 @@ namespace LootOverhaul.Loot
             live.WornSlot = -1;
             inv.Save();
             Buffs.RebuildWorn();
-            BagManager.Toast($"Took off {live.ColoredName}");
             BagPanel.Refresh(); Booth.Refresh();
         }
 

@@ -207,7 +207,6 @@ namespace LootOverhaul.Loot
             inv.Items.Add(enchanted);
             inv.Save();
             var what = perkId > 0 ? PerkName(perkId) : Elements[element];
-            BagManager.Toast($"Enchanted: {enchanted.ColoredName} gains <b>{what}</b>  (−{price} tokens, now {inv.Gold})");
             ReconLog.Line($"enchant: {live.Name} + {what} -> {enchanted.Name} [{enchanted.ModuleName}] perks {enchanted.PerkA}/{enchanted.PerkB}/{enchanted.PerkC} element {enchanted.DamageType}; paid {price}; slot {slot}");
             // The armory rebuilt its lists when the old record left; the new one is in the bag now.
             try { FabricatorBridge.RefreshArmories($"{enchanted.Name} enchanted"); } catch { }

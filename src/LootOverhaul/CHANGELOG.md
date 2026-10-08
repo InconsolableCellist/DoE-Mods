@@ -3,6 +3,27 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.10.2 (2026-10-08)
+
+### Changed
+The Kobold Traveler booth and the bag panel are easier to read and steer (report: tiny text, cramped rows).
+- **Bigger and roomier.** Panels are wider and scaled up, rows are taller, names, stats and headers use larger type, and grey text is lighter.
+- **Price column.** The price sits in its own right-aligned column beside the button (red when you cannot afford it), instead of at the end of the name. Buy buttons say `BUY` or `NEED MORE`.
+- **One state label.** On the sell counter, equipped / worn / locked shows once, in the button column.
+- **Striped rows.** Every other row has a lit stripe so the eye can follow a row from name to button.
+- **Clear tabs.** The open shop tab has a gold underline and a divider under the tab row.
+- The bag panel got the same width, type sizes and stripes, and opens slightly larger.
+- **Price on the name line.** The stats line under each weapon has the full row width, so long perk lists are no longer cut off.
+- **Every booth tab matches.** Tonics, enchant, enchant help and armor use the same larger type, lighter grey text and striped rows. The help page has more room between entries, and the sell counter's footer text is larger.
+- **Armor page rebuilt as a comparison table.** One compact row for head, chest and legs (each with the piece worn). Below, three columns, one stat per row: what you wear, the bag piece, and what a swap changes (only the green or red number, e.g. `+0.04`, `-0.15`; a stat only one piece has counts from the neutral 1.0). `TAKE OFF` sits under the worn piece; `WEAR`, `SELL` and the `<` `>` pager belong to the bag piece, so you can sell the piece you just compared (`SELL` is greyed when it is locked).
+- **Type tag between icon and name.** Item rows (bag and booth) show the type and tier centred in two small lines between the icon and the name (Sword over T7), so the stats line starts with the numbers that matter.
+- **Price centred** in its own column on the sell list and the weapon shop.
+- **Sell list shows one stat per line** (`44 Fire Damage`, `Elite Damage`, no bullets) next to the name, in slightly smaller type.
+- **Padlock instead of a LOCK button.** Locking a sell-counter item is a small padlock icon (gold and closed when locked, grey and open when not).
+- **No more pop-up messages** when you buy, sell, lock, unlock, wear, take off or enchant (warnings and errors still show).
+- **Fixed:** unlocking an armor piece on the sell list now updates the armor page right away (it kept showing locked until you changed page).
+- **Fixed:** the `equipped` / `worn` / `locked` text on the sell counter sat under the lock button; it is now centred on the sell column.
+
 ## 0.10.1 (2026-10-08)
 
 ### Performance
