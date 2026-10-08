@@ -7,7 +7,7 @@ using LootOverhaul.Loot;
 using LootOverhaul.Net;
 using LootOverhaul.Recon;
 
-[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.10.2", "Foxipso")]
+[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.10.3", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace LootOverhaul
@@ -25,7 +25,7 @@ namespace LootOverhaul
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.10.2";
+        public const string Version = "0.10.3";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -67,6 +67,7 @@ namespace LootOverhaul
             Buffs.Install();
             Goblins.Install();
             Loadout.Install();
+            ChestDrops.Install();
 
             if (ModConfig.ReconEnabled.Value)
             {
@@ -131,6 +132,7 @@ namespace LootOverhaul
             LootRegistry.Clear($"scene changed to {sceneName}", destroyOwned: true);
             BagManager.DroppedByMe.Clear();
             Unlocks.Invalidate();
+            ChestDrops.OnSceneChanged();
             if (sceneName == Il2Cpp.GameManager.LOBBY_SCENE || sceneName == Il2Cpp.GameManager.MAINMENU_SCENE) { Buffs.ClearAll($"entered {sceneName}"); LightPotion.Clear($"entered {sceneName}"); }
             BagPanel.Hide();
             Booth.Hide();

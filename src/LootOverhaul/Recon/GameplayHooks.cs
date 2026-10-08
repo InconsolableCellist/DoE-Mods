@@ -24,7 +24,6 @@ namespace LootOverhaul.Recon
             // one owner keeps the payout counter, the drop roll and this transcript on one event.)
             // chest loot — the bonus-roll hook. NOT Chest.OnLootCollected: its base body is empty
             // and shares the universal stub address (the 0.1.0 crash). These two have real bodies.
-            Hooks.Patch(typeof(Chest), "EV_ChestOpened", null, Hooks.Of(t, nameof(Chest_Opened)));
             Hooks.Patch(typeof(Chest), "EV_CollectedLoot", null, Hooks.Of(t, nameof(Chest_CollectedLoot)));
             // 3. pickup / drop — where "bag instead of wield" will go.
             Hooks.Patch(typeof(Prop), "PickUp", null, Hooks.Of(t, nameof(Prop_PickUp)));
@@ -67,10 +66,10 @@ namespace LootOverhaul.Recon
             catch (Exception e) { ReconLog.Error("AI.OnKilled hook", e); }
         }
 
-        private static void Chest_Opened(Chest __instance) => LogChest("EV_ChestOpened", __instance);
+        // EV_ChestOpened is patched by Loot/ChestDrops.cs (it must run with recon off), which calls LogChest.
         private static void Chest_CollectedLoot(Chest __instance) => LogChest("EV_CollectedLoot", __instance);
 
-        private static void LogChest(string what, Chest chest)
+        internal static void LogChest(string what, Chest chest)
         {
             try
             {

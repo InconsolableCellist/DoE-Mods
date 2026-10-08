@@ -3,6 +3,18 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.10.3 (2026-10-08)
+
+### Changed
+Armor now comes from chests. Enemies still drop nothing.
+- **Armor drops when a chest opens.** The moment the chest opens (the key turning, not the A press on the loot) the host rolls once for that chest and the piece lands on the floor as a normal item, just in front of the chest (a gentle toss; `ChestArmorDistance` sets the start point, default 0.2 m). A chest can never roll twice, however many players are in the room.
+- **Chest size sets chance and rarity.** Small 10% Common, medium 25% Unique, epic 100% Rare, boss chest 100% Legendary. Seasonal variants follow their size. Settings: `ChestArmorEnabled`, `ChestArmorSmall`, `ChestArmorMedium`, `ChestArmorEpic`, `ChestArmorBoss`.
+- **Mimics drop armor too**, as a chest of their size (medium or epic), in front of them.
+- **Never from:** the crypt (realm Crypts or a dark dungeon, and any chest holding rings or crypt loot), the sandbox, and tutorial, respawner or soul-harvest chests.
+- The chest-open hook now runs even with recon off (it used to be recon only).
+- **A chest can roll again in a later run.** The list of chests that already rolled is cleared on every scene change (it lived for the whole session, so a reused chest object would never have dropped again).
+- The README title and the source index show the current version (they still said 0.9.20).
+
 ## 0.10.2 (2026-10-08)
 
 ### Changed

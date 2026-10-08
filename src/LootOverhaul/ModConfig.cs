@@ -90,6 +90,12 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<float> TierUpChance;
         /// <summary>Share of successful weapon rolls that become armor instead, 0–1.</summary>
         public static MelonPreferences_Entry<float> ArmorShare;
+        /// <summary>Armor drops from chests when they open (the host rolls once per chest). Mimics count as chests of their size. Not in the crypt.</summary>
+        public static MelonPreferences_Entry<bool> ChestArmorEnabled;
+        /// <summary>Chance, 0–1, that a chest of this size drops an armor piece (rarity: small Common, medium Unique, epic Rare, boss Legendary).</summary>
+        public static MelonPreferences_Entry<float> ChestArmorSmall, ChestArmorMedium, ChestArmorEpic, ChestArmorBoss;
+        /// <summary>How far in front of the chest (metres) a chest's armor piece starts.</summary>
+        public static MelonPreferences_Entry<float> ChestArmorDistance;
         /// <summary>Tokens per point of the game's salvage value when selling to the kobold.</summary>
         public static MelonPreferences_Entry<float> SellMultiplier;
         /// <summary>Shop asking price = the game's cost figure × this.</summary>
@@ -192,6 +198,12 @@ namespace LootOverhaul
             JunkDropChance = Main.CreateEntry("JunkDropChance", 0.18f);
             TierUpChance = Main.CreateEntry("TierUpChance", 0.12f);
             ArmorShare = Main.CreateEntry("ArmorShare", 0.35f);
+            ChestArmorEnabled = Main.CreateEntry("ChestArmorEnabled", true, description: "Chests drop an armor piece on the floor the moment they open. Enemies drop nothing (EnemyDropsEnabled). Mimics roll like a chest of their size. Never in the crypt.");
+            ChestArmorSmall = Main.CreateEntry("ChestArmorSmall", 0.10f, description: "Chance a small chest drops armor (Common rarity).");
+            ChestArmorMedium = Main.CreateEntry("ChestArmorMedium", 0.25f, description: "Chance a medium chest drops armor (Unique rarity).");
+            ChestArmorEpic = Main.CreateEntry("ChestArmorEpic", 1.0f, description: "Chance an epic chest drops armor (Rare rarity).");
+            ChestArmorBoss = Main.CreateEntry("ChestArmorBoss", 1.0f, description: "Chance a boss chest drops armor (Legendary rarity).");
+            ChestArmorDistance = Main.CreateEntry("ChestArmorDistance", 0.2f, description: "How far in front of the chest (metres) its armor piece starts. It is tossed a little further along the same line.");
             SellMultiplier = Main.CreateEntry("SellMultiplier", 1.0f);
             ShopPriceMultiplier = Main.CreateEntry("ShopPriceMultiplier", 2.5f);
             ShopSlots = Main.CreateEntry("ShopSlots", 6);
