@@ -7,7 +7,7 @@ using LootOverhaul.Loot;
 using LootOverhaul.Net;
 using LootOverhaul.Recon;
 
-[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.10.4", "Foxipso")]
+[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.10.5", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace LootOverhaul
@@ -25,7 +25,7 @@ namespace LootOverhaul
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.10.4";
+        public const string Version = "0.10.5";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -91,6 +91,7 @@ namespace LootOverhaul
             ModNet.Pump();
             LootRegistry.Tick();
             BagPickup.Tick();
+            ChestDrops.Tick();
             JunkAutoPickup.Tick();
             Claims.Tick();
             FabricatorBridge.Tick();

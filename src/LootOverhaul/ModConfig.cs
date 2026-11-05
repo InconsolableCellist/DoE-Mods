@@ -98,6 +98,8 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<float> ChestArmorSmall, ChestArmorMedium, ChestArmorEpic, ChestArmorBoss;
         /// <summary>How far in front of the chest (metres) a chest's armor piece starts.</summary>
         public static MelonPreferences_Entry<float> ChestArmorDistance;
+        /// <summary>Seconds between a chest opening and its armor piece appearing (the key turner has a hand out; 0 = at once).</summary>
+        public static MelonPreferences_Entry<float> ChestArmorDelay;
         /// <summary>Tokens per point of the game's salvage value when selling to the kobold.</summary>
         public static MelonPreferences_Entry<float> SellMultiplier;
         /// <summary>Shop asking price = the game's cost figure × this.</summary>
@@ -207,6 +209,7 @@ namespace LootOverhaul
             ChestArmorEpic = Main.CreateEntry("ChestArmorEpic", 1.0f, description: "Chance an epic chest drops armor (Rare rarity).");
             ChestArmorBoss = Main.CreateEntry("ChestArmorBoss", 1.0f, description: "Chance a boss chest drops armor (Legendary rarity).");
             ChestArmorDistance = Main.CreateEntry("ChestArmorDistance", 0.2f, description: "How far in front of the chest (metres) its armor piece starts. It is tossed a little further along the same line.");
+            ChestArmorDelay = Main.CreateEntry("ChestArmorDelay", 2.0f, description: "Seconds after a chest opens before its armor piece appears, so the person who turned the key does not grab it by accident. 0 = it appears at once.");
             SellMultiplier = Main.CreateEntry("SellMultiplier", 1.0f);
             ShopPriceMultiplier = Main.CreateEntry("ShopPriceMultiplier", 2.5f);
             ShopSlots = Main.CreateEntry("ShopSlots", 6);

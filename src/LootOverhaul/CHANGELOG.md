@@ -3,6 +3,11 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.10.5 (2026-10-13)
+
+### Changed
+- **Chest armor appears after a short delay.** The piece used to appear the moment the chest opened, right under the hand of whoever turned the key, and was grabbed by accident. It now appears `ChestArmorDelay` seconds later (default 2.0; 0 = at once), tossed out the same way. A delayed piece is dropped if the scene changes or the room closes before it appears.
+
 ## 0.10.4 (2026-10-08)
 
 ### Changed

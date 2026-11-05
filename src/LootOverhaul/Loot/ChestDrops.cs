@@ -24,8 +24,12 @@ namespace LootOverhaul.Loot
         private static readonly HashSet<int> Rolled = new HashSet<int>();
         public static int Dropped;
 
+        private class Delayed { public LootItem Armor; public Vector3 Pos, Kick; public float Due; public string Desc; }
+        /// <summary>Pieces rolled but not spawned yet (ChestArmorDelay); forgotten with the scene.</summary>
+        private static readonly List<Delayed> Waiting = new List<Delayed>();
+
         /// <summary>A new scene means new chests, and the game may reuse object ids: forget which ones have rolled.</summary>
-        public static void OnSceneChanged() => Rolled.Clear();
+        public static void OnSceneChanged() { Rolled.Clear(); Waiting.Clear(); }
 
         public static void Install() =>
             Hooks.Patch(typeof(Chest), "EV_ChestOpened", null, Hooks.Of(typeof(ChestDrops), nameof(Chest_Opened)));
@@ -85,10 +89,40 @@ namespace LootOverhaul.Loot
             var side = new Vector3(fwd.z, 0f, -fwd.x) * (float)(Rng.NextDouble() - 0.5) * 0.6f;
             var pos = chest.transform.position + fwd * ModConfig.ChestArmorDistance.Value + Vector3.up * 1.0f;
             var kick = Vector3.up * 1.0f + (fwd * 1.1f) + side;
+            var desc = $"{armor.Name} [{LootTables.ClassName(cls)} {Armor.SlotNames[armor.ArmorSlot]}] {Armor.DescribeStats(armor)} from `{name}` size={size} roll={roll:0.###} chance={chance:0.###}";
+            // The person who turned the key is standing at the chest with a hand out: a piece that
+            // appears at once gets grabbed by accident. It appears ChestArmorDelay seconds later instead.
+            var delay = Math.Max(0f, ModConfig.ChestArmorDelay.Value);
+            if (delay <= 0f) { Spawn(armor, pos, kick, desc); return; }
+            Waiting.Add(new Delayed { Armor = armor, Pos = pos, Kick = kick, Due = Time.unscaledTime + delay, Desc = desc });
+            ReconLog.Line($"chest armor: `{name}` queued, {armor.Name} appears in {delay:0.#} s");
+        }
+
+        private static void Spawn(LootItem armor, Vector3 pos, Vector3 kick, string desc)
+        {
             var tag = DropRoller.SpawnLoot(armor, pos, kick);
             if (tag == null) return;
             Dropped++;
-            ReconLog.Line($"ARMOR (chest) #{Dropped}: {armor.Name} [{LootTables.ClassName(cls)} {Armor.SlotNames[armor.ArmorSlot]}] {Armor.DescribeStats(armor)} from `{name}` size={size} roll={roll:0.###} chance={chance:0.###} view={tag.ViewId}");
+            ReconLog.Line($"ARMOR (chest) #{Dropped}: {desc} view={tag.ViewId}");
+        }
+
+        /// <summary>Called every frame from Core: spawn the pieces whose delay is up.</summary>
+        public static void Tick()
+        {
+            if (Waiting.Count == 0) return;
+            var now = Time.unscaledTime;
+            for (var i = Waiting.Count - 1; i >= 0; i--)
+            {
+                var w = Waiting[i];
+                if (now < w.Due) continue;
+                Waiting.RemoveAt(i);
+                try
+                {
+                    if (!ModGate.Active || !PhotonNetwork.IsMasterClient) { ReconLog.Line($"chest armor: {w.Armor.Name} dropped from the queue (gate closed or no longer the host)"); continue; }
+                    Spawn(w.Armor, w.Pos, w.Kick, w.Desc);
+                }
+                catch (Exception e) { Core.Log.Error($"Delayed chest drop failed: {e}"); }
+            }
         }
 
         private static void Skip(string name, string why) => ReconLog.Line($"chest armor: `{name}` skipped: {why}");
