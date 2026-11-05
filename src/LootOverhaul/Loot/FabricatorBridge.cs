@@ -242,6 +242,7 @@ namespace LootOverhaul.Loot
 
         public static void Tick()
         {
+            TickWaitingHidden();
             if (_refreshAt < 0f || UnityEngine.Time.unscaledTime < _refreshAt) return;
             _refreshAt = -1f;
             RefreshArmories(_refreshWhy ?? "gate opened");
@@ -283,8 +284,9 @@ namespace LootOverhaul.Loot
                     if (!Interop.Alive(c)) continue;
                     try
                     {
-                        if (c.visible) { skipped++; continue; }
+                        if (c.visible) { skipped++; if (!WaitingHidden.Contains(c)) WaitingHidden.Add(c); continue; }
                         c.InitWeaponModules();
+                        WaitingHidden.Remove(c);
                         n++;
                     }
                     catch (Exception e) { Core.Log.Warning($"Armory refresh failed on `{Interop.Name(c)}`: {e.GetType().Name}: {e.Message}"); }
@@ -292,7 +294,34 @@ namespace LootOverhaul.Loot
             }
             catch (Exception e) { Core.Log.Warning($"Armory refresh failed: {e.GetType().Name}: {e.Message}"); }
             Refreshed += n;
-            ReconLog.Line($"armory lists rebuilt on {n} customizer(s), {skipped} showing and left alone: {why}");
+            ReconLog.Line($"armory lists rebuilt on {n} customizer(s), {skipped} showing and left alone until hidden: {why}");
+        }
+
+        // A customizer that was showing during a rebuild is rebuilt once it hides (0.10.6). Its
+        // lists are only built on profile load, so otherwise a weapon bought or bagged while it
+        // was open stayed out of it until the next lobby.
+        private static readonly List<AvatarCustomizer> WaitingHidden = new List<AvatarCustomizer>();
+        private static float _nextHiddenCheck;
+
+        private static void TickWaitingHidden()
+        {
+            if (WaitingHidden.Count == 0 || UnityEngine.Time.unscaledTime < _nextHiddenCheck) return;
+            _nextHiddenCheck = UnityEngine.Time.unscaledTime + 0.5f;
+            if (!ModGate.Active) return;
+            for (var i = WaitingHidden.Count - 1; i >= 0; i--)
+            {
+                var c = WaitingHidden[i];
+                try
+                {
+                    if (!Interop.Alive(c)) { WaitingHidden.RemoveAt(i); continue; }
+                    if (c.visible) continue;
+                    WaitingHidden.RemoveAt(i);
+                    c.InitWeaponModules();
+                    Refreshed++;
+                    ReconLog.Line($"armory lists rebuilt on `{Interop.Name(c)}` now that it is hidden");
+                }
+                catch (Exception e) { WaitingHidden.RemoveAt(i); Core.Log.Warning($"Armory refresh failed: {e.GetType().Name}: {e.Message}"); }
+            }
         }
 
         /// <summary>Is this module one of ours (a bag weapon injected into the game's lists)?</summary>

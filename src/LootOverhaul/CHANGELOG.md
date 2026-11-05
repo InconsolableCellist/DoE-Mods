@@ -3,6 +3,11 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.10.6 (2026-11-02)
+
+### Fixed
+- **A weapon bought from the kobold shows up in the armory at once.** It used to sit in the bag but stay out of the game's own inventory, so it could not be equipped until the next lobby. The purchase now rebuilds the armory lists the way a pickup or an enchant already did. An armory that is open at that moment is rebuilt as soon as it closes (this covers pickups and enchants too).
+
 ## 0.10.5 (2026-10-13)
 
 ### Changed

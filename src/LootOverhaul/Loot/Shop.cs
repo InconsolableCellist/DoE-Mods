@@ -121,6 +121,9 @@ namespace LootOverhaul.Loot
             inv.Save();
             Bought++;
             ReconLog.Line($"shop: bought {bought.Name} for {price} -> tokens {inv.Gold}");
+            // The armory builds its lists once per profile load; without this the weapon stayed
+            // out of the vanilla inventory until the next lobby (report 2026-11-01).
+            try { FabricatorBridge.RefreshArmories($"{bought.Name} bought"); } catch { }
             BagPanel.Refresh();
             return true;
         }
