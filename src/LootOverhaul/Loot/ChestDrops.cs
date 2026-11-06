@@ -11,9 +11,10 @@ namespace LootOverhaul.Loot
 {
     /// <summary>
     /// Armor comes from chests (0.10.3). The moment a chest opens (<c>Chest.EV_ChestOpened</c>, the
-    /// key turning, before anyone presses A on the loot) the host rolls once for that chest and
-    /// spawns the piece as a floor item. Small chests rarely, medium ones sometimes, epic and boss
-    /// chests always; the chest size sets the rarity. Mimics (<c>Mimic : Chest</c>, named like their size,
+    /// key turning, before anyone presses A on the loot) the host rolls for that chest, once per
+    /// player in the room (0.10.7, ChestDropsPerPlayer), and spawns each piece as a floor item.
+    /// Small chests rarely, medium ones sometimes, epic and boss chests always; the chest size
+    /// sets the rarity. Mimics (<c>Mimic : Chest</c>, named like their size,
     /// e.g. chest_medium_mimic) roll like a chest of that size. Enemies drop nothing, and the crypt (realm Crypts / dark
     /// rooms, its rings and runes) gets no armor.
     /// </summary>
@@ -74,28 +75,49 @@ namespace LootOverhaul.Loot
             else if (lower.Contains("small")) { cls = 0; chance = ModConfig.ChestArmorSmall.Value; size = "small"; }
             else { Skip(name, "unknown chest size"); return; }
 
-            var roll = Rng.NextDouble();
-            if (roll >= chance) { ReconLog.Line($"chest armor: `{name}` ({size}) no drop, roll={roll:0.###} chance={chance:0.###}"); return; }
-
+            // One roll per player (ChestDropsPerPlayer), each its own draw at the full chance, so
+            // two players at a small chest each have their own 10%, not one shared 10%.
+            var players = DropRoller.Players();
+            var rolls = ModConfig.ChestDropsPerPlayer.Value ? players : 1;
             var realm = -1; try { realm = (int)GameManager.CurrentRealm; } catch { }
-            var armor = Armor.Roll(cls, realm, Rng);
-            if (armor == null) { ReconLog.Line($"chest armor: `{name}` ({size}) rolled a drop but no perk is unlocked to build armor on"); return; }
-            armor.Source = "chest";
+            var pieces = new List<(LootItem Armor, double Roll, int Of)>();
+            for (var r = 0; r < rolls; r++)
+            {
+                var roll = Rng.NextDouble();
+                if (roll >= chance) { ReconLog.Line($"chest armor: `{name}` ({size}) roll {r + 1}/{rolls} no drop, roll={roll:0.###} chance={chance:0.###}"); continue; }
+                var armor = Armor.Roll(cls, realm, Rng);
+                if (armor == null) { ReconLog.Line($"chest armor: `{name}` ({size}) rolled a drop but no perk is unlocked to build armor on"); break; }
+                armor.Source = "chest";
+                pieces.Add((armor, roll, r + 1));
+            }
+            if (pieces.Count == 0) return;
 
-            // In front of the chest (the side the lid opens toward), not on top of it: the piece
+            // In front of the chest (the side the lid opens toward), not on top of it: a piece
             // starts ChestArmorDistance metres out and is tossed further along the same line.
+            // Several pieces fan out ChestDropSpread degrees apart around that line, and leave
+            // ChestDropStagger seconds apart, so they neither stack nor collide in the air.
             var fwd = chest.transform.forward; fwd.y = 0f;
             fwd = fwd.sqrMagnitude < 0.0001f ? Vector3.forward : fwd.normalized;
-            var side = new Vector3(fwd.z, 0f, -fwd.x) * (float)(Rng.NextDouble() - 0.5) * 0.6f;
-            var pos = chest.transform.position + fwd * ModConfig.ChestArmorDistance.Value + Vector3.up * 1.0f;
-            var kick = Vector3.up * 1.0f + (fwd * 1.1f) + side;
-            var desc = $"{armor.Name} [{LootTables.ClassName(cls)} {Armor.SlotNames[armor.ArmorSlot]}] {Armor.DescribeStats(armor)} from `{name}` size={size} roll={roll:0.###} chance={chance:0.###}";
+            var n = pieces.Count;
+            var spread = Math.Max(0f, Math.Min(90f, ModConfig.ChestDropSpread.Value));
+            var stagger = Math.Max(0f, ModConfig.ChestDropStagger.Value);
             // The person who turned the key is standing at the chest with a hand out: a piece that
             // appears at once gets grabbed by accident. It appears ChestArmorDelay seconds later instead.
             var delay = Math.Max(0f, ModConfig.ChestArmorDelay.Value);
-            if (delay <= 0f) { Spawn(armor, pos, kick, desc); return; }
-            Waiting.Add(new Delayed { Armor = armor, Pos = pos, Kick = kick, Due = Time.unscaledTime + delay, Desc = desc });
-            ReconLog.Line($"chest armor: `{name}` queued, {armor.Name} appears in {delay:0.#} s");
+            for (var i = 0; i < n; i++)
+            {
+                var (armor, roll, of) = pieces[i];
+                var angle = (i - (n - 1) * 0.5f) * spread;
+                var dir = Quaternion.AngleAxis(angle, Vector3.up) * fwd;
+                var side = new Vector3(dir.z, 0f, -dir.x) * (float)(Rng.NextDouble() - 0.5) * (n > 1 ? 0.2f : 0.6f);
+                var pos = chest.transform.position + dir * ModConfig.ChestArmorDistance.Value + Vector3.up * 1.0f;
+                var kick = Vector3.up * 1.0f + (dir * 1.1f) + side;
+                var desc = $"{armor.Name} [{LootTables.ClassName(cls)} {Armor.SlotNames[armor.ArmorSlot]}] {Armor.DescribeStats(armor)} from `{name}` size={size} roll {of}/{rolls}={roll:0.###} chance={chance:0.###} players={players}";
+                var wait = delay + i * stagger;
+                if (wait <= 0f) { Spawn(armor, pos, kick, desc); continue; }
+                Waiting.Add(new Delayed { Armor = armor, Pos = pos, Kick = kick, Due = Time.unscaledTime + wait, Desc = desc });
+                ReconLog.Line($"chest armor: `{name}` queued, {armor.Name} appears in {wait:0.##} s");
+            }
         }
 
         private static void Spawn(LootItem armor, Vector3 pos, Vector3 kick, string desc)

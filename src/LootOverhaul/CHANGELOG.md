@@ -3,6 +3,15 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.10.7 (2026-11-06)
+
+### Changed
+- **Chest armor rolls once per player.** A chest used to roll one armor piece for the whole room. It now rolls once for every player in the room, each roll on its own at the full chance: two players at an epic chest get two Rare pieces, and at a small chest each has their own 10% (so 0, 1 or 2 pieces). Several pieces fan out in front of the chest (`ChestDropSpread`, default 35° apart) and appear a moment apart (`ChestDropStagger`, default 0.35 s) so they do not stack or collide. `ChestDropsPerPlayer = false` brings back one roll per chest.
+- **The loot goblin drops again, once per player.** Its pile was switched off together with all enemy drops (`EnemyDropsEnabled = false`). It now has its own switch, `GoblinDropsEnabled` (default on), and drops its whole pile (`GoblinDrops` pieces, the first at least `GoblinGuaranteedClass`, plus `GoblinJunkRolls` trinkets) once for every player in the room, each pile rolled on its own and all of them spread around one circle. Other enemies still drop nothing. `GoblinDropsPerPlayer = false` brings back one pile.
+
+### Added
+- `DropPlayersOverride` (dev section, default 0): counts that many players for the per-player chest and goblin rolls, to test them alone.
+
 ## 0.10.6 (2026-11-02)
 
 ### Fixed
