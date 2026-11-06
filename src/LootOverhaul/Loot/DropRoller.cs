@@ -86,7 +86,7 @@ namespace LootOverhaul.Loot
                     // the boss rarity curve. Pieces are kicked around a circle so they do not stack.
                     // The pile grows with the party, with extra health bars, and with the boss's
                     // strength type (Elite, Legend): the many-skull bosses of the 2026-09-08 report.
-                    // The goblin's pile comes once per player (GoblinDropsPerPlayer): every pile has
+                    // The goblin drops one shared pile for every player in the room (GoblinDropsScaleWithPlayers): every pile has
                     // its own guaranteed first piece and its own rolls, and all of them share one
                     // circle so the piles do not land on top of each other.
                     int pieces, floor, piles = 1; string rankName;
@@ -95,7 +95,7 @@ namespace LootOverhaul.Loot
                         pieces = Math.Max(1, ModConfig.GoblinDrops.Value);
                         floor = ModConfig.GoblinGuaranteedClass.Value;
                         rankName = "loot goblin";
-                        if (ModConfig.GoblinDropsPerPlayer.Value) piles = players;
+                        if (ModConfig.GoblinDropsScaleWithPlayers.Value) piles = players;
                     }
                     else
                     {

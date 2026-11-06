@@ -11,8 +11,8 @@ namespace LootOverhaul.Loot
 {
     /// <summary>
     /// Armor comes from chests (0.10.3). The moment a chest opens (<c>Chest.EV_ChestOpened</c>, the
-    /// key turning, before anyone presses A on the loot) the host rolls for that chest, once per
-    /// player in the room (0.10.7, ChestDropsPerPlayer), and spawns each piece as a floor item.
+    /// key turning, before anyone presses A on the loot) the host rolls for that chest, once for
+    /// every player in the room (0.10.7, ChestArmorScalesWithPlayers), and spawns each piece as a floor item.
     /// Small chests rarely, medium ones sometimes, epic and boss chests always; the chest size
     /// sets the rarity. Mimics (<c>Mimic : Chest</c>, named like their size,
     /// e.g. chest_medium_mimic) roll like a chest of that size. Enemies drop nothing, and the crypt (realm Crypts / dark
@@ -75,10 +75,10 @@ namespace LootOverhaul.Loot
             else if (lower.Contains("small")) { cls = 0; chance = ModConfig.ChestArmorSmall.Value; size = "small"; }
             else { Skip(name, "unknown chest size"); return; }
 
-            // One roll per player (ChestDropsPerPlayer), each its own draw at the full chance, so
-            // two players at a small chest each have their own 10%, not one shared 10%.
+            // One roll for every player in the room (ChestArmorScalesWithPlayers), each its own draw at
+            // the full chance: two players at a small chest give two separate 10% rolls. Shared floor loot.
             var players = DropRoller.Players();
-            var rolls = ModConfig.ChestDropsPerPlayer.Value ? players : 1;
+            var rolls = ModConfig.ChestArmorScalesWithPlayers.Value ? players : 1;
             var realm = -1; try { realm = (int)GameManager.CurrentRealm; } catch { }
             var pieces = new List<(LootItem Armor, double Roll, int Of)>();
             for (var r = 0; r < rolls; r++)
