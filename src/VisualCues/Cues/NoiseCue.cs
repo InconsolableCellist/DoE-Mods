@@ -92,8 +92,31 @@ namespace VisualCues.Cues
 
         private static void SoundPrefix(Vector3 __0, SoundFX __1)
         {
-            try { if (ModConfig.NoiseAttributeSounds.Value || ModConfig.LogSounds.Value) Attribute(__0, __1); }
+            try
+            {
+                // Every positioned sound in the game passes through here, the player's own included,
+                // so the enemy search runs only when something will use it (0.1.5): the sound log,
+                // or a noise marker that could actually appear.
+                var log = ModConfig.LogSounds.Value;
+                var marker = ModConfig.NoiseAttributeSounds.Value && ModConfig.Enabled.Value && ModConfig.NoiseEnabled.Value;
+                if (!log && !marker) return;
+                if (!log && TooFarForMarker(__0)) return;
+                Attribute(__0, __1);
+            }
             catch (Exception e) { Quiet("PlaySoundAt", e); }
+        }
+
+        /// <summary>
+        /// A sound farther from the player than the marker range plus the attribution radius
+        /// cannot come from an enemy close enough to get a marker (Report drops those), so the
+        /// enemy search would be wasted.
+        /// </summary>
+        private static bool TooFarForMarker(Vector3 pos)
+        {
+            var head = CueHud.HeadTransform;
+            if (!Interop.Alive(head)) return false;
+            var reach = ModConfig.NoiseRangeMeters.Value + Mathf.Max(0.25f, ModConfig.NoiseAttributeRadius.Value) + 3f;
+            return (pos - head.position).sqrMagnitude > reach * reach;
         }
 
         private static int _quietCount;

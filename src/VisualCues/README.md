@@ -9,6 +9,8 @@ The enemy noise feature works regardless of whether other users have the mod, bu
 
 ## What's new in 0.1.5
 
+The enemy search behind the noise markers runs only when something will use it: not at all while the markers (and the sound log) are off, and not for sounds too far away to ever get a marker. The sound log still records every sound as before. The call to other players is unaffected.
+
 Incoming network messages are checked by their number first, and anything that is not this mod's is ignored before its sender and contents are read. Every Photon event of the game passes through this hook, so this saves an interop call and an allocation per event.
 
 The session log is now written to disk once a second instead of after every line. Before, each line was a synchronous disk write on the game's main thread, so a burst of lines (a fight, a dump) could cost frame time in the headset. If the game crashes hard, at most the last second of the log is missing.

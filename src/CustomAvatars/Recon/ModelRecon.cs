@@ -34,7 +34,8 @@ namespace CustomAvatars.Recon
             ReconLog.TryKeyValue("jaw angles (closed/open)", () => $"{cp.closedJawAngle} / {cp.openedJawAngle}");
             ReconLog.TryKeyValue("voiceEnergyOverride", () => cp.voiceEnergyOverride);
             ReconLog.TryKeyValue("blinkTime", () => cp.blinkTime);
-            ReconLog.TryKeyValue("audioTap (VivoxParticipantTap)", () => Describe(cp.audioTap));
+            // audioTap (VivoxParticipantTap) was removed from CharacterPrefab by a game update;
+            // this dump line no longer compiled, so it is gone (0.42.11).
             ReconLog.TryKeyValue("glancer", () => Describe(cp.glancer));
 
             // FinalIK: PLAN 2b wants to reuse the game's own VRIK/GrounderIK rather than
