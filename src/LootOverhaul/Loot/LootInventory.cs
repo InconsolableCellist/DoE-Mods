@@ -11,7 +11,11 @@ namespace LootOverhaul.Loot
     /// mod ownership lives: nothing here ever reaches PlayFab (docs/LOOT-OVERHAUL.md, design
     /// decision 1).
     ///
-    /// Written on every change rather than on quit — a crash mid-run must not lose a legendary.
+    /// Written soon after every change rather than on quit — a crash mid-run must not lose a
+    /// legendary. <see cref="Save"/> only marks the file dirty; it is written at most every
+    /// half second (<see cref="Tick"/>), and at once on scene change, account change and quit,
+    /// so a burst (selling ten weapons, tossing junk to make room, a kill streak moving the
+    /// pity counter) is one disk write instead of one per item.
     /// </summary>
     public class LootInventory
     {
@@ -79,7 +83,41 @@ namespace LootOverhaul.Loot
             return inv;
         }
 
+        private const float SaveDelay = 0.5f;
+
+        /// <summary>Counts every change (every <see cref="Save"/>), so a reader can tell whether anything moved.</summary>
+        [JsonIgnore] public int Changes { get; private set; }
+        private static readonly List<LootInventory> Pending = new List<LootInventory>();
+        private static float _saveAt = -1f;
+
+        /// <summary>Marks the inventory changed; it is written within half a second.</summary>
         public void Save()
+        {
+            if (string.IsNullOrEmpty(Path)) return;
+            Changes++;
+            if (!Pending.Contains(this)) Pending.Add(this);
+            if (_saveAt < 0f) _saveAt = UnityEngine.Time.unscaledTime + SaveDelay;
+        }
+
+        /// <summary>Called every frame from Core: writes pending inventories once their delay is up.</summary>
+        public static void Tick()
+        {
+            if (_saveAt < 0f || UnityEngine.Time.unscaledTime < _saveAt) return;
+            FlushAll();
+        }
+
+        /// <summary>Writes every pending inventory now (scene change, account change, quit).</summary>
+        public static void FlushAll()
+        {
+            _saveAt = -1f;
+            if (Pending.Count == 0) return;
+            var list = Pending.ToArray();
+            Pending.Clear();
+            foreach (var inv in list) inv.SaveNow();
+        }
+
+        /// <summary>Writes the file immediately.</summary>
+        public void SaveNow()
         {
             if (string.IsNullOrEmpty(Path)) return;
             try
@@ -94,6 +132,12 @@ namespace LootOverhaul.Loot
                 Core.Log.Error($"Inventory save failed: {e.GetType().Name}: {e.Message}");
             }
         }
+
+        // A set over RetiredGuids for the armory hooks, which ask on every list build; the list
+        // stays the saved form. Built on first use, kept in step by Remove.
+        private HashSet<string> _retired;
+        private HashSet<string> RetiredSet() => _retired ??= new HashSet<string>(RetiredGuids);
+        public bool IsRetired(string guidNorm) => RetiredSet().Contains(guidNorm);
 
         public bool CanCarry(float extraWeight, float capacity) => TotalWeight + extraWeight <= capacity;
 
@@ -125,7 +169,12 @@ namespace LootOverhaul.Loot
             if (gone.IsWeapon && !string.IsNullOrEmpty(gone.WeaponGuid))
             {
                 var g = FabricatorBridge.Norm(gone.WeaponGuid);
-                if (!RetiredGuids.Contains(g)) { RetiredGuids.Add(g); if (RetiredGuids.Count > 500) RetiredGuids.RemoveAt(0); }
+                RetiredSet();
+                if (_retired.Add(g))
+                {
+                    RetiredGuids.Add(g);
+                    if (RetiredGuids.Count > 500) { _retired.Remove(RetiredGuids[0]); RetiredGuids.RemoveAt(0); }
+                }
                 try { FabricatorBridge.OnBagWeaponGone(gone); } catch { }
             }
             for (var s = 0; s < Loadout.Length; s++)

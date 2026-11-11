@@ -34,6 +34,7 @@ namespace LootOverhaul.Loot
                 {
                     if (_inv != null) Core.Log.Msg($"Bag: account changed `{_account}` -> `{account}`; loading that bag.");
                     _account = account;
+                    LootInventory.FlushAll();
                     _inv = LootInventory.Load(ModPaths.InventoryFile(account));
                     Core.Log.Msg($"Bag loaded for `{account}`: {_inv.Items.Count} item(s), {_inv.TotalWeight:0.#} wt, {_inv.Gold} tokens.");
                     try { Buffs.RebuildWorn(); } catch { }
@@ -108,9 +109,11 @@ namespace LootOverhaul.Loot
             var tossed = 0; var value = 0;
             foreach (var j in toss)
             {
-                if (!Drop(j, quiet: true)) break;
+                if (!Drop(j, quiet: true, refresh: false)) break;
                 tossed++; value += j.Value;
             }
+            // One panel rebuild for the whole toss, not one per trinket (0.10.8).
+            if (tossed > 0) { BagPanel.Refresh(); Booth.Refresh(); }
             if (tossed > 0) Toast($"Tossed {tossed} trinket(s) worth {value} T to make room for {item.ColoredName}");
             ReconLog.Line($"bag: tossed {tossed}/{toss.Count} trinket(s) ({freed:0.#} wt) to make room for {item.Name} ({item.Weight:0.#} wt)");
             return inv.CanCarry(item.Weight, Capacity);
@@ -153,7 +156,7 @@ namespace LootOverhaul.Loot
         }
 
         /// <summary>Drop one bag item at your feet as tagged loot. The panel's per-row Drop uses this.</summary>
-        public static bool Drop(LootItem item, bool quiet = false)
+        public static bool Drop(LootItem item, bool quiet = false, bool refresh = true)
         {
             var inv = Inventory;
             var live = item == null ? null : inv.Find(item.Id);
@@ -182,8 +185,7 @@ namespace LootOverhaul.Loot
                 inv.Remove(live.Id);
                 inv.Save();
                 if (!quiet) Toast($"Dropped {live.ColoredName}");
-                BagPanel.Refresh();
-                Booth.Refresh();
+                if (refresh) { BagPanel.Refresh(); Booth.Refresh(); }
                 return true;
             }
             catch (Exception e) { Core.Log.Error($"Drop failed: {e}"); return false; }
@@ -198,6 +200,21 @@ namespace LootOverhaul.Loot
             DumpToTranscript();
         }
 
+        private static LootInventory _dumpedInv;
+        private static int _dumpedAt = -1;
+
+        /// <summary>
+        /// The bag contents into the transcript when the bag is opened, but only if something
+        /// changed since the last dump (0.10.8): opening and closing the bag ten times used to
+        /// write the whole bag ten times. The data is the same, just not repeated.
+        /// </summary>
+        public static void DumpIfChanged()
+        {
+            var inv = Inventory;
+            if (ReferenceEquals(inv, _dumpedInv) && inv.Changes == _dumpedAt) return;
+            DumpToTranscript();
+        }
+
         public static void DumpToTranscript()
         {
             var inv = Inventory;
@@ -205,6 +222,8 @@ namespace LootOverhaul.Loot
             foreach (var i in inv.Items)
                 ReconLog.Line($"- {i.Name} [{LootTables.ClassName(i.WeaponClass)} {LootTables.TypeName(i.PropType)} t{i.WeaponTier + 1}] value={i.Value} weight={i.Weight:0.#} found {i.FoundAt:u} by {i.FoundBy}");
             ReconLog.Line($"- floor loot tagged right now: {LootRegistry.Count}");
+            _dumpedInv = inv;
+            _dumpedAt = inv.Changes;
         }
 
         public static void Toast(string text)

@@ -32,6 +32,53 @@ namespace LootOverhaul.Loot
     public static class DropRoller
     {
         private static readonly System.Random Rng = new System.Random();
+
+        // Boss and goblin piles are rolled at once but spawned a little apart (0.10.8): a goblin
+        // in a four-player room is up to two dozen pieces, and each one is a weapon generation,
+        // a network instantiate, a label and a sparkle, which in one frame is a visible hitch.
+        private const float PileStagger = 0.06f;
+        private static readonly List<(float Due, Action Spawn)> PileQueue = new List<(float, Action)>();
+        private static float _pileNext;
+
+        /// <summary>Queue one pile piece; the first of a burst spawns this frame.</summary>
+        private static void QueuePile(Action spawn)
+        {
+            var now = Time.unscaledTime;
+            if (PileQueue.Count == 0 && _pileNext <= now) { _pileNext = now + PileStagger; RunPile(spawn); return; }
+            if (_pileNext < now) _pileNext = now;
+            PileQueue.Add((_pileNext, spawn));
+            _pileNext += PileStagger;
+        }
+
+        private static void RunPile(Action spawn)
+        {
+            try
+            {
+                if (!ModGate.Active || !PhotonNetwork.IsMasterClient) { ReconLog.Line("pile piece dropped from the queue (gate closed or no longer the host)"); return; }
+                spawn();
+            }
+            catch (Exception e) { Core.Log.Error($"Pile drop failed: {e}"); }
+        }
+
+        /// <summary>Called every frame from Core: spawn the queued pile pieces whose turn has come.</summary>
+        public static void Tick()
+        {
+            if (PileQueue.Count == 0) return;
+            var now = Time.unscaledTime;
+            while (PileQueue.Count > 0 && PileQueue[0].Due <= now)
+            {
+                var next = PileQueue[0];
+                PileQueue.RemoveAt(0);
+                RunPile(next.Spawn);
+            }
+        }
+
+        /// <summary>A queued piece never lands in the next scene.</summary>
+        public static void OnSceneChanged()
+        {
+            if (PileQueue.Count > 0) ReconLog.Line($"pile: {PileQueue.Count} queued piece(s) dropped on scene change");
+            PileQueue.Clear();
+        }
         private static readonly HashSet<string> BadPrefabs = new HashSet<string>();
         public static int RollsSeen, Dropped, JunkDropped;
         private static bool _tierLogged;
@@ -112,15 +159,20 @@ namespace LootOverhaul.Loot
                         var first = p == 0 && i == 0;
                         var cls = i == 0 ? Math.Max(floor, RollClass(true, first && pity)) : RollClass(true, false);
                         if (cls == 3) inv.KillsSinceLegendary = 0;
-                        DropPiece(cls, pos, ScatterKick(p * pieces + i, total), __0, __instance,
-                            $"{who} {rankName} pile={p + 1}/{piles} piece={i + 1}/{pieces} pity={first && pity}");
+                        var kick = ScatterKick(p * pieces + i, total);
+                        var why = $"{who} {rankName} pile={p + 1}/{piles} piece={i + 1}/{pieces} pity={first && pity}";
+                        var killer = __0; var source = __instance;
+                        QueuePile(() => DropPiece(cls, pos, kick, killer, source, why));
                     }
                     inv.Save();
                     // Bosses roll their trinket three times as often; the goblin always leaves a few, per pile.
                     var junkRolls = goblin ? Math.Max(1, ModConfig.GoblinJunkRolls.Value) * piles : 1;
                     for (var j = 0; j < junkRolls; j++)
-                        RollJunk(__instance, __0, pos, family, boss || goblin, partyScale, goblin ? 1f : -1f,
-                            goblin ? ScatterKick(j, junkRolls) * 0.5f : (Vector3?)null);
+                    {
+                        var jkick = goblin ? ScatterKick(j, junkRolls) * 0.5f : (Vector3?)null;
+                        var killer = __0; var source = __instance; var big = boss || goblin; var jchance = goblin ? 1f : -1f;
+                        QueuePile(() => RollJunk(source, killer, pos, family, big, partyScale, jchance, jkick));
+                    }
                     return;
                 }
 

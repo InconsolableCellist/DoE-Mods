@@ -66,7 +66,8 @@ namespace LootOverhaul.Gate
             var players = PhotonNetwork.PlayerList;
             if (players == null) return;
 
-            var seen = new HashSet<int>();
+            var seen = _seen;
+            seen.Clear();
             var changed = false;
 
             for (var i = 0; i < players.Length; i++)
@@ -139,11 +140,16 @@ namespace LootOverhaul.Gate
             try { return p.NickName; } catch { return "?"; }
         }
 
+        // The poll runs twice a second for every player; the managed set and the game-side key
+        // strings are made once and reused instead of on every poll (0.10.8).
+        private readonly HashSet<int> _seen = new HashSet<int>();
+        private static readonly Dictionary<string, Il2CppSystem.String> Keys = new Dictionary<string, Il2CppSystem.String>();
+
         private static string GetString(Hashtable ht, string key)
         {
             try
             {
-                var k = (Il2CppSystem.String)key;
+                if (!Keys.TryGetValue(key, out var k)) Keys[key] = k = (Il2CppSystem.String)key;
                 if (!ht.ContainsKey(k)) return null;
                 var v = ht[k];
                 return ReferenceEquals(v, null) ? null : v.ToString();

@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text;
+using System.Threading;
 
 namespace LootOverhaul.Recon
 {
@@ -13,6 +14,10 @@ namespace LootOverhaul.Recon
     {
         private static StreamWriter _writer;
         private static bool _closed;
+        // Lines are buffered and written to disk once a second from a timer thread, so a
+        // burst of log lines never turns into a synchronous disk write per line on the
+        // game's main thread. At worst the last second is missing after a hard crash.
+        private static Timer _flushTimer;
         private static readonly object Gate = new object();
 
         public static string OutputDir => ModPaths.ReconDir;
@@ -26,7 +31,8 @@ namespace LootOverhaul.Recon
                 if (_closed) return StreamWriter.Null;
                 Directory.CreateDirectory(OutputDir);
                 CurrentFile = Path.Combine(OutputDir, $"recon-{DateTime.Now:yyyyMMdd-HHmmss}.md");
-                _writer = new StreamWriter(CurrentFile, append: true, Encoding.UTF8) { AutoFlush = true };
+                _writer = new StreamWriter(CurrentFile, append: true, Encoding.UTF8) { AutoFlush = false };
+                _flushTimer = new Timer(_ => FlushNow(), null, 1000, 1000);
                 _writer.WriteLine($"# LootOverhaul recon — {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
                 _writer.WriteLine($"mod version {Core.Version}, DLL {SelfCheck.ShortHash}");
                 _writer.WriteLine();
@@ -91,10 +97,22 @@ namespace LootOverhaul.Recon
             catch (Exception e) { Line($"- **{key}**: _unavailable ({e.GetType().Name}: {e.Message})_"); }
         }
 
+        /// <summary>Writes buffered lines to disk. Called once a second by the timer.</summary>
+        private static void FlushNow()
+        {
+            lock (Gate)
+            {
+                try { _writer?.Flush(); }
+                catch (Exception) { /* disk full or file gone: the next flush tries again */ }
+            }
+        }
+
         public static void Close()
         {
             lock (Gate)
             {
+                _flushTimer?.Dispose();
+                _flushTimer = null;
                 if (_writer == null) { _closed = true; return; }
                 _closed = true;
                 _writer.WriteLine();

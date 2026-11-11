@@ -414,8 +414,7 @@ namespace LootOverhaul.Loot
                 foreach (var r in tag.Object.GetComponentsInChildren<MeshRenderer>(true))
                 {
                     if (!Interop.Alive(r)) continue;
-                    try { r.material.color = color; } catch { }
-                    try { r.material.SetColor("_EmissionColor", color * (tag.Item.WeaponClass >= 2 ? 0.35f : 0.05f)); } catch { }
+                    try { UiKit.Tint(r, color, color * (tag.Item.WeaponClass >= 2 ? 0.35f : 0.05f)); } catch { }
                 }
             }
             catch (Exception e) { Core.Log.Warning($"Junk tint failed: {e.GetType().Name}"); }
@@ -492,6 +491,7 @@ namespace LootOverhaul.Loot
                         try { mat.color = color; } catch { }
                         try { mat.EnableKeyword("_EMISSION"); mat.SetColor("_EmissionColor", color * 1.5f); set.Add("_EmissionColor"); } catch { }
                     }
+                    try { if (mat != null) mat.name = BeamMaterialName; } catch { }
                     r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                     r.receiveShadows = false;
                     if (!_logged) { _logged = true; ReconLog.Line($"beam for {tag.Item.Name}: colour {color} on `{from}` (shader `{Shader(mat)}`), properties set: {(set.Count == 0 ? "none" : string.Join(" ", set))}"); }
@@ -519,8 +519,12 @@ namespace LootOverhaul.Loot
             catch { }
         }
 
+        private const string BeamMaterialName = "LootOverhaul beam";
+
         public static void Detach(LootTag tag)
         {
+            // The beam's material is its own copy (Attach); destroying the beam does not free it.
+            try { if (Interop.Alive(tag.Beam)) { var br = tag.Beam.GetComponent<Renderer>(); var bm = Interop.Alive(br) ? br.sharedMaterial : null; if (Interop.Alive(bm) && bm.name == BeamMaterialName) UnityEngine.Object.Destroy(bm); } } catch { }
             try { if (Interop.Alive(tag.Beam)) UnityEngine.Object.Destroy(tag.Beam); } catch { }
             tag.Beam = null;
         }

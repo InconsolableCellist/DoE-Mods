@@ -46,10 +46,12 @@ namespace LootOverhaul.Recon
                 Counts.TryGetValue(name, out var n);
                 Counts[name] = ++n;
 
-                var args = DescribeArgs(__args);
+                // The arguments are only described when a line is actually written: this
+                // prefix runs on every profile write, and describing a weapon crosses into
+                // the game for its display name.
                 if (Probe != null)
                 {
-                    var line = $"!!! PlayerProfile.{name}({args}) DURING PROBE `{Probe}`";
+                    var line = $"!!! PlayerProfile.{name}({DescribeArgs(__args)}) DURING PROBE `{Probe}`";
                     DuringProbe.Add(line);
                     ReconLog.Headline(line);
                     return;
@@ -58,7 +60,7 @@ namespace LootOverhaul.Recon
                 // Vanilla traffic: first 30 of each, then every 50th, so playtime ticks
                 // can't drown the interesting ones.
                 if (n <= 30 || n % 50 == 0)
-                    ReconLog.Line($"profile write: PlayerProfile.{name}({args}) #{n}");
+                    ReconLog.Line($"profile write: PlayerProfile.{name}({DescribeArgs(__args)}) #{n}");
             }
             catch { }
         }
