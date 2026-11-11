@@ -4,6 +4,8 @@
 
 **The jaw is read with a direct call.** Biting reads CustomAvatars' jaw value every frame; it went through reflection each time (an argument array, boxing, a slow invoke). The call is now bound once. While no jaw parameter arrives, the candidate names are tried once a second instead of every frame. Biting stays on by default.
 
+**The desktop panel is drawn once a frame and its text rebuilt four times a second.** Unity calls the panel's drawing code two or more times a frame, and each call rebuilt every line of text. It now draws only on the repaint pass and reuses the text for a quarter second.
+
 Incoming network messages are checked by their number first, and anything that is not this mod's is ignored before its sender and contents are read. Every Photon event of the game passes through this hook, so this saves an interop call and an allocation per event.
 
 The session log is now written to disk once a second instead of after every line. Before, each line was a synchronous disk write on the game's main thread, so a burst of lines (a fight, a dump) could cost frame time in the headset. If the game crashes hard, at most the last second of the log is missing.

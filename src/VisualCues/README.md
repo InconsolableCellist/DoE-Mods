@@ -9,7 +9,7 @@ The enemy noise feature works regardless of whether other users have the mod, bu
 
 ## What's new in 0.1.5
 
-The enemy search behind the noise markers runs only when something will use it: not at all while the markers (and the sound log) are off, and not for sounds too far away to ever get a marker. The sound log still records every sound as before. The call to other players is unaffected.
+The enemy search behind the noise markers runs only when something will use it: not at all while the markers (and the sound log) are off, and not for sounds too far away to ever get a marker. `LogSounds` (the sound log, only a tool for tuning the markers) is now off by default; an existing config keeps its setting. The call to other players is unaffected.
 
 Incoming network messages are checked by their number first, and anything that is not this mod's is ignored before its sender and contents are read. Every Photon event of the game passes through this hook, so this saves an interop call and an allocation per event.
 

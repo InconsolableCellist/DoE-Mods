@@ -34,6 +34,9 @@ namespace StayPutVR.Hud
         private static readonly Color ShieldColor = new Color(0.60f, 0.90f, 1.00f);
 
         private static readonly List<string> Lines = new List<string>(16);
+        private static float _nextBuild;
+        private static string _builtState;
+        private static Color _builtColor;
         /// <summary>Drawn right under the state line in their own colour: the heal shield, the old-app warning.</summary>
         private static readonly List<(string text, Color color)> Notes = new List<(string, Color)>(4);
         private static bool _drawn;
@@ -49,9 +52,20 @@ namespace StayPutVR.Hud
         public static void Draw()
         {
             if (!ModConfig.Enabled.Value || !ModConfig.HudEnabled.Value) return;
+            // OnGUI runs two or more times a frame (layout, repaint, input); only the repaint
+            // pass draws anything, and the text is rebuilt four times a second, not every pass
+            // (0.5.3). It is a status readout, so a quarter second of lag is invisible.
+            try { if (Event.current != null && Event.current.type != EventType.Repaint) return; } catch { }
 
             const int width = Width;
-            BuildLines(out var state, out var stateColor);
+            var now = Time.unscaledTime;
+            if (now >= _nextBuild || _builtState == null)
+            {
+                _nextBuild = now + 0.25f;
+                BuildLines(out _builtState, out _builtColor);
+            }
+            var state = _builtState;
+            var stateColor = _builtColor;
 
             var height = Pad * 2 + TitleHeight + (Lines.Count + Notes.Count + 1) * LineHeight;
             var rect = new Rect(Screen.width - width - Pad, Pad, width, height);
