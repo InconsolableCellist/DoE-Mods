@@ -9,6 +9,8 @@ The enemy noise feature works regardless of whether other users have the mod, bu
 
 ## What's new in 0.1.5
 
+Incoming network messages are checked by their number first, and anything that is not this mod's is ignored before its sender and contents are read. Every Photon event of the game passes through this hook, so this saves an interop call and an allocation per event.
+
 The session log is now written to disk once a second instead of after every line. Before, each line was a synchronous disk write on the game's main thread, so a burst of lines (a fight, a dump) could cost frame time in the headset. If the game crashes hard, at most the last second of the log is missing.
 
 ## What's new in 0.1.4

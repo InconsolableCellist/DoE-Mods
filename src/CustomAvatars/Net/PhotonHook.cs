@@ -50,7 +50,14 @@ namespace CustomAvatars.Net
             try
             {
                 if (ReferenceEquals(photonEvent, null)) return;
-                RawEvent?.Invoke(photonEvent.Code, photonEvent.Sender, photonEvent.CustomData);
+                // Every event of every player passes through here (PUN's own sync traffic,
+                // enemy spawns, hits), so read only the code first. Sender and payload cost an
+                // interop call and an allocation each; only our own block needs them, plus the
+                // recon sniffer the first time it sees a code (LogPhotonEvents).
+                var code = photonEvent.Code;
+                var firstSighting = Recon.PhotonRecon.Tally(code);
+                if ((code < ModNet.CodeMin || code > ModNet.CodeMax) && !firstSighting) return;
+                RawEvent?.Invoke(code, photonEvent.Sender, photonEvent.CustomData);
             }
             catch (Exception e)
             {

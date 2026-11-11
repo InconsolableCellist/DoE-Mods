@@ -133,6 +133,7 @@ namespace CustomAvatars
             _roster.Tick(dt);
             ModGate.Evaluate(_roster);
             ModNet.Pump();
+            AvatarBundle.Tick();
 
             // Size first: this frame's tracker poses, IK targets and avatar fit must all see
             // the play space at the size settled on, not last frame's.

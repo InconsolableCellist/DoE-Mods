@@ -1,6 +1,8 @@
 # PartyHealth changelog
 
-## 0.1.3 — 2026-11-11 (log written once a second)
+## 0.1.3 — 2026-11-11 (performance)
+
+**Bars are kept instead of rebuilt.** A bar that faded out at full health was destroyed and built again on the next hit (six objects, two materials, three labels), and each label's draw-on-top material copy was never freed. A faded bar is now hidden and reused; it is destroyed only when the friend leaves. All labels share one draw-on-top material.
 
 The session log is now written to disk once a second instead of after every line. Before, each line was a synchronous disk write on the game's main thread, so a burst of lines (a fight, a dump) could cost frame time in the headset. If the game crashes hard, at most the last second of the log is missing.
 

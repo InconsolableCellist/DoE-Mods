@@ -24,6 +24,14 @@ namespace CustomAvatars.Avatars
         private string _key;
         private int _refCount;
 
+        // A bundle nobody holds is kept loaded for a while before it is unloaded (0.42.11).
+        // Re-wearing an avatar (a size step, the T-pose rebind, F4 twice) releases it and asks
+        // for it again a moment later; unloading in between left the textures and meshes of
+        // the first load behind (Unload(false) keeps them) and then loaded a second copy, so
+        // every re-wear added another full copy of the avatar to memory until the next scene.
+        private const float GraceSeconds = 30f;
+        private float _evictAt = -1f;
+
         public AvatarManifest Manifest { get; }
         public GameObject Prefab { get; private set; }
 
@@ -47,6 +55,7 @@ namespace CustomAvatars.Avatars
                 // from inside the engine, which says nothing about the real cause.
                 if (Interop.Alive(existing.Prefab))
                 {
+                    existing._evictAt = -1f;
                     existing._refCount++;
                     Core.Log.Msg($"Reusing already-loaded bundle `{manifest.name}` (holders: {existing._refCount}).");
                     return existing;
@@ -144,6 +153,35 @@ namespace CustomAvatars.Avatars
         {
             if (_refCount > 0) _refCount--;
             if (_refCount > 0) return;
+            // Keep it for GraceSeconds in case it is worn again; Tick unloads it after that.
+            // A handle that is no longer the cached one has nobody to come back to it.
+            if (_key != null && Loaded.TryGetValue(_key, out var cached) && ReferenceEquals(cached, this))
+            {
+                _evictAt = Time.unscaledTime + GraceSeconds;
+                return;
+            }
+            EvictNow();
+        }
+
+        /// <summary>Called every frame from Core: unloads bundles nobody has held for <see cref="GraceSeconds"/>.</summary>
+        public static void Tick()
+        {
+            if (Loaded.Count == 0) return;
+            var now = Time.unscaledTime;
+            List<AvatarBundle> due = null;
+            foreach (var b in Loaded.Values)
+                if (b._refCount == 0 && b._evictAt >= 0f && now >= b._evictAt) (due ??= new List<AvatarBundle>()).Add(b);
+            if (due == null) return;
+            foreach (var b in due)
+            {
+                Core.Log.Msg($"Unloading bundle `{b.Manifest?.name}` (not worn for {GraceSeconds:0} s).");
+                b.EvictNow();
+            }
+        }
+
+        private void EvictNow()
+        {
+            _evictAt = -1f;
             // Only evict the cache entry if it is still THIS object. A handle that lost its
             // prefab on a scene change is replaced in the cache by a fresh load; when the old
             // handle's last holder let go it removed the NEW entry's key, the file was still
