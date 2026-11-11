@@ -1,4 +1,4 @@
-# PartyHealth 0.1.2
+# PartyHealth 0.1.3
 
 A mod for **Dungeons of Eternity** that puts a small, quiet health bar over each friend's head
 in a networked game, so you know who needs a potion or a rescue without asking.

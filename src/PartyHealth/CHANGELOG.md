@@ -1,5 +1,9 @@
 # PartyHealth changelog
 
+## 0.1.3 — 2026-11-11 (log written once a second)
+
+The session log is now written to disk once a second instead of after every line. Before, each line was a synchronous disk write on the game's main thread, so a burst of lines (a fight, a dump) could cost frame time in the headset. If the game crashes hard, at most the last second of the log is missing.
+
 ## 0.1.2 — 2026-09-28 (game update: Input System)
 
 The 2026-09-27 game update switched active input handling to the Input System package, so every

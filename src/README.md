@@ -5,12 +5,12 @@ Six independent MelonLoader mods for Dungeons of Eternity. They share only
 
 | Mod | Version | What it is |
 |---|---|---|
-| [CustomAvatars](CustomAvatars/README.md) | 0.42.10 | VRChat-style avatars, face and eye tracking, full-body tracking. Gated to private lobbies where everyone runs an identical build. |
+| [CustomAvatars](CustomAvatars/README.md) | 0.42.11 | VRChat-style avatars, face and eye tracking, full-body tracking. Gated to private lobbies where everyone runs an identical build. |
 | [LootOverhaul](LootOverhaul/README.md) | 0.10.4 | Loot, a bag, shops and buffs built on the game's own weapon generator. Gated. |
-| [VisualCues](VisualCues/README.md) | 0.1.4 | Accessibility cues for deaf players: a stick-click call arrow and unseen-enemy noise markers. No gate. |
+| [VisualCues](VisualCues/README.md) | 0.1.5 | Accessibility cues for deaf players: a stick-click call arrow and unseen-enemy noise markers. No gate. |
 | [Descent](Descent/README.md) | 0.1.1 | A sixteen-floor dungeon out of the game's own generator. Gated. |
-| [StayPutVR](StayPutVR/README.md) | 0.5.2 | Taking damage, or being bitten by another player, fires a shock through the StayPutVR app over OSC. No gate. |
-| [PartyHealth](PartyHealth/README.md) | 0.1.2 | A small health bar over each friend's head, from the game's own health RPCs. No gate, sends nothing. |
+| [StayPutVR](StayPutVR/README.md) | 0.5.3 | Taking damage, or being bitten by another player, fires a shock through the StayPutVR app over OSC. No gate. |
+| [PartyHealth](PartyHealth/README.md) | 0.1.3 | A small health bar over each friend's head, from the game's own health RPCs. No gate, sends nothing. |
 
 ## One-time prerequisites
 

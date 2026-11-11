@@ -1,5 +1,9 @@
 # StayPutVR changelog
 
+## 0.5.3 — 2026-11-11 (log written once a second)
+
+The session log is now written to disk once a second instead of after every line. Before, each line was a synchronous disk write on the game's main thread, so a burst of lines (a fight, a dump) could cost frame time in the headset. If the game crashes hard, at most the last second of the log is missing.
+
 ## 0.5.2 — 2026-10-02 (untested in the headset)
 
 **The staff and life steal stack.** Each staff tick (about one a second) and each life steal now

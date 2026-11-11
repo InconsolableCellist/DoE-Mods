@@ -6,7 +6,7 @@ using StayPutVR.Net;
 using StayPutVR.Osc;
 using StayPutVR.Trigger;
 
-[assembly: MelonInfo(typeof(StayPutVR.Core), "StayPutVR", "0.5.2", "Foxipso")]
+[assembly: MelonInfo(typeof(StayPutVR.Core), "StayPutVR", "0.5.3", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace StayPutVR
@@ -45,7 +45,7 @@ namespace StayPutVR
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.5.2";
+        public const string Version = "0.5.3";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;

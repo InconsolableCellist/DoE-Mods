@@ -4,7 +4,7 @@ using PartyHealth;
 using PartyHealth.Hud;
 using PartyHealth.Peers;
 
-[assembly: MelonInfo(typeof(Core), "PartyHealth", "0.1.2", "Foxipso")]
+[assembly: MelonInfo(typeof(Core), "PartyHealth", "0.1.3", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace PartyHealth
@@ -19,7 +19,7 @@ namespace PartyHealth
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.1.2";
+        public const string Version = "0.1.3";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
