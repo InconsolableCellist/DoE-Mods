@@ -564,7 +564,8 @@ namespace LootOverhaul.Loot
             {
                 var (st, m) = stats[i];
                 var d = Buffs.Find(st);
-                var (lo, hi) = Armor.Band(piece.WeaponClass, st);
+                var lo = Armor.Band(piece.WeaponClass, st).lo;
+                var hi = Armor.MaxPct(piece, st);
                 var totalSteps = Mathf.Max(0, hi - lo);
                 var cur = Armor.MultToPct(st, m);
                 var label = d == null ? st : string.IsNullOrEmpty(d.Short) ? d.Flavor : d.Short;

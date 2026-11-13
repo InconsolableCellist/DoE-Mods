@@ -57,23 +57,31 @@ namespace LootOverhaul.Loot
             { "Legs_Haste", 25 }, { "Legs_Jump", 25 }, { "Legs_Leap", 25 }, { "Legs_Absorb", 40 }, { "Mind_Fortune", 10 },
         };
 
-        /// <summary>The share of a stat's cap each rarity rolls in; a Legendary can reach the cap.</summary>
+        /// <summary>
+        /// The share of a stat's cap a drop rolls in, by rarity: 1-5 / 4-8 / 7-14 / 13-25% of the
+        /// perk's top level, so a Legendary drop reaches half the cap. Upgrading can double the
+        /// rarity's best roll, which takes a Legendary to the cap.
+        /// </summary>
         private static (float lo, float hi) BandShare(int cls) => Math.Max(0, Math.Min(3, cls)) switch
         {
-            0 => (0.04f, 0.20f), 1 => (0.16f, 0.32f), 2 => (0.28f, 0.56f), _ => (0.52f, 1.00f),
+            0 => (0.02f, 0.10f), 1 => (0.08f, 0.16f), 2 => (0.14f, 0.28f), _ => (0.26f, 0.50f),
         };
 
         public static int Cap(string stat) => StatCap.TryGetValue(stat, out var c) ? c : 25;
 
-        /// <summary>The whole-percent range a stat rolls in on a piece of this rarity, never below 1%.</summary>
+        private static int ShareOfCap(string stat, float share) => (int)Math.Round(Cap(stat) * share, MidpointRounding.AwayFromZero);
+
+        /// <summary>The whole-percent range a stat drops with on a piece of this rarity, never below 1%.</summary>
         public static (int lo, int hi) Band(int cls, string stat)
         {
-            var cap = Cap(stat);
             var (a, b) = BandShare(cls);
-            var lo = Math.Max(1, (int)Math.Round(cap * a, MidpointRounding.AwayFromZero));
-            var hi = Math.Max(lo, (int)Math.Round(cap * b, MidpointRounding.AwayFromZero));
+            var lo = Math.Max(1, ShareOfCap(stat, a));
+            var hi = Math.Max(lo, ShareOfCap(stat, b));
             return (lo, hi);
         }
+
+        /// <summary>How far upgrading can take a stat on a piece of this rarity: twice its best drop.</summary>
+        public static int UpgradeCeiling(int cls, string stat) => Math.Max(Band(cls, stat).hi, ShareOfCap(stat, BandShare(cls).hi * 2f));
 
         public static bool IsInvert(string stat) { var d = Buffs.Find(stat); return d != null && d.Invert; }
 
@@ -275,7 +283,7 @@ namespace LootOverhaul.Loot
         // ---- upgrading ----------------------------------------------------------------------
 
         /// <summary>The strongest a stat can be on a piece of this rarity, in whole percent.</summary>
-        public static int MaxPct(LootItem item, string stat) => Band(item.WeaponClass, stat).hi;
+        public static int MaxPct(LootItem item, string stat) => UpgradeCeiling(item.WeaponClass, stat);
 
         public static bool AtMax(LootItem item, string stat, float m) => MultToPct(stat, m) >= MaxPct(item, stat);
 
