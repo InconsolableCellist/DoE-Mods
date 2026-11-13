@@ -3,6 +3,19 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.10.10 (2026-11-13)
+
+Tonics are ordered for the next run instead of carried in the bag, and they cost more.
+
+### Changed
+- **Tonics are prepared, not bagged.** Buying a tonic at the kobold no longer puts a bottle in the bag. It is prepared for your next run, and every prepared tonic is drunk on its own when the next dungeon starts, with a short toast ("Tonics active: Grand Light Potion, Major Bruiser's Brew"). Nothing is drunk in the lobby, the practice arena or the tutorial. Prepared tonics are saved with the bag, so they survive a game restart; if the next room is not modded they stay prepared for the run after.
+- **One tonic per kind, the strongest wins.** Only one strength of each tonic can be prepared. Tonics never multiply with each other: a stat takes the strongest tonic active on it. Drinking a bag tonic (bottles from earlier versions, or a Minor Light Potion found in a crypt) that is not stronger than what is already active now leaves the bottle in the bag instead of using it up for nothing.
+- **Booth TONICS tab.** A prepared tonic's row is lit green and its strength shows as a framed "PREPARED" plate; the other strengths of that kind are locked. REVERT on the row gives back everything that was paid for it and unlocks the row; REVERT ALL in the header takes back every prepared tonic. The header shows how many are prepared and what they cost.
+- **Tonic prices.** Minor / Major / Grand now cost 80 / 240 / 800 × `ShopPriceMultiplier`, which is 200 / 600 / 2,000 tokens at the default 2.5 (were 150 / 400 / 1,000). The Light Potion costs the same (was 200 / 500 / 1,125). Token payouts are unchanged.
+
+### Fixed
+- **An armor upgrade cut short by the cap costs only its share.** When the last step of a stat is clipped by the rarity's maximum (1.275 → 1.28 is half a step), it used to cost the full step; it now costs half, and the booth shows that price.
+
 ## 0.10.9 (2026-11-13)
 
 No more junk from chests and the loot goblin. Weapons and armor drop exactly as before.

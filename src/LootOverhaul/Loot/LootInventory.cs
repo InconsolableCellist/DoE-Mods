@@ -55,6 +55,13 @@ namespace LootOverhaul.Loot
         public List<LootItem> ShopStock = new List<LootItem>();
         public DateTime ShopGeneratedAt = DateTime.MinValue;
 
+        /// <summary>
+        /// Tonics bought at the kobold for the next run (0.10.10): at most one per stat, drunk
+        /// automatically when the next dungeon starts. Older files have no such field and load
+        /// with an empty list.
+        /// </summary>
+        public List<PreparedTonic> PreparedTonics = new List<PreparedTonic>();
+
         [JsonIgnore] public string Path { get; private set; }
         [JsonIgnore] public float TotalWeight { get { var w = 0f; foreach (var i in Items) w += i.Weight; return w; } }
 
@@ -80,6 +87,8 @@ namespace LootOverhaul.Loot
             inv.Items ??= new List<LootItem>();
             inv.ShopStock ??= new List<LootItem>();
             inv.RetiredGuids ??= new List<string>();
+            inv.PreparedTonics ??= new List<PreparedTonic>();
+            inv.PreparedTonics.RemoveAll(p => p == null || string.IsNullOrEmpty(p.Stat));
             return inv;
         }
 
