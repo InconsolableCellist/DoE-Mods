@@ -47,6 +47,7 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<bool> FbtEnabled;
         public static MelonPreferences_Entry<bool> TrackerSyncEnabled;
         public static MelonPreferences_Entry<float> AvatarSize;
+        public static MelonPreferences_Entry<float> RingSize;
 
         // ---- [CustomAvatars_Tuning] -----------------------------------------------------
         public static MelonPreferences_Entry<float> SpringStiffnessScale;
@@ -189,6 +190,12 @@ namespace CustomAvatars
             AvatarSize = Main.CreateEntry("AvatarSize", 1.0f, description:
                 "How big you are, as a multiple of normal (0.3 to 3). 1 = the mod leaves your size alone. " +
                 "PageUp/PageDown change it in game, Home sets it back to 1.");
+            // Your own screen only: every ring you see on a custom avatar, yours and your
+            // friends', on top of the size measured from the finger. For avatars whose fingers
+            // are thicker than their mesh measures, where the ring disappears inside the finger.
+            RingSize = Main.CreateEntry("RingSize", 1.0f, description:
+                "How big rings look on custom avatars, as a multiple of the measured finger size (0.5 to 4). " +
+                "Raise it if rings vanish inside your avatar's fingers. Only changes what you see. F3 applies it.");
 
             // ---- tuning -----------------------------------------------------------------
             // Restoring force toward the resting pose.

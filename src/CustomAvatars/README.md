@@ -21,6 +21,8 @@ The design notes are in [docs/PLAN.md](../../docs/PLAN.md) and
   captured PhysBone setup.
 - **Rings** you wear sit on your avatar's own finger, for you and for everyone who can see you,
   sized to that finger. An avatar with no bone for that finger has the ring hidden while it is on.
+  If an avatar's fingers swallow the ring, `RingSize` makes every ring you see bigger, on your
+  screen only.
 - **Player sizing** — your avatar's real height, applied after spawn. The game's own height
   calibration, which runs at every scene load, is held at vanilla scale for its one call so a
   sized player is not sunk into the floor by it. When you are bigger than normal, the game's

@@ -44,6 +44,10 @@ namespace CustomAvatars.Avatars
     /// bone for that finger gets the ring hidden (scaled to zero) rather than left floating
     /// where the vanilla finger is; it comes back on revert.
     ///
+    /// `RingSize` multiplies the result, for avatars whose fingers are thicker than measured
+    /// and swallow the ring. It only changes what this client draws. The scale is applied
+    /// about the band's centre, so a bigger ring stays on the finger.
+    ///
     /// Grep the log for `ring:`.
     /// </summary>
     public class RingFollower
@@ -99,6 +103,20 @@ namespace CustomAvatars.Avatars
         private const float FallbackRadiusPerLength = 0.2f;
         private const float ScanSeconds = 0.5f;
         private const float SiteSeconds = 2f;
+        private const float MinSize = 0.5f, MaxSize = 4f;
+
+        /// <summary>
+        /// `RingSize`, sanitised: a multiplier on every ring this client places, on top of the
+        /// finger measurement. Read at load and on F3, not every frame.
+        /// </summary>
+        public static float Size { get; private set; } = 1f;
+
+        public static void RefreshSize()
+        {
+            var v = 1f;
+            try { v = ModConfig.RingSize.Value; } catch { }
+            Size = float.IsFinite(v) && v > 0f ? Mathf.Clamp(v, MinSize, MaxSize) : 1f;
+        }
 
         private readonly string _who;
         private readonly GameObject _model;
@@ -311,7 +329,7 @@ namespace CustomAvatars.Avatars
             var target = bone.TransformPoint(tube.Frame * local);
             var rotation = bone.rotation * tube.Frame * ring.Rot;
 
-            var wantLossy = ring.SizePerRadius * WorldRadius(tube, rPer);
+            var wantLossy = ring.SizePerRadius * WorldRadius(tube, rPer) * Size;
             var parentLossy = 1f;
             var parent = ring.T.parent;
             if (Interop.Alive(parent)) parentLossy = Mathf.Abs(parent.lossyScale.x);

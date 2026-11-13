@@ -100,6 +100,11 @@ You can fine-tune things like bone placement and other settings in `UserData\Mel
 
 Press F3 after saving that file to load the settings.
 
+**Can't see your rings?** If your avatar's fingers are thicker than normal, the ring can end up
+inside the finger. Set `RingSize` in the `[CustomAvatars]` section to something like `1.5` or `2`
+and press F3. It makes every ring you see on a custom avatar bigger, yours and your friends', and
+only on your own screen, so each player can pick their own.
+
 ## Common log messages for troubleshooting 
 
 **`Swap refused: room `x` is VISIBLE (public)`**
