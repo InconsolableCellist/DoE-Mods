@@ -406,7 +406,8 @@ namespace LootOverhaul.Loot
     {
         public static void Apply(LootTag tag)
         {
-            if (tag.Item.IsWeapon || tag.Item.IsArmor || tag.Item.IsBuff || tag.Item.PrefabName != "Wolf_Treat") return;
+            if (tag.Item.IsArmor) { ApplyArmor(tag); return; }
+            if (tag.Item.IsWeapon || tag.Item.IsBuff || tag.Item.PrefabName != "Wolf_Treat") return;
             if (!Interop.Alive(tag.Object)) return;
             var color = tag.Item.WeaponClass switch { 0 => new Color(0.55f, 0.42f, 0.30f), 1 => new Color(0.97f, 0.94f, 0.82f), _ => new Color(1.0f, 0.78f, 0.25f) };
             try
@@ -418,6 +419,21 @@ namespace LootOverhaul.Loot
                 }
             }
             catch (Exception e) { Core.Log.Warning($"Junk tint failed: {e.GetType().Name}"); }
+        }
+
+        private static void ApplyArmor(LootTag tag)
+        {
+            if (!ModConfig.ArmorTint.Value || !Interop.Alive(tag.Object)) return;
+            if (!ColorUtility.TryParseHtmlString(Armor.ClassColor(tag.Item.WeaponClass), out var color)) return;
+            try
+            {
+                foreach (var r in tag.Object.GetComponentsInChildren<MeshRenderer>(true))
+                {
+                    if (!Interop.Alive(r)) continue;
+                    try { UiKit.Tint(r, color, color * 0.4f, enableEmission: true); } catch { }
+                }
+            }
+            catch (Exception e) { Core.Log.Warning($"Armor tint failed: {e.GetType().Name}"); }
         }
     }
 

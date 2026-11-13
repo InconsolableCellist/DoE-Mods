@@ -3,6 +3,14 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.10.9 (2026-11-13)
+
+No more junk from chests and the loot goblin. Weapons and armor drop exactly as before.
+
+### Changed
+- **The loot goblin drops weapons and armor only.** It used to leave `GoblinJunkRolls` trinkets on every pile, and at least one even with `GoblinJunkRolls = 0`. The trinkets now have their own switch, `GoblinJunk` (default off); with it on, `GoblinJunkRolls` trinkets land on each pile and 0 really means none.
+- **Chest armor no longer looks like junk.** Chests never dropped junk, but their armor lies on the floor as a small reliquary chest, the same body as the "Reliquary Chest" artifact, and below Rare it has no beam. Armor on the floor is now tinted in its rarity colour (`ArmorTint`, default on), and the Reliquary Chest artifact is gone from the junk table, so that body always means armor. Reliquaries already in a bag stay as they are.
+
 ## 0.10.8 (2026-11-11)
 
 Performance only: nothing about what drops, what it is worth or how it plays has changed.

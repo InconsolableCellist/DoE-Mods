@@ -40,6 +40,10 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<int> LegendDrops;
         /// <summary>The loot goblin: pieces, rarity floor of the first, guaranteed trinket rolls, and its size.</summary>
         public static MelonPreferences_Entry<int> GoblinDrops, GoblinGuaranteedClass, GoblinJunkRolls;
+        /// <summary>The loot goblin also drops junk on top of its pile (off by default).</summary>
+        public static MelonPreferences_Entry<bool> GoblinJunk;
+        /// <summary>Armor on the floor is tinted in its rarity colour, so it does not pass for a trinket.</summary>
+        public static MelonPreferences_Entry<bool> ArmorTint;
         public static MelonPreferences_Entry<float> LootGoblinScale;
         /// <summary>Roll drops for kills in the sandbox (the practice arena). Off: nothing drops there.</summary>
         public static MelonPreferences_Entry<bool> SandboxDrops;
@@ -182,7 +186,9 @@ namespace LootOverhaul
             LegendDrops = Main.CreateEntry("LegendDrops", 2, description: "Pieces of loot a Legend-type enemy always drops.");
             GoblinDrops = Main.CreateEntry("GoblinDrops", 3, description: "Pieces of loot the loot goblin drops; the first is at least GoblinGuaranteedClass.");
             GoblinGuaranteedClass = Main.CreateEntry("GoblinGuaranteedClass", 1, description: "Rarity floor of the goblin's first piece: 0 Common, 1 Unique, 2 Rare, 3 Legendary.");
-            GoblinJunkRolls = Main.CreateEntry("GoblinJunkRolls", 3, description: "Trinkets the loot goblin always drops on top of its pile.");
+            GoblinJunk = Main.CreateEntry("GoblinJunk", false, description: "The loot goblin also drops junk (GoblinJunkRolls trinkets per pile) on top of its weapons and armor. Off: weapons and armor only.");
+            GoblinJunkRolls = Main.CreateEntry("GoblinJunkRolls", 3, description: "Trinkets the loot goblin drops on top of each pile while GoblinJunk is on. 0 = none.");
+            ArmorTint = Main.CreateEntry("ArmorTint", true, description: "Armor lying on the floor is tinted in its rarity colour, so the little bundle it uses as a body is not mistaken for a trinket.");
             LootGoblinScale = Main.CreateEntry("LootGoblinScale", 1.5f, description: "Size multiplier for the loot goblin (1 = the game's size). Applied on every modded client.");
             SandboxDrops = Main.CreateEntry("SandboxDrops", false, description: "Roll drops for sandbox (practice arena) kills. Off by default: the arena despawns its enemies and would be free loot.");
             PedestalFrame = Main.CreateEntry("PedestalFrame", true, description: "Draw a bright frame around loot weapons on the fabricator and armory tiles.");
@@ -225,7 +231,7 @@ namespace LootOverhaul
             ChestArmorScalesWithPlayers = Main.CreateEntry("ChestArmorScalesWithPlayers", true, description: "A chest rolls its armor once for every player in the room, every roll on its own at the full chance, so more players means more pieces: 2 players at an epic chest give 2 Rare pieces, a small chest makes two separate 10% rolls. The pieces are shared floor loot: everyone sees them and anyone can pick them up. Off: one roll per chest.");
             ChestDropSpread = Main.CreateEntry("ChestDropSpread", 35f, description: "Degrees between neighbouring pieces when a chest drops several; they fan out in front of it.");
             ChestDropStagger = Main.CreateEntry("ChestDropStagger", 0.35f, description: "Seconds between neighbouring pieces when a chest drops several, so they do not collide in the air.");
-            GoblinDropsEnabled = Main.CreateEntry("GoblinDropsEnabled", true, description: "The loot goblin drops its pile (GoblinDrops, GoblinJunkRolls) even while EnemyDropsEnabled is off. Other enemies still drop nothing.");
+            GoblinDropsEnabled = Main.CreateEntry("GoblinDropsEnabled", true, description: "The loot goblin drops its pile (GoblinDrops, and GoblinJunkRolls with GoblinJunk on) even while EnemyDropsEnabled is off. Other enemies still drop nothing.");
             GoblinDropsScaleWithPlayers = Main.CreateEntry("GoblinDropsScaleWithPlayers", true, description: "The loot goblin drops one pile for every player in the room, every pile rolled on its own. The piles are shared floor loot: everyone sees them and anyone can pick them up. Off: one pile.");
             SellMultiplier = Main.CreateEntry("SellMultiplier", 1.0f);
             ShopPriceMultiplier = Main.CreateEntry("ShopPriceMultiplier", 2.5f);

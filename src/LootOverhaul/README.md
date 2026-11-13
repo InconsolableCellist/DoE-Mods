@@ -185,7 +185,7 @@ than appended to, so earlier rows stay readable.
 - **Elites and Legends always drop** (`EliteDrops` 1, `LegendDrops` 2).
 - **Boss piles scale** with players (`BossDropsPerExtraPlayer`), health bars
   (`BossDropsPerExtraHealthBar`) and strength type (`EliteBossExtraDrops`).
-- **Loot goblin**: its own pile (`GoblinDrops`, `GoblinGuaranteedClass`, `GoblinJunkRolls`)
+- **Loot goblin**: its own pile (`GoblinDrops`, `GoblinGuaranteedClass`, `GoblinJunkRolls` with `GoblinJunk` on, off by default)
   and `LootGoblinScale` (1.5) on every client.
 
 ## 0.9.12 — bosses drop a pile
