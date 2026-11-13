@@ -15,7 +15,7 @@ Mods for **Dungeons of Eternity**, the co-op VR dungeon crawler by Othergate.
 
 **VisualCues** adds features for deaf/HoH users: a visual indicator of direction and distance for any monster noise that's occurring near the player, and a call/ping system. Users with the mod can double-depress the right joystick to send a Call, and other users will see a visual indication that that user is pinging them.
 
-**LootOverhaul** adds an expanded loot system, with item drops ranging from trinkets to the occasional weapon, and a new Shopkeeper in the hub where you can sell and buy your loot in exchange for Tokens, which operate independently of the game's gold system. Weapons also have enchantment slots, and you can wear armor for small buffs.
+**LootOverhaul** adds an expanded loot system, with armor dropping from chests and the loot goblin, and a new Shopkeeper in the hub where you can sell and buy your loot in exchange for Tokens, which operate independently of the game's gold system. Weapons also have enchantment slots, and you can wear armor for small buffs.
 
 **StayPutVR** integrates the game to [StayPutVR](https://github.com/InconsolableCellist/StayPutVR), allowing you to get shocked when you take damage. It also integrates with CustomAvatars and allows users to bite each other, just like with StayPutVR and [VRCBiteTech](https://jinxxy.com/Sacred/VRCBiteTech)
 
@@ -45,7 +45,7 @@ The [INSTALL.md](INSTALL.md) walks through the steps in more detail.
 | Mod | Version | Needs everyone modded? |
 |---|---|---|
 | [CustomAvatars](src/CustomAvatars/README.md) | 0.42.8 | Yes |
-| [LootOverhaul](src/LootOverhaul/README.md) | 0.9.14 | Yes |
+| [LootOverhaul](src/LootOverhaul/README.md) | 0.11.0 | Yes |
 | [VisualCues](src/VisualCues/README.md) | 0.1.3 | No |
 | [Descent](src/Descent/README.md) | 0.1.0 | Yes |
 | [StayPutVR](src/StayPutVR/README.md) | 0.4.0 | No |

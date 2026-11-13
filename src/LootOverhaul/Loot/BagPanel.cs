@@ -51,7 +51,7 @@ namespace LootOverhaul.Loot
             Place();
             _root.SetActive(true);
             Rebuild();
-            BagManager.DumpToTranscript();
+            BagManager.DumpIfChanged();
         }
 
         public static void Hide()
@@ -63,7 +63,7 @@ namespace LootOverhaul.Loot
         public static void Tick()
         {
             if (!IsOpen) return;
-            var limit = ModConfig.BagAutoCloseMeters.Value;
+            var limit = ModConfig.Fixed.BagAutoCloseMeters;
             if (limit <= 0f) return;
             try
             {

@@ -3,6 +3,75 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.11.1 (2026-11-13)
+
+An escaped loot goblin no longer drops armor.
+
+### Fixed
+- **No pile from an escaped goblin.** The game removes a goblin that runs off with the same death event as a kill (damage type `Other`), so the goblin pile dropped where it vanished. The pile is now skipped when the goblin escaped, and the log says "goblin escaped, no pile".
+
+## 0.11.0 (2026-11-13)
+
+Far fewer settings, armor from every perk, and only armor drops from the mod.
+
+### Changed
+- **Settings are grouped and trimmed.** About 90 settings in one flat `[LootOverhaul]` list became 34 player settings in their own sections: `[LootOverhaul]` (the master switch), `[LootOverhaul_ChestArmor]`, `[LootOverhaul_Goblin]`, `[LootOverhaul_FloorLoot]`, `[LootOverhaul_Bag]`, `[LootOverhaul_Shop]`, `[LootOverhaul_Tokens]`, plus `[LootOverhaul_Booth]` (set by the = key) and a small `[LootOverhaul_Dev]`. Every setting has a plain description. Fine tuning that nobody needs to change (chest drop distance, delay, spread and stagger, pickup radius, bag auto-close distance, gesture hold time, payout toast timing, pedestal frame colour) is now fixed in code at the old defaults, and the floor outline, armor tint, panel laser, pedestal frame and toss-trinkets-when-full are always on.
+- **Merged switches.** `DropLabels` is now `off`, `hover` or `always` (was `DropLabels` + `DropLabelsOnHover`). `DropSound` is `start`, `finish`, `collected` or `off` (was `DropSounds` + `DropChime`). `AutoPickup` covers tonics, trinkets and armor (was `JunkAutoPickup` + `AutoPickupArmor`). In `[LootOverhaul_Dev]`, `DevTools` replaces `ReconEnabled`, `ProfileWatchEnabled` and `HotkeysEnabled`, and `VerboseLogging` also covers the old console mirror. The player hotkeys ([ ] =) always work.
+- **New defaults:** bag capacity 60, beams on from Rare, floor labels off, drop sound "finish", auto pickup off, goblin pile of 2 at size 1.1, dev tools and logging off.
+- **One-time migration.** The first start of 0.11.0 moves every value you had into its new section, works out the merged switches from the old pairs, removes the keys that no longer exist, and logs how many values it carried. Nothing you tuned is lost.
+- **Armor rolls every exosuit perk.** A piece no longer needs the perk unlocked in the exosuit. Each stat is measured against what its perk gives at the top level in the game: a drop rolls 1-5% (Common), 4-8% (Unique), 7-14% (Rare) or 13-25% (Legendary) of that, and upgrades at the kobold can take a stat to twice its rarity's best drop, so only a Legendary reaches 50% of the perk's top level. Power, for example, is +50% at level 5, so a Legendary Power stat drops at +7 to +13% and upgrades to +25%.
+- **Whole percents.** Armor stats are whole percents and show as +16% or -12% everywhere (were ×1.16 and ÷1.14). Every upgrade step is +1% and costs the same per rarity (750 / 1,500 / 3,000 / 6,000 tokens at the defaults). Pieces you already own keep their values, shown rounded; a piece above its new maximum cannot be upgraded further.
+- **The loot goblin drops armor only.** Its pile no longer contains weapons; the first piece is at least `GoblinGuaranteedClass` and the rest roll Common 70 / Unique 22 / Rare 7 / Legendary 1.
+
+### Removed
+- **Enemy weapon drops, boss and mini-boss piles, Elite and Legend drops, the Legendary pity counter, and junk drops**, with their settings (`EnemyDropsEnabled`, `BaseDropChance`, the `Boss*` / `MiniBoss*` / `Elite*` / `Legend*` piles, `LegendaryPityKills`, `DropChancePerExtraPlayer`, the four rarity weights, `TierUpChance`, `ArmorShare`, `JunkDropChance`, `SandboxDrops`, `GoblinJunk`, `GoblinJunkRolls`). Enemy drops were already off by default since 0.10.0. Trinkets already in a bag can still be sold.
+
+## 0.10.10 (2026-11-13)
+
+Tonics are ordered for the next run instead of carried in the bag, and they cost more.
+
+### Changed
+- **Tonics are prepared, not bagged.** Buying a tonic at the kobold no longer puts a bottle in the bag. It is prepared for your next run, and every prepared tonic is drunk on its own when the next dungeon starts, with a short toast ("Tonics active: Grand Light Potion, Major Bruiser's Brew"). Nothing is drunk in the lobby, the practice arena or the tutorial. Prepared tonics are saved with the bag, so they survive a game restart; if the next room is not modded they stay prepared for the run after.
+- **One tonic per kind, the strongest wins.** Only one strength of each tonic can be prepared. Tonics never multiply with each other: a stat takes the strongest tonic active on it. Drinking a bag tonic (bottles from earlier versions, or a Minor Light Potion found in a crypt) that is not stronger than what is already active now leaves the bottle in the bag instead of using it up for nothing.
+- **Booth TONICS tab.** A prepared tonic's row is lit green and its strength shows as a framed "PREPARED" plate; the other strengths of that kind are locked. REVERT on the row gives back everything that was paid for it and unlocks the row; REVERT ALL in the header takes back every prepared tonic. The header shows how many are prepared and what they cost.
+- **Tonic prices.** Minor / Major / Grand now cost 80 / 240 / 800 × `ShopPriceMultiplier`, which is 200 / 600 / 2,000 tokens at the default 2.5 (were 150 / 400 / 1,000). The Light Potion costs the same (was 200 / 500 / 1,125). Token payouts are unchanged.
+
+### Fixed
+- **An armor upgrade cut short by the cap costs only its share.** When the last step of a stat is clipped by the rarity's maximum (1.275 → 1.28 is half a step), it used to cost the full step; it now costs half, and the booth shows that price.
+
+## 0.10.9 (2026-11-13)
+
+No more junk from chests and the loot goblin. Weapons and armor drop exactly as before.
+
+### Changed
+- **The loot goblin drops weapons and armor only.** It used to leave `GoblinJunkRolls` trinkets on every pile, and at least one even with `GoblinJunkRolls = 0`. The trinkets now have their own switch, `GoblinJunk` (default off); with it on, `GoblinJunkRolls` trinkets land on each pile and 0 really means none.
+- **Chest armor no longer looks like junk.** Chests never dropped junk, but their armor lies on the floor as a small reliquary chest, the same body as the "Reliquary Chest" artifact, and below Rare it has no beam. Armor on the floor is now tinted in its rarity colour (`ArmorTint`, default on), and the Reliquary Chest artifact is gone from the junk table, so that body always means armor. Reliquaries already in a bag stay as they are.
+
+## 0.10.8 (2026-11-11)
+
+Performance only: nothing about what drops, what it is worth or how it plays has changed.
+
+### Changed
+- **The recon transcript is written to disk once a second** instead of after every line. Recon stays on by default and logs exactly what it did before; only the per-line disk write on the game's main thread is gone. At most the last second is missing after a hard crash. The PlayFab write watchdog now describes a call's arguments only when it writes the line, not on every profile write.
+- **The bag file is saved at most every half second.** Every change used to rewrite the whole inventory file at once: each bagged item, each kill (the legendary pity counter), each trinket tossed to make room. Changes are now collected and written together half a second later, and at once on scene change, account change and quit.
+- **One armory rebuild per frame.** Bagging, buying, enchanting or selling several weapons in a row (SELL ALL) rebuilt the game's armory lists once per weapon; all of them now share one rebuild on the next frame.
+- **Boss and goblin piles appear over about a second** instead of all in one frame (a goblin in a four-player room is up to two dozen pieces). The pieces are rolled at the kill exactly as before; only their spawning is spread 0.06 s apart. Queued pieces are dropped on scene change.
+- **Tossing trinkets to make room rebuilds the bag panel once,** not once per trinket.
+- **Opening the bag writes its contents to the transcript only when something changed** since the last time.
+
+### Fixed
+- **Bag, booth and floor-loot materials no longer leak.** Every panel rebuild made new copies of its frame, bar and backdrop materials that were never freed; tinted elements now share one material per colour. A drop beam's material is freed with the beam.
+- Smaller per-call costs: bag weapons' GUIDs are normalised once instead of on every armory display-name call, the retired-weapon check is a set lookup instead of a scan of up to 500 entries, and the roster poll and junk walk-over pickup reuse their buffers.
+
+## 0.10.7 (2026-11-06)
+
+### Changed
+- **Chest armor scales with the number of players.** A chest used to roll one armor piece for the whole room. It now rolls once for every player in the room, each roll on its own at the full chance: two players at an epic chest give two Rare pieces, and a small chest makes two separate 10% rolls (so 0, 1 or 2 pieces). The pieces are shared floor loot as before: everyone sees all of them and anyone can pick any of them up. Several pieces fan out in front of the chest (`ChestDropSpread`, default 35° apart) and appear a moment apart (`ChestDropStagger`, default 0.35 s) so they do not stack or collide. `ChestArmorScalesWithPlayers = false` brings back one roll per chest.
+- **The loot goblin drops again, and its pile scales with the number of players.** Its pile was switched off together with all enemy drops (`EnemyDropsEnabled = false`). It now has its own switch, `GoblinDropsEnabled` (default on), and drops its whole pile (`GoblinDrops` pieces, the first at least `GoblinGuaranteedClass`, plus `GoblinJunkRolls` trinkets) once for every player in the room, each pile rolled on its own and all of them spread around one circle, shared like any floor loot. Other enemies still drop nothing. `GoblinDropsScaleWithPlayers = false` brings back one pile.
+
+### Added
+- `DropPlayersOverride` (dev section, default 0): counts that many players for the chest and goblin rolls that scale with the party, to test them alone.
+
 ## 0.10.6 (2026-11-02)
 
 ### Fixed

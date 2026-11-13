@@ -28,7 +28,7 @@ namespace LootOverhaul.Loot
             public string Flavor;    // what it does, plainly
             public string Short;     // the same in two or three words, for comparison lines
             public float[] Mults = { 1.15f, 1.30f, 1.50f };
-            public int[] Prices = { 60, 160, 400 };
+            public int[] Prices = { 80, 240, 800 };
             public float Weight = 0.4f;
             public bool Invert;
             /// <summary>
@@ -90,7 +90,7 @@ namespace LootOverhaul.Loot
         };
         public static readonly string[] TierNames = { "Minor", "Major", "Grand" };
 
-        /// <summary>Active for this run: stat -> multiplier (stacking takes the best, not the product).</summary>
+        /// <summary>Active for this run: stat -> multiplier. One per stat, the strongest wins (never the product of two tonics).</summary>
         private static readonly Dictionary<string, float> Active = new Dictionary<string, float>();
         /// <summary>Armor: stat -> product of worn multipliers. Permanent while worn.</summary>
         private static Dictionary<string, float> Worn = new Dictionary<string, float>();
@@ -187,18 +187,43 @@ namespace LootOverhaul.Loot
             };
         }
 
-        /// <summary>Drink a bag tonic: active until the lobby next loads.</summary>
+        /// <summary>The multiplier active this run for a stat (0 = none). Light: the potion's radius.</summary>
+        public static float ActiveMult(string stat)
+        {
+            if (stat == LightPotion.Stat) return LightPotion.Radius;
+            return Active.TryGetValue(stat, out var m) ? m : 0f;
+        }
+
+        /// <summary>
+        /// Make a tonic active for this run. One per stat, the strongest wins: a weaker or equal
+        /// one is refused (false) and changes nothing, so two tonics of one stat never multiply.
+        /// </summary>
+        public static bool Activate(string stat, float mult, string why)
+        {
+            if (stat == LightPotion.Stat) return LightPotion.Activate(mult, why);
+            Active.TryGetValue(stat, out var current);
+            if (current >= mult - 0.0001f) return false;
+            Active[stat] = mult;
+            Apply(why);
+            return true;
+        }
+
+        /// <summary>Drink a bag tonic: active until the lobby next loads. One that is no stronger than what is active stays in the bag.</summary>
         public static void Drink(LootItem item)
         {
             var inv = BagManager.Inventory;
             if (item == null || inv.Find(item.Id) == null) { BagManager.Toast("That's gone."); return; }
             if (!ModGate.Active) { BagManager.Toast("Not in a modded room."); return; }
+            var current = ActiveMult(item.BuffStat);
+            if (current >= item.BuffMult - 0.0001f)
+            {
+                BagManager.Toast($"Already active and as strong or stronger: {Effect(item.BuffStat, current)}. {item.ColoredName} stays in your bag.");
+                return;
+            }
             if (item.BuffStat == LightPotion.Stat) { LightPotion.Drink(item); return; }
-            Active.TryGetValue(item.BuffStat, out var current);
-            Active[item.BuffStat] = Math.Max(current, item.BuffMult);
+            Activate(item.BuffStat, item.BuffMult, $"drank {item.Name}");
             inv.Remove(item.Id);
             inv.Save();
-            Apply($"drank {item.Name}");
             BagManager.Toast($"Drank {item.ColoredName}: {Effect(item.BuffStat, item.BuffMult)} until you return to the lobby.");
             BagPanel.Refresh();
         }

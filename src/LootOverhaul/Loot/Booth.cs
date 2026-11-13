@@ -33,6 +33,7 @@ namespace LootOverhaul.Loot
         private const float PriceW = 0.2f;
         private static readonly Color StripeSell = new Color(0.16f, 0.12f, 0.08f, 1f);
         private static readonly Color StripeBuy = new Color(0.08f, 0.12f, 0.18f, 1f);
+        private static readonly Color StripePrepared = new Color(0.07f, 0.2f, 0.09f, 1f);
         private static float BtnW => UiKit.ButtonSize.x * BtnScale;
 
         /// <summary>Every other row gets a lit stripe so the eye can follow a row from name to button.</summary>
@@ -319,8 +320,15 @@ namespace LootOverhaul.Loot
         {
             var inv = BagManager.Inventory;
             var offered = Buffs.Offered();
-            UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), PanelWidth - 0.08f, 0.06f, HeadSize,
-                $"<b>TONICS</b>   {Tokens(inv)}   <color=#B0B0B0>good for one excursion · {offered.Count} brew(s)</color>", fit: true);
+            // Header: tokens, what is prepared and what it cost, and REVERT ALL on the right.
+            var prepared = inv.PreparedTonics;
+            var revertAllX = PanelWidth * 0.5f - 0.04f - BtnW * 0.5f;
+            var summary = prepared.Count == 0
+                ? "<color=#B0B0B0>drunk when your next run starts · one per kind</color>"
+                : $"<color=#5BD75B>{prepared.Count} prepared · {PreparedTonics.TotalCost():N0} tk</color>";
+            UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), WidthBefore(revertAllX, left), 0.06f, HeadSize,
+                $"<b>TONICS</b>   {Tokens(inv)}   {summary}", fit: true);
+            UiKit.Button(_buy, new Vector3(revertAllX, top - 0.05f, 0f), "REVERT ALL", () => { if (PreparedTonics.RevertAll()) Rebuild(); }, BtnScale, enabled: prepared.Count > 0);
             if (offered.Count == 0)
             {
                 UiKit.Text(_buy, new Vector3(0f, top - 0.4f, 0f), 1.1f, 0.06f, 0.36f, "Unlock exosuit perks to use potions with those perks.", TextAlignmentOptions.Center);
@@ -337,22 +345,45 @@ namespace LootOverhaul.Loot
             var step = Mathf.Max(BtnW, 0.24f) * 0.85f + 0.05f;
             var rightX = PanelWidth * 0.5f - 0.04f - BtnW * 0.5f;
             var leftmostX = rightX - 2f * step;
-            var textW = WidthBefore(leftmostX, left, 0.85f);
+            var revertX = leftmostX - step;
             for (var i = 0; i < rows && start + i < offered.Count; i++)
             {
                 var def = offered[start + i];
+                var prep = PreparedTonics.Get(def.Stat);
                 var row = new GameObject($"TonicRow_{i}"); row.transform.SetParent(_buy, false);
                 row.transform.localPosition = new Vector3(0f, y0 - i * 0.14f, 0f);
-                Stripe(row.transform, i, StripeBuy);
+                // A prepared row is lit green across its whole width, so it reads at a glance.
+                if (prep != null) UiKit.Bar(row.transform, new Vector3(0f, 0f, 0.006f), PanelWidth - 0.03f, RowHeight - 0.008f, StripePrepared);
+                else Stripe(row.transform, i, StripeBuy);
+                var textW = WidthBefore(prep != null ? revertX : leftmostX, left, 0.85f);
                 UiKit.Text(row.transform, new Vector3(left, 0.03f, 0f), textW, 0.05f, TitleSize, $"<color=#7FD8FF>{def.Name}</color>", fit: true);
                 UiKit.Text(row.transform, new Vector3(left, -0.03f, 0f), textW, 0.045f, SubSize, $"<color=#B0B0B0>{def.Flavor} · {Buffs.Tiers(def)}</color>", fit: true);
                 var captured = def;
+                if (prep != null)
+                {
+                    var stat = def.Stat;
+                    UiKit.Button(row.transform, new Vector3(revertX, 0f, 0f), $"REVERT +{prep.Price} tk", () => { if (PreparedTonics.Revert(stat)) Rebuild(); }, btnScale);
+                }
                 var x = rightX;
                 for (var t = 2; t >= 0; t--)
                 {
                     var tier = t;
-                    var price = Shop.TonicPrice(def, tier);
-                    UiKit.Button(row.transform, new Vector3(x, 0f, 0f), $"{Buffs.TierNames[tier].ToUpperInvariant()} {price} tk", () => { if (Shop.BuyTonic(captured, tier)) Rebuild(); }, btnScale, enabled: inv.Gold >= price);
+                    var tierName = Buffs.TierNames[tier].ToUpperInvariant();
+                    if (prep != null && prep.Tier == tier)
+                    {
+                        // The prepared strength: a gold-framed green plate instead of a button.
+                        var w = step - 0.02f;
+                        UiKit.Bar(row.transform, new Vector3(x, 0f, 0.002f), w, 0.1f, new Color(0.12f, 0.42f, 0.16f, 1f));
+                        UiKit.Frame(row.transform, new Vector3(x, 0f, 0f), w, 0.1f, 0.006f, new Color(0.96f, 0.77f, 0.26f, 1f));
+                        UiKit.Text(row.transform, new Vector3(x, 0f, -0.004f), w - 0.02f, 0.09f, 0.34f, $"<b>{tierName}</b>\n<color=#C8F5C8>PREPARED</color>", TextAlignmentOptions.Center, fit: true, lines: 2);
+                    }
+                    else if (prep != null)
+                        UiKit.Button(row.transform, new Vector3(x, 0f, 0f), $"{tierName} locked", null, btnScale, enabled: false);
+                    else
+                    {
+                        var price = Shop.TonicPrice(def, tier);
+                        UiKit.Button(row.transform, new Vector3(x, 0f, 0f), $"{tierName} {price} tk", () => { if (PreparedTonics.Prepare(captured, tier)) Rebuild(); }, btnScale, enabled: inv.Gold >= price);
+                    }
                     x -= step;
                 }
             }
@@ -525,25 +556,26 @@ namespace LootOverhaul.Loot
             var stats = Armor.Decode(piece.ArmorStats);
             var cardH = 0.25f;
             var cardW = PanelWidth - 0.04f;
-            var price = Armor.UpgradePrice(piece);
-            var afford = inv.Gold >= price;
             var btnX = PanelWidth * 0.5f - 0.04f - BtnW * 0.5f;
             var priceX = btnX - BtnW * 0.5f - 0.11f;                // centred beside the arrow
             var innerL = left + 0.02f;
             var innerW = priceX - 0.11f - innerL;                  // everything left of the price
-            var (lo, hi) = Armor.Band(piece.WeaponClass);
-            var totalSteps = Mathf.RoundToInt((hi - lo) / Armor.UpgradeStep);
             for (var i = 0; i < stats.Count && i < 2; i++)
             {
                 var (st, m) = stats[i];
                 var d = Buffs.Find(st);
-                var invert = d != null && d.Invert;
+                var lo = Armor.Band(piece.WeaponClass, st).lo;
+                var hi = Armor.MaxPct(piece, st);
+                var totalSteps = Mathf.Max(0, hi - lo);
+                var cur = Armor.MultToPct(st, m);
                 var label = d == null ? st : string.IsNullOrEmpty(d.Short) ? d.Flavor : d.Short;
                 if (label.Length > 0) label = char.ToUpperInvariant(label[0]) + label.Substring(1);
-                var atMax = Armor.AtMax(piece, m);
-                var next = Armor.NextMult(piece, m);
+                var atMax = Armor.AtMax(piece, st, m);
+                var next = Armor.MultToPct(st, Armor.NextMult(piece, st, m));
+                var price = Armor.UpgradePrice(piece);
+                var afford = inv.Gold >= price;
                 var cy = top - 0.57f - i * (cardH + 0.025f);
-                string Pct(float v) => invert ? $"-{(1f - 1f / v) * 100f:0.#}%" : $"+{(v - 1f) * 100f:0}%";
+                string Pct(int v) => Armor.PctText(st, v);
                 UiKit.Bar(_buy, new Vector3(0f, cy, 0.006f), cardW, cardH, StripeBuy);
 
                 UiKit.Text(_buy, new Vector3(innerL, cy + 0.093f, 0f), innerW, 0.05f, 0.44f, $"<b>{label}</b>", fit: true);
@@ -554,17 +586,17 @@ namespace LootOverhaul.Loot
                 UiKit.Text(_buy, new Vector3(Col(0), cy + 0.04f, 0f), third, 0.035f, 0.28f, "<color=#C9A86A>CURRENT</color>", TextAlignmentOptions.Center, fit: true);
                 UiKit.Text(_buy, new Vector3(Col(1), cy + 0.04f, 0f), third, 0.035f, 0.28f, "<color=#5BD75B>NEXT</color>", TextAlignmentOptions.Center, fit: true);
                 UiKit.Text(_buy, new Vector3(Col(2), cy + 0.04f, 0f), third, 0.035f, 0.28f, "<color=#F5C542>MAX</color>", TextAlignmentOptions.Center, fit: true);
-                UiKit.Text(_buy, new Vector3(Col(0), cy - 0.005f, 0f), third, 0.05f, 0.5f, Pct(m), TextAlignmentOptions.Center, fit: true);
+                UiKit.Text(_buy, new Vector3(Col(0), cy - 0.005f, 0f), third, 0.05f, 0.5f, Pct(cur), TextAlignmentOptions.Center, fit: true);
                 UiKit.Text(_buy, new Vector3(Col(1), cy - 0.005f, 0f), third, 0.05f, 0.5f, atMax ? "<color=#B0B0B0>-</color>" : $"<color=#5BD75B>{Pct(next)}</color>", TextAlignmentOptions.Center, fit: true);
                 UiKit.Text(_buy, new Vector3(Col(2), cy - 0.005f, 0f), third, 0.05f, 0.5f, $"<color=#F5C542>{Pct(hi)}</color>", TextAlignmentOptions.Center, fit: true);
 
                 // the rarity's range, slim and centred under the values: gold up to now, a green sliver for the next step
-                var done = Mathf.Clamp(Mathf.RoundToInt((m - lo) / Armor.UpgradeStep), 0, totalSteps);
+                var done = Mathf.Clamp(cur - lo, 0, totalSteps);
                 var barY = cy - 0.06f;
                 var barW = third * 3f;
                 var barL = midX - barW * 0.5f;
-                var span = Mathf.Max(0.001f, hi - lo);
-                var nowF = Mathf.Clamp01((m - lo) / span);
+                var span = (float)Mathf.Max(1, hi - lo);
+                var nowF = Mathf.Clamp01((cur - lo) / span);
                 var nextF = Mathf.Clamp01((next - lo) / span);
                 UiKit.Bar(_buy, new Vector3(midX, barY, -0.004f), barW, 0.012f, new Color(0.14f, 0.17f, 0.24f, 1f));
                 if (nowF > 0.001f) UiKit.Bar(_buy, new Vector3(barL + barW * nowF * 0.5f, barY, -0.01f), barW * nowF, 0.012f, new Color(0.96f, 0.77f, 0.26f, 1f));

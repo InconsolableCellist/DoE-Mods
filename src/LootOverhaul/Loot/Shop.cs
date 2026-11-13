@@ -128,25 +128,10 @@ namespace LootOverhaul.Loot
             return true;
         }
 
-        /// <summary>Tonics are brewed to order: unlimited, priced by tier, gated by unlocked perks.</summary>
-        public static bool BuyTonic(Buffs.Def def, int tier)
-        {
-            var inv = BagManager.Inventory;
-            if (def.Stat != LightPotion.Stat && !Unlocks.PerkUnlocked(def.Stat)) { BagManager.Toast("You haven't unlocked that perk yet."); return false; }
-            var item = Buffs.MakeItem(def, tier);
-            var price = (int)Math.Round(item.Value * ModConfig.ShopPriceMultiplier.Value);
-            if (inv.Gold < price) { BagManager.Toast($"Not enough tokens: {price} needed, you have {inv.Gold}."); return false; }
-            if (!inv.CanCarry(item.Weight, BagManager.Capacity)) { BagManager.Toast("Your bag is too full."); return false; }
-            inv.Gold -= price;
-            item.Value = Math.Max(1, price / 4);   // resale
-            inv.Items.Add(item);
-            inv.Save();
-            Bought++;
-            ReconLog.Line($"shop: bought tonic {item.Name} for {price} -> tokens {inv.Gold}");
-            BagPanel.Refresh();
-            return true;
-        }
-
+        /// <summary>
+        /// A tonic's asking price: the catalogue price × ShopPriceMultiplier (200 / 600 / 2,000 at
+        /// the defaults). Tonics are brewed to order for the next run, see <see cref="PreparedTonics"/>.
+        /// </summary>
         public static int TonicPrice(Buffs.Def def, int tier) => (int)Math.Round(def.Prices[Math.Max(0, Math.Min(2, tier))] * ModConfig.ShopPriceMultiplier.Value);
 
         public static bool Restock()
