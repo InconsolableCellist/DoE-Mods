@@ -39,9 +39,57 @@ namespace LootOverhaul.Loot
         private static readonly float[] BaseWeight = { 1.5f, 4.0f, 3.0f };
         private static readonly int[] BaseValue = { 40, 120, 300, 800 };
 
-        /// <summary>One stat per piece; a Legendary carries two. Band = the strength a stat rolls in.</summary>
+        /// <summary>One stat per piece; a Legendary carries two.</summary>
         private static int StatCount(int cls) => cls >= 3 ? 2 : 1;
-        public static (float lo, float hi) Band(int cls) => cls switch { 0 => (1.04f, 1.08f), 1 => (1.06f, 1.12f), 2 => (1.10f, 1.18f), _ => (1.15f, 1.28f) };
+
+        /// <summary>
+        /// The most armor can give for each stat, in whole percent: half of what the perk gives at
+        /// its top level in the game (the game's exosuit table: Power 1.0 + 0.1 per level up to
+        /// level 5 = +50%, so armor tops out at +25%). The regeneration stats are measured from
+        /// the perk's first level, the value the buff works from when the perk is not equipped.
+        /// </summary>
+        public static readonly Dictionary<string, int> StatCap = new Dictionary<string, int>
+        {
+            { "Arms_Power", 25 }, { "Arms_Critical", 100 }, { "Arms_Knockback", 50 }, { "Arms_Distance", 25 }, { "Arms_Farshot", 25 },
+            { "Chest_Armor", 25 }, { "Chest_Ricochet", 25 }, { "Chest_Dispel", 25 }, { "Chest_Blast", 40 }, { "Chest_Antidote", 40 },
+            { "Chest_Antifreeze", 25 }, { "Chest_Heal", 40 }, { "Chest_Vitality", 100 }, { "Chest_Resilience", 25 },
+            { "Mind_Stillness", 50 }, { "Mind_Mystify", 25 },
+            { "Legs_Haste", 25 }, { "Legs_Jump", 25 }, { "Legs_Leap", 25 }, { "Legs_Absorb", 40 }, { "Mind_Fortune", 10 },
+        };
+
+        /// <summary>The share of a stat's cap each rarity rolls in; a Legendary can reach the cap.</summary>
+        private static (float lo, float hi) BandShare(int cls) => Math.Max(0, Math.Min(3, cls)) switch
+        {
+            0 => (0.04f, 0.20f), 1 => (0.16f, 0.32f), 2 => (0.28f, 0.56f), _ => (0.52f, 1.00f),
+        };
+
+        public static int Cap(string stat) => StatCap.TryGetValue(stat, out var c) ? c : 25;
+
+        /// <summary>The whole-percent range a stat rolls in on a piece of this rarity, never below 1%.</summary>
+        public static (int lo, int hi) Band(int cls, string stat)
+        {
+            var cap = Cap(stat);
+            var (a, b) = BandShare(cls);
+            var lo = Math.Max(1, (int)Math.Round(cap * a, MidpointRounding.AwayFromZero));
+            var hi = Math.Max(lo, (int)Math.Round(cap * b, MidpointRounding.AwayFromZero));
+            return (lo, hi);
+        }
+
+        public static bool IsInvert(string stat) { var d = Buffs.Find(stat); return d != null && d.Invert; }
+
+        /// <summary>Whole percent to the stored multiplier: +16% is ×1.16, a 12% cut on a ÷ stat is ÷(1/0.88).</summary>
+        public static float PctToMult(string stat, int pct) => IsInvert(stat) ? 1f / (1f - Math.Min(95, pct) / 100f) : 1f + pct / 100f;
+
+        public static int MultToPct(string stat, float m)
+        {
+            if (m <= 0f) return 0;
+            var raw = IsInvert(stat) ? (1f - 1f / m) * 100f : (m - 1f) * 100f;
+            return (int)Math.Round(raw, MidpointRounding.AwayFromZero);
+        }
+
+        /// <summary>"+16%" for a boost, "-12%" for a cut.</summary>
+        public static string PctText(string stat, int pct) => IsInvert(stat) ? $"-{pct}%" : $"+{pct}%";
+        public static string PctText(string stat, float m) => PctText(stat, MultToPct(stat, m));
 
         /// <summary>
         /// Which stats each slot rolls, so no stat can sit on two worn pieces: head is offense,
@@ -57,19 +105,17 @@ namespace LootOverhaul.Loot
             new[] { "Legs_Haste", "Legs_Jump", "Legs_Leap", "Legs_Absorb", "Mind_Fortune" },
         };
 
-        /// <summary>The slot's stats whose perk the player has unlocked (retired ones never).</summary>
+        /// <summary>The slot's stats. Every one can roll, whether or not the player has the perk.</summary>
         public static List<string> EligibleStats(int slot)
         {
             var list = new List<string>();
             if (slot < 0 || slot >= SlotStats.Length) return list;
-            // Inverted stats (less damage, slower drain) are fine on armor: the buff divides for those.
-            foreach (var st in SlotStats[slot]) { var d = Buffs.Find(st); if (d != null && !d.Retired && Unlocks.PerkUnlocked(st)) list.Add(st); }
+            foreach (var st in SlotStats[slot]) { var d = Buffs.Find(st); if (d != null && !d.Retired) list.Add(st); }
             return list;
         }
 
         public static LootItem Roll(int cls, int realm, System.Random rng)
         {
-            // Only slots that have something unlocked can roll (a fresh profile may have nothing for the legs).
             var open = new List<int>();
             for (var s = 0; s < 3; s++) if (EligibleStats(s).Count > 0) open.Add(s);
             if (open.Count == 0) return null;
@@ -83,12 +129,11 @@ namespace LootOverhaul.Loot
 
             var chosen = new List<(string stat, float mult)>();
             var pool = new List<string>(stats);
-            var (lo, hi) = Band(cls);
             for (var i = 0; i < StatCount(cls) && pool.Count > 0; i++)
             {
                 var st = pool[rng.Next(pool.Count)]; pool.Remove(st);
-                var m = (float)Math.Round(lo + rng.NextDouble() * (hi - lo), 2);   // hundredths, so each upgrade step lands on one
-                chosen.Add((st, m));
+                var (lo, hi) = Band(cls, st);
+                chosen.Add((st, PctToMult(st, rng.Next(lo, hi + 1))));
             }
             var item = new LootItem
             {
@@ -132,7 +177,7 @@ namespace LootOverhaul.Loot
         public static string DescribeStats(LootItem item)
         {
             var parts = new List<string>();
-            foreach (var (st, m) in Decode(item.ArmorStats)) { var d = Buffs.Find(st); parts.Add($"{(d == null ? st : d.Flavor)} {(d != null && d.Invert ? "÷" : "×")}{m:0.00}"); }
+            foreach (var (st, m) in Decode(item.ArmorStats)) { var d = Buffs.Find(st); parts.Add($"{(d == null ? st : d.Flavor)} {PctText(st, m)}"); }
             return string.Join(", ", parts);
         }
 
@@ -147,33 +192,32 @@ namespace LootOverhaul.Loot
         public static string DescribeStatsShort(LootItem item)
         {
             var parts = new List<string>();
-            foreach (var (st, m) in Decode(item.ArmorStats)) { var d = Buffs.Find(st); parts.Add($"{ShortLabel(st)} {(d != null && d.Invert ? "÷" : "×")}{m:0.00}"); }
+            foreach (var (st, m) in Decode(item.ArmorStats)) parts.Add($"{ShortLabel(st)} {PctText(st, m)}");
             return string.Join(", ", parts);
         }
 
         /// <summary>
         /// A candidate's stats against the piece worn in the same slot, for the ARMOR tab: each
-        /// stat with its multiplier, and in brackets how it compares — green when better, red
-        /// when worse, blue when the worn piece has no such stat — then, in red, any stat the
-        /// worn piece has that the candidate lacks. A bigger multiplier is always the better one
-        /// (the ÷ stats divide by it).
+        /// stat with its percentage, and in brackets how it compares in points — green when better,
+        /// red when worse, blue when the worn piece has no such stat — then, in red, any stat the
+        /// worn piece has that the candidate lacks. A bigger percentage is always the better one.
         /// </summary>
         public static string Compare(LootItem candidate, LootItem worn)
         {
-            var wornStats = new Dictionary<string, float>();
-            if (worn != null) foreach (var (st, m) in Decode(worn.ArmorStats)) wornStats[st] = m;
+            var wornStats = new Dictionary<string, int>();
+            if (worn != null) foreach (var (st, m) in Decode(worn.ArmorStats)) wornStats[st] = MultToPct(st, m);
             var parts = new List<string>();
             var seen = new HashSet<string>();
             foreach (var (st, m) in Decode(candidate.ArmorStats))
             {
                 seen.Add(st);
-                var d = Buffs.Find(st);
-                var label = $"{ShortLabel(st)} {(d != null && d.Invert ? "÷" : "×")}{m:0.00}";
+                var p = MultToPct(st, m);
+                var label = $"{ShortLabel(st)} {PctText(st, p)}";
                 if (worn == null) { parts.Add(label); continue; }
                 if (!wornStats.TryGetValue(st, out var w)) { parts.Add($"{label} <color=#7FD8FF>(new)</color>"); continue; }
-                var diff = m - w;
-                var color = diff > 0.0005f ? "#5BD75B" : diff < -0.0005f ? "#E06060" : "#9A9A9A";
-                parts.Add($"{label} <color={color}>({diff:+0.00;-0.00;=})</color>");
+                var diff = p - w;
+                var color = diff > 0 ? "#5BD75B" : diff < 0 ? "#E06060" : "#9A9A9A";
+                parts.Add($"{label} <color={color}>({(diff == 0 ? "=" : diff > 0 ? $"+{diff}" : $"{diff}")})</color>");
             }
             if (worn != null)
                 foreach (var kv in wornStats)
@@ -185,44 +229,42 @@ namespace LootOverhaul.Loot
         public struct CompareRow
         {
             public string Label;       // "Run speed"
-            public string WornText;    // "Run speed ×1.20", or "-" when the worn piece lacks it
+            public string WornText;    // "Run speed +20%", or "-" when the worn piece lacks it
             public string NewText;     // same for the bag piece
-            public string Net;         // the change only, coloured: "+0.21", "-0.15", "+0.07" (the stat name is already in the row); empty without a bag piece
+            public string Net;         // the change only, coloured, in percentage points: "+21", "-15" (the stat name is already in the row); empty without a bag piece
             public int Verdict;        // 1 better or new, -1 worse or lost, 0 same
         }
 
         /// <summary>
         /// The ARMOR table's rows: every stat on either piece, the bag piece's stats first.
-        /// Either piece may be null (nothing worn, or no piece in the bag). A bigger multiplier
-        /// is always the better one (the ÷ stats divide by it).
+        /// Either piece may be null (nothing worn, or no piece in the bag). A bigger percentage
+        /// is always the better one.
         /// </summary>
         public static List<CompareRow> CompareRows(LootItem candidate, LootItem worn)
         {
             var rows = new List<CompareRow>();
-            var wornStats = new Dictionary<string, float>();
-            var candStats = new Dictionary<string, float>();
+            var wornStats = new Dictionary<string, int>();
+            var candStats = new Dictionary<string, int>();
             var order = new List<string>();
-            if (candidate != null) foreach (var (st, m) in Decode(candidate.ArmorStats)) { candStats[st] = m; order.Add(st); }
-            if (worn != null) foreach (var (st, m) in Decode(worn.ArmorStats)) { wornStats[st] = m; if (!order.Contains(st)) order.Add(st); }
+            if (candidate != null) foreach (var (st, m) in Decode(candidate.ArmorStats)) { candStats[st] = MultToPct(st, m); order.Add(st); }
+            if (worn != null) foreach (var (st, m) in Decode(worn.ArmorStats)) { wornStats[st] = MultToPct(st, m); if (!order.Contains(st)) order.Add(st); }
             foreach (var st in order)
             {
-                var d = Buffs.Find(st);
-                var sign = d != null && d.Invert ? "÷" : "×";
                 var label = ShortLabel(st);
                 var row = new CompareRow { Label = label, WornText = "-", NewText = "-", Net = "" };
                 var hasW = wornStats.TryGetValue(st, out var w);
                 var hasC = candStats.TryGetValue(st, out var c);
-                if (hasW) row.WornText = $"{label} {sign}{w:0.00}";
-                if (hasC) row.NewText = $"{label} {sign}{c:0.00}";
+                if (hasW) row.WornText = $"{label} {PctText(st, w)}";
+                if (hasC) row.NewText = $"{label} {PctText(st, c)}";
                 if (candidate != null)
                 {
-                    if (hasC && !hasW) { row.Net = $"<color=#5BD75B>+{c - 1f:0.00}</color>"; row.Verdict = 1; }
-                    else if (hasW && !hasC) { row.Net = $"<color=#E06060>-{w - 1f:0.00}</color>"; row.Verdict = -1; }
+                    if (hasC && !hasW) { row.Net = $"<color=#5BD75B>+{c}</color>"; row.Verdict = 1; }
+                    else if (hasW && !hasC) { row.Net = $"<color=#E06060>-{w}</color>"; row.Verdict = -1; }
                     else
                     {
                         var diff = c - w;
-                        if (diff > 0.0005f) { row.Net = $"<color=#5BD75B>+{diff:0.00}</color>"; row.Verdict = 1; }
-                        else if (diff < -0.0005f) { row.Net = $"<color=#E06060>{diff:0.00}</color>"; row.Verdict = -1; }
+                        if (diff > 0) { row.Net = $"<color=#5BD75B>+{diff}</color>"; row.Verdict = 1; }
+                        else if (diff < 0) { row.Net = $"<color=#E06060>{diff}</color>"; row.Verdict = -1; }
                         else row.Net = $"<color=#B0B0B0>=</color>";
                     }
                 }
@@ -232,15 +274,13 @@ namespace LootOverhaul.Loot
         }
         // ---- upgrading ----------------------------------------------------------------------
 
-        public const float UpgradeStep = 0.01f;
+        /// <summary>The strongest a stat can be on a piece of this rarity, in whole percent.</summary>
+        public static int MaxPct(LootItem item, string stat) => Band(item.WeaponClass, stat).hi;
 
-        /// <summary>The strongest a stat on a piece of this rarity can be.</summary>
-        public static float MaxMult(int cls) => Band(Math.Max(0, Math.Min(3, cls))).hi;
+        public static bool AtMax(LootItem item, string stat, float m) => MultToPct(stat, m) >= MaxPct(item, stat);
 
-        public static bool AtMax(LootItem item, float m) => m >= MaxMult(item.WeaponClass) - 0.0005f;
-
-        /// <summary>One step up, never past the rarity's maximum.</summary>
-        public static float NextMult(LootItem item, float m) => AtMax(item, m) ? m : Math.Min(MaxMult(item.WeaponClass), (float)Math.Round(m + UpgradeStep, 3));
+        /// <summary>One percent up, never past the rarity's maximum.</summary>
+        public static float NextMult(LootItem item, string stat, float m) => AtMax(item, stat, m) ? m : PctToMult(stat, MultToPct(stat, m) + 1);
 
         /// <summary>
         /// Token price of one upgrade step: fixed by the piece's rarity, the same for every step
@@ -253,21 +293,6 @@ namespace LootOverhaul.Loot
             return Math.Max(1, (int)Math.Round(baseCost * ModConfig.ShopPriceMultiplier.Value * Math.Max(0f, ModConfig.ArmorUpgradeCostMultiplier.Value)));
         }
 
-        /// <summary>
-        /// What raising a stat that stands at <paramref name="m"/> costs: the full step price, or a
-        /// share of it when the rarity's cap clips the last step (half a step costs half; 0.10.10,
-        /// a 1.275 -> 1.28 step was charged in full).
-        /// </summary>
-        public static int UpgradePrice(LootItem item, float m)
-        {
-            var full = UpgradePrice(item);
-            if (AtMax(item, m)) return full;
-            var gain = NextMult(item, m) - m;
-            var share = Math.Max(0f, Math.Min(1f, gain / UpgradeStep));
-            if (share >= 0.999f) return full;
-            return Math.Max(1, (int)Math.Round(full * share));
-        }
-
         /// <summary>Raise one stat of a bag or worn piece by a step. The piece's sell value is not touched.</summary>
         public static bool Upgrade(LootItem item, int index)
         {
@@ -278,9 +303,9 @@ namespace LootOverhaul.Loot
             var stats = Decode(live.ArmorStats);
             if (index < 0 || index >= stats.Count) return false;
             var (st, m) = stats[index];
-            if (AtMax(live, m)) { BagManager.Toast("That stat is already at its best."); return false; }
-            var next = NextMult(live, m);
-            var price = UpgradePrice(live, m);
+            if (AtMax(live, st, m)) { BagManager.Toast("That stat is already at its best."); return false; }
+            var next = NextMult(live, st, m);
+            var price = UpgradePrice(live);
             if (inv.Gold < price) { BagManager.Toast($"Upgrading costs {price} tokens; you have {inv.Gold}."); return false; }
             inv.Gold -= price;
             stats[index] = (st, next);
@@ -288,7 +313,7 @@ namespace LootOverhaul.Loot
             inv.Save();
             if (live.WornSlot >= 0) Buffs.RebuildWorn();
             ReconLog.Line($"armor: upgrade {live.Name} [{SlotNames[live.ArmorSlot]}] {st} {m:0.###} -> {next:0.###} for {price} -> tokens {inv.Gold}");
-            BagManager.Toast($"{ShortLabel(st)} {m:0.00} → {next:0.00} for {price} tokens");
+            BagManager.Toast($"{ShortLabel(st)} {PctText(st, m)} → {PctText(st, next)} for {price} tokens");
             BagPanel.Refresh(); Booth.Refresh();
             return true;
         }

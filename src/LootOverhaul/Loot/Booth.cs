@@ -560,22 +560,21 @@ namespace LootOverhaul.Loot
             var priceX = btnX - BtnW * 0.5f - 0.11f;                // centred beside the arrow
             var innerL = left + 0.02f;
             var innerW = priceX - 0.11f - innerL;                  // everything left of the price
-            var (lo, hi) = Armor.Band(piece.WeaponClass);
-            var totalSteps = Mathf.RoundToInt((hi - lo) / Armor.UpgradeStep);
             for (var i = 0; i < stats.Count && i < 2; i++)
             {
                 var (st, m) = stats[i];
                 var d = Buffs.Find(st);
-                var invert = d != null && d.Invert;
+                var (lo, hi) = Armor.Band(piece.WeaponClass, st);
+                var totalSteps = Mathf.Max(0, hi - lo);
+                var cur = Armor.MultToPct(st, m);
                 var label = d == null ? st : string.IsNullOrEmpty(d.Short) ? d.Flavor : d.Short;
                 if (label.Length > 0) label = char.ToUpperInvariant(label[0]) + label.Substring(1);
-                var atMax = Armor.AtMax(piece, m);
-                var next = Armor.NextMult(piece, m);
-                // A last step the cap cuts short costs only its share (0.10.10).
-                var price = Armor.UpgradePrice(piece, m);
+                var atMax = Armor.AtMax(piece, st, m);
+                var next = Armor.MultToPct(st, Armor.NextMult(piece, st, m));
+                var price = Armor.UpgradePrice(piece);
                 var afford = inv.Gold >= price;
                 var cy = top - 0.57f - i * (cardH + 0.025f);
-                string Pct(float v) => invert ? $"-{(1f - 1f / v) * 100f:0.#}%" : $"+{(v - 1f) * 100f:0}%";
+                string Pct(int v) => Armor.PctText(st, v);
                 UiKit.Bar(_buy, new Vector3(0f, cy, 0.006f), cardW, cardH, StripeBuy);
 
                 UiKit.Text(_buy, new Vector3(innerL, cy + 0.093f, 0f), innerW, 0.05f, 0.44f, $"<b>{label}</b>", fit: true);
@@ -586,17 +585,17 @@ namespace LootOverhaul.Loot
                 UiKit.Text(_buy, new Vector3(Col(0), cy + 0.04f, 0f), third, 0.035f, 0.28f, "<color=#C9A86A>CURRENT</color>", TextAlignmentOptions.Center, fit: true);
                 UiKit.Text(_buy, new Vector3(Col(1), cy + 0.04f, 0f), third, 0.035f, 0.28f, "<color=#5BD75B>NEXT</color>", TextAlignmentOptions.Center, fit: true);
                 UiKit.Text(_buy, new Vector3(Col(2), cy + 0.04f, 0f), third, 0.035f, 0.28f, "<color=#F5C542>MAX</color>", TextAlignmentOptions.Center, fit: true);
-                UiKit.Text(_buy, new Vector3(Col(0), cy - 0.005f, 0f), third, 0.05f, 0.5f, Pct(m), TextAlignmentOptions.Center, fit: true);
+                UiKit.Text(_buy, new Vector3(Col(0), cy - 0.005f, 0f), third, 0.05f, 0.5f, Pct(cur), TextAlignmentOptions.Center, fit: true);
                 UiKit.Text(_buy, new Vector3(Col(1), cy - 0.005f, 0f), third, 0.05f, 0.5f, atMax ? "<color=#B0B0B0>-</color>" : $"<color=#5BD75B>{Pct(next)}</color>", TextAlignmentOptions.Center, fit: true);
                 UiKit.Text(_buy, new Vector3(Col(2), cy - 0.005f, 0f), third, 0.05f, 0.5f, $"<color=#F5C542>{Pct(hi)}</color>", TextAlignmentOptions.Center, fit: true);
 
                 // the rarity's range, slim and centred under the values: gold up to now, a green sliver for the next step
-                var done = Mathf.Clamp(Mathf.RoundToInt((m - lo) / Armor.UpgradeStep), 0, totalSteps);
+                var done = Mathf.Clamp(cur - lo, 0, totalSteps);
                 var barY = cy - 0.06f;
                 var barW = third * 3f;
                 var barL = midX - barW * 0.5f;
-                var span = Mathf.Max(0.001f, hi - lo);
-                var nowF = Mathf.Clamp01((m - lo) / span);
+                var span = (float)Mathf.Max(1, hi - lo);
+                var nowF = Mathf.Clamp01((cur - lo) / span);
                 var nextF = Mathf.Clamp01((next - lo) / span);
                 UiKit.Bar(_buy, new Vector3(midX, barY, -0.004f), barW, 0.012f, new Color(0.14f, 0.17f, 0.24f, 1f));
                 if (nowF > 0.001f) UiKit.Bar(_buy, new Vector3(barL + barW * nowF * 0.5f, barY, -0.01f), barW * nowF, 0.012f, new Color(0.96f, 0.77f, 0.26f, 1f));
