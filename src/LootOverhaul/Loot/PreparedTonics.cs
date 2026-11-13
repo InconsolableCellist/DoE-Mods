@@ -173,6 +173,8 @@ namespace LootOverhaul.Loot
                 || Is(scene, GameManager.MAINMENU_SCENE) || Is(scene, GameManager.SANDBOX_SCENE)
                 || Is(scene, GameManager.TUTORIAL_SCENE)) return true;
             if (scene.IndexOf("tutorial", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+            // The game's own answer as well, so a lobby under a name the constants miss is still a lobby.
+            try { if (GameManager.IsMainMenuOrLobbyOrMegaLobbyScene) return true; } catch { }
             try { if (GameManager.IsSandboxScene) return true; } catch { }
             try { if (GameManager.IsTutorialScene) return true; } catch { }
             return false;
