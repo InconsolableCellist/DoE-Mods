@@ -3,6 +3,13 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.11.1 (2026-11-13)
+
+An escaped loot goblin no longer drops armor.
+
+### Fixed
+- **No pile from an escaped goblin.** The game removes a goblin that runs off with the same death event as a kill (damage type `Other`), so the goblin pile dropped where it vanished. The pile is now skipped when the goblin escaped, and the log says "goblin escaped, no pile".
+
 ## 0.11.0 (2026-11-13)
 
 Far fewer settings, armor from every perk, and only armor drops from the mod.

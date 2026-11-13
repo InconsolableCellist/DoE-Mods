@@ -82,6 +82,11 @@ namespace LootOverhaul.Loot
                 if (__0 < 0) return;
                 if (!Interop.Alive(__instance)) return;
                 if (!Goblins.IsLootGoblin(__instance)) return;
+                if (Escaped(__instance, __1))
+                {
+                    ReconLog.Line($"goblin escaped, no pile: `{__instance.name}` damageType={__1}");
+                    return;
+                }
                 if (InSandbox(__instance))
                 {
                     if (!_sandboxLogged) { _sandboxLogged = true; ReconLog.Line("goblin pile skipped: sandbox kill"); }
@@ -109,6 +114,28 @@ namespace LootOverhaul.Loot
         }
 
         private static bool _sandboxLogged;
+
+        /// <summary>
+        /// A goblin that runs off is removed through the same death RPC as a kill, with
+        /// <c>DamageType.Other</c> and the master as the "killer". Its runner module also
+        /// records the escape in <c>AIRunner.hasEscaped</c>. Either one means no pile.
+        /// </summary>
+        private static bool Escaped(AI ai, int damageType)
+        {
+            if (damageType == (int)DamageType.Other) return true;
+            try
+            {
+                var modules = ai.modules;
+                if (modules == null) return false;
+                for (var i = 0; i < modules.Length; i++)
+                {
+                    var runner = modules[i]?.TryCast<Il2CppSauron.AIRunner>();
+                    if (runner != null && runner.hasEscaped) return true;
+                }
+            }
+            catch { }
+            return false;
+        }
 
         /// <summary>The practice arena: its own scene, or an enemy the sandbox UI spawned.</summary>
         private static bool InSandbox(AI ai)
