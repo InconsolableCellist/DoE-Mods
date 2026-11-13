@@ -30,21 +30,6 @@ namespace LootOverhaul.Loot
             return w + 0.5f * Math.Max(0, tier0);
         }
 
-        /// <summary>Drop-chance multiplier by the game's <c>AI.Type</c> (Light=0 … Gold=8).</summary>
-        public static float EnemyMultiplier(int aiType) => aiType switch
-        {
-            0 => 1.0f,   // Light
-            1 => 1.5f,   // Medium
-            2 => 2.5f,   // Heavy
-            3 => 4.0f,   // Elite
-            4 => 6.0f,   // Legend
-            5 => 2.0f,   // Fire
-            6 => 2.0f,   // Ice
-            7 => 2.0f,   // Poison
-            8 => 3.0f,   // Gold
-            _ => 1.0f,
-        };
-
         /// <summary>
         /// A trinket the broker will buy. Rides on a harmless vanilla prop for its floor body.
         /// Tiers: 0 trinket (grey), 1 curio (white), 2 artifact (gold).
@@ -95,9 +80,6 @@ namespace LootOverhaul.Loot
 
         public static string JunkTierName(int tier) => tier switch { 0 => "trinket", 1 => "curio", _ => "artifact" };
         public static string JunkColor(int tier) => tier switch { 0 => "#9A9A9A", 1 => "#E8E8E8", _ => "#F5C542" };
-
-        /// <summary>Junk tier roll: mostly trinkets.</summary>
-        public static int RollJunkTier(double r) => r < 0.70 ? 0 : r < 0.94 ? 1 : 2;
 
         /// <summary>The game's <c>AI.Type</c> names, the strength ranks the skulls over an enemy stand for.</summary>
         public static string AiTypeName(int aiType) => aiType switch

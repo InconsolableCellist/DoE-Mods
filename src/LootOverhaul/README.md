@@ -1,4 +1,4 @@
-# LootOverhaul 0.10.10 — building
+# LootOverhaul 0.11.0 — building
 
 A second, independent MelonLoader mod for Dungeons of Eternity. Design and game-internals
 findings: [docs/LOOT-OVERHAUL.md](../../docs/LOOT-OVERHAUL.md).
@@ -27,7 +27,7 @@ transport, re-identified so the mods never confuse each other and either install
 |---|---|---|
 | Photon player properties | `ca.ver` / `ca.sha` / `ca.caps` | `lo.ver` / `lo.sha` / `lo.caps` |
 | Event codes | 140–149 | 150–159 (`150` handshake, `151` loot with sub-opcodes) |
-| MelonPreferences sections | `[CustomAvatars*]` | `[LootOverhaul]`, `[LootOverhaul_Dev]` |
+| MelonPreferences sections | `[CustomAvatars*]` | `[LootOverhaul]`, `[LootOverhaul_*]` |
 | UserData folder | `UserData/CustomAvatars/` | `UserData/LootOverhaul/` |
 | Harmony | prefix on `LoadBalancingClient.OnEvent` | its own prefix on the same method |
 
@@ -35,6 +35,46 @@ Both prefixes coexist: Harmony chains them and each mod ignores the other's code
 gate rule is the same: private room, every occupant on the identical version and DLL hash of
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
+
+## 0.11.0 — fewer settings, armor from every perk
+
+The mod drops **armor only**: from chests as they open, and from the loot goblin. Enemy weapon
+drops, boss piles and junk drops are gone (they had been off by default since 0.10.0).
+
+### Settings
+
+All settings are in `UserData/MelonPreferences.cfg`, one section per topic. The first start of
+0.11.0 moves the values of an older config into these sections and removes the keys that no
+longer exist.
+
+| Section | Settings |
+|---|---|
+| `[LootOverhaul]` | `Enabled` |
+| `[LootOverhaul_ChestArmor]` | `ChestArmorEnabled`, `ChestArmorSmall` / `Medium` / `Epic` / `Boss` (chance per chest size: 0.10 / 0.25 / 1 / 1), `ChestArmorScalesWithPlayers` |
+| `[LootOverhaul_Goblin]` | `GoblinDropsEnabled`, `GoblinDrops` (2), `GoblinGuaranteedClass` (1 = Unique), `GoblinDropsScaleWithPlayers`, `LootGoblinScale` (1.1) |
+| `[LootOverhaul_FloorLoot]` | `DropBeams` (on), `BeamMinClass` (2 = Rare), `DropLabels` (off / hover / always), `DropSparkles`, `DropSound` (start / finish / collected / off) |
+| `[LootOverhaul_Bag]` | `BagWeightCapacity` (60), `BagGesture` (stick-hold / back-grip / off), `AutoPickup` (off) |
+| `[LootOverhaul_Shop]` | `ShopPriceMultiplier` (2.5), `SellMultiplier`, `ShopSlots`, `ShopRefreshMinutes`, `EnchantCostMultiplier`, `ArmorUpgradeCostMultiplier`, `LoadoutEnabled` |
+| `[LootOverhaul_Tokens]` | `GoldToTokenRate` and the payout bonuses per boss, mini-boss, hazard level, tier, extra player and chest |
+| `[LootOverhaul_Booth]` | the booth's position, set by pressing = in the lobby |
+| `[LootOverhaul_Dev]` | `DevTools` (recon transcript, profile watch, survey hotkeys), `VerboseLogging`, `RunLogging`, `DropPlayersOverride` |
+
+### Armor stats
+
+Every exosuit perk can roll on armor, whether or not the player has unlocked it. A stat is a whole
+percent of what its perk gives at the top level in the game:
+
+| Rarity | Drops with | Upgrades up to |
+|---|---|---|
+| Common | 1-5% | 10% |
+| Unique | 4-8% | 16% |
+| Rare | 7-14% | 28% |
+| Legendary | 13-25% | 50% |
+
+Power is +50% at level 5, so a Legendary Power stat drops at +7 to +13% and can be upgraded to
++25%. The upper limits per stat: Power, Distance, Farshot, Resilience, Mystify, Haste, Jump, Leap,
+Armor, Dispel, Ricochet and Antifreeze 25%; Critical and Vitality 100%; Knockback and Stillness
+50%; Heal, Blast, Antidote and Absorb 40%; Fortune 10%. Each upgrade step at the kobold is +1%.
 
 ## 0.10.10 — tonics to order
 

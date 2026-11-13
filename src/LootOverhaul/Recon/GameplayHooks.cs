@@ -54,9 +54,9 @@ namespace LootOverhaul.Recon
             try
             {
                 Loot.Tokens.CountKill(__instance);
-                if (ModConfig.EnemyDropsEnabled.Value || ModConfig.GoblinDropsEnabled.Value)   // enemy drops off by default; the goblin has its own switch
+                if (ModConfig.GoblinDropsEnabled.Value)
                     Loot.DropRoller.OnKilled(__instance, __0, __1);
-                if (!ModConfig.ReconEnabled.Value) return;
+                if (!ModConfig.DevTools.Value) return;
                 var pos = Interop.Alive(__instance) ? Interop.Vec(__instance.transform.position) : "?";
                 var name = Interop.Alive(__instance) ? __instance.name : "<dead proxy>";
                 string type = "?", armor = "?";

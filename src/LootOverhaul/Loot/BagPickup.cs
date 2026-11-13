@@ -117,11 +117,11 @@ namespace LootOverhaul.Loot
 
         public static void Tick()
         {
-            if (!ModConfig.JunkAutoPickup.Value || !ModGate.Active || LootRegistry.Count == 0) return;
+            if (!ModConfig.AutoPickup.Value || !ModGate.Active || LootRegistry.Count == 0) return;
             var now = UnityEngine.Time.unscaledTime;
             if (now < _nextAt) return;
             _nextAt = now + Every;
-            var radius = ModConfig.JunkAutoPickupMeters.Value;
+            var radius = ModConfig.Fixed.AutoPickupMeters;
             if (radius <= 0f) return;
             try
             {
@@ -130,7 +130,7 @@ namespace LootOverhaul.Loot
                 var head = local.Head;
                 if (!Interop.Alive(head)) return;
                 var eye = head.position;
-                var armorToo = ModConfig.AutoPickupArmor.Value;
+                var armorToo = ModConfig.AutoPickup.Value;
                 // A snapshot: on the master a claim is granted on the spot and removes its tag.
                 // One list reused across checks instead of a new copy five times a second (0.10.8).
                 Snapshot.Clear();

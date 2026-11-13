@@ -420,7 +420,7 @@ namespace LootOverhaul.Loot
                 r.receiveShadows = false;
             }
             catch { }
-            if (ModConfig.PanelLaser.Value) LaserCatcher(parent, localPos + new Vector3(0f, 0f, 0.005f), width, height);
+            LaserCatcher(parent, localPos + new Vector3(0f, 0f, 0.005f), width, height);
             return quad;
         }
 

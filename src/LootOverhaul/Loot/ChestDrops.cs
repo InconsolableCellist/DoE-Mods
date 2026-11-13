@@ -39,7 +39,7 @@ namespace LootOverhaul.Loot
         {
             try
             {
-                if (ModConfig.ReconEnabled.Value) GameplayHooks.LogChest("EV_ChestOpened", __instance);
+                if (ModConfig.DevTools.Value) GameplayHooks.LogChest("EV_ChestOpened", __instance);
                 OnOpened(__instance);
             }
             catch (Exception e) { Core.Log.Error($"Chest drop failed: {e}"); }
@@ -99,18 +99,18 @@ namespace LootOverhaul.Loot
             var fwd = chest.transform.forward; fwd.y = 0f;
             fwd = fwd.sqrMagnitude < 0.0001f ? Vector3.forward : fwd.normalized;
             var n = pieces.Count;
-            var spread = Math.Max(0f, Math.Min(90f, ModConfig.ChestDropSpread.Value));
-            var stagger = Math.Max(0f, ModConfig.ChestDropStagger.Value);
+            var spread = Math.Max(0f, Math.Min(90f, ModConfig.Fixed.ChestDropSpread));
+            var stagger = Math.Max(0f, ModConfig.Fixed.ChestDropStagger);
             // The person who turned the key is standing at the chest with a hand out: a piece that
             // appears at once gets grabbed by accident. It appears ChestArmorDelay seconds later instead.
-            var delay = Math.Max(0f, ModConfig.ChestArmorDelay.Value);
+            var delay = Math.Max(0f, ModConfig.Fixed.ChestArmorDelay);
             for (var i = 0; i < n; i++)
             {
                 var (armor, roll, of) = pieces[i];
                 var angle = (i - (n - 1) * 0.5f) * spread;
                 var dir = Quaternion.AngleAxis(angle, Vector3.up) * fwd;
                 var side = new Vector3(dir.z, 0f, -dir.x) * (float)(Rng.NextDouble() - 0.5) * (n > 1 ? 0.2f : 0.6f);
-                var pos = chest.transform.position + dir * ModConfig.ChestArmorDistance.Value + Vector3.up * 1.0f;
+                var pos = chest.transform.position + dir * ModConfig.Fixed.ChestArmorDistance + Vector3.up * 1.0f;
                 var kick = Vector3.up * 1.0f + (dir * 1.1f) + side;
                 var desc = $"{armor.Name} [{LootTables.ClassName(cls)} {Armor.SlotNames[armor.ArmorSlot]}] {Armor.DescribeStats(armor)} from `{name}` size={size} roll {of}/{rolls}={roll:0.###} chance={chance:0.###} players={players}";
                 var wait = delay + i * stagger;

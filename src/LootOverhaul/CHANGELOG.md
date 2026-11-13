@@ -3,6 +3,22 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.11.0 (2026-11-13)
+
+Far fewer settings, armor from every perk, and only armor drops from the mod.
+
+### Changed
+- **Settings are grouped and trimmed.** About 90 settings in one flat `[LootOverhaul]` list became 34 player settings in their own sections: `[LootOverhaul]` (the master switch), `[LootOverhaul_ChestArmor]`, `[LootOverhaul_Goblin]`, `[LootOverhaul_FloorLoot]`, `[LootOverhaul_Bag]`, `[LootOverhaul_Shop]`, `[LootOverhaul_Tokens]`, plus `[LootOverhaul_Booth]` (set by the = key) and a small `[LootOverhaul_Dev]`. Every setting has a plain description. Fine tuning that nobody needs to change (chest drop distance, delay, spread and stagger, pickup radius, bag auto-close distance, gesture hold time, payout toast timing, pedestal frame colour) is now fixed in code at the old defaults, and the floor outline, armor tint, panel laser, pedestal frame and toss-trinkets-when-full are always on.
+- **Merged switches.** `DropLabels` is now `off`, `hover` or `always` (was `DropLabels` + `DropLabelsOnHover`). `DropSound` is `start`, `finish`, `collected` or `off` (was `DropSounds` + `DropChime`). `AutoPickup` covers tonics, trinkets and armor (was `JunkAutoPickup` + `AutoPickupArmor`). In `[LootOverhaul_Dev]`, `DevTools` replaces `ReconEnabled`, `ProfileWatchEnabled` and `HotkeysEnabled`, and `VerboseLogging` also covers the old console mirror. The player hotkeys ([ ] =) always work.
+- **New defaults:** bag capacity 60, beams on from Rare, floor labels off, drop sound "finish", auto pickup off, goblin pile of 2 at size 1.1, dev tools and logging off.
+- **One-time migration.** The first start of 0.11.0 moves every value you had into its new section, works out the merged switches from the old pairs, removes the keys that no longer exist, and logs how many values it carried. Nothing you tuned is lost.
+- **Armor rolls every exosuit perk.** A piece no longer needs the perk unlocked in the exosuit. Each stat is measured against what its perk gives at the top level in the game: a drop rolls 1-5% (Common), 4-8% (Unique), 7-14% (Rare) or 13-25% (Legendary) of that, and upgrades at the kobold can take a stat to twice its rarity's best drop, so only a Legendary reaches 50% of the perk's top level. Power, for example, is +50% at level 5, so a Legendary Power stat drops at +7 to +13% and upgrades to +25%.
+- **Whole percents.** Armor stats are whole percents and show as +16% or -12% everywhere (were ×1.16 and ÷1.14). Every upgrade step is +1% and costs the same per rarity (750 / 1,500 / 3,000 / 6,000 tokens at the defaults). Pieces you already own keep their values, shown rounded; a piece above its new maximum cannot be upgraded further.
+- **The loot goblin drops armor only.** Its pile no longer contains weapons; the first piece is at least `GoblinGuaranteedClass` and the rest roll Common 70 / Unique 22 / Rare 7 / Legendary 1.
+
+### Removed
+- **Enemy weapon drops, boss and mini-boss piles, Elite and Legend drops, the Legendary pity counter, and junk drops**, with their settings (`EnemyDropsEnabled`, `BaseDropChance`, the `Boss*` / `MiniBoss*` / `Elite*` / `Legend*` piles, `LegendaryPityKills`, `DropChancePerExtraPlayer`, the four rarity weights, `TierUpChance`, `ArmorShare`, `JunkDropChance`, `SandboxDrops`, `GoblinJunk`, `GoblinJunkRolls`). Enemy drops were already off by default since 0.10.0. Trinkets already in a bag can still be sold.
+
 ## 0.10.10 (2026-11-13)
 
 Tonics are ordered for the next run instead of carried in the bag, and they cost more.

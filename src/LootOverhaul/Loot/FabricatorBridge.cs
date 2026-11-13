@@ -476,23 +476,14 @@ namespace LootOverhaul.Loot
                 tag.transform.localScale = new Vector3(1f / Mathf.Max(0.001f, ls.x), 1f / Mathf.Max(0.001f, ls.y), 1f / Mathf.Max(0.001f, ls.z));
                 tag.transform.rotation = __instance.transform.rotation;
                 var right = __instance.transform.right; var up = __instance.transform.up; var fwd = __instance.transform.forward;
-                if (ModConfig.PedestalFrame.Value)
-                {
-                    // The frame sits on the tile's bounds, a hair toward the viewer, a little outside the icon.
-                    if (!ColorUtility.TryParseHtmlString(ModConfig.PedestalFrameColor.Value ?? "", out var color)) color = new Color(1f, 0.82f, 0.29f, 1f);
-                    // A hairline (0.9.15; the 0.9.13 frame was 8% of the tile and read as a slab).
-                    var w = Mathf.Clamp(tile.size.x, 0.03f, 0.4f); var hgt = Mathf.Clamp(tile.size.y, 0.03f, 0.4f);
-                    var thick = Mathf.Clamp(Mathf.Min(w, hgt) * 0.03f, 0.0015f, 0.006f);
-                    tag.transform.position = tile.center - fwd * 0.006f;
-                    UiKit.Frame(tag.transform, Vector3.zero, w + thick * 2f, hgt + thick * 2f, thick, color, emission: 0.8f);
-                }
-                else
-                {
-                    // Top-left corner of the tile, a hair toward the viewer.
-                    tag.transform.position = tile.center - right * (tile.extents.x - 0.004f) + up * (tile.extents.y - 0.004f) - fwd * 0.004f;
-                    UiKit.Text(tag.transform, Vector3.zero, h * 1.5f, h * 0.3f, h * 2.2f, "<color=#F5C542><b>LOOT</b></color>");
-                }
-                if (!_tagLogged) { _tagLogged = true; ReconLog.Line($"pedestal {(ModConfig.PedestalFrame.Value ? "frame" : "tag")} placed on tile {tile.size.x:0.###}×{tile.size.y:0.###} m (icon {(have ? "found" : "missing")}), tile scale {ls.x:0.###}"); }
+                // The frame sits on the tile's bounds, a hair toward the viewer, a little outside the icon.
+                if (!ColorUtility.TryParseHtmlString(ModConfig.Fixed.PedestalFrameColor, out var color)) color = new Color(1f, 0.82f, 0.29f, 1f);
+                // A hairline (0.9.15; the 0.9.13 frame was 8% of the tile and read as a slab).
+                var w = Mathf.Clamp(tile.size.x, 0.03f, 0.4f); var hgt = Mathf.Clamp(tile.size.y, 0.03f, 0.4f);
+                var thick = Mathf.Clamp(Mathf.Min(w, hgt) * 0.03f, 0.0015f, 0.006f);
+                tag.transform.position = tile.center - fwd * 0.006f;
+                UiKit.Frame(tag.transform, Vector3.zero, w + thick * 2f, hgt + thick * 2f, thick, color, emission: 0.8f);
+                if (!_tagLogged) { _tagLogged = true; ReconLog.Line($"pedestal frame placed on tile {tile.size.x:0.###}×{tile.size.y:0.###} m (icon {(have ? "found" : "missing")}), tile scale {ls.x:0.###}"); }
             }
             catch (Exception e) { Core.Log.Warning($"ModuleButton tag failed: {e.GetType().Name}: {e.Message}"); }
         }

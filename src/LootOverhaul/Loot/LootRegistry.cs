@@ -73,7 +73,7 @@ namespace LootOverhaul.Loot
             ApplyPose(tag);
             if (ModConfig.DropBeams.Value && tag.Beam == null && tag.Item.WeaponClass >= ModConfig.BeamMinClass.Value) tag.Beam = DropBeam.Attach(tag);
             JunkTint.Apply(tag);
-            if (ModConfig.DropLabels.Value && tag.Label == null) tag.Label = DropLabel.Attach(tag);
+            if (ModConfig.LabelsOn && tag.Label == null) tag.Label = DropLabel.Attach(tag);
             if (ModConfig.DropSparkles.Value && tag.Sparkle == null) tag.Sparkle = DropSparkle.Attach(tag);
             DropOutline.Refresh(tag);
             DropSound.OnFound(tag);
@@ -220,7 +220,7 @@ namespace LootOverhaul.Loot
 
         public static void Refresh(LootTag tag)
         {
-            if (!ModConfig.DropOutline.Value || !Interop.Alive(tag.Object)) return;
+            if (!Interop.Alive(tag.Object)) return;
             var now = Time.unscaledTime;
             if (tag.Outlined && now < tag.NextOutlineAt) return;
             try
@@ -335,7 +335,7 @@ namespace LootOverhaul.Loot
 
         public static void OnFound(LootTag tag)
         {
-            if (tag.SoundPlayed || !ModConfig.DropSounds.Value) return;
+            if (tag.SoundPlayed || !ModConfig.SoundsOn) return;
             tag.SoundPlayed = true;
             if (!tag.Item.IsWeapon && !tag.Item.IsArmor) return;
             var chime = Chime();
@@ -351,7 +351,7 @@ namespace LootOverhaul.Loot
         /// <summary>Called by the spawner right after the kick: the game's own throw whoosh and spin loop, sent to everyone by the game.</summary>
         public static void OnSpawned(GameObject go, Vector3 velocity, Vector3 angular)
         {
-            if (!ModConfig.DropSounds.Value) return;
+            if (!ModConfig.SoundsOn) return;
             try
             {
                 var prop = go.GetComponent<Prop>();
@@ -364,7 +364,7 @@ namespace LootOverhaul.Loot
 
         private static SoundFXRef Chime()
         {
-            var raw = ModConfig.DropChime.Value;
+            var raw = ModConfig.DropSound.Value;
             if (!ReferenceEquals(raw, _chimeRaw)) { _chimeRaw = raw; _chimeMode = (raw ?? "").Trim().ToLowerInvariant(); }
             var which = _chimeMode;
             if (which == "off" || which == "") return null;
@@ -423,7 +423,7 @@ namespace LootOverhaul.Loot
 
         private static void ApplyArmor(LootTag tag)
         {
-            if (!ModConfig.ArmorTint.Value || !Interop.Alive(tag.Object)) return;
+            if (!Interop.Alive(tag.Object)) return;
             if (!ColorUtility.TryParseHtmlString(Armor.ClassColor(tag.Item.WeaponClass), out var color)) return;
             try
             {
@@ -632,7 +632,7 @@ namespace LootOverhaul.Loot
                 if (toEye.sqrMagnitude > 0.0001f) label.transform.rotation = Quaternion.LookRotation(toEye, Vector3.up);
 
                 // Hover-only: visible while you look roughly at it within a few metres, or a hand is near it.
-                if (ModConfig.DropLabelsOnHover.Value)
+                if (ModConfig.LabelsOnHover)
                 {
                     var toItem = tag.Object.transform.position - eye;
                     var dist = toItem.magnitude;

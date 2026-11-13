@@ -63,7 +63,7 @@ namespace LootOverhaul.Loot
         public static void Tick()
         {
             if (!IsOpen) return;
-            var limit = ModConfig.BagAutoCloseMeters.Value;
+            var limit = ModConfig.Fixed.BagAutoCloseMeters;
             if (limit <= 0f) return;
             try
             {

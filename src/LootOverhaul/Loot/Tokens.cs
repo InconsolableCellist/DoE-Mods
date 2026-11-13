@@ -439,8 +439,8 @@ namespace LootOverhaul.Loot
         private static void ToastLong(string text)
         {
             Toast(text);
-            float total = ModConfig.TokenToastSeconds.Value;
-            float every = ModConfig.TokenToastRepeatSeconds.Value;
+            float total = ModConfig.Fixed.TokenToastSeconds;
+            float every = ModConfig.Fixed.TokenToastRepeatSeconds;
             if (total <= 0f || every <= 0f) return;
             _toastText = text;
             _toastUntil = UnityEngine.Time.unscaledTime + total;
@@ -455,7 +455,7 @@ namespace LootOverhaul.Loot
                 float now = UnityEngine.Time.unscaledTime;
                 if (now >= _toastUntil) { _toastText = null; return; }
                 if (now < _toastNextAt) return;
-                float every = ModConfig.TokenToastRepeatSeconds.Value;
+                float every = ModConfig.Fixed.TokenToastRepeatSeconds;
                 _toastNextAt = now + (every < 0.5f ? 0.5f : every);
                 Toast(_toastText);
             }

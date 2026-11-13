@@ -97,7 +97,7 @@ namespace LootOverhaul.Loot
         {
             var inv = Inventory;
             if (inv.CanCarry(item.Weight, Capacity)) return true;
-            if (!ModConfig.TossJunkWhenFull.Value || !(item.IsWeapon || item.IsArmor)) return false;
+            if (!(item.IsWeapon || item.IsArmor)) return false;
             var junk = new System.Collections.Generic.List<LootItem>();
             foreach (var j in inv.Items) if (!j.IsWeapon && !j.IsArmor && !j.IsBuff && !j.Locked && !inv.InUse(j)) junk.Add(j);
             junk.Sort((a, b) => a.Value != b.Value ? a.Value.CompareTo(b.Value) : b.Weight.CompareTo(a.Weight));

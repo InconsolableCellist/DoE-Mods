@@ -58,7 +58,7 @@ namespace LootOverhaul.Recon
             lock (Gate)
             {
                 Writer.WriteLine(text.Length == 0 ? "" : $"{Stamp} {text}");
-                if (ModConfig.MirrorReconToConsole.Value && text.Length > 0) Core.Log.Msg(text);
+                if (ModConfig.VerboseLogging.Value && text.Length > 0) Core.Log.Msg(text);
             }
         }
 
