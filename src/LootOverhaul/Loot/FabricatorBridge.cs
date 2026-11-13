@@ -155,7 +155,7 @@ namespace LootOverhaul.Loot
                     ArmoryRefusals++; RetiredBlocked++;
                     BagManager.Toast("That loot already left your bag. Reopen the armory to refresh it.");
                     ReconLog.Line("armory: salvage refused before it started, the loot weapon already left the bag");
-                    RefreshArmories("stale entry salvaged");
+                    RefreshArmoriesNow("stale entry salvaged");
                     return false;
                 }
                 var item = FindByGuid(_armorySelectedGuid);
@@ -208,7 +208,7 @@ namespace LootOverhaul.Loot
         {
             if (string.IsNullOrEmpty(guidNorm)) return null;
             foreach (var i in BagManager.Inventory.Items)
-                if (i.IsWeapon && Norm(i.WeaponGuid) == guidNorm) return i;
+                if (i.IsWeapon && i.NormGuid() == guidNorm) return i;
             return null;
         }
 
@@ -216,7 +216,7 @@ namespace LootOverhaul.Loot
         public static bool IsRetired(string guidNorm)
         {
             if (string.IsNullOrEmpty(guidNorm)) return false;
-            try { return BagManager.Inventory.RetiredGuids.Contains(guidNorm); } catch { return false; }
+            try { return BagManager.Inventory.IsRetired(guidNorm); } catch { return false; }
         }
 
         public static int Refreshed, RetiredBlocked;
@@ -242,10 +242,17 @@ namespace LootOverhaul.Loot
 
         public static void Tick()
         {
+            if (_batched > 0)
+            {
+                var why = _batchedWhy;
+                _batched = 0;
+                _batchedWhy = null;
+                RefreshArmoriesNow(why);
+            }
             TickWaitingHidden();
             if (_refreshAt < 0f || UnityEngine.Time.unscaledTime < _refreshAt) return;
             _refreshAt = -1f;
-            RefreshArmories(_refreshWhy ?? "gate opened");
+            RefreshArmoriesNow(_refreshWhy ?? "gate opened");
         }
 
         private static bool HasBagWeapons()
@@ -267,7 +274,20 @@ namespace LootOverhaul.Loot
             RefreshArmories($"{item.Name} left the bag");
         }
 
+        private static int _batched;
+        private static string _batchedWhy;
+
+        /// <summary>
+        /// Asks for an armory rebuild on the next frame. Every ask in the same frame shares one
+        /// rebuild, so selling or bagging ten weapons at once is one scene scan, not ten (0.10.8).
+        /// </summary>
         public static void RefreshArmories(string why)
+        {
+            _batched++;
+            _batchedWhy = _batched == 1 ? why : $"{_batched} changes, last: {why}";
+        }
+
+        private static void RefreshArmoriesNow(string why)
         {
             if (!ModGate.Active)
             {
@@ -456,23 +476,14 @@ namespace LootOverhaul.Loot
                 tag.transform.localScale = new Vector3(1f / Mathf.Max(0.001f, ls.x), 1f / Mathf.Max(0.001f, ls.y), 1f / Mathf.Max(0.001f, ls.z));
                 tag.transform.rotation = __instance.transform.rotation;
                 var right = __instance.transform.right; var up = __instance.transform.up; var fwd = __instance.transform.forward;
-                if (ModConfig.PedestalFrame.Value)
-                {
-                    // The frame sits on the tile's bounds, a hair toward the viewer, a little outside the icon.
-                    if (!ColorUtility.TryParseHtmlString(ModConfig.PedestalFrameColor.Value ?? "", out var color)) color = new Color(1f, 0.82f, 0.29f, 1f);
-                    // A hairline (0.9.15; the 0.9.13 frame was 8% of the tile and read as a slab).
-                    var w = Mathf.Clamp(tile.size.x, 0.03f, 0.4f); var hgt = Mathf.Clamp(tile.size.y, 0.03f, 0.4f);
-                    var thick = Mathf.Clamp(Mathf.Min(w, hgt) * 0.03f, 0.0015f, 0.006f);
-                    tag.transform.position = tile.center - fwd * 0.006f;
-                    UiKit.Frame(tag.transform, Vector3.zero, w + thick * 2f, hgt + thick * 2f, thick, color, emission: 0.8f);
-                }
-                else
-                {
-                    // Top-left corner of the tile, a hair toward the viewer.
-                    tag.transform.position = tile.center - right * (tile.extents.x - 0.004f) + up * (tile.extents.y - 0.004f) - fwd * 0.004f;
-                    UiKit.Text(tag.transform, Vector3.zero, h * 1.5f, h * 0.3f, h * 2.2f, "<color=#F5C542><b>LOOT</b></color>");
-                }
-                if (!_tagLogged) { _tagLogged = true; ReconLog.Line($"pedestal {(ModConfig.PedestalFrame.Value ? "frame" : "tag")} placed on tile {tile.size.x:0.###}×{tile.size.y:0.###} m (icon {(have ? "found" : "missing")}), tile scale {ls.x:0.###}"); }
+                // The frame sits on the tile's bounds, a hair toward the viewer, a little outside the icon.
+                if (!ColorUtility.TryParseHtmlString(ModConfig.Fixed.PedestalFrameColor, out var color)) color = new Color(1f, 0.82f, 0.29f, 1f);
+                // A hairline (0.9.15; the 0.9.13 frame was 8% of the tile and read as a slab).
+                var w = Mathf.Clamp(tile.size.x, 0.03f, 0.4f); var hgt = Mathf.Clamp(tile.size.y, 0.03f, 0.4f);
+                var thick = Mathf.Clamp(Mathf.Min(w, hgt) * 0.03f, 0.0015f, 0.006f);
+                tag.transform.position = tile.center - fwd * 0.006f;
+                UiKit.Frame(tag.transform, Vector3.zero, w + thick * 2f, hgt + thick * 2f, thick, color, emission: 0.8f);
+                if (!_tagLogged) { _tagLogged = true; ReconLog.Line($"pedestal frame placed on tile {tile.size.x:0.###}×{tile.size.y:0.###} m (icon {(have ? "found" : "missing")}), tile scale {ls.x:0.###}"); }
             }
             catch (Exception e) { Core.Log.Warning($"ModuleButton tag failed: {e.GetType().Name}: {e.Message}"); }
         }
@@ -539,7 +550,7 @@ namespace LootOverhaul.Loot
                     _trashingRetired = true;
                     BagManager.Toast("That loot already left your bag. The armory list is stale until you reopen it.");
                     Core.Log.Msg($"armory: removal of an already-gone loot weapon refused ({Interop.OneLine(__0.GetDisplayName(false))}); coins will be refused");
-                    RefreshArmories("stale entry used");
+                    RefreshArmoriesNow("stale entry used");
                     __result = true;
                     return false;
                 }

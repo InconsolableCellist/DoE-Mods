@@ -67,7 +67,7 @@ namespace LootOverhaul.Loot
 
                 if (!active) { _heldSince = -1f; _fired = false; return; }
                 if (_heldSince < 0f) _heldSince = Time.unscaledTime;
-                if (!_fired && Time.unscaledTime - _heldSince >= Mathf.Max(0.15f, ModConfig.BagGestureHoldSeconds.Value))
+                if (!_fired && Time.unscaledTime - _heldSince >= Mathf.Max(0.15f, ModConfig.Fixed.BagGestureHoldSeconds))
                 {
                     _fired = true;
                     Core.Log.Msg($"Bag gesture: stick held up — bag {(BagPanel.IsOpen ? "closing" : "opening")}.");

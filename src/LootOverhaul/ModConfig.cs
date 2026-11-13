@@ -1,260 +1,262 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using MelonLoader;
+using MelonLoader.Utils;
 
 namespace LootOverhaul
 {
     /// <summary>
-    /// Settings, in UserData/MelonPreferences.cfg, under their own sections so they sit next
-    /// to CustomAvatars' without mixing. [LootOverhaul] for what a player changes,
-    /// [LootOverhaul_Dev] for diagnostics.
+    /// Settings, in UserData/MelonPreferences.cfg, one section per topic so a new player can
+    /// find what they are looking for. Fine tuning that nobody needs to touch lives in code
+    /// (see <see cref="Fixed"/>). [LootOverhaul_Dev] holds diagnostics and testing switches.
     /// </summary>
     public static class ModConfig
     {
-        public static MelonPreferences_Category Main;
-        public static MelonPreferences_Category Dev;
+        public const int Layout = 11;
 
-        // ---- [LootOverhaul] -------------------------------------------------------------
+        public static MelonPreferences_Category Main, ChestArmor, Goblin, FloorLoot, Bag, Shop, TokenPay, BoothPos, Dev;
+
         public static MelonPreferences_Entry<bool> Enabled;
-        /// <summary>Master switch for the enemy-death drop roll. Off means chests only.</summary>
-        public static MelonPreferences_Entry<bool> EnemyDropsEnabled;
-        /// <summary>Base chance, 0–1, that a regular enemy drops a weapon. Elites and bosses multiply it.</summary>
-        public static MelonPreferences_Entry<float> BaseDropChance;
-        /// <summary>Bag capacity in weight units. The weight table lives in code, by weapon type and tier.</summary>
-        public static MelonPreferences_Entry<float> BagWeightCapacity;
-        /// <summary>Chance, 0–1, for each piece of a boss's pile after the guaranteed first one.</summary>
-        public static MelonPreferences_Entry<float> BossDropChance;
-        /// <summary>Pieces of loot (weapon or armor) a boss drops; the first is guaranteed.</summary>
-        public static MelonPreferences_Entry<int> BossDrops;
-        /// <summary>Pieces of loot a mini-boss drops; the first is guaranteed.</summary>
-        public static MelonPreferences_Entry<int> MiniBossDrops;
-        /// <summary>Rarity floor of the guaranteed first piece: 0 Common, 1 Unique, 2 Rare, 3 Legendary.</summary>
-        public static MelonPreferences_Entry<int> BossGuaranteedClass;
-        /// <summary>Extra pile pieces per player beyond the first (boss / mini-boss), fractions rounded down.</summary>
-        public static MelonPreferences_Entry<float> BossDropsPerExtraPlayer, MiniBossDropsPerExtraPlayer;
-        /// <summary>Extra pile pieces per health bar beyond the first (the game's Specs.stages).</summary>
-        public static MelonPreferences_Entry<int> BossDropsPerExtraHealthBar;
-        /// <summary>Extra pile pieces for a boss of the Elite strength type; a Legend boss gets twice this.</summary>
-        public static MelonPreferences_Entry<int> EliteBossExtraDrops;
-        /// <summary>Pieces an Elite-type enemy always drops (0 = roll like the rest).</summary>
-        public static MelonPreferences_Entry<int> EliteDrops;
-        /// <summary>Pieces a Legend-type enemy always drops.</summary>
-        public static MelonPreferences_Entry<int> LegendDrops;
-        /// <summary>The loot goblin: pieces, rarity floor of the first, guaranteed trinket rolls, and its size.</summary>
-        public static MelonPreferences_Entry<int> GoblinDrops, GoblinGuaranteedClass, GoblinJunkRolls;
-        public static MelonPreferences_Entry<float> LootGoblinScale;
-        /// <summary>Roll drops for kills in the sandbox (the practice arena). Off: nothing drops there.</summary>
-        public static MelonPreferences_Entry<bool> SandboxDrops;
-        /// <summary>A bright frame around loot tiles at the fabricator and armory, and its colour.</summary>
-        public static MelonPreferences_Entry<bool> PedestalFrame;
-        public static MelonPreferences_Entry<string> PedestalFrameColor;
-        /// <summary>After this many kills without a Legendary, the next drop is one. 0 disables.</summary>
-        public static MelonPreferences_Entry<int> LegendaryPityKills;
-        /// <summary>Drop-chance multiplier per player beyond the first.</summary>
-        public static MelonPreferences_Entry<float> DropChancePerExtraPlayer;
-        /// <summary>Lowest rarity that gets a beam.</summary>
-        public static MelonPreferences_Entry<int> BeamMinClass;
-        /// <summary>Rarity-coloured beam over floor loot (off: the floating name label is the default).</summary>
-        public static MelonPreferences_Entry<bool> DropBeams;
-        /// <summary>Floating rarity-coloured name over floor loot.</summary>
-        public static MelonPreferences_Entry<bool> DropLabels;
-        /// <summary>Show the floor label only while you look at the item or reach for it.</summary>
-        public static MelonPreferences_Entry<bool> DropLabelsOnHover;
-        /// <summary>The coin pile's own sparkle, borrowed and placed over floor loot.</summary>
-        public static MelonPreferences_Entry<bool> DropSparkles;
-        /// <summary>The game's own pickup glow (the outline coins and vanilla drops carry) kept lit on floor loot.</summary>
-        public static MelonPreferences_Entry<bool> DropOutline;
-        /// <summary>Throw/spin audio on the drop (networked by the game) and a chime when a weapon or armor lands.</summary>
-        public static MelonPreferences_Entry<bool> DropSounds;
-        /// <summary>Which coin-pile sound is the chime: start, finish, collected, or off.</summary>
-        public static MelonPreferences_Entry<string> DropChime;
-        /// <summary>The bag panel closes by itself when you walk this far from it (metres; 0 disables).</summary>
-        public static MelonPreferences_Entry<float> BagAutoCloseMeters;
-        /// <summary>Walk over anything that is not a weapon or armor (junk of every tier, tonics) and it goes into the bag by itself, within this many metres (0 disables).</summary>
-        public static MelonPreferences_Entry<bool> JunkAutoPickup;
-        public static MelonPreferences_Entry<float> JunkAutoPickupMeters;
-        /// <summary>The walk-over pickup takes armor bundles too (weapons are always a hand grab).</summary>
-        public static MelonPreferences_Entry<bool> AutoPickupArmor;
-        /// <summary>Grabbing a weapon or armor with a full bag tosses the cheapest unlocked trinkets onto the floor to make room.</summary>
-        public static MelonPreferences_Entry<bool> TossJunkWhenFull;
-        /// <summary>Enchanting price = the rarity's base price × ShopPriceMultiplier × this.</summary>
-        public static MelonPreferences_Entry<float> EnchantCostMultiplier;
-        /// <summary>Armor upgrade price per step = the rarity base price × ShopPriceMultiplier × this.</summary>
-        public static MelonPreferences_Entry<float> ArmorUpgradeCostMultiplier;
-        /// <summary>An invisible pointer target over each panel so the laser shows across the whole window.</summary>
-        public static MelonPreferences_Entry<bool> PanelLaser;
-        /// <summary>How the bag opens in VR: "back-grip" (right hand behind you, grip + stick up), "stick-hold" (right stick held up), or "off".</summary>
-        public static MelonPreferences_Entry<string> BagGesture;
-        public static MelonPreferences_Entry<float> BagGestureHoldSeconds;
-        /// <summary>Rarity weights for weapon drops, relative. Bosses and pity push upward from here.</summary>
-        public static MelonPreferences_Entry<float> WeightCommon, WeightUnique, WeightRare, WeightLegendary;
-        /// <summary>Chance, 0–1, that a real kill drops a trinket instead of nothing (rolled after the weapon roll fails).</summary>
-        public static MelonPreferences_Entry<float> JunkDropChance;
-        /// <summary>Chance that a drop is one tier above the game's loot tier for your level.</summary>
-        public static MelonPreferences_Entry<float> TierUpChance;
-        /// <summary>Share of successful weapon rolls that become armor instead, 0–1.</summary>
-        public static MelonPreferences_Entry<float> ArmorShare;
-        /// <summary>Armor drops from chests when they open (the host rolls once per chest). Mimics count as chests of their size. Not in the crypt.</summary>
-        public static MelonPreferences_Entry<bool> ChestArmorEnabled;
-        /// <summary>Chance, 0–1, that a chest of this size drops an armor piece (rarity: small Common, medium Unique, epic Rare, boss Legendary).</summary>
+
+        public static MelonPreferences_Entry<bool> ChestArmorEnabled, ChestArmorScalesWithPlayers;
         public static MelonPreferences_Entry<float> ChestArmorSmall, ChestArmorMedium, ChestArmorEpic, ChestArmorBoss;
-        /// <summary>How far in front of the chest (metres) a chest's armor piece starts.</summary>
-        public static MelonPreferences_Entry<float> ChestArmorDistance;
-        /// <summary>Seconds between a chest opening and its armor piece appearing (the key turner has a hand out; 0 = at once).</summary>
-        public static MelonPreferences_Entry<float> ChestArmorDelay;
-        /// <summary>Tokens per point of the game's salvage value when selling to the kobold.</summary>
-        public static MelonPreferences_Entry<float> SellMultiplier;
-        /// <summary>Shop asking price = the game's cost figure × this.</summary>
-        public static MelonPreferences_Entry<float> ShopPriceMultiplier;
-        /// <summary>How many weapons the broker keeps in stock.</summary>
-        public static MelonPreferences_Entry<int> ShopSlots;
-        /// <summary>Stock older than this is rolled again for free on the next visit.</summary>
-        public static MelonPreferences_Entry<int> ShopRefreshMinutes;
-        /// <summary>Booth placement in the lobby, world units. Press = in the lobby to set it where you stand.</summary>
-        public static MelonPreferences_Entry<float> BoothX, BoothY, BoothZ, BoothYaw;
-        /// <summary>True once the player has placed the booth with =; until then the built-in position is used.</summary>
-        public static MelonPreferences_Entry<bool> BoothPlaced;
-        /// <summary>Re-apply the booth loadout after every holster fill. Off means the booth only sells.</summary>
+
+        public static MelonPreferences_Entry<bool> GoblinDropsEnabled, GoblinDropsScaleWithPlayers;
+        public static MelonPreferences_Entry<int> GoblinDrops, GoblinGuaranteedClass;
+        public static MelonPreferences_Entry<float> LootGoblinScale;
+
+        public static MelonPreferences_Entry<bool> DropBeams, DropSparkles;
+        public static MelonPreferences_Entry<int> BeamMinClass;
+        public static MelonPreferences_Entry<string> DropLabels, DropSound;
+
+        public static MelonPreferences_Entry<float> BagWeightCapacity;
+        public static MelonPreferences_Entry<string> BagGesture;
+        public static MelonPreferences_Entry<bool> AutoPickup;
+
+        public static MelonPreferences_Entry<float> ShopPriceMultiplier, SellMultiplier, EnchantCostMultiplier, ArmorUpgradeCostMultiplier;
+        public static MelonPreferences_Entry<int> ShopSlots, ShopRefreshMinutes;
         public static MelonPreferences_Entry<bool> LoadoutEnabled;
 
-        // ---- tokens: the run's end-screen gold, converted -------------------------------
-        /// <summary>Tokens per gold earned on the end screen. 0.5 = 2000 gold becomes 1000 tokens.</summary>
-        public static MelonPreferences_Entry<float> GoldToTokenRate;
-        /// <summary>Extra payout per boss killed in the run. 0.5 = +50%.</summary>
-        public static MelonPreferences_Entry<float> BossKillBonus;
-        /// <summary>Extra payout per mini-boss killed. 0.1 = +10%.</summary>
-        public static MelonPreferences_Entry<float> MinibossKillBonus;
-        /// <summary>Extra payout per hazard level the run had (the game's HazardLevel, 0-3).</summary>
-        public static MelonPreferences_Entry<float> HazardBonusPerLevel;
-        /// <summary>Extra payout per dungeon tier above the first. 0.1 = tier 7 pays +60%.</summary>
-        public static MelonPreferences_Entry<float> TierBonusPerLevel;
-        /// <summary>Extra payout per party member beyond you. The lost last stand is the cost, and it
-        /// is the main thing that makes a party worth playing: 0.5 = 2p +50%, 4p +150%.</summary>
-        public static MelonPreferences_Entry<float> TokenPlayerBonusPerExtraPlayer;
-        /// <summary>Extra payout per chest you opened. Keep it small; chests are ordinary play.</summary>
-        public static MelonPreferences_Entry<float> TokenChestBonusPerChest;
-        /// <summary>Seconds the payout toast stays up. It is reposted; see TokenToastRepeatSeconds.</summary>
-        public static MelonPreferences_Entry<float> TokenToastSeconds;
-        /// <summary>How often the payout toast is reposted while it is being kept up.</summary>
-        public static MelonPreferences_Entry<float> TokenToastRepeatSeconds;
+        public static MelonPreferences_Entry<float> GoldToTokenRate, BossKillBonus, MinibossKillBonus, HazardBonusPerLevel,
+            TierBonusPerLevel, TokenPlayerBonusPerExtraPlayer, TokenChestBonusPerChest;
 
-        // ---- [LootOverhaul_Dev] ---------------------------------------------------------
-        public static MelonPreferences_Entry<bool> VerboseLogging;
-        /// <summary>Append one row per run to UserData/LootOverhaul/runs.csv, for tuning. Off by default.</summary>
-        public static MelonPreferences_Entry<bool> RunLogging;
-        /// <summary>Install the read-only recon hooks and write a transcript. The v0.1 build is nothing but this.</summary>
-        public static MelonPreferences_Entry<bool> ReconEnabled;
-        /// <summary>Internal: the config layout this file was last migrated to. Do not edit.</summary>
-        public static MelonPreferences_Entry<int> ConfigVersion;
-        /// <summary>Log every PlayerProfile write (the PlayFab watchdog). Off only if it turns out to be noisy.</summary>
-        public static MelonPreferences_Entry<bool> ProfileWatchEnabled;
-        public static MelonPreferences_Entry<bool> HotkeysEnabled;
-        /// <summary>Echo every transcript line to the MelonLoader console as well.</summary>
-        public static MelonPreferences_Entry<bool> MirrorReconToConsole;
+        public static MelonPreferences_Entry<float> BoothX, BoothY, BoothZ, BoothYaw;
+        public static MelonPreferences_Entry<bool> BoothPlaced;
+
+        public static MelonPreferences_Entry<bool> DevTools, VerboseLogging, RunLogging;
+        public static MelonPreferences_Entry<int> DropPlayersOverride, ConfigVersion;
+
+        /// <summary>What used to be settings and is now fixed.</summary>
+        public static class Fixed
+        {
+            public const float ChestArmorDistance = 0.2f;
+            public const float ChestArmorDelay = 2f;
+            public const float ChestDropSpread = 35f;
+            public const float ChestDropStagger = 0.35f;
+            public const float AutoPickupMeters = 0.6f;
+            public const float BagAutoCloseMeters = 2f;
+            public const float BagGestureHoldSeconds = 0.7f;
+            public const string PedestalFrameColor = "#FFD24A";
+            public const float TokenToastSeconds = 5f;
+            public const float TokenToastRepeatSeconds = 2f;
+        }
+
+        public static bool LabelsOn => !string.Equals(DropLabels.Value, "off", StringComparison.OrdinalIgnoreCase);
+        public static bool LabelsOnHover => string.Equals(DropLabels.Value, "hover", StringComparison.OrdinalIgnoreCase);
+        public static bool SoundsOn => !string.Equals(DropSound.Value, "off", StringComparison.OrdinalIgnoreCase);
 
         public static void Load()
         {
-            Main = MelonPreferences.CreateCategory("LootOverhaul");
-            Enabled = Main.CreateEntry("Enabled", true);
-            EnemyDropsEnabled = Main.CreateEntry("EnemyDropsEnabled", false,
-                description: "The enemy-death drop roll. OFF by default: nothing spawns and nothing past an early return is calculated. Turn it on to bring the drop system back exactly as it was.");
-            BaseDropChance = Main.CreateEntry("BaseDropChance", 0.015f);
-            BagWeightCapacity = Main.CreateEntry("BagWeightCapacity", 30f);
-            BossDropChance = Main.CreateEntry("BossDropChance", 1.0f, description: "Chance, 0–1, for each piece of a boss's or mini-boss's pile after the guaranteed first one.");
-            BossDrops = Main.CreateEntry("BossDrops", 3, description: "Pieces of loot (weapon or armor) a boss drops. The first always drops at BossGuaranteedClass or better; the rest each roll BossDropChance.");
-            MiniBossDrops = Main.CreateEntry("MiniBossDrops", 2, description: "Pieces of loot a mini-boss drops, same rules as BossDrops.");
-            BossGuaranteedClass = Main.CreateEntry("BossGuaranteedClass", 2, description: "Rarity floor of a boss's or mini-boss's first piece: 0 Common, 1 Unique, 2 Rare, 3 Legendary.");
-            BossDropsPerExtraPlayer = Main.CreateEntry("BossDropsPerExtraPlayer", 1.0f, description: "Extra boss pile pieces per player beyond the first (rounded down).");
-            MiniBossDropsPerExtraPlayer = Main.CreateEntry("MiniBossDropsPerExtraPlayer", 0.5f, description: "Extra mini-boss pile pieces per player beyond the first (rounded down).");
-            BossDropsPerExtraHealthBar = Main.CreateEntry("BossDropsPerExtraHealthBar", 1, description: "Extra pile pieces per health bar beyond the first, for bosses that come with several.");
-            EliteBossExtraDrops = Main.CreateEntry("EliteBossExtraDrops", 1, description: "Extra pile pieces for a boss or mini-boss of the Elite strength type; a Legend-type one gets twice this.");
-            EliteDrops = Main.CreateEntry("EliteDrops", 1, description: "Pieces of loot an Elite-type enemy always drops, on the normal rarity curve. 0 = roll like everyone else.");
-            LegendDrops = Main.CreateEntry("LegendDrops", 2, description: "Pieces of loot a Legend-type enemy always drops.");
-            GoblinDrops = Main.CreateEntry("GoblinDrops", 3, description: "Pieces of loot the loot goblin drops; the first is at least GoblinGuaranteedClass.");
-            GoblinGuaranteedClass = Main.CreateEntry("GoblinGuaranteedClass", 1, description: "Rarity floor of the goblin's first piece: 0 Common, 1 Unique, 2 Rare, 3 Legendary.");
-            GoblinJunkRolls = Main.CreateEntry("GoblinJunkRolls", 3, description: "Trinkets the loot goblin always drops on top of its pile.");
-            LootGoblinScale = Main.CreateEntry("LootGoblinScale", 1.5f, description: "Size multiplier for the loot goblin (1 = the game's size). Applied on every modded client.");
-            SandboxDrops = Main.CreateEntry("SandboxDrops", false, description: "Roll drops for sandbox (practice arena) kills. Off by default: the arena despawns its enemies and would be free loot.");
-            PedestalFrame = Main.CreateEntry("PedestalFrame", true, description: "Draw a bright frame around loot weapons on the fabricator and armory tiles.");
-            PedestalFrameColor = Main.CreateEntry("PedestalFrameColor", "#FFD24A", description: "Frame colour as #RRGGBB.");
-            LegendaryPityKills = Main.CreateEntry("LegendaryPityKills", 120, description: "Bad-luck protection: after this many kills by anyone in the room (counted in the host's own file) without a Legendary, the next drop is forced Legendary. 0 disables.");
-            DropChancePerExtraPlayer = Main.CreateEntry("DropChancePerExtraPlayer", 0.35f, description: "Weapon and junk chances are multiplied by 1 + this × (players − 1).");
-            BeamMinClass = Main.CreateEntry("BeamMinClass", 2, description: "Beam only over items of at least this rarity: 0 Common, 1 Unique, 2 Rare, 3 Legendary (junk: 2 = artifact).");
-            DropBeams = Main.CreateEntry("DropBeams", false);
-            DropLabels = Main.CreateEntry("DropLabels", true);
-            DropLabelsOnHover = Main.CreateEntry("DropLabelsOnHover", true);
-            DropSparkles = Main.CreateEntry("DropSparkles", true);
-            PanelLaser = Main.CreateEntry("PanelLaser", true);
-            DropOutline = Main.CreateEntry("DropOutline", true);
-            DropSounds = Main.CreateEntry("DropSounds", true);
-            DropChime = Main.CreateEntry("DropChime", "start", description: "Coin-pile sound played where a weapon or armor lands: start, finish, collected, or off.");
-            BagAutoCloseMeters = Main.CreateEntry("BagAutoCloseMeters", 2.0f, description: "Walk this far from the open bag panel and it closes. 0 = never.");
-            JunkAutoPickup = Main.CreateEntry("JunkAutoPickup", true, description: "Junk of every tier (trinkets, curios, artifacts) and tonics you walk over go into the bag by themselves; no grab needed. Weapons and armor are always picked up by hand.");
-            JunkAutoPickupMeters = Main.CreateEntry("JunkAutoPickupMeters", 0.6f, description: "How close (metres, measured flat from your head) an item must be to be picked up automatically.");
-            AutoPickupArmor = Main.CreateEntry("AutoPickupArmor", true, description: "Armor bundles (the small chests) are picked up by walking over them as well. Off: armor is a hand grab like weapons.");
-            TossJunkWhenFull = Main.CreateEntry("TossJunkWhenFull", true, description: "Grabbing a weapon or armor that does not fit tosses the cheapest unlocked trinkets out of the bag to make room. Nothing equipped, worn or locked is ever tossed.");
-            EnchantCostMultiplier = Main.CreateEntry("EnchantCostMultiplier", 1.0f, description: "Enchanting costs the rarity's base price (300 / 600 / 1200 / 2400 tokens) × ShopPriceMultiplier × this. No reagent is consumed.");
-            ArmorUpgradeCostMultiplier = Main.CreateEntry("ArmorUpgradeCostMultiplier", 1.0f, description: "Every armor upgrade step (0.01 on one stat) costs the rarity base price (300 / 600 / 1200 / 2400 tokens) × ShopPriceMultiplier × this: 750 / 1,500 / 3,000 / 6,000 at the defaults. The price is the same for every step.");
-            BagGesture = Main.CreateEntry("BagGesture", "stick-hold",
-                description: "back-grip = reach behind your back with the right hand, squeeze grip and push the stick up; stick-hold = hold the right stick up; off.");
-            BagGestureHoldSeconds = Main.CreateEntry("BagGestureHoldSeconds", 0.7f);
-            WeightCommon = Main.CreateEntry("WeightCommon", 70f);
-            WeightUnique = Main.CreateEntry("WeightUnique", 22f);
-            WeightRare = Main.CreateEntry("WeightRare", 7f);
-            WeightLegendary = Main.CreateEntry("WeightLegendary", 1f);
-            JunkDropChance = Main.CreateEntry("JunkDropChance", 0.18f);
-            TierUpChance = Main.CreateEntry("TierUpChance", 0.12f);
-            ArmorShare = Main.CreateEntry("ArmorShare", 0.35f);
-            ChestArmorEnabled = Main.CreateEntry("ChestArmorEnabled", true, description: "Chests drop an armor piece on the floor the moment they open. Enemies drop nothing (EnemyDropsEnabled). Mimics roll like a chest of their size. Never in the crypt.");
-            ChestArmorSmall = Main.CreateEntry("ChestArmorSmall", 0.10f, description: "Chance a small chest drops armor (Common rarity).");
-            ChestArmorMedium = Main.CreateEntry("ChestArmorMedium", 0.25f, description: "Chance a medium chest drops armor (Unique rarity).");
-            ChestArmorEpic = Main.CreateEntry("ChestArmorEpic", 1.0f, description: "Chance an epic chest drops armor (Rare rarity).");
-            ChestArmorBoss = Main.CreateEntry("ChestArmorBoss", 1.0f, description: "Chance a boss chest drops armor (Legendary rarity).");
-            ChestArmorDistance = Main.CreateEntry("ChestArmorDistance", 0.2f, description: "How far in front of the chest (metres) its armor piece starts. It is tossed a little further along the same line.");
-            ChestArmorDelay = Main.CreateEntry("ChestArmorDelay", 2.0f, description: "Seconds after a chest opens before its armor piece appears, so the person who turned the key does not grab it by accident. 0 = it appears at once.");
-            SellMultiplier = Main.CreateEntry("SellMultiplier", 1.0f);
-            ShopPriceMultiplier = Main.CreateEntry("ShopPriceMultiplier", 2.5f);
-            ShopSlots = Main.CreateEntry("ShopSlots", 6);
-            ShopRefreshMinutes = Main.CreateEntry("ShopRefreshMinutes", 60);
-            LoadoutEnabled = Main.CreateEntry("LoadoutEnabled", true);
-            BoothX = Main.CreateEntry("BoothX", Loot.Booth.DefaultPosition.x);
-            BoothY = Main.CreateEntry("BoothY", Loot.Booth.DefaultPosition.y);
-            BoothZ = Main.CreateEntry("BoothZ", Loot.Booth.DefaultPosition.z);
-            BoothYaw = Main.CreateEntry("BoothYaw", Loot.Booth.DefaultYaw, description: "Degrees. Press = in the lobby to place the booth where you stand, facing you.");
-            BoothPlaced = Main.CreateEntry("BoothPlaced", false, description: "Set by =. When false the mod's built-in lobby spot is used regardless of BoothX/Y/Z/Yaw.");
+            var old = ReadOldFile();
 
-            GoldToTokenRate = Main.CreateEntry("GoldToTokenRate", 0.5f, description: "Tokens per gold earned on the end screen. 0.5 = 2000 gold becomes 1000 tokens. This is the whole payout before the bonuses below.");
-            BossKillBonus = Main.CreateEntry("BossKillBonus", 0.5f, description: "Extra payout per boss killed in the run. 0.5 = +50%.");
-            MinibossKillBonus = Main.CreateEntry("MinibossKillBonus", 0.1f, description: "Extra payout per mini-boss killed. 0.1 = +10%. They usually come in packs.");
-            HazardBonusPerLevel = Main.CreateEntry("HazardBonusPerLevel", 0.25f, description: "Extra payout per hazard level the run had (the game's HazardLevel, 0-3). 0.25 = +25% / +50% / +75%.");
-            TierBonusPerLevel = Main.CreateEntry("TierBonusPerLevel", 0.1f, description: "Extra payout per dungeon tier above the first. 0.1 = tier 7 pays +60%.");
-            TokenPlayerBonusPerExtraPlayer = Main.CreateEntry("TokenPlayerBonusPerExtraPlayer", 0.5f, description: "Extra payout per party member beyond you: 0.5 = solo +0%, 2p +50%, 4p +150%. Compensates for losing last stand, which solo play keeps.");
-            TokenChestBonusPerChest = Main.CreateEntry("TokenChestBonusPerChest", 0.02f, description: "Extra payout per chest you opened. 0.02 = +2% each.");
-            TokenToastSeconds = Main.CreateEntry("TokenToastSeconds", 5f, description: "Seconds the payout toast stays on screen. The game's notification has a short fixed life and ignores its own display-time field, so the message is reposted for this long. 0 = post it once.");
-            TokenToastRepeatSeconds = Main.CreateEntry("TokenToastRepeatSeconds", 2f, description: "How often the payout toast is reposted while it is being kept up. 0 disables keeping it up.");
+            Main = MelonPreferences.CreateCategory("LootOverhaul");
+            Enabled = Main.CreateEntry("Enabled", true, description: "Master switch for the whole mod.");
+
+            ChestArmor = MelonPreferences.CreateCategory("LootOverhaul_ChestArmor");
+            ChestArmorEnabled = ChestArmor.CreateEntry("ChestArmorEnabled", true, description: "Chests drop armor on the floor when they open. Mimics count as a chest of their size. Never in the crypt.");
+            ChestArmorSmall = ChestArmor.CreateEntry("ChestArmorSmall", 0.10f, description: "Chance, 0-1, that a small chest drops a Common piece.");
+            ChestArmorMedium = ChestArmor.CreateEntry("ChestArmorMedium", 0.25f, description: "Chance, 0-1, that a medium chest drops a Unique piece.");
+            ChestArmorEpic = ChestArmor.CreateEntry("ChestArmorEpic", 1.0f, description: "Chance, 0-1, that an epic chest drops a Rare piece.");
+            ChestArmorBoss = ChestArmor.CreateEntry("ChestArmorBoss", 1.0f, description: "Chance, 0-1, that a boss chest drops a Legendary piece.");
+            ChestArmorScalesWithPlayers = ChestArmor.CreateEntry("ChestArmorScalesWithPlayers", true, description: "Roll once for every player in the room, so more players find more pieces. The pieces are shared: anyone can pick them up.");
+
+            Goblin = MelonPreferences.CreateCategory("LootOverhaul_Goblin");
+            GoblinDropsEnabled = Goblin.CreateEntry("GoblinDropsEnabled", true, description: "The loot goblin drops a pile of armor when it dies.");
+            GoblinDrops = Goblin.CreateEntry("GoblinDrops", 2, description: "Armor pieces in each goblin pile.");
+            GoblinGuaranteedClass = Goblin.CreateEntry("GoblinGuaranteedClass", 1, description: "Lowest rarity of each pile's first piece: 0 Common, 1 Unique, 2 Rare, 3 Legendary.");
+            GoblinDropsScaleWithPlayers = Goblin.CreateEntry("GoblinDropsScaleWithPlayers", true, description: "One pile for every player in the room. The piles are shared: anyone can pick them up.");
+            LootGoblinScale = Goblin.CreateEntry("LootGoblinScale", 1.1f, description: "Size of the loot goblin (1 = the game's size).");
+
+            FloorLoot = MelonPreferences.CreateCategory("LootOverhaul_FloorLoot");
+            DropBeams = FloorLoot.CreateEntry("DropBeams", true, description: "A rarity-coloured beam of light over armor on the floor.");
+            BeamMinClass = FloorLoot.CreateEntry("BeamMinClass", 2, description: "Lowest rarity that gets a beam: 0 Common, 1 Unique, 2 Rare, 3 Legendary.");
+            DropLabels = FloorLoot.CreateEntry("DropLabels", "off", description: "Name over loot on the floor: off, hover (only while you look at it or reach for it), or always.");
+            DropSparkles = FloorLoot.CreateEntry("DropSparkles", true, description: "The coin pile's sparkle over loot on the floor.");
+            DropSound = FloorLoot.CreateEntry("DropSound", "finish", description: "Sound when armor lands: start, finish, collected (three coin-pile sounds), or off for silence.");
+
+            Bag = MelonPreferences.CreateCategory("LootOverhaul_Bag");
+            BagWeightCapacity = Bag.CreateEntry("BagWeightCapacity", 60f, description: "How much the bag holds, in weight units.");
+            BagGesture = Bag.CreateEntry("BagGesture", "stick-hold", description: "How the bag opens in VR: stick-hold (hold the right stick up), back-grip (right hand behind your back, grip and push the stick up), or off.");
+            AutoPickup = Bag.CreateEntry("AutoPickup", false, description: "Walk over tonics, trinkets and armor to put them in the bag without grabbing them.");
+
+            Shop = MelonPreferences.CreateCategory("LootOverhaul_Shop");
+            ShopPriceMultiplier = Shop.CreateEntry("ShopPriceMultiplier", 2.5f, description: "Scales every kobold price: shop stock, tonics, enchanting and armor upgrades.");
+            SellMultiplier = Shop.CreateEntry("SellMultiplier", 1.0f, description: "Tokens per point of an item's value when you sell it to the kobold.");
+            ShopSlots = Shop.CreateEntry("ShopSlots", 6, description: "How many weapons the kobold keeps in stock.");
+            ShopRefreshMinutes = Shop.CreateEntry("ShopRefreshMinutes", 60, description: "Minutes before the stock is rolled again for free.");
+            EnchantCostMultiplier = Shop.CreateEntry("EnchantCostMultiplier", 1.0f, description: "Enchanting price on top of ShopPriceMultiplier.");
+            ArmorUpgradeCostMultiplier = Shop.CreateEntry("ArmorUpgradeCostMultiplier", 1.0f, description: "Armor upgrade price on top of ShopPriceMultiplier. Every +1% costs 750 / 1,500 / 3,000 / 6,000 tokens by rarity at the defaults.");
+            LoadoutEnabled = Shop.CreateEntry("LoadoutEnabled", true, description: "Keep the loadout picked at the booth in your holsters.");
+
+            TokenPay = MelonPreferences.CreateCategory("LootOverhaul_Tokens");
+            GoldToTokenRate = TokenPay.CreateEntry("GoldToTokenRate", 0.5f, description: "Tokens per gold earned in a run, before the bonuses below.");
+            BossKillBonus = TokenPay.CreateEntry("BossKillBonus", 0.5f, description: "Extra payout per boss killed. 0.5 = +50%.");
+            MinibossKillBonus = TokenPay.CreateEntry("MinibossKillBonus", 0.1f, description: "Extra payout per mini-boss killed.");
+            HazardBonusPerLevel = TokenPay.CreateEntry("HazardBonusPerLevel", 0.25f, description: "Extra payout per hazard level of the run (0-3).");
+            TierBonusPerLevel = TokenPay.CreateEntry("TierBonusPerLevel", 0.1f, description: "Extra payout per dungeon tier above the first.");
+            TokenPlayerBonusPerExtraPlayer = TokenPay.CreateEntry("TokenPlayerBonusPerExtraPlayer", 0.5f, description: "Extra payout per party member beyond you.");
+            TokenChestBonusPerChest = TokenPay.CreateEntry("TokenChestBonusPerChest", 0.02f, description: "Extra payout per chest you opened.");
+
+            BoothPos = MelonPreferences.CreateCategory("LootOverhaul_Booth");
+            BoothX = BoothPos.CreateEntry("BoothX", Loot.Booth.DefaultPosition.x);
+            BoothY = BoothPos.CreateEntry("BoothY", Loot.Booth.DefaultPosition.y);
+            BoothZ = BoothPos.CreateEntry("BoothZ", Loot.Booth.DefaultPosition.z);
+            BoothYaw = BoothPos.CreateEntry("BoothYaw", Loot.Booth.DefaultYaw, description: "Set by pressing = in the lobby: the booth moves to where you stand, facing you.");
+            BoothPlaced = BoothPos.CreateEntry("BoothPlaced", false, description: "False: the booth stands at its built-in spot.");
 
             Dev = MelonPreferences.CreateCategory("LootOverhaul_Dev");
-            VerboseLogging = Dev.CreateEntry("VerboseLogging", false);
-            RunLogging = Dev.CreateEntry("RunLogging", false,
-                description: "Append one row per run to UserData/LootOverhaul/runs.csv: gold, tier, hazards, bosses, deaths, the multiplier and the tokens paid. Off by default. Old rows are kept when the format changes.");
-            ReconEnabled = Dev.CreateEntry("ReconEnabled", true,
-                description: "Read-only recon hooks + transcript in UserData/LootOverhaul/recon/. The 0.1 build does nothing else.");
-            ProfileWatchEnabled = Dev.CreateEntry("ProfileWatchEnabled", true,
-                description: "Log every PlayerProfile (PlayFab) write so the mod's read-only boundary can be checked.");
-            HotkeysEnabled = Dev.CreateEntry("HotkeysEnabled", true,
-                description: "Insert = generator survey, Delete = spawn test weapon, Backslash = lobby survey, Scroll Lock = button test.");
-            MirrorReconToConsole = Dev.CreateEntry("MirrorReconToConsole", false);
+            DevTools = Dev.CreateEntry("DevTools", false, description: "Recon transcript in UserData/LootOverhaul/recon/, the profile-write watch and the survey hotkeys.");
+            VerboseLogging = Dev.CreateEntry("VerboseLogging", false, description: "More detail in the MelonLoader console, the recon transcript included.");
+            RunLogging = Dev.CreateEntry("RunLogging", false, description: "One row per run in UserData/LootOverhaul/runs.csv.");
+            DropPlayersOverride = Dev.CreateEntry("DropPlayersOverride", 0, description: "Testing: count this many players for chest armor and goblin piles. 0 = the real room size.");
+            ConfigVersion = Dev.CreateEntry("ConfigVersion", 0, description: "Internal. Do not edit.");
 
-            // ---- one-off migrations -------------------------------------------------------
-            // MelonPreferences keeps whatever value is already saved, so changing a default in code
-            // never reaches an install that has the entry - it has to be migrated once.
-            ConfigVersion = Dev.CreateEntry("ConfigVersion", 0);
-            if (ConfigVersion.Value < 10)
+            if (ConfigVersion.Value < Layout) Migrate(old);
+        }
+
+        private static readonly string[] OldMainKeys =
+        {
+            "EnemyDropsEnabled", "BaseDropChance", "BagWeightCapacity", "BossDropChance", "BossDrops", "MiniBossDrops", "BossGuaranteedClass",
+            "BossDropsPerExtraPlayer", "MiniBossDropsPerExtraPlayer", "BossDropsPerExtraHealthBar", "EliteBossExtraDrops", "EliteDrops", "LegendDrops",
+            "GoblinDrops", "GoblinGuaranteedClass", "GoblinJunkRolls", "GoblinJunk", "ArmorTint", "LootGoblinScale", "SandboxDrops", "PedestalFrame",
+            "PedestalFrameColor", "LegendaryPityKills", "DropChancePerExtraPlayer", "BeamMinClass", "DropBeams", "DropLabels", "DropLabelsOnHover",
+            "DropSparkles", "DropOutline", "DropSounds", "DropChime", "BagAutoCloseMeters", "JunkAutoPickup", "JunkAutoPickupMeters", "AutoPickupArmor",
+            "TossJunkWhenFull", "EnchantCostMultiplier", "ArmorUpgradeCostMultiplier", "PanelLaser", "BagGesture", "BagGestureHoldSeconds",
+            "WeightCommon", "WeightUnique", "WeightRare", "WeightLegendary", "JunkDropChance", "TierUpChance", "ArmorShare", "ChestArmorEnabled",
+            "ChestArmorSmall", "ChestArmorMedium", "ChestArmorEpic", "ChestArmorBoss", "ChestArmorDistance", "ChestArmorDelay",
+            "ChestArmorScalesWithPlayers", "ChestDropSpread", "ChestDropStagger", "GoblinDropsEnabled", "GoblinDropsScaleWithPlayers",
+            "SellMultiplier", "ShopPriceMultiplier", "ShopSlots", "ShopRefreshMinutes", "BoothX", "BoothY", "BoothZ", "BoothYaw", "BoothPlaced",
+            "LoadoutEnabled", "GoldToTokenRate", "BossKillBonus", "MinibossKillBonus", "HazardBonusPerLevel", "TierBonusPerLevel",
+            "TokenPlayerBonusPerExtraPlayer", "TokenChestBonusPerChest", "TokenToastSeconds", "TokenToastRepeatSeconds",
+        };
+
+        private static readonly string[] OldDevKeys = { "ReconEnabled", "ProfileWatchEnabled", "HotkeysEnabled", "MirrorReconToConsole" };
+
+        /// <summary>
+        /// Layout 11 (0.11.0): every value a player kept moves from the old flat [LootOverhaul]
+        /// section into its new section, the merged switches are worked out from the old pairs,
+        /// and the keys that no longer exist are removed from the file.
+        /// </summary>
+        private static void Migrate(Dictionary<string, Dictionary<string, string>> old)
+        {
+            old.TryGetValue("LootOverhaul", out var m);
+            old.TryGetValue("LootOverhaul_Dev", out var d);
+            m ??= new Dictionary<string, string>();
+            d ??= new Dictionary<string, string>();
+            var carried = 0;
+
+            void Carry<T>(MelonPreferences_Entry<T> entry, Dictionary<string, string> from)
             {
-                EnemyDropsEnabled.Value = false;
-                ConfigVersion.Value = 10;
-                MelonPreferences.Save();
-                MelonLogger.Msg("LootOverhaul config migrated to 10: EnemyDropsEnabled set to false "
-                              + "(0.10.0 ships the enemy drop roll off by default).");
+                if (!from.TryGetValue(entry.Identifier, out var raw) || !TryParse(raw, out T value)) return;
+                entry.Value = value;
+                carried++;
             }
+
+            foreach (var e in new[] { ChestArmorEnabled, ChestArmorScalesWithPlayers, GoblinDropsEnabled, GoblinDropsScaleWithPlayers, DropBeams, DropSparkles, LoadoutEnabled, BoothPlaced })
+                Carry(e, m);
+            foreach (var e in new[] { ChestArmorSmall, ChestArmorMedium, ChestArmorEpic, ChestArmorBoss, LootGoblinScale, BagWeightCapacity, ShopPriceMultiplier,
+                                      SellMultiplier, EnchantCostMultiplier, ArmorUpgradeCostMultiplier, GoldToTokenRate, BossKillBonus, MinibossKillBonus,
+                                      HazardBonusPerLevel, TierBonusPerLevel, TokenPlayerBonusPerExtraPlayer, TokenChestBonusPerChest,
+                                      BoothX, BoothY, BoothZ, BoothYaw })
+                Carry(e, m);
+            foreach (var e in new[] { GoblinDrops, GoblinGuaranteedClass, BeamMinClass, ShopSlots, ShopRefreshMinutes })
+                Carry(e, m);
+            Carry(BagGesture, m);
+
+            if (m.TryGetValue("DropLabels", out var lr) && TryParse(lr, out bool labels))
+            {
+                var hover = !m.TryGetValue("DropLabelsOnHover", out var hr) || !TryParse(hr, out bool h) || h;
+                DropLabels.Value = !labels ? "off" : hover ? "hover" : "always";
+                carried++;
+            }
+            if (m.TryGetValue("DropSounds", out var sr) && TryParse(sr, out bool sounds))
+            {
+                var chime = m.TryGetValue("DropChime", out var cr) && TryParse(cr, out string c) ? c : "start";
+                DropSound.Value = sounds ? chime : "off";
+                carried++;
+            }
+            if (m.TryGetValue("JunkAutoPickup", out var ar) && TryParse(ar, out bool auto)) { AutoPickup.Value = auto; carried++; }
+            if (d.TryGetValue("ReconEnabled", out var rr) && TryParse(rr, out bool recon)) { DevTools.Value = recon; carried++; }
+            if (d.TryGetValue("MirrorReconToConsole", out var mr) && TryParse(mr, out bool mirror) && mirror) VerboseLogging.Value = true;
+
+            var removed = 0;
+            foreach (var key in OldMainKeys) if (m.ContainsKey(key) && SafeDelete(Main, key)) removed++;
+            foreach (var key in OldDevKeys) if (d.ContainsKey(key) && SafeDelete(Dev, key)) removed++;
+
+            ConfigVersion.Value = Layout;
+            MelonPreferences.Save();
+            MelonLogger.Msg(m.Count == 0
+                ? $"LootOverhaul config layout {Layout}: fresh settings written."
+                : $"LootOverhaul config migrated to layout {Layout}: {carried} value(s) moved into the new sections, {removed} old key(s) removed.");
+        }
+
+        private static bool SafeDelete(MelonPreferences_Category cat, string key)
+        {
+            try { return cat.DeleteEntry(key); } catch { return false; }
+        }
+
+        private static bool TryParse<T>(string raw, out T value)
+        {
+            value = default;
+            raw = raw.Trim();
+            object parsed = null;
+            if (typeof(T) == typeof(bool)) { if (bool.TryParse(raw, out var b)) parsed = b; }
+            else if (typeof(T) == typeof(int)) { if (int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i)) parsed = i; }
+            else if (typeof(T) == typeof(float)) { if (float.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var f)) parsed = f; }
+            else if (typeof(T) == typeof(string)) parsed = raw.Length >= 2 && (raw[0] == '"' || raw[0] == '\'') ? raw.Substring(1, raw.Length - 2) : raw;
+            if (parsed == null) return false;
+            value = (T)parsed;
+            return true;
+        }
+
+        /// <summary>The cfg as it was on disk at start, by section, before this layout's entries exist.</summary>
+        private static Dictionary<string, Dictionary<string, string>> ReadOldFile()
+        {
+            var result = new Dictionary<string, Dictionary<string, string>>();
+            try
+            {
+                var path = Path.Combine(MelonEnvironment.UserDataDirectory, "MelonPreferences.cfg");
+                if (!File.Exists(path)) return result;
+                Dictionary<string, string> section = null;
+                foreach (var line in File.ReadAllLines(path))
+                {
+                    var t = line.Trim();
+                    if (t.Length == 0 || t[0] == '#') continue;
+                    if (t[0] == '[' && t[t.Length - 1] == ']')
+                    {
+                        var name = t.Substring(1, t.Length - 2).Trim().Trim('"');
+                        if (!result.TryGetValue(name, out section)) result[name] = section = new Dictionary<string, string>();
+                        continue;
+                    }
+                    var eq = t.IndexOf('=');
+                    if (section == null || eq <= 0) continue;
+                    section[t.Substring(0, eq).Trim().Trim('"')] = t.Substring(eq + 1).Trim();
+                }
+            }
+            catch (Exception e) { MelonLogger.Warning($"LootOverhaul could not read the old settings: {e.Message}"); }
+            return result;
         }
     }
 }

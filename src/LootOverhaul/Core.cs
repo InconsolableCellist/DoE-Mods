@@ -7,7 +7,7 @@ using LootOverhaul.Loot;
 using LootOverhaul.Net;
 using LootOverhaul.Recon;
 
-[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.10.6", "Foxipso")]
+[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.11.0", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace LootOverhaul
@@ -25,7 +25,7 @@ namespace LootOverhaul
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.10.6";
+        public const string Version = "0.11.0";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -41,7 +41,7 @@ namespace LootOverhaul
             try { MelonPreferences.Save(); }
             catch (Exception e) { LoggerInstance.Warning($"Could not write MelonPreferences.cfg: {e.Message}"); }
 
-            LoggerInstance.Msg($"LootOverhaul {Version} — drops, junk, bag, the kobold traveler (sell + shop), loot in the fabricator. Recon hooks {(ModConfig.ReconEnabled.Value ? "on" : "off")}.");
+            LoggerInstance.Msg($"LootOverhaul {Version} — chest and goblin armor, bag, the kobold traveler (sell + shop), loot in the fabricator. Dev tools {(ModConfig.DevTools.Value ? "on" : "off")}.");
             LoggerInstance.Msg($"Data folder: {ModPaths.Root}; recon transcripts in {ModPaths.ReconDir}");
 
             SelfCheck.LogSelfHash(LoggerInstance);
@@ -69,17 +69,17 @@ namespace LootOverhaul
             Loadout.Install();
             ChestDrops.Install();
 
-            if (ModConfig.ReconEnabled.Value)
+            if (ModConfig.DevTools.Value)
             {
                 EventTally.Install();
-                if (ModConfig.ProfileWatchEnabled.Value) ProfileWatch.Install();
+                ProfileWatch.Install();
                 GameplayHooks.Install();
             }
             Hooks.Report();
-            LoggerInstance.Msg("Hotkeys: [ = open/close the bag panel (or the VR gesture, see BagGesture), ] = drop the last bagged item, = (equals) = place the booth where you stand (lobby), - (minus) = junk prefab probe, ; (semicolon) = Resources census.");
-            if (ModConfig.ReconEnabled.Value)
+            LoggerInstance.Msg("Hotkeys: [ = open/close the bag panel (or the VR gesture, see BagGesture), ] = drop the last bagged item, = (equals) = place the booth where you stand (lobby).");
+            if (ModConfig.DevTools.Value)
             {
-                LoggerInstance.Msg("Recon hotkeys: Insert = generator survey, Delete = spawn a test weapon (private room), Backslash (\\) = lobby survey + marker cubes, Scroll Lock = cloned button + pointer test.");
+                LoggerInstance.Msg("Dev hotkeys: - (minus) = junk prefab probe, ; (semicolon) = Resources census, Insert = generator survey, Delete = spawn a test weapon (private room), Backslash (\\) = lobby survey + marker cubes, Scroll Lock = cloned button + pointer test.");
             }
         }
 
@@ -100,24 +100,26 @@ namespace LootOverhaul
             Tokens.Tick();
             Buffs.Tick();
             LightPotion.Tick();
+            PreparedTonics.Tick();
             Loadout.Tick();
             SceneExit.Tick();
+            LootInventory.Tick();
+            DropRoller.Tick();
             if (_templateCaptureAt > 0f && UnityEngine.Time.unscaledTime >= _templateCaptureAt)
             {
                 _templateCaptureAt = -1f;
-                try { UiKit.CaptureTemplates(); Booth.ShowIfLobby(Il2Cpp.GameManager.LOBBY_SCENE); if (ModConfig.ReconEnabled.Value) Buffs.Snapshot("lobby"); Enchanting.SelfTest(); }
+                try { UiKit.CaptureTemplates(); Booth.ShowIfLobby(Il2Cpp.GameManager.LOBBY_SCENE); if (ModConfig.DevTools.Value) Buffs.Snapshot("lobby"); Enchanting.SelfTest(); }
                 catch (Exception e) { LoggerInstance.Warning($"Template capture / booth threw: {e.GetType().Name}: {e.Message}"); }
             }
 
-            if (!ModConfig.HotkeysEnabled.Value) return;
             try
             {
                 if (Hotkeys.Pressed(Key.LeftBracket)) BagPanel.Toggle();
                 else if (Hotkeys.Pressed(Key.RightBracket)) BagManager.DropLast();
                 else if (Hotkeys.Pressed(Key.Equals)) Booth.PlaceHere();
-                else if (ModConfig.ReconEnabled.Value && Hotkeys.Pressed(Key.Minus)) GeneratorProbe.JunkProbe();
-                else if (ModConfig.ReconEnabled.Value && Hotkeys.Pressed(Key.Semicolon)) GeneratorProbe.ResourceCensus();
-                if (!ModConfig.ReconEnabled.Value) return;
+                else if (ModConfig.DevTools.Value && Hotkeys.Pressed(Key.Minus)) GeneratorProbe.JunkProbe();
+                else if (ModConfig.DevTools.Value && Hotkeys.Pressed(Key.Semicolon)) GeneratorProbe.ResourceCensus();
+                if (!ModConfig.DevTools.Value) return;
                 if (Hotkeys.Pressed(Key.Insert)) GeneratorProbe.Survey();
                 else if (Hotkeys.Pressed(Key.Delete)) GeneratorProbe.SpawnTest();
                 else if (Hotkeys.Pressed(Key.Backslash)) LobbyProbe.Survey();
@@ -130,16 +132,19 @@ namespace LootOverhaul
         {
             // The pooled loot bodies outlive the scene; whatever the pre-load hook did not
             // catch is destroyed here, while the room is still the same one.
+            LootInventory.FlushAll();
             LootRegistry.Clear($"scene changed to {sceneName}", destroyOwned: true);
             BagManager.DroppedByMe.Clear();
             Unlocks.Invalidate();
             ChestDrops.OnSceneChanged();
+            DropRoller.OnSceneChanged();
             if (sceneName == Il2Cpp.GameManager.LOBBY_SCENE || sceneName == Il2Cpp.GameManager.MAINMENU_SCENE) { Buffs.ClearAll($"entered {sceneName}"); LightPotion.Clear($"entered {sceneName}"); }
             BagPanel.Hide();
             Booth.Hide();
             Tokens.OnSceneChanged(sceneName);
+            PreparedTonics.OnSceneChanged(sceneName);
             _templateCaptureAt = sceneName == Il2Cpp.GameManager.LOBBY_SCENE ? UnityEngine.Time.unscaledTime + 3f : -1f;
-            if (!ModConfig.ReconEnabled.Value) return;
+            if (!ModConfig.DevTools.Value) return;
             ReconLog.Section($"Scene initialized: {sceneName} (#{buildIndex})");
             ReconLog.TryKeyValue("GameManager.IsLobbyScene", () => Il2Cpp.GameManager.IsLobbyScene);
             ReconLog.TryKeyValue("gate", () => $"active={ModGate.Active} ({ModGate.Reason})");
@@ -150,12 +155,13 @@ namespace LootOverhaul
 
         public override void OnApplicationQuit()
         {
+            LootInventory.FlushAll();
             LootRegistry.Clear("application quitting", destroyOwned: true);
             ModGate.ForceInert("application quitting");
-            if (ModConfig.ReconEnabled.Value)
+            if (ModConfig.DevTools.Value)
             {
                 ReconLog.Section("Loot loop counters");
-                ReconLog.Line($"- kills rolled on this master: {DropRoller.RollsSeen}, weapon drops: {DropRoller.Dropped}, junk drops: {DropRoller.JunkDropped}, pickups turned into claims: {BagPickup.Cancelled}, walk-over pickups: {JunkAutoPickup.Taken}");
+                ReconLog.Line($"- goblin kills rolled on this master: {DropRoller.RollsSeen}, goblin armor drops: {DropRoller.Dropped}, pickups turned into claims: {BagPickup.Cancelled}, walk-over pickups: {JunkAutoPickup.Taken}");
                 ReconLog.Line($"- loadout: {Loadout.Describe()}");
                 ReconLog.Line($"- fabricator bridge: {FabricatorBridge.Describe()}");
                 ReconLog.Line($"- loot goblins resized: {Goblins.Resized}");
@@ -167,6 +173,7 @@ namespace LootOverhaul
                 ProfileWatch.Report();
                 ReconLog.Close();
             }
+            LootInventory.FlushAll();
         }
 
         private void OnGateChanged(bool active)

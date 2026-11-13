@@ -34,7 +34,7 @@ namespace LootOverhaul.Loot
         public static readonly Buffs.Def Def = new Buffs.Def
         {
             Stat = Stat, Name = "Light Potion", Flavor = "light around you", Short = "light",
-            Mults = new[] { 6f, 9f, 13f }, Prices = new[] { 80, 200, 450 },
+            Mults = new[] { 6f, 9f, 13f }, Prices = new[] { 80, 240, 800 },
         };
 
         /// <summary>Share of trinket drops in a crypt (dark) dungeon that are a Minor Light Potion instead.</summary>
@@ -58,15 +58,28 @@ namespace LootOverhaul.Loot
             return item;
         }
 
+        /// <summary>Light up for this run. The strongest wins: a radius at or below the current one is refused (false) and changes nothing.</summary>
+        public static bool Activate(float radius, string why)
+        {
+            if (radius <= _radius + 0.0001f) return false;
+            _radius = radius;
+            // No head yet is fine: Tick builds the light once the avatar exists.
+            Rebuild(ref _local, LocalHead(), _radius, "LootOverhaul_LightPotion");
+            _nextCheck = 0f;
+            Core.Log.Msg($"light potion: {why}, radius {_radius:0.#} m{(DarkRoomManager.Instance != null ? " (crypt: darkness reveal on)" : "")}");
+            return true;
+        }
+
         public static void Drink(LootItem item)
         {
             var inv = BagManager.Inventory;
-            var radius = Math.Max(_radius, item.BuffMult);
+            if (!Activate(item.BuffMult, $"drank {item.Name}"))
+            {
+                BagManager.Toast($"A light as strong or stronger is already on ({_radius:0.#} m). {item.ColoredName} stays in your bag.");
+                return;
+            }
             inv.Remove(item.Id);
             inv.Save();
-            _radius = radius;
-            Rebuild(ref _local, LocalHead(), _radius, "LootOverhaul_LightPotion");
-            Core.Log.Msg($"light potion: drank {item.Name}, radius {_radius:0.#} m{(DarkRoomManager.Instance != null ? " (crypt: darkness reveal on)" : "")}");
             BagManager.Toast($"Drank {item.ColoredName}: light around you ({_radius:0.#} m) until you return to the lobby.");
             BagPanel.Refresh();
         }
