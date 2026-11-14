@@ -42,6 +42,16 @@ namespace LootOverhaul.Loot
         public int RandomSeed;
         /// <summary>The game's own weapon GUID string, generated with the module.</summary>
         public string WeaponGuid;
+
+        // WeaponGuid normalised once and kept until the GUID changes: the armory hooks look bag
+        // weapons up by GUID on every display-name call, and normalising each one there cost
+        // three string allocations per bag weapon per call (0.10.8). Private, so not saved.
+        private string _normFrom, _norm = "";
+        public string NormGuid()
+        {
+            if (!ReferenceEquals(_normFrom, WeaponGuid)) { _normFrom = WeaponGuid; _norm = FabricatorBridge.Norm(WeaponGuid); }
+            return _norm;
+        }
         public int WeaponStyle;
         public int[] NameIDs;
         /// <summary>The DTO's own <c>name</c> field, carried verbatim.</summary>

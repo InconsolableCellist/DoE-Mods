@@ -51,7 +51,7 @@ namespace LootOverhaul.Loot
             Place();
             _root.SetActive(true);
             Rebuild();
-            BagManager.DumpToTranscript();
+            BagManager.DumpIfChanged();
         }
 
         public static void Hide()

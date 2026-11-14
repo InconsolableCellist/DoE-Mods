@@ -112,6 +112,7 @@ namespace LootOverhaul.Loot
         private const float Every = 0.2f;
         private const float SettleSeconds = 1.5f;
         private static float _nextAt;
+        private static readonly System.Collections.Generic.List<LootTag> Snapshot = new System.Collections.Generic.List<LootTag>();
         public static int Taken;
 
         public static void Tick()
@@ -131,7 +132,10 @@ namespace LootOverhaul.Loot
                 var eye = head.position;
                 var armorToo = ModConfig.AutoPickupArmor.Value;
                 // A snapshot: on the master a claim is granted on the spot and removes its tag.
-                foreach (var tag in new System.Collections.Generic.List<LootTag>(LootRegistry.All))
+                // One list reused across checks instead of a new copy five times a second (0.10.8).
+                Snapshot.Clear();
+                Snapshot.AddRange(LootRegistry.All);
+                foreach (var tag in Snapshot)
                 {
                     var item = tag.Item;
                     if (tag.Claimed || tag.ClaimPending || item == null) continue;

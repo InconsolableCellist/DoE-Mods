@@ -155,7 +155,7 @@ namespace LootOverhaul.Loot
                     ArmoryRefusals++; RetiredBlocked++;
                     BagManager.Toast("That loot already left your bag. Reopen the armory to refresh it.");
                     ReconLog.Line("armory: salvage refused before it started, the loot weapon already left the bag");
-                    RefreshArmories("stale entry salvaged");
+                    RefreshArmoriesNow("stale entry salvaged");
                     return false;
                 }
                 var item = FindByGuid(_armorySelectedGuid);
@@ -208,7 +208,7 @@ namespace LootOverhaul.Loot
         {
             if (string.IsNullOrEmpty(guidNorm)) return null;
             foreach (var i in BagManager.Inventory.Items)
-                if (i.IsWeapon && Norm(i.WeaponGuid) == guidNorm) return i;
+                if (i.IsWeapon && i.NormGuid() == guidNorm) return i;
             return null;
         }
 
@@ -216,7 +216,7 @@ namespace LootOverhaul.Loot
         public static bool IsRetired(string guidNorm)
         {
             if (string.IsNullOrEmpty(guidNorm)) return false;
-            try { return BagManager.Inventory.RetiredGuids.Contains(guidNorm); } catch { return false; }
+            try { return BagManager.Inventory.IsRetired(guidNorm); } catch { return false; }
         }
 
         public static int Refreshed, RetiredBlocked;
@@ -242,10 +242,17 @@ namespace LootOverhaul.Loot
 
         public static void Tick()
         {
+            if (_batched > 0)
+            {
+                var why = _batchedWhy;
+                _batched = 0;
+                _batchedWhy = null;
+                RefreshArmoriesNow(why);
+            }
             TickWaitingHidden();
             if (_refreshAt < 0f || UnityEngine.Time.unscaledTime < _refreshAt) return;
             _refreshAt = -1f;
-            RefreshArmories(_refreshWhy ?? "gate opened");
+            RefreshArmoriesNow(_refreshWhy ?? "gate opened");
         }
 
         private static bool HasBagWeapons()
@@ -267,7 +274,20 @@ namespace LootOverhaul.Loot
             RefreshArmories($"{item.Name} left the bag");
         }
 
+        private static int _batched;
+        private static string _batchedWhy;
+
+        /// <summary>
+        /// Asks for an armory rebuild on the next frame. Every ask in the same frame shares one
+        /// rebuild, so selling or bagging ten weapons at once is one scene scan, not ten (0.10.8).
+        /// </summary>
         public static void RefreshArmories(string why)
+        {
+            _batched++;
+            _batchedWhy = _batched == 1 ? why : $"{_batched} changes, last: {why}";
+        }
+
+        private static void RefreshArmoriesNow(string why)
         {
             if (!ModGate.Active)
             {
@@ -539,7 +559,7 @@ namespace LootOverhaul.Loot
                     _trashingRetired = true;
                     BagManager.Toast("That loot already left your bag. The armory list is stale until you reopen it.");
                     Core.Log.Msg($"armory: removal of an already-gone loot weapon refused ({Interop.OneLine(__0.GetDisplayName(false))}); coins will be refused");
-                    RefreshArmories("stale entry used");
+                    RefreshArmoriesNow("stale entry used");
                     __result = true;
                     return false;
                 }

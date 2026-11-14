@@ -3,6 +3,22 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.10.8 (2026-11-11)
+
+Performance only: nothing about what drops, what it is worth or how it plays has changed.
+
+### Changed
+- **The recon transcript is written to disk once a second** instead of after every line. Recon stays on by default and logs exactly what it did before; only the per-line disk write on the game's main thread is gone. At most the last second is missing after a hard crash. The PlayFab write watchdog now describes a call's arguments only when it writes the line, not on every profile write.
+- **The bag file is saved at most every half second.** Every change used to rewrite the whole inventory file at once: each bagged item, each kill (the legendary pity counter), each trinket tossed to make room. Changes are now collected and written together half a second later, and at once on scene change, account change and quit.
+- **One armory rebuild per frame.** Bagging, buying, enchanting or selling several weapons in a row (SELL ALL) rebuilt the game's armory lists once per weapon; all of them now share one rebuild on the next frame.
+- **Boss and goblin piles appear over about a second** instead of all in one frame (a goblin in a four-player room is up to two dozen pieces). The pieces are rolled at the kill exactly as before; only their spawning is spread 0.06 s apart. Queued pieces are dropped on scene change.
+- **Tossing trinkets to make room rebuilds the bag panel once,** not once per trinket.
+- **Opening the bag writes its contents to the transcript only when something changed** since the last time.
+
+### Fixed
+- **Bag, booth and floor-loot materials no longer leak.** Every panel rebuild made new copies of its frame, bar and backdrop materials that were never freed; tinted elements now share one material per colour. A drop beam's material is freed with the beam.
+- Smaller per-call costs: bag weapons' GUIDs are normalised once instead of on every armory display-name call, the retired-weapon check is a set lookup instead of a scan of up to 500 entries, and the roster poll and junk walk-over pickup reuse their buffers.
+
 ## 0.10.7 (2026-11-06)
 
 ### Changed

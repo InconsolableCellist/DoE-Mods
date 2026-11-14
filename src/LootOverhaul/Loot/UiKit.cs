@@ -20,6 +20,32 @@ namespace LootOverhaul.Loot
     /// </summary>
     public static class UiKit
     {
+        // One tinted material per (source material, colour, emission), shared by every element
+        // that asks for it (0.10.8). Renderer.material made a fresh copy per element on every
+        // panel rebuild, and destroying the element does not free that copy, so each click on
+        // the bag or booth leaked a handful of materials.
+        private static readonly System.Collections.Generic.Dictionary<(int, Color, Color, bool), Material> Tints =
+            new System.Collections.Generic.Dictionary<(int, Color, Color, bool), Material>();
+
+        /// <summary>Gives the renderer a shared material: its current one tinted <paramref name="color"/>, with optional emission.</summary>
+        public static void Tint(Renderer r, Color color, Color? emission = null, bool enableEmission = false)
+        {
+            var src = r.sharedMaterial;
+            if (!Interop.Alive(src)) { r.material.color = color; return; }
+            var key = (src.GetInstanceID(), color, emission ?? Color.clear, enableEmission);
+            if (!Tints.TryGetValue(key, out var mat) || !Interop.Alive(mat))
+            {
+                mat = new Material(src) { hideFlags = HideFlags.DontUnloadUnusedAsset };
+                mat.color = color;
+                if (emission.HasValue)
+                {
+                    try { if (enableEmission) mat.EnableKeyword("_EMISSION"); mat.SetColor("_EmissionColor", emission.Value); } catch { }
+                }
+                Tints[key] = mat;
+            }
+            r.sharedMaterial = mat;
+        }
+
         private static GameObject _buttonTemplate;
         private static TMP_FontAsset _font;
         private static Material _fontMaterial;
@@ -151,8 +177,7 @@ namespace LootOverhaul.Loot
                         foreach (var r in go.GetComponentsInChildren<Renderer>(true))
                         {
                             if (!Interop.Alive(r)) continue;
-                            try { r.material.color = new Color(0.35f, 0.35f, 0.4f, 1f); } catch { }
-                            try { r.material.SetColor("_EmissionColor", new Color(0.1f, 0.1f, 0.12f, 1f)); } catch { }
+                            try { Tint(r, new Color(0.35f, 0.35f, 0.4f, 1f), new Color(0.1f, 0.1f, 0.12f, 1f)); } catch { }
                         }
                         btn.enabled = false;
                         foreach (var c in go.GetComponentsInChildren<Collider>(true)) if (Interop.Alive(c)) c.enabled = false;
@@ -299,8 +324,7 @@ namespace LootOverhaul.Loot
                 try
                 {
                     var r = bar.GetComponent<Renderer>();
-                    r.material.color = color;
-                    try { r.material.EnableKeyword("_EMISSION"); r.material.SetColor("_EmissionColor", color * emission); } catch { }
+                    Tint(r, color, color * emission, enableEmission: true);
                     r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                     r.receiveShadows = false;
                 }
@@ -326,8 +350,7 @@ namespace LootOverhaul.Loot
             try
             {
                 var r = quad.GetComponent<Renderer>();
-                r.material.color = color;
-                try { r.material.EnableKeyword("_EMISSION"); r.material.SetColor("_EmissionColor", color); } catch { }
+                Tint(r, color, color, enableEmission: true);
                 r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 r.receiveShadows = false;
             }
@@ -392,7 +415,7 @@ namespace LootOverhaul.Loot
             try
             {
                 var r = quad.GetComponent<Renderer>();
-                r.material.color = color;
+                Tint(r, color);
                 r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 r.receiveShadows = false;
             }
