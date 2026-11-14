@@ -50,6 +50,10 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<float> RingSize;
         public static MelonPreferences_Entry<float> RingOffset;
         public static MelonPreferences_Entry<float> RingSlide;
+        public static MelonPreferences_Entry<float> RingTilt;
+        public static MelonPreferences_Entry<float> RingTurn;
+        public static MelonPreferences_Entry<float> RingRoll;
+        public static MelonPreferences_Entry<bool> RingsVisible;
 
         // ---- [CustomAvatars_Tuning] -----------------------------------------------------
         public static MelonPreferences_Entry<float> SpringStiffnessScale;
@@ -204,6 +208,14 @@ namespace CustomAvatars
             RingSlide = Main.CreateEntry("RingSlide", 0.0f, description:
                 "Moves rings on custom avatars along the finger, as a share of the finger bone (-1 to 1). " +
                 "Positive is toward the fingertip, negative toward the hand. Only changes what you see. F3 applies it.");
+            RingTilt = Main.CreateEntry("RingTilt", 0.0f, description:
+                "Tilts rings on custom avatars toward the fingertip or the hand, degrees (-180 to 180). Only changes what you see.");
+            RingTurn = Main.CreateEntry("RingTurn", 0.0f, description:
+                "Turns rings on custom avatars left or right, seen from the back of the hand, degrees (-180 to 180). Mirrored on the right hand. Only changes what you see.");
+            RingRoll = Main.CreateEntry("RingRoll", 0.0f, description:
+                "Rolls rings on custom avatars around the finger, degrees (-180 to 180). Mirrored on the right hand. Only changes what you see.");
+            RingsVisible = Main.CreateEntry("RingsVisible", true, description:
+                "false hides rings on custom avatars, yours and your friends'. Only changes what you see.");
 
             // ---- tuning -----------------------------------------------------------------
             // Restoring force toward the resting pose.
