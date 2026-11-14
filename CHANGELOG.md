@@ -4,10 +4,11 @@ Versions are the mod's `Version` constant in `src/CustomAvatars/Core.cs`. This f
 
 ## 0.42.14 (2026-11-14)
 
-### Added
-- `RingTilt`, `RingTurn`, `RingRoll` (`[CustomAvatars]`, degrees, -180 to 180) turn the rings on custom avatars about their band's centre. Tilt is toward the fingertip, turn is left or right seen from the back of the hand, and roll is around the finger. Turn and roll are mirrored on the right hand, so the same numbers look the same on both hands.
-- `RingsVisible` (default true): false hides the rings on custom avatars, on your screen only.
-- The ring settings now apply live. They are re-read twice a second, so a change in LootOverhaul's CONFIG tab at the kobold, or in the file, shows on the hand with no F3.
+### Changed
+- **Rings are off until you turn them on**, so a ring that would be placed badly never shows by surprise. Each of your own rings now has its own settings: `Ring{Left|Right}Visible` (default false), `…Size`, `…Offset` (up from the back of the hand, in finger radii), `…Slide` (toward the fingertip), and `…Tilt`, `…Turn`, `…Roll` in degrees. Tilt tips the top of the ring toward the fingertip, turn points it toward the thumb, and roll turns its top toward the little finger. Turn and roll are mirrored on the right hand. Size and the angles pivot on the band's centre.
+- The settings apply to **your own avatar only** (and the mannequin showing it). Other players' fingers are not yours, so their rings get the automatic fit alone, behind one switch, `RingsOthersVisible` (default false).
+- The settings apply live. They are re-read twice a second, so a change in LootOverhaul's cogwheel tab at the kobold, or in the file, shows on the hand with no F3. The F3 line prints both rings.
+- `RingSize`, `RingOffset` and `RingSlide` from 0.42.12–0.42.13 are replaced by the per-ring settings and no longer read.
 
 ### Fixed
 - The left-hand ring was not fitted. The log said `ring hole not measurable`, and the ring kept the game's fit while the right one was fitted. When the band's vertices can't be read, or they don't make a plausible band, the hole is now estimated from the band mesh's bounds: the narrower extent across the finger is the outside, and the hole is three quarters of it. The `ring:` line says which measurement was used and why, so a hand that still isn't fitted can be told apart.

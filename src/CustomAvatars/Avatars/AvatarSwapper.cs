@@ -441,7 +441,7 @@ namespace CustomAvatars.Avatars
 
                 // Worn rings sit on the vanilla finger (the first-person arms' for you, the
                 // body's for everyone else); this puts them on ours.
-                _rings = new RingFollower(SafeName(player), _model, manifest, RingSites);
+                _rings = new RingFollower(SafeName(player), isSelf, _model, manifest, RingSites);
 
                 Core.Log.Msg($"*** Avatar swapped: {manifest.name} on {SafeName(player)} " +
                              $"(scale x{manifest.rig.suggestedScale:0.###})");

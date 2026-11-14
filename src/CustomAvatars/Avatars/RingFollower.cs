@@ -44,9 +44,10 @@ namespace CustomAvatars.Avatars
     /// bone for that finger gets the ring hidden (scaled to zero) rather than left floating
     /// where the vanilla finger is; it comes back on revert.
     ///
-    /// `RingSize` multiplies the result, for avatars whose fingers are thicker than measured
-    /// and swallow the ring. It only changes what this client draws. The scale is applied
-    /// about the band's centre, so a bigger ring stays on the finger.
+    /// Your own rings are then shown per your settings for that hand (`Look`: off until you
+    /// turn it on, then size, up, slide and three angles on top of the fit); other players'
+    /// rings get the fit alone, behind one switch. All local: it only changes what this client
+    /// draws. Size and angles pivot on the band's centre, so the ring stays on the finger.
     ///
     /// Grep the log for `ring:`.
     /// </summary>
@@ -109,65 +110,74 @@ namespace CustomAvatars.Avatars
         private const float MinSize = 0.5f, MaxSize = 4f;
 
         /// <summary>
-        /// `RingSize`, sanitised: a multiplier on every ring this client places, on top of the
-        /// finger measurement. Read at load and on F3, not every frame.
+        /// How one of your own rings is shown, on top of the automatic fit. Read from
+        /// `[CustomAvatars] RingLeft*` / `RingRight*`. Everything here is local: it changes only
+        /// what this client draws.
+        ///   Visible: off by default, so a ring that would be placed badly never shows until
+        ///     its owner turns it on (and tunes it).
+        ///   Size: a multiplier on the fitted size.
+        ///   Offset: up from the back of the hand, in finger radii.
+        ///   Slide: toward the fingertip, as a share of the finger bone.
+        ///   Tilt / Turn / Roll: degrees in the hand's frame. Tilt tips the top of the ring
+        ///     toward the fingertip, turn points it toward the thumb, roll turns its top toward
+        ///     the little finger. Turn and roll are mirrored on the right hand, so the same
+        ///     numbers look the same on both hands.
         /// </summary>
-        public static float Size { get; private set; } = 1f;
+        public class Look
+        {
+            public bool Visible;
+            public float Size = 1f, Offset, Slide, Tilt, Turn, Roll;
+
+            public override string ToString() =>
+                $"{(Visible ? "on" : "off")} x{Size:0.00} up {Offset:+0.0;-0.0;0} slide {Slide:+0.00;-0.00;0} " +
+                $"tilt/turn/roll {Tilt:0}/{Turn:0}/{Roll:0}°";
+        }
+
+        public static readonly Look Left = new Look(), Right = new Look();
 
         /// <summary>
-        /// `RingOffset`, sanitised: how far every ring this client places is lifted off the
-        /// finger toward the back of the hand, in finger radii. Negative is toward the palm.
+        /// Other players' rings: the automatic fit alone (your tuning is for your fingers, not
+        /// theirs), shown only when `RingsOthersVisible` is on. Off by default.
         /// </summary>
-        public static float Offset { get; private set; }
-
-        /// <summary>
-        /// `RingSlide`, sanitised: how far every ring is moved along the finger, as a fraction
-        /// of the finger bone's length. Positive is toward the tip.
-        /// </summary>
-        public static float Slide { get; private set; }
-
-        /// <summary>`RingsVisible`: false hides every ring this client places on a custom avatar.</summary>
-        public static bool Visible { get; private set; } = true;
-
-        /// <summary>
-        /// `RingTilt` / `RingTurn` / `RingRoll`, degrees, as one rotation in the hand's frame:
-        /// tilt about the line across the hand, turn about the line up from the back of the
-        /// hand, roll about the finger. Turn and roll are mirrored on the right hand, so the
-        /// same numbers look the same on both hands.
-        /// </summary>
-        public static float Tilt { get; private set; }
-        public static float Turn { get; private set; }
-        public static float Roll { get; private set; }
+        public static readonly Look Others = new Look();
 
         private static float _nextRefreshAt;
 
         /// <summary>
         /// Re-reads the ring settings. Called at load, on F3, and twice a second from the
-        /// followers, so a change made in game (another mod's menu writing the entries) shows
-        /// at once with no F3. Reading seven cached entries twice a second costs nothing.
+        /// followers, so a change made in game (LootOverhaul's menu writing the entries) shows
+        /// at once with no F3. Reading fifteen cached entries twice a second costs nothing.
         /// </summary>
         public static void RefreshSize()
         {
             _nextRefreshAt = Time.unscaledTime + ScanSeconds;
-            var v = 1f;
-            try { v = ModConfig.RingSize.Value; } catch { }
-            Size = float.IsFinite(v) && v > 0f ? Mathf.Clamp(v, MinSize, MaxSize) : 1f;
-            Offset = Read(ModConfig.RingOffset, -5f, 5f);
-            Slide = Read(ModConfig.RingSlide, -1f, 1f);
-            Tilt = Read(ModConfig.RingTilt, -180f, 180f);
-            Turn = Read(ModConfig.RingTurn, -180f, 180f);
-            Roll = Read(ModConfig.RingRoll, -180f, 180f);
-            try { Visible = ModConfig.RingsVisible.Value; } catch { Visible = true; }
+            ReadLook(Left, ModConfig.RingLeft);
+            ReadLook(Right, ModConfig.RingRight);
+            try { Others.Visible = ModConfig.RingsOthersVisible.Value; } catch { Others.Visible = false; }
         }
 
-        private static float Read(MelonLoader.MelonPreferences_Entry<float> entry, float min, float max)
+        private static void ReadLook(Look look, ModConfig.RingEntries e)
         {
-            var v = 0f;
+            if (e == null) return;
+            try { look.Visible = e.Visible.Value; } catch { look.Visible = false; }
+            var size = Read(e.Size, MinSize, MaxSize, 1f);
+            look.Size = size;
+            look.Offset = Read(e.Offset, -5f, 5f, 0f);
+            look.Slide = Read(e.Slide, -1f, 1f, 0f);
+            look.Tilt = Read(e.Tilt, -180f, 180f, 0f);
+            look.Turn = Read(e.Turn, -180f, 180f, 0f);
+            look.Roll = Read(e.Roll, -180f, 180f, 0f);
+        }
+
+        private static float Read(MelonLoader.MelonPreferences_Entry<float> entry, float min, float max, float fallback)
+        {
+            var v = fallback;
             try { v = entry.Value; } catch { }
-            return float.IsFinite(v) ? Mathf.Clamp(v, min, max) : 0f;
+            return float.IsFinite(v) ? Mathf.Clamp(v, min, max) : fallback;
         }
 
         private readonly string _who;
+        private readonly bool _self;
         private readonly GameObject _model;
         private readonly AvatarManifest _manifest;
         private readonly Func<List<Site>> _findSites;
@@ -181,10 +191,12 @@ namespace CustomAvatars.Avatars
         private bool _failed;
 
         /// <param name="who">For the log: whose avatar this is.</param>
+        /// <param name="self">Your own avatar (or the mannequin showing it): your ring settings apply.</param>
         /// <param name="findSites">Enumerates where rings can appear; called every couple of seconds.</param>
-        public RingFollower(string who, GameObject model, AvatarManifest manifest, Func<List<Site>> findSites)
+        public RingFollower(string who, bool self, GameObject model, AvatarManifest manifest, Func<List<Site>> findSites)
         {
             _who = who;
+            _self = self;
             _model = model;
             _manifest = manifest;
             _findSites = findSites;
@@ -520,27 +532,35 @@ namespace CustomAvatars.Avatars
             }
             var tube = ring.Avatar;
             if (tube == null || !Interop.Alive(tube.Bone)) return;
-            if (!Visible)
+            var isLeft = ring.Site.Bone <= HumanBodyBones.LeftLittleDistal;
+            var look = !_self ? Others : isLeft ? Left : Right;
+            if (!look.Visible)
             {
                 if (ring.T.localScale != Vector3.zero) ring.T.localScale = Vector3.zero;
                 return;
             }
+            // Someone else's ring: the fit alone, none of your tuning.
+            var size = _self ? look.Size : 1f;
+            var up = _self ? look.Offset : 0f;
+            var slide = _self ? look.Slide : 0f;
+            var tiltDeg = _self ? look.Tilt : 0f;
+            var turnDeg = _self ? look.Turn : 0f;
+            var rollDeg = _self ? look.Roll : 0f;
 
             var rPer = ring.UseMesh ? tube.RadiusPerLength : FallbackRadiusPerLength;
             var cPer = ring.UseMesh ? tube.CentrePerLength : Vector2.zero;
             var radius = tube.Length * rPer;
             // The frame's Y is along (index - little) x (toward the tip), which mirrors with the
-            // hand: the back of the hand on the left, the palm on the right. `RingOffset` means
-            // the back of the hand on both.
-            var isLeft = ring.Site.Bone <= HumanBodyBones.LeftLittleDistal;
-            var lift = isLeft ? Offset : -Offset;
+            // hand: the back of the hand on the left, the palm on the right. Up means the back of
+            // the hand on both.
+            var lift = isLeft ? up : -up;
             var local = new Vector3(cPer.x * tube.Length + ring.Across.x * radius,
                                     cPer.y * tube.Length + (ring.Across.y + lift) * radius,
-                                    (ring.Along + Slide) * tube.Length);
+                                    (ring.Along + slide) * tube.Length);
             var bone = tube.Bone;
             var target = bone.TransformPoint(tube.Frame * local);
             var rotation = bone.rotation * tube.Frame * ring.Rot;
-            if (Tilt != 0f || Turn != 0f || Roll != 0f)
+            if (tiltDeg != 0f || turnDeg != 0f || rollDeg != 0f)
             {
                 // In the hand's frame (Y out of the back of the hand on both hands: the finger
                 // frame turned half round the finger on the right), then back into the finger
@@ -548,13 +568,13 @@ namespace CustomAvatars.Avatars
                 // the position below is solved after the rotation.
                 var hand = isLeft ? Quaternion.identity : Quaternion.AngleAxis(180f, Vector3.forward);
                 var mirror = isLeft ? 1f : -1f;
-                var tilt = Quaternion.AngleAxis(Turn * mirror, Vector3.up) *
-                           Quaternion.AngleAxis(Tilt, Vector3.right) *
-                           Quaternion.AngleAxis(Roll * mirror, Vector3.forward);
+                var tilt = Quaternion.AngleAxis(turnDeg * mirror, Vector3.up) *
+                           Quaternion.AngleAxis(tiltDeg, Vector3.right) *
+                           Quaternion.AngleAxis(rollDeg * mirror, Vector3.forward);
                 rotation = bone.rotation * tube.Frame * hand * tilt * Quaternion.Inverse(hand) * ring.Rot;
             }
 
-            var wantLossy = ring.SizePerRadius * WorldRadius(tube, rPer) * Size;
+            var wantLossy = ring.SizePerRadius * WorldRadius(tube, rPer) * size;
             var parentLossy = 1f;
             var parent = ring.T.parent;
             if (Interop.Alive(parent)) parentLossy = Mathf.Abs(parent.lossyScale.x);

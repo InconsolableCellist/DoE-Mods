@@ -100,16 +100,15 @@ You can fine-tune things like bone placement and other settings in `UserData\Mel
 
 Press F3 after saving that file to load the settings.
 
-**Can't see your rings?** If your avatar's fingers are thicker than normal, the ring can end up
-inside the finger. Set `RingSize` in the `[CustomAvatars]` section to something like `1.5` or `2`
-and press F3. It makes every ring you see on a custom avatar bigger, yours and your friends', and
-only on your own screen, so each player can pick their own.
+**Rings are off until you turn them on.** With LootOverhaul, go to the kobold in the lobby and press
+the cogwheel. Pick LEFT RING or RIGHT RING, press TURN ON, and move the ring with the big buttons
+while you hold your hand up: size, up/down, slide along the finger, tilt, turn and roll. RESET puts
+that ring back. Every press is saved at once and shows within half a second. Without LootOverhaul,
+set the same values in the `[CustomAvatars]` section: `RingLeftVisible = true`, `RingLeftSize`,
+`RingLeftOffset` and so on (and `RingRight…`).
 
-**Ring sunk into the finger, or floating above it?** Set `RingOffset` in the same section and press
-F3. It lifts the ring toward the back of your hand, in finger radii: `1` raises it by one finger
-radius, `-1` lowers it toward the palm. `RingSlide` moves it along the finger instead: `0.2` is a
-fifth of the finger bone toward the fingertip, `-0.2` toward the hand. Both are only on your own
-screen.
+These only change your own avatar, on your own screen. Your friends' rings use the automatic fit
+and are shown when you turn on "friends' rings" (`RingsOthersVisible`).
 
 ## Common log messages for troubleshooting 
 
