@@ -46,6 +46,10 @@ namespace PartyHealth.Hud
         private static bool _onTop, _materialLogged;
         private static TMP_FontAsset _font;
         private static Material _fontMaterial;
+        // One draw-on-top copy of the label material, shared by every label (0.1.3). Each label
+        // used to make its own copy through tmp.fontMaterial, and those copies were never freed.
+        private static Material _onTopMaterial;
+        private static int _onTopFromId;
         private static float _fontRetryAt;
         private static Transform _eyes;
         private static float _eyesRetryAt;
@@ -81,14 +85,16 @@ namespace PartyHealth.Hud
                     var want = Wanted(p, eyes, now, out var head, out var distance);
                     if (!want && !Bars.ContainsKey(p.Actor)) continue;
 
-                    if (!Bars.TryGetValue(p.Actor, out var bar))
+                    if (!Bars.TryGetValue(p.Actor, out var bar) || !Interop.Alive(bar.Root))
                     {
+                        if (bar != null) Destroy(bar);
                         bar = Build();
                         if (bar == null) continue;
                         Bars[p.Actor] = bar;
                     }
+                    // A faded-out bar is kept (hidden) for the next hit instead of being destroyed
+                    // and rebuilt every time (0.1.3); it goes only when the friend leaves.
                     Step(bar, p, want, head, distance, eyes, dt, now);
-                    if (!want && bar.Alpha <= 0.001f) { Destroy(bar); Bars.Remove(p.Actor); }
                 }
 
                 foreach (var actor in Stale) { if (Bars.TryGetValue(actor, out var bar)) Destroy(bar); Bars.Remove(actor); }
@@ -428,9 +434,16 @@ namespace PartyHealth.Hud
                 {
                     try
                     {
-                        var m = tmp.fontMaterial;   // this label's own instance, not the shared one
-                        m.SetInt("unity_GUIZTestMode", (int)CompareFunction.Always);
-                        m.renderQueue = 4002;
+                        var src = tmp.fontSharedMaterial;
+                        var srcId = src.GetInstanceID();
+                        if (!Interop.Alive(_onTopMaterial) || _onTopFromId != srcId)
+                        {
+                            _onTopFromId = srcId;
+                            _onTopMaterial = new Material(src) { hideFlags = HideFlags.DontUnloadUnusedAsset };
+                            _onTopMaterial.SetInt("unity_GUIZTestMode", (int)CompareFunction.Always);
+                            _onTopMaterial.renderQueue = 4002;
+                        }
+                        tmp.fontSharedMaterial = _onTopMaterial;
                     }
                     catch { }
                 }

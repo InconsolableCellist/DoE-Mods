@@ -48,7 +48,12 @@ namespace StayPutVR.Net
             try
             {
                 if (ReferenceEquals(photonEvent, null)) return;
-                RawEvent?.Invoke(photonEvent.Code, photonEvent.Sender, photonEvent.CustomData);
+                // Every event of every player passes through here (PUN's own sync traffic,
+                // enemy spawns, hits), so read only the code first. Sender and payload cost an
+                // interop call and an allocation each, and only our own block needs them.
+                var code = photonEvent.Code;
+                if (code < BiteNet.CodeMin || code > BiteNet.CodeMax) return;
+                RawEvent?.Invoke(code, photonEvent.Sender, photonEvent.CustomData);
             }
             catch (Exception e)
             {

@@ -32,6 +32,16 @@ namespace StayPutVR.Bite
 
         private static object _faceState;
         private static MethodInfo _tryGet;
+        // TryGet bound once as a direct call (0.5.3). The jaw is read every frame while biting
+        // is on, and going through reflection each time cost an argument array, boxing and a
+        // slow invoke per read. If binding fails the old reflection path is still used.
+        private delegate bool TryGetFn(string name, out float value);
+        private static TryGetFn _tryGetFast;
+        // While no jaw parameter arrives, the candidate names are tried at most once a second
+        // instead of every frame.
+        private static float _scanAt;
+        private static string _namesFor;
+        private static string[] _names = Candidates;
         private static PropertyInfo _secondsSince;
         private static float _retryAt = -100f;
         private static string _resolvedParam;
@@ -67,6 +77,9 @@ namespace StayPutVR.Bite
             if (_resolvedParam != null && Read(_resolvedParam, out value)) return true;
 
             _resolvedParam = null;
+            var now = UnityEngine.Time.unscaledTime;
+            if (now < _scanAt) return false;
+            _scanAt = now + 1f;
             foreach (var name in Names())
             {
                 if (!Read(name, out value)) continue;
@@ -82,11 +95,22 @@ namespace StayPutVR.Bite
             return false;
         }
 
-        private static System.Collections.Generic.IEnumerable<string> Names()
+        private static string[] Names()
         {
-            var configured = (ModConfig.BiteJawParam.Value ?? "").Trim();
-            if (configured.Length > 0) yield return configured;
-            foreach (var name in Candidates) yield return name;
+            var raw = ModConfig.BiteJawParam.Value ?? "";
+            if (!ReferenceEquals(raw, _namesFor))
+            {
+                _namesFor = raw;
+                var configured = raw.Trim();
+                if (configured.Length == 0) _names = Candidates;
+                else
+                {
+                    _names = new string[Candidates.Length + 1];
+                    _names[0] = configured;
+                    Array.Copy(Candidates, 0, _names, 1, Candidates.Length);
+                }
+            }
+            return _names;
         }
 
         private static bool Read(string name, out float value)
@@ -94,6 +118,7 @@ namespace StayPutVR.Bite
             value = 0f;
             try
             {
+                if (_tryGetFast != null) return _tryGetFast(name, out value);
                 var args = new object[] { name, 0f };
                 var found = (bool)_tryGet.Invoke(_faceState, args);
                 if (!found) return false;
@@ -136,6 +161,8 @@ namespace StayPutVR.Bite
 
                 _faceState = state;
                 _tryGet = tryGet;
+                try { _tryGetFast = (TryGetFn)Delegate.CreateDelegate(typeof(TryGetFn), state, tryGet); }
+                catch { _tryGetFast = null; }
                 _secondsSince = state.GetType().GetProperty("SecondsSinceLastMessage", BindingFlags.Public | BindingFlags.Instance);
                 _why = "";
                 Core.Log.Msg("Face link established with CustomAvatars (jaw values available).");

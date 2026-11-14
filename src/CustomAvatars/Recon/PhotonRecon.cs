@@ -132,17 +132,30 @@ namespace CustomAvatars.Recon
             Net.PhotonHook.RawEvent += OnRawEvent;
         }
 
+        /// <summary>
+        /// Counts one event code. Called by <see cref="Net.PhotonHook"/> for every event before
+        /// it reads anything else; true the first time a code is seen, so the hook passes that
+        /// one event on with its sender for the transcript line below.
+        /// </summary>
+        public static bool Tally(byte code)
+        {
+            if (!ModConfig.LogPhotonEvents.Value) return false;
+            lock (CodeGate)
+            {
+                SeenCodes.TryGetValue(code, out var n);
+                SeenCodes[code] = n + 1;
+                return n == 0;
+            }
+        }
+
         private static void OnRawEvent(byte code, int sender, Il2CppSystem.Object content)
         {
             if (!ModConfig.LogPhotonEvents.Value) return;
             try
             {
+                // Counted in Tally already; a count of one means this is the first sighting.
                 bool first;
-                lock (CodeGate)
-                {
-                    first = !SeenCodes.ContainsKey(code);
-                    SeenCodes[code] = (first ? 0 : SeenCodes[code]) + 1;
-                }
+                lock (CodeGate) first = SeenCodes.TryGetValue(code, out var n) && n == 1;
 
                 // PUN reserves 200+; only the sub-200 range can collide with our 140-149 block,
                 // and only the first sighting is worth a line in the transcript.

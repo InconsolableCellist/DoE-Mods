@@ -6,7 +6,7 @@ using CustomAvatars.Gate;
 using CustomAvatars.Net;
 using CustomAvatars.Recon;
 
-[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.42.10", "Foxipso")]
+[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.42.11", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace CustomAvatars
@@ -25,7 +25,7 @@ namespace CustomAvatars
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.42.10";
+        public const string Version = "0.42.11";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -133,6 +133,7 @@ namespace CustomAvatars
             _roster.Tick(dt);
             ModGate.Evaluate(_roster);
             ModNet.Pump();
+            AvatarBundle.Tick();
 
             // Size first: this frame's tracker poses, IK targets and avatar fit must all see
             // the play space at the size settled on, not last frame's.
