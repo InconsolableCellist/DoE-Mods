@@ -1,4 +1,4 @@
-# CustomAvatars 0.42.15
+# CustomAvatars 0.42.16
 
 Wear a VRChat-style avatar in Dungeons of Eternity, in a private lobby with friends who run the
 same build. Face and eye tracking come from VRCFaceTracking over OSC, full-body tracking from
@@ -42,8 +42,12 @@ Nothing that other players can see happens unless the gate is open: the room is 
 player count matches the roster, and the self-checksum passed. Watch for `*** ModGate ACTIVE` or
 `*** ModGate INERT` with the reason attached.
 
-Your own avatar is drawn on a weaker condition — a private room with no vanilla player — because
-in a solo room there is nobody to affect.
+Your own avatar is drawn in any lobby, public or with vanilla players, because it only changes what
+your machine draws: your body, your mannequin, your loading-screen face, your face and full-body
+tracking on your own model. In such a lobby nothing is sent and nobody else is changed — vanilla
+players see your vanilla character. Your **size** is not local (it scales the body the game
+networks and your hit capsules), so it applies only in the menu or with the gate open; anywhere
+else you are normal size and the setting waits.
 
 ## Install
 

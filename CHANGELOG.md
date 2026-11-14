@@ -2,6 +2,13 @@
 
 Versions are the mod's `Version` constant in `src/CustomAvatars/Core.cs`. This file was reconstructed from the git history on 2026-09-01.
 
+## 0.42.16 (2026-11-13)
+
+### Changed
+- **Your own avatar works in any lobby.** Wearing it, the F6 preview, your mannequin and your loading-screen face only change what your machine draws, so `ModGate.LocalVisuals` is now on wherever the self-checksum passed, public rooms and rooms with vanilla players included. Before, it was held to private all-modded rooms and the menu as a matter of policy. Nothing else moved: every send still goes through `ModNet`'s `ModGate.Active` check, the roster still publishes your identity only in a private room, peers' avatars, faces, hands and trackers still wait for the open gate, and vanilla players see your vanilla character.
+- **Your size depends on the lobby.** A size scales the body the game networks and your hit capsules, so it now applies only with the gate open (a private room, everyone on this build) or outside a room. Until now it applied everywhere, public lobbies included. In any other lobby you are normal size, `Size: x… held at normal size — …` says why, and the setting is kept for when the lobby allows it. An engaged size is given two seconds' grace before it is dropped, because the gate shuts for up to half a second every time someone joins.
+- Owner-less mannequins take your avatar only outside a room, as before; that check now asks Photon directly rather than relying on the gate being shut.
+
 ## 0.42.15 (2026-11-13)
 
 Numbered after 0.42.12–0.42.14, which are taken by the ring work still in review (#14).

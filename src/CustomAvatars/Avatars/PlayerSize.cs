@@ -196,7 +196,12 @@ namespace CustomAvatars.Avatars
         {
             if (_fused) return "OFF for this session — the game fought for the scale (see log)";
             var wanted = Wanted();
-            if (!_engaged) return Mathf.Abs(wanted - 1f) < 0.0005f ? "x1.00 (vanilla)" : $"x{wanted:0.00} — applies once you have spawned";
+            if (!_engaged)
+            {
+                if (Mathf.Abs(wanted - 1f) < 0.0005f) return "x1.00 (vanilla)";
+                return Allowed(out _) ? $"x{wanted:0.00} — applies once you have spawned"
+                                      : $"x{wanted:0.00} — held at normal size in this lobby";
+            }
             return $"x{_applied:0.00}" + (Mathf.Abs(wanted - _applied) > 0.0005f ? $" → x{wanted:0.00}" : "");
         }
 
@@ -213,10 +218,14 @@ namespace CustomAvatars.Avatars
                 var body = LocalBody();
                 TrackBody(body);
                 var wanted = Wanted();
+                var allowed = Allowed(out var heldWhy);
+                if (allowed) _heldSince = -1f;
                 if (!_engaged)
                 {
                     // The vanilla path: no reference held, nothing written, no opinion.
                     if (Mathf.Abs(wanted - 1f) < 0.0005f || _fused) return;
+                    if (!allowed) { NoteHeld(wanted, heldWhy); return; }
+                    _heldLogged = null;
                     // Never be scaled while the game spawns you. The first field test had
                     // AvatarSize 0.9 from startup, so the rig was already at x0.9 when the
                     // lobby loaded and the game set your height up: your eyes stayed at full
@@ -226,6 +235,19 @@ namespace CustomAvatars.Avatars
                     // it disappears, so every spawn is calibrated at vanilla size.
                     if (!BodySettled(body)) { NoteWaiting(wanted, body); return; }
                     if (!Engage(body)) return;
+                }
+                else if (!allowed)
+                {
+                    // A moment's grace: the gate is briefly shut every time someone joins (the
+                    // roster lags Photon by up to half a second), and dropping to normal size
+                    // and back on every join would re-fit the avatar twice for nothing.
+                    if (_heldSince < 0f) _heldSince = Time.unscaledTime;
+                    if (Time.unscaledTime - _heldSince >= HeldGraceSeconds)
+                    {
+                        _heldSince = -1f;
+                        Release($"normal size while {heldWhy}; x{wanted:0.00} comes back when that changes");
+                        return;
+                    }
                 }
                 else if (!Interop.Alive(body))
                 {
@@ -498,6 +520,38 @@ namespace CustomAvatars.Avatars
             if (body.Pointer == _seenBodyPtr) return;
             _seenBodyPtr = body.Pointer;
             _bodySeenAt = Time.unscaledTime;
+        }
+
+        // ---- where a size is allowed -----------------------------------------------------
+
+        private const float HeldGraceSeconds = 2f;
+        private float _heldSince = -1f;
+        private string _heldLogged;
+
+        /// <summary>
+        /// A size scales the body the game networks and your hit capsules, so it is a change
+        /// other players live with, not just a picture: it applies only where everyone has
+        /// agreed to the mod — a private room with every occupant on this build (the gate is
+        /// open) — or where there is nobody else at all, the menu. In a public room, or one
+        /// with a vanilla player, you are normal size and the setting waits.
+        /// </summary>
+        public static bool Allowed(out string why)
+        {
+            if (Gate.ModGate.Active) { why = null; return true; }
+            try
+            {
+                if (!Il2CppPhoton.Pun.PhotonNetwork.InRoom) { why = null; return true; }
+            }
+            catch { why = "the room could not be checked"; return false; }
+            why = $"the lobby isn't private with everyone on this build ({Gate.ModGate.Reason})";
+            return false;
+        }
+
+        private void NoteHeld(float wanted, string why)
+        {
+            if (_heldLogged == why) return;
+            _heldLogged = why;
+            Core.Log.Msg($"Size: x{wanted:0.00} held at normal size — {why}.");
         }
 
         private bool BodySettled(Transform body) =>

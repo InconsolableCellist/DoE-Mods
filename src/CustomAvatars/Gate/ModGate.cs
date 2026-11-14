@@ -17,12 +17,13 @@ namespace CustomAvatars.Gate
     ///   3. our own DLL self-checksum succeeded.
     ///
     /// <see cref="LocalVisuals"/> governs what THIS machine draws for itself — your own avatar,
-    /// the preview, the mannequins. None of that reaches anybody else, so it is also allowed
-    /// when we are not in a room at all: the menu, and the moments between lobbies. There is
-    /// nobody there to affect. It stays off in a public room or one with a vanilla player, not
-    /// because it would leak anything, but because "friends, in private lobbies" is the rule
-    /// this mod is built around and quietly making an exception is how rules stop meaning
-    /// anything.
+    /// the preview, your mannequin, your loading-screen face. None of that reaches anybody
+    /// else, so since 0.42.16 it is allowed in any room, public or with vanilla players, as
+    /// long as our own self-checksum succeeded. Until then it was held to private all-modded
+    /// rooms (and the menu) as a matter of policy, not because anything leaked. Everything that
+    /// touches other people still waits for <see cref="Active"/>: every send (ModNet), the
+    /// roster's published identity (private rooms only), putting avatars on peers, and your
+    /// size, which scales the body the game networks and your hit capsules (PlayerSize).
     ///
     /// Active implies LocalVisuals. Never the reverse.
     ///
@@ -128,20 +129,16 @@ namespace CustomAvatars.Gate
                 return false;
             }
 
-            // Not in a room means there is nobody else in the world to affect, so wearing your
-            // own avatar in the menu is nobody's business but yours.
+            // What you draw for yourself is nobody's business but yours, in any room. Nothing
+            // here sends, publishes or touches a peer; those wait for Active.
             try
             {
-                if (!PhotonNetwork.InRoom) { reason = "not in a room — your own avatar only"; return true; }
+                reason = PhotonNetwork.InRoom
+                    ? $"your own avatar only — {_reason}"
+                    : "not in a room — your own avatar only";
             }
-            catch (Exception e)
-            {
-                reason = $"room check threw {e.GetType().Name}";
-                return false;
-            }
-
-            reason = _reason;
-            return false;
+            catch { reason = "your own avatar only"; }
+            return true;
         }
 
         private static bool Compute(ModRoster roster, out string reason)

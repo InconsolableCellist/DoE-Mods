@@ -46,8 +46,7 @@ namespace CustomAvatars.Avatars
 
             if (!ModGate.LocalVisuals)
             {
-                Core.Log.Warning($"Preview refused: {ModGate.LocalReason}. " +
-                                 "Join a private lobby with everyone on the same build.");
+                Core.Log.Warning($"Preview refused: {ModGate.LocalReason}.");
                 return;
             }
 

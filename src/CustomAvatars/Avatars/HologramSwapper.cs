@@ -131,7 +131,10 @@ namespace CustomAvatars.Avatars
                 // No owner. In the menu there is no player object for a mannequin to belong to,
                 // and the only person it could possibly be showing is you, so show what you mean
                 // to wear. Anywhere else an owner-less mannequin isn't ours to touch.
-                return ModGate.Active ? null : _swaps.WantedSelfAvatar;
+                // LocalVisuals no longer means "not in a room", so ask the room directly.
+                bool inRoom;
+                try { inRoom = Il2CppPhoton.Pun.PhotonNetwork.InRoom; } catch { inRoom = true; }
+                return inRoom ? null : _swaps.WantedSelfAvatar;
             }
             catch { return null; }
         }

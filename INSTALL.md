@@ -1,8 +1,9 @@
 # Installing and removing CustomAvatars
 
 A friends-only cosmetic mod for **Dungeons of Eternity**. It puts custom avatars on the people
-in your party. It only does anything in a **private lobby where everyone is running the same
-build** — in a public lobby, or with one vanilla player present, it turns itself off completely.
+in your party. Everything involving other people only happens in a **private lobby where everyone
+is running the same build**. In a public lobby, or with one vanilla player present, you still wear
+your own avatar, but only you see it: nothing is sent and everyone else stays vanilla.
 
 Everything below is manual file copying. There is no installer and no server.
 
@@ -91,10 +92,10 @@ Get into a **private** party. You should see:
 
 Your avatar goes on by itself. Press **F4** to take it off, and again to put it back on.
 
-You can also do this in the menu, before joining anything. Wearing your own avatar, the F6
-preview and the mannequins only change what **your** machine draws, so they're allowed whenever
-you aren't in a room at all. Everything that involves other people — seeing their avatars,
-sending them your face — still waits for a private lobby with everyone on the same build.
+You can also do this in the menu, or in any lobby. Wearing your own avatar, the F6 preview and
+your mannequin only change what **your** machine draws, so they're allowed everywhere.
+Everything that involves other people — seeing their avatars, sending them your face, being a
+different size — still waits for a private lobby with everyone on the same build.
 
 ---
 
@@ -167,7 +168,9 @@ the same rising two-note chime full-body tracking plays when it locks in.
 Everything scales together: your eye height, your reach, your hit boxes, the game's own body
 and your avatar, so the world reads as bigger or smaller and your feet stay on the floor.
 Friends running the mod see you at that size; the mannequins in the equipment room show you
-at it too. A moment after you stop pressing, the avatar is taken off and put back on (same
+at it too. Because it changes your hit boxes, a size only applies in a private lobby where
+everyone runs the same build, or in the menu; in a public lobby, or once a vanilla player joins,
+you are put back to normal size (after two seconds' grace) and the setting waits. A moment after you stop pressing, the avatar is taken off and put back on (same
 chime as the T-pose) so it is fitted to your new size. The size goes on a second after you
 spawn, never before: the game sets your height up at normal size first, then you shrink or
 grow, so the main menu is always normal size. **Home** puts you back to normal — and
@@ -213,9 +216,9 @@ Two things worth knowing:
 
 The console tells you why. The common ones:
 
-**`Swap refused: room `x` is VISIBLE (public)`**
-You're in a public lobby. The mod only runs in private parties, deliberately — including your
-own avatar, which would otherwise be an exception that makes the rule meaningless.
+**`Size: x0.90 held at normal size — the lobby isn't private with everyone on this build`**
+Your size changes what other players fight against, so it only applies in a private,
+all-modded lobby (or the menu). You are normal size here; it comes back when that changes.
 
 **`ModGate INERT — 1 vanilla player(s) present`**
 Someone in the party hasn't installed the mod. It stays off for everyone until they do, or
@@ -275,4 +278,5 @@ an avatar at 1 is common — and an older exporter collapsed it. Re-export; the 
   exist only on the machines running the mod, and only during a session.
 - It **sends nothing to any server of ours** — there isn't one. Avatar files are passed around
   by hand.
-- Outside a private, all-modded lobby it is **inert**: no changes and no network traffic.
+- Outside a private, all-modded lobby it **sends nothing and changes nobody else**: only your
+  own avatar is drawn, on your screen, and your size stays normal.
