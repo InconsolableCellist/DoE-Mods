@@ -6,7 +6,7 @@ using CustomAvatars.Gate;
 using CustomAvatars.Net;
 using CustomAvatars.Recon;
 
-[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.42.11", "Foxipso")]
+[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.42.15", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace CustomAvatars
@@ -25,7 +25,7 @@ namespace CustomAvatars
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.42.11";
+        public const string Version = "0.42.15";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -40,6 +40,7 @@ namespace CustomAvatars
         private AvatarSync _avatarSync;
         private HandSync _handSync;
         private HologramSwapper _holograms;
+        private LoadScreenFaces _loadFaces;
         private Face.VrcftBridge _face;
         private Face.FaceSync _faceSync;
         private Fbt.TrackerReader _trackers;
@@ -98,6 +99,9 @@ namespace CustomAvatars
             _avatarSync = new AvatarSync(_swaps, _avatarLibrary, _roster);
             _handSync = new HandSync(_swaps, _roster);
             _holograms = new HologramSwapper(_avatarLibrary, _swaps);
+            // The loading screen's circle of faces: custom avatars, in each player's load face.
+            _loadFaces = new LoadScreenFaces(_avatarLibrary, _swaps);
+            LoadScreenFaces.Install(HarmonyInstance);
             _fbt = new Fbt.FbtManager(_swaps, _roster, _trackers);
 
             if (ModConfig.FaceOscEnabled.Value)

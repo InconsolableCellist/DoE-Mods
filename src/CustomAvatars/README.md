@@ -1,4 +1,4 @@
-# CustomAvatars 0.42.11
+# CustomAvatars 0.42.15
 
 Wear a VRChat-style avatar in Dungeons of Eternity, in a private lobby with friends who run the
 same build. Face and eye tracking come from VRCFaceTracking over OSC, full-body tracking from
@@ -17,6 +17,12 @@ The design notes are in [docs/PLAN.md](../../docs/PLAN.md) and
 - **Face and eyes** from VRCFaceTracking, on a socket that stands in for VRChat, forwarded to peers
   at a fixed 10 Hz and only when a shape actually moved.
 - **Full-body tracking** from SteamVR pucks, with a T-pose calibration, and synced to peers.
+- **Loading-screen faces.** The circle of party faces on the loading screen shows each player's
+  custom avatar instead of their vanilla character, wearing the expression they chose as their
+  load face in the avatar room. The vanilla face shapes (happy, angry, surprise and so on) are
+  translated into Unified Expressions, so the avatar needs face-tracking shapes to show it; one
+  without them shows a neutral face. Friends' faces appear only once the gate has put their
+  avatar on, like everything else.
 - **Hand poses** from trigger and grip, and **spring bones** for secondary motion, rebuilt from the
   captured PhysBone setup.
 - **Rings** you wear sit on your avatar's own finger, for you and for everyone who can see you,
