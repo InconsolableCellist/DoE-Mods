@@ -334,7 +334,7 @@ namespace CustomAvatars
                                        $"colliders {ModConfig.SpringCollidersEnabled.Value}");
                     LoggerInstance.Msg($"Preferences reloaded — swap: {AvatarSwapper.DescribeSettings()}");
                     RingFollower.RefreshSize();
-                    LoggerInstance.Msg($"Preferences reloaded — AvatarSize {PlayerSize.Wanted():0.00}, RingSize {RingFollower.Size:0.00}, RingOffset {RingFollower.Offset:+0.00;-0.00;0}, " +
+                    LoggerInstance.Msg($"Preferences reloaded — AvatarSize {PlayerSize.Wanted():0.00}, RingSize {RingFollower.Size:0.00}, RingOffset {RingFollower.Offset:+0.00;-0.00;0}, RingSlide {RingFollower.Slide:+0.00;-0.00;0}, " +
                                        $"SizeMoveSpeedBlend {ModConfig.SizeMoveSpeedBlend.Value:0.00}");
                     if (!ModConfig.SwapUseVrik.Value)
                         LoggerInstance.Warning("*** SwapUseVrik is FALSE — swapped avatars will T-pose. " +

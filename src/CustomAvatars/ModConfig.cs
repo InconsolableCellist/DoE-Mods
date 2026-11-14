@@ -49,6 +49,7 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<float> AvatarSize;
         public static MelonPreferences_Entry<float> RingSize;
         public static MelonPreferences_Entry<float> RingOffset;
+        public static MelonPreferences_Entry<float> RingSlide;
 
         // ---- [CustomAvatars_Tuning] -----------------------------------------------------
         public static MelonPreferences_Entry<float> SpringStiffnessScale;
@@ -198,8 +199,11 @@ namespace CustomAvatars
                 "How big rings look on custom avatars, as a multiple of the measured finger size (0.5 to 4). " +
                 "Raise it if rings vanish inside your avatar's fingers. Only changes what you see. F3 applies it.");
             RingOffset = Main.CreateEntry("RingOffset", 0.0f, description:
+                "Moves rings on custom avatars up or down, in finger radii (-5 to 5). Positive lifts the ring " +
+                "toward the back of the hand, negative toward the palm; 1 is one finger radius. Only changes what you see. F3 applies it.");
+            RingSlide = Main.CreateEntry("RingSlide", 0.0f, description:
                 "Moves rings on custom avatars along the finger, as a share of the finger bone (-1 to 1). " +
-                "Positive is toward the fingertip, negative toward the hand; 0.2 is a fifth of the bone. Only changes what you see. F3 applies it.");
+                "Positive is toward the fingertip, negative toward the hand. Only changes what you see. F3 applies it.");
 
             // ---- tuning -----------------------------------------------------------------
             // Restoring force toward the resting pose.

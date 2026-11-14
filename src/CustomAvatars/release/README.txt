@@ -105,9 +105,11 @@ inside the finger. Set `RingSize` in the `[CustomAvatars]` section to something 
 and press F3. It makes every ring you see on a custom avatar bigger, yours and your friends', and
 only on your own screen, so each player can pick their own.
 
-**Ring too far up or down the finger?** Set `RingOffset` in the same section and press F3. It moves
-the ring along the finger by a share of the finger bone: `0.2` moves it a fifth of the bone toward
-the fingertip, `-0.2` toward the hand. Also only on your own screen.
+**Ring sunk into the finger, or floating above it?** Set `RingOffset` in the same section and press
+F3. It lifts the ring toward the back of your hand, in finger radii: `1` raises it by one finger
+radius, `-1` lowers it toward the palm. `RingSlide` moves it along the finger instead: `0.2` is a
+fifth of the finger bone toward the fingertip, `-0.2` toward the hand. Both are only on your own
+screen.
 
 ## Common log messages for troubleshooting 
 

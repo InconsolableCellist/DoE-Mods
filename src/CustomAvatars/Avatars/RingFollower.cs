@@ -112,10 +112,16 @@ namespace CustomAvatars.Avatars
         public static float Size { get; private set; } = 1f;
 
         /// <summary>
-        /// `RingOffset`, sanitised: how far every ring this client places is moved along the
-        /// finger, as a fraction of the finger bone's length. Positive is toward the tip.
+        /// `RingOffset`, sanitised: how far every ring this client places is lifted off the
+        /// finger toward the back of the hand, in finger radii. Negative is toward the palm.
         /// </summary>
         public static float Offset { get; private set; }
+
+        /// <summary>
+        /// `RingSlide`, sanitised: how far every ring is moved along the finger, as a fraction
+        /// of the finger bone's length. Positive is toward the tip.
+        /// </summary>
+        public static float Slide { get; private set; }
 
         public static void RefreshSize()
         {
@@ -124,7 +130,10 @@ namespace CustomAvatars.Avatars
             Size = float.IsFinite(v) && v > 0f ? Mathf.Clamp(v, MinSize, MaxSize) : 1f;
             var o = 0f;
             try { o = ModConfig.RingOffset.Value; } catch { }
-            Offset = float.IsFinite(o) ? Mathf.Clamp(o, -1f, 1f) : 0f;
+            Offset = float.IsFinite(o) ? Mathf.Clamp(o, -5f, 5f) : 0f;
+            var s = 0f;
+            try { s = ModConfig.RingSlide.Value; } catch { }
+            Slide = float.IsFinite(s) ? Mathf.Clamp(s, -1f, 1f) : 0f;
         }
 
         private readonly string _who;
@@ -341,9 +350,13 @@ namespace CustomAvatars.Avatars
             var rPer = ring.UseMesh ? tube.RadiusPerLength : FallbackRadiusPerLength;
             var cPer = ring.UseMesh ? tube.CentrePerLength : Vector2.zero;
             var radius = tube.Length * rPer;
+            // The frame's Y is along (index - little) x (toward the tip), which mirrors with the
+            // hand: the back of the hand on the left, the palm on the right. `RingOffset` means
+            // the back of the hand on both.
+            var lift = ring.Site.Bone <= HumanBodyBones.LeftLittleDistal ? Offset : -Offset;
             var local = new Vector3(cPer.x * tube.Length + ring.Across.x * radius,
-                                    cPer.y * tube.Length + ring.Across.y * radius,
-                                    (ring.Along + Offset) * tube.Length);
+                                    cPer.y * tube.Length + (ring.Across.y + lift) * radius,
+                                    (ring.Along + Slide) * tube.Length);
             var bone = tube.Bone;
             var target = bone.TransformPoint(tube.Frame * local);
             var rotation = bone.rotation * tube.Frame * ring.Rot;
