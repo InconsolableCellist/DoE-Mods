@@ -198,7 +198,7 @@ namespace CustomAvatars.Avatars
                 // The equipment room shows your rings on the mannequin too (Hologram_Holster).
                 var ringRoot = hologram.transform;
                 var ringSource = source;
-                entry.Rings = new RingFollower($"the {avatarName} mannequin", entry.Model, manifest, () =>
+                entry.Rings = new RingFollower($"the {avatarName} mannequin", true, entry.Model, manifest, () =>
                 {
                     var sites = new List<RingFollower.Site>();
                     SkinnedMeshRenderer skin = null;

@@ -1,4 +1,4 @@
-# VisualCues 0.1.4
+# VisualCues 0.1.5
 
 A mod for **Dungeons of Eternity** designed to assist Deaf/HoH users:
 
@@ -6,6 +6,14 @@ A mod for **Dungeons of Eternity** designed to assist Deaf/HoH users:
 - **Enemy noise.** Enemies in your vicinity that make a sound will now trigger a brief HUD indicator, pointing in their direction and estimating their distance. When you face the source of the sound it'll fade away.
 
 The enemy noise feature works regardless of whether other users have the mod, but the call feature requires other users to have it. The mod doesn't affect your profile, character, progression, or save games.
+
+## What's new in 0.1.5
+
+The enemy search behind the noise markers runs only when something will use it: not at all while the markers (and the sound log) are off, and not for sounds too far away to ever get a marker. `LogSounds` (the sound log, only a tool for tuning the markers) is now off by default; an existing config keeps its setting. The call to other players is unaffected.
+
+Incoming network messages are checked by their number first, and anything that is not this mod's is ignored before its sender and contents are read. Every Photon event of the game passes through this hook, so this saves an interop call and an allocation per event.
+
+The session log is now written to disk once a second instead of after every line. Before, each line was a synchronous disk write on the game's main thread, so a burst of lines (a fight, a dump) could cost frame time in the headset. If the game crashes hard, at most the last second of the log is missing.
 
 ## What's new in 0.1.4
 

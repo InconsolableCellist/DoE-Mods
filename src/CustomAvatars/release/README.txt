@@ -100,6 +100,16 @@ You can fine-tune things like bone placement and other settings in `UserData\Mel
 
 Press F3 after saving that file to load the settings.
 
+**Rings are off until you turn them on.** With LootOverhaul, go to the kobold in the lobby and press
+the cogwheel. Pick LEFT RING or RIGHT RING, press TURN ON, and move the ring with the big buttons
+while you hold your hand up: size, up/down, slide along the finger, tilt, turn and roll. RESET puts
+that ring back. Every press is saved at once and shows within half a second. Without LootOverhaul,
+set the same values in the `[CustomAvatars]` section: `RingLeftVisible = true`, `RingLeftSize`,
+`RingLeftOffset` and so on (and `RingRight…`).
+
+These only change your own avatar, on your own screen. Your friends' rings use the automatic fit
+and are shown when you turn on "friends' rings" (`RingsOthersVisible`).
+
 ## Common log messages for troubleshooting 
 
 **`Swap refused: room `x` is VISIBLE (public)`**

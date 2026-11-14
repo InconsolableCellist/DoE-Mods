@@ -6,7 +6,7 @@ using CustomAvatars.Gate;
 using CustomAvatars.Net;
 using CustomAvatars.Recon;
 
-[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.42.10", "Foxipso")]
+[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.42.11", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace CustomAvatars
@@ -25,7 +25,7 @@ namespace CustomAvatars
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.42.10";
+        public const string Version = "0.42.14";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -53,6 +53,7 @@ namespace CustomAvatars
         {
             Instance = this;
             ModConfig.Load();
+            RingFollower.RefreshSize();
             // MelonLoader only writes MelonPreferences.cfg when something saves it, which
             // otherwise means on quit. Save once now so a fresh install has a complete,
             // readable settings file to edit before the first clean exit rather than after it.
@@ -133,6 +134,7 @@ namespace CustomAvatars
             _roster.Tick(dt);
             ModGate.Evaluate(_roster);
             ModNet.Pump();
+            AvatarBundle.Tick();
 
             // Size first: this frame's tracker poses, IK targets and avatar fit must all see
             // the play space at the size settled on, not last frame's.
@@ -331,7 +333,8 @@ namespace CustomAvatars
                                        $"gravity x{ModConfig.SpringGravityScale.Value}, drag {ModConfig.SpringDragBase.Value}, " +
                                        $"colliders {ModConfig.SpringCollidersEnabled.Value}");
                     LoggerInstance.Msg($"Preferences reloaded — swap: {AvatarSwapper.DescribeSettings()}");
-                    LoggerInstance.Msg($"Preferences reloaded — AvatarSize {PlayerSize.Wanted():0.00}, " +
+                    RingFollower.RefreshSize();
+                    LoggerInstance.Msg($"Preferences reloaded — AvatarSize {PlayerSize.Wanted():0.00}, left ring {RingFollower.Left}, right ring {RingFollower.Right}, others' rings {(RingFollower.Others.Visible ? "on" : "off")}, " +
                                        $"SizeMoveSpeedBlend {ModConfig.SizeMoveSpeedBlend.Value:0.00}");
                     if (!ModConfig.SwapUseVrik.Value)
                         LoggerInstance.Warning("*** SwapUseVrik is FALSE — swapped avatars will T-pose. " +

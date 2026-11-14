@@ -44,6 +44,11 @@ namespace CustomAvatars.Avatars
     /// bone for that finger gets the ring hidden (scaled to zero) rather than left floating
     /// where the vanilla finger is; it comes back on revert.
     ///
+    /// Your own rings are then shown per your settings for that hand (`Look`: off until you
+    /// turn it on, then size, up, slide and three angles on top of the fit); other players'
+    /// rings get the fit alone, behind one switch. All local: it only changes what this client
+    /// draws. Size and angles pivot on the band's centre, so the ring stays on the finger.
+    ///
     /// Grep the log for `ring:`.
     /// </summary>
     public class RingFollower
@@ -99,8 +104,80 @@ namespace CustomAvatars.Avatars
         private const float FallbackRadiusPerLength = 0.2f;
         private const float ScanSeconds = 0.5f;
         private const float SiteSeconds = 2f;
+        // The band's hole against the finger's measured radius (a median of its surface), so
+        // the ring sits on the skin rather than in it.
+        private const float FitSlack = 1.1f;
+        private const float MinSize = 0.5f, MaxSize = 4f;
+
+        /// <summary>
+        /// How one of your own rings is shown, on top of the automatic fit. Read from
+        /// `[CustomAvatars] RingLeft*` / `RingRight*`. Everything here is local: it changes only
+        /// what this client draws.
+        ///   Visible: off by default, so a ring that would be placed badly never shows until
+        ///     its owner turns it on (and tunes it).
+        ///   Size: a multiplier on the fitted size.
+        ///   Offset: up from the back of the hand, in finger radii.
+        ///   Slide: toward the fingertip, as a share of the finger bone.
+        ///   Tilt / Turn / Roll: degrees in the hand's frame. Tilt tips the top of the ring
+        ///     toward the fingertip, turn points it toward the thumb, roll turns its top toward
+        ///     the little finger. Turn and roll are mirrored on the right hand, so the same
+        ///     numbers look the same on both hands.
+        /// </summary>
+        public class Look
+        {
+            public bool Visible;
+            public float Size = 1f, Offset, Slide, Tilt, Turn, Roll;
+
+            public override string ToString() =>
+                $"{(Visible ? "on" : "off")} x{Size:0.00} up {Offset:+0.0;-0.0;0} slide {Slide:+0.00;-0.00;0} " +
+                $"tilt/turn/roll {Tilt:0}/{Turn:0}/{Roll:0}°";
+        }
+
+        public static readonly Look Left = new Look(), Right = new Look();
+
+        /// <summary>
+        /// Other players' rings: the automatic fit alone (your tuning is for your fingers, not
+        /// theirs), shown only when `RingsOthersVisible` is on. Off by default.
+        /// </summary>
+        public static readonly Look Others = new Look();
+
+        private static float _nextRefreshAt;
+
+        /// <summary>
+        /// Re-reads the ring settings. Called at load, on F3, and twice a second from the
+        /// followers, so a change made in game (LootOverhaul's menu writing the entries) shows
+        /// at once with no F3. Reading fifteen cached entries twice a second costs nothing.
+        /// </summary>
+        public static void RefreshSize()
+        {
+            _nextRefreshAt = Time.unscaledTime + ScanSeconds;
+            ReadLook(Left, ModConfig.RingLeft);
+            ReadLook(Right, ModConfig.RingRight);
+            try { Others.Visible = ModConfig.RingsOthersVisible.Value; } catch { Others.Visible = false; }
+        }
+
+        private static void ReadLook(Look look, ModConfig.RingEntries e)
+        {
+            if (e == null) return;
+            try { look.Visible = e.Visible.Value; } catch { look.Visible = false; }
+            var size = Read(e.Size, MinSize, MaxSize, 1f);
+            look.Size = size;
+            look.Offset = Read(e.Offset, -5f, 5f, 0f);
+            look.Slide = Read(e.Slide, -1f, 1f, 0f);
+            look.Tilt = Read(e.Tilt, -180f, 180f, 0f);
+            look.Turn = Read(e.Turn, -180f, 180f, 0f);
+            look.Roll = Read(e.Roll, -180f, 180f, 0f);
+        }
+
+        private static float Read(MelonLoader.MelonPreferences_Entry<float> entry, float min, float max, float fallback)
+        {
+            var v = fallback;
+            try { v = entry.Value; } catch { }
+            return float.IsFinite(v) ? Mathf.Clamp(v, min, max) : fallback;
+        }
 
         private readonly string _who;
+        private readonly bool _self;
         private readonly GameObject _model;
         private readonly AvatarManifest _manifest;
         private readonly Func<List<Site>> _findSites;
@@ -114,10 +191,12 @@ namespace CustomAvatars.Avatars
         private bool _failed;
 
         /// <param name="who">For the log: whose avatar this is.</param>
+        /// <param name="self">Your own avatar (or the mannequin showing it): your ring settings apply.</param>
         /// <param name="findSites">Enumerates where rings can appear; called every couple of seconds.</param>
-        public RingFollower(string who, GameObject model, AvatarManifest manifest, Func<List<Site>> findSites)
+        public RingFollower(string who, bool self, GameObject model, AvatarManifest manifest, Func<List<Site>> findSites)
         {
             _who = who;
+            _self = self;
             _model = model;
             _manifest = manifest;
             _findSites = findSites;
@@ -132,6 +211,7 @@ namespace CustomAvatars.Avatars
             var now = Time.unscaledTime;
             try
             {
+                if (now >= _nextRefreshAt) RefreshSize();
                 if (now >= _nextSitesAt)
                 {
                     _nextSitesAt = now + SiteSeconds;
@@ -273,9 +353,40 @@ namespace CustomAvatars.Avatars
             ring.Along = d.z / vanilla.Length;
             ring.Across = new Vector2(d.x / radius - cPer.x / rPer, d.y / radius - cPer.y / rPer);
             ring.Rot = Quaternion.Inverse(vanilla.Frame) * (Quaternion.Inverse(bone.rotation) * t.rotation);
+            if (!(ring.Along > -0.5f && ring.Along < 1.5f) || !(ring.Across.magnitude < 4f))
+            {
+                // The ring is nowhere near the finger it was measured against: copying that
+                // would put it metres away. The middle of the segment, centred, instead.
+                Core.Log.Warning($"ring: `{ring.Name}` on {_who}'s {Describe(site.Bone)} ({site.Where}) measured " +
+                                 $"{ring.Along * 100f:0}% along and {ring.Across.magnitude:0.0} radii off the vanilla finger — " +
+                                 "not believed, placed mid-segment.");
+                ring.Along = 0.5f;
+                ring.Across = Vector2.zero;
+            }
             var radiusWorld = WorldRadius(vanilla, rPer);
             ring.SizePerRadius = radiusWorld > 1e-6f ? Mathf.Abs(t.lossyScale.x) / radiusWorld : 1f;
             ring.CentreInRing = t.InverseTransformPoint(centre);
+
+            // The fit. Copying the game's placement copies its slack too: its band sits loosely
+            // and off-centre on a thin finger, which on a thicker one leaves the band sunk in.
+            // Where the avatar's finger was measured from its mesh, and the band's hole can be
+            // measured from the ring's, centre the band on the finger and size it so the hole
+            // is just around it. Along the finger and the roll stay as the game had them.
+            string fit = null;
+            if (avatar.FromMesh)
+            {
+                var axis = Quaternion.Inverse(ring.Rot) * Vector3.forward;   // the finger, in the ring's space
+                var hole = HoleRadius(t, ring.CentreInRing, axis, out var holeCentre, out var holeWhy);
+                if (hole > 1e-6f)
+                {
+                    ring.UseMesh = true;
+                    ring.CentreInRing = holeCentre;
+                    ring.Across = Vector2.zero;
+                    ring.SizePerRadius = FitSlack / hole;
+                    fit = $"hole fitted around the finger ({FitSlack:0.00}x its radius" + (holeWhy != null ? $", {holeWhy}" : "") + ")";
+                }
+                else fit = $"ring hole not measurable ({holeWhy}), game's fit copied";
+            }
 
             Place(ring);
             var avatarRadius = WorldRadius(avatar, ring.UseMesh ? avatar.RadiusPerLength : FallbackRadiusPerLength);
@@ -284,8 +395,129 @@ namespace CustomAvatars.Avatars
                          $"{ring.Along * 100f:0}% along the segment, finger radius " +
                          $"{radiusWorld * 100f:0.00} cm → {avatarRadius * 100f:0.00} cm " +
                          $"(x{(radiusWorld > 1e-6f ? avatarRadius / radiusWorld : 1f):0.00}, " +
-                         (ring.UseMesh ? "measured from both meshes" : $"by segment length: vanilla {vanilla.Note}, avatar {avatar.Note}") + ").");
+                         (ring.UseMesh ? "measured from both meshes" : $"by segment length: vanilla {vanilla.Note}, avatar {avatar.Note}") +
+                         (fit != null ? $"; {fit}" : "") + ").");
             return ring;
+        }
+
+        /// <summary>
+        /// The radius of the band's hole, in the ring's own units: how close the band's vertices
+        /// come to the hole's centre line, read from the generated mesh. A low percentile, not
+        /// the minimum, so a stray vertex (a seam, the setting of a stone) can't decide it.
+        /// -1 when there is no readable band or the answer is implausible.
+        /// </summary>
+        private static float HoleRadius(Transform ring, Vector3 centre, Vector3 axis, out Vector3 holeCentre, out string why)
+        {
+            holeCentre = centre; why = null;
+            try
+            {
+                if (axis.sqrMagnitude < 1e-12f) { why = "no finger axis"; return -1f; }
+                axis.Normalize();
+                MeshFilter band = null;
+                var best = -1f;
+                foreach (var mf in ring.GetComponentsInChildren<MeshFilter>(true))
+                {
+                    if (!Interop.Alive(mf) || !Interop.Alive(mf.sharedMesh)) continue;
+                    var size = mf.sharedMesh.bounds.size.sqrMagnitude;
+                    if (size > best) { best = size; band = mf; }
+                }
+                if (band == null) { why = "no band mesh"; return -1f; }
+                var mesh = band.sharedMesh;
+                if (!mesh.isReadable) return BoundsHole(ring, band, centre, axis, "band mesh not readable", out holeCentre, out why);
+                var vertices = mesh.vertices;
+                if (vertices == null || vertices.Length < 8) { why = $"{vertices?.Length ?? 0} band vertices"; return -1f; }
+
+                var toRing = ring.worldToLocalMatrix * band.transform.localToWorldMatrix;
+                var flat = new List<Vector3>(vertices.Length);   // across the hole, relative to centre
+                foreach (var v in vertices)
+                {
+                    var p = toRing.MultiplyPoint3x4(v) - centre;
+                    flat.Add(p - Vector3.Dot(p, axis) * axis);
+                }
+
+                // The bounds centre leans toward a stone or setting on top. The hole's own centre
+                // is the middle of the band's inner surface: the nearer vertices, whose extent
+                // is a full circle. Two passes settle it.
+                var shift = Vector3.zero;
+                var distances = new List<float>(flat.Count);
+                for (var pass = 0; pass < 2; pass++)
+                {
+                    distances.Clear();
+                    foreach (var p in flat) distances.Add((p - shift).magnitude);
+                    var sorted = new List<float>(distances);
+                    sorted.Sort();
+                    var cut = sorted[sorted.Count * 2 / 5];
+                    Vector3 min = Vector3.positiveInfinity, max = Vector3.negativeInfinity;
+                    var n = 0;
+                    for (var i = 0; i < flat.Count; i++)
+                    {
+                        if (distances[i] > cut) continue;
+                        min = Vector3.Min(min, flat[i]);
+                        max = Vector3.Max(max, flat[i]);
+                        n++;
+                    }
+                    if (n < 8) break;
+                    var mid = (min + max) * 0.5f;
+                    shift = mid - Vector3.Dot(mid, axis) * axis;
+                }
+
+                distances.Clear();
+                foreach (var p in flat) distances.Add((p - shift).magnitude);
+                distances.Sort();
+                var inner = distances[distances.Count / 20];
+                var outer = distances[distances.Count - 1];
+                // A hole that is nearly nothing, or as wide as the whole ring, is not a band.
+                if (!(inner > 1e-6f) || !(inner < outer * 0.98f) || inner < outer * 0.2f) return BoundsHole(ring, band, centre, axis, $"hole {inner:0.0000} against outside {outer:0.0000} from the vertices", out holeCentre, out why);
+                holeCentre = centre + shift;
+                return inner;
+            }
+            catch (Exception e) { why = e.GetType().Name; return -1f; }
+        }
+
+        // A band's hole against its outside, for when only the bounds can be read: a typical
+        // band is about a quarter as thick as it is wide.
+        private const float HoleOfOutside = 0.75f;
+
+        /// <summary>
+        /// The hole estimated from the band mesh's bounds, which are readable on any mesh. Across
+        /// the finger the band is a circle, so its narrower extent there is the outside diameter
+        /// (a stone only adds to the other one), and the middle of that extent is the hole's
+        /// centre along it.
+        /// </summary>
+        private static float BoundsHole(Transform ring, MeshFilter band, Vector3 centre, Vector3 axis, string because,
+                                        out Vector3 holeCentre, out string why)
+        {
+            holeCentre = centre;
+            why = because;
+            try
+            {
+                var u = Vector3.Cross(axis, Mathf.Abs(axis.y) < 0.9f ? Vector3.up : Vector3.right).normalized;
+                var v = Vector3.Cross(axis, u);
+                var b = band.sharedMesh.bounds;
+                var toRing = ring.worldToLocalMatrix * band.transform.localToWorldMatrix;
+                float uMin = float.MaxValue, uMax = float.MinValue, vMin = float.MaxValue, vMax = float.MinValue;
+                for (var i = 0; i < 8; i++)
+                {
+                    var corner = b.center + Vector3.Scale(b.extents, new Vector3((i & 1) == 0 ? -1 : 1, (i & 2) == 0 ? -1 : 1, (i & 4) == 0 ? -1 : 1));
+                    var p = toRing.MultiplyPoint3x4(corner) - centre;
+                    var pu = Vector3.Dot(p, u);
+                    var pv = Vector3.Dot(p, v);
+                    uMin = Mathf.Min(uMin, pu); uMax = Mathf.Max(uMax, pu);
+                    vMin = Mathf.Min(vMin, pv); vMax = Mathf.Max(vMax, pv);
+                }
+                var halfU = (uMax - uMin) * 0.5f;
+                var halfV = (vMax - vMin) * 0.5f;
+                var outer = Mathf.Min(halfU, halfV);
+                if (!(outer > 1e-6f)) { why = because + ", bounds empty"; return -1f; }
+                // Centre along the narrow extent; along the wide one, the hole is the narrow
+                // extent's size measured from the end without the stone, which can't be told
+                // apart, so the middle stands.
+                var shift = halfU <= halfV ? u * ((uMin + uMax) * 0.5f) : v * ((vMin + vMax) * 0.5f);
+                holeCentre = centre + shift;
+                why = because + ", estimated from the band's bounds";
+                return outer * HoleOfOutside;
+            }
+            catch (Exception e) { why = because + ", " + e.GetType().Name; return -1f; }
         }
 
         // ---- placing ------------------------------------------------------------------------
@@ -300,18 +532,49 @@ namespace CustomAvatars.Avatars
             }
             var tube = ring.Avatar;
             if (tube == null || !Interop.Alive(tube.Bone)) return;
+            var isLeft = ring.Site.Bone <= HumanBodyBones.LeftLittleDistal;
+            var look = !_self ? Others : isLeft ? Left : Right;
+            if (!look.Visible)
+            {
+                if (ring.T.localScale != Vector3.zero) ring.T.localScale = Vector3.zero;
+                return;
+            }
+            // Someone else's ring: the fit alone, none of your tuning.
+            var size = _self ? look.Size : 1f;
+            var up = _self ? look.Offset : 0f;
+            var slide = _self ? look.Slide : 0f;
+            var tiltDeg = _self ? look.Tilt : 0f;
+            var turnDeg = _self ? look.Turn : 0f;
+            var rollDeg = _self ? look.Roll : 0f;
 
             var rPer = ring.UseMesh ? tube.RadiusPerLength : FallbackRadiusPerLength;
             var cPer = ring.UseMesh ? tube.CentrePerLength : Vector2.zero;
             var radius = tube.Length * rPer;
+            // The frame's Y is along (index - little) x (toward the tip), which mirrors with the
+            // hand: the back of the hand on the left, the palm on the right. Up means the back of
+            // the hand on both.
+            var lift = isLeft ? up : -up;
             var local = new Vector3(cPer.x * tube.Length + ring.Across.x * radius,
-                                    cPer.y * tube.Length + ring.Across.y * radius,
-                                    ring.Along * tube.Length);
+                                    cPer.y * tube.Length + (ring.Across.y + lift) * radius,
+                                    (ring.Along + slide) * tube.Length);
             var bone = tube.Bone;
             var target = bone.TransformPoint(tube.Frame * local);
             var rotation = bone.rotation * tube.Frame * ring.Rot;
+            if (tiltDeg != 0f || turnDeg != 0f || rollDeg != 0f)
+            {
+                // In the hand's frame (Y out of the back of the hand on both hands: the finger
+                // frame turned half round the finger on the right), then back into the finger
+                // frame, before the ring's own rotation. The pivot is the band's centre, because
+                // the position below is solved after the rotation.
+                var hand = isLeft ? Quaternion.identity : Quaternion.AngleAxis(180f, Vector3.forward);
+                var mirror = isLeft ? 1f : -1f;
+                var tilt = Quaternion.AngleAxis(turnDeg * mirror, Vector3.up) *
+                           Quaternion.AngleAxis(tiltDeg, Vector3.right) *
+                           Quaternion.AngleAxis(rollDeg * mirror, Vector3.forward);
+                rotation = bone.rotation * tube.Frame * hand * tilt * Quaternion.Inverse(hand) * ring.Rot;
+            }
 
-            var wantLossy = ring.SizePerRadius * WorldRadius(tube, rPer);
+            var wantLossy = ring.SizePerRadius * WorldRadius(tube, rPer) * size;
             var parentLossy = 1f;
             var parent = ring.T.parent;
             if (Interop.Alive(parent)) parentLossy = Mathf.Abs(parent.lossyScale.x);
@@ -609,6 +872,23 @@ namespace CustomAvatars.Avatars
                 // The holster is parented to the bone by Initiate; before that it is elsewhere
                 // and the ring would be too.
                 if (!Interop.Alive(site.VanillaBone)) site.VanillaBone = holster.transform.parent;
+                // The animator may drive a different copy of the skeleton than the one the
+                // holster hangs on (the mannequin: its rings were measured against a finger
+                // hundreds of segment lengths away). The finger the ring is really on is the
+                // holster's parent; take its neighbours from the same rig, by name.
+                var parent = holster.transform.parent;
+                if (Interop.Alive(parent) && !SameObject(parent, site.VanillaBone) && parent.name == Interop.Name(site.VanillaBone))
+                {
+                    var hand = parent.parent;
+                    var next = FindChildNamed(parent, Interop.Name(site.VanillaNext));
+                    var index = FindChildNamed(hand, Interop.Name(site.VanillaIndex));
+                    var little = FindChildNamed(hand, Interop.Name(site.VanillaLittle));
+                    site.VanillaBone = parent;
+                    site.VanillaHand = hand;
+                    site.VanillaNext = next;
+                    site.VanillaIndex = index;
+                    site.VanillaLittle = little;
+                }
                 if (Interop.Alive(skin)) site.VanillaSkins.Add(skin);
                 into.Add(site);
             }

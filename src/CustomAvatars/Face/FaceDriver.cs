@@ -351,11 +351,24 @@ namespace CustomAvatars.Face
             return Mathf.Clamp01((lid - open) / (1f - open));
         }
 
+        // The three addresses a shape can arrive on, built once per shape name instead of on
+        // every lookup (0.42.11). The lookups run for every face shape of every face every
+        // frame, and building the strings each time made a few hundred throwaway strings a
+        // frame. Same addresses, same order, so what is read does not change.
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string[]> Addresses =
+            new System.Collections.Concurrent.ConcurrentDictionary<string, string[]>(StringComparer.Ordinal);
+
         private static bool TryRaw(FaceState state, string name, out float value)
         {
-            if (state.TryGet("/avatar/parameters/v2/" + name, out value)) return true;
-            if (state.TryGet("/avatar/parameters/FT/v2/" + name, out value)) return true;
-            if (state.TryGet("/avatar/parameters/" + name, out value)) return true;
+            var keys = Addresses.GetOrAdd(name, static n => new[]
+            {
+                "/avatar/parameters/v2/" + n,
+                "/avatar/parameters/FT/v2/" + n,
+                "/avatar/parameters/" + n,
+            });
+            if (state.TryGet(keys[0], out value)) return true;
+            if (state.TryGet(keys[1], out value)) return true;
+            if (state.TryGet(keys[2], out value)) return true;
             value = 0f;
             return false;
         }

@@ -47,6 +47,14 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<bool> FbtEnabled;
         public static MelonPreferences_Entry<bool> TrackerSyncEnabled;
         public static MelonPreferences_Entry<float> AvatarSize;
+        /// <summary>One ring's settings: `Ring{Left|Right}{Visible|Size|Offset|Slide|Tilt|Turn|Roll}`.</summary>
+        public class RingEntries
+        {
+            public MelonPreferences_Entry<bool> Visible;
+            public MelonPreferences_Entry<float> Size, Offset, Slide, Tilt, Turn, Roll;
+        }
+        public static RingEntries RingLeft, RingRight;
+        public static MelonPreferences_Entry<bool> RingsOthersVisible;
 
         // ---- [CustomAvatars_Tuning] -----------------------------------------------------
         public static MelonPreferences_Entry<float> SpringStiffnessScale;
@@ -157,6 +165,17 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<bool> RetargetAlignAtCapture;
         public static MelonPreferences_Entry<bool> FaceForceRelevant;
 
+        private static RingEntries CreateRing(string side, string hand) => new RingEntries
+        {
+            Visible = Main.CreateEntry($"Ring{side}Visible", false, description: $"Show the ring on your {hand} hand (off by default)."),
+            Size = Main.CreateEntry($"Ring{side}Size", 1.0f, description: "Size, a multiple of the automatic fit (0.5 to 4)."),
+            Offset = Main.CreateEntry($"Ring{side}Offset", 0.0f, description: "Up from the back of the hand, in finger radii (-5 to 5)."),
+            Slide = Main.CreateEntry($"Ring{side}Slide", 0.0f, description: "Toward the fingertip, as a share of the finger bone (-1 to 1)."),
+            Tilt = Main.CreateEntry($"Ring{side}Tilt", 0.0f, description: "Degrees: tips the top of the ring toward the fingertip."),
+            Turn = Main.CreateEntry($"Ring{side}Turn", 0.0f, description: "Degrees: points the ring toward the thumb."),
+            Roll = Main.CreateEntry($"Ring{side}Roll", 0.0f, description: "Degrees: rolls the top of the ring toward the little finger."),
+        };
+
         public static void Load()
         {
             Main = MelonPreferences.CreateCategory("CustomAvatars", "Custom Avatars");
@@ -189,6 +208,14 @@ namespace CustomAvatars
             AvatarSize = Main.CreateEntry("AvatarSize", 1.0f, description:
                 "How big you are, as a multiple of normal (0.3 to 3). 1 = the mod leaves your size alone. " +
                 "PageUp/PageDown change it in game, Home sets it back to 1.");
+            // Rings on your own avatar, one set per hand, on top of the automatic fit. Off until
+            // you turn them on, so a ring that would be placed badly never shows by surprise.
+            // All local; the kobold's cogwheel tab in LootOverhaul edits them in game, and
+            // they are re-read twice a second (Avatars/RingFollower.cs).
+            RingLeft = CreateRing("Left", "left");
+            RingRight = CreateRing("Right", "right");
+            RingsOthersVisible = Main.CreateEntry("RingsOthersVisible", false, description:
+                "Show other players' rings on their custom avatars (automatic fit only). Only changes what you see.");
 
             // ---- tuning -----------------------------------------------------------------
             // Restoring force toward the resting pose.

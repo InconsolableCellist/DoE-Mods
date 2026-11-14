@@ -130,7 +130,7 @@ namespace VisualCues
 
             Dev = MelonPreferences.CreateCategory("VisualCues_Dev");
             VerboseLogging = Dev.CreateEntry("VerboseLogging", false);
-            LogSounds = Dev.CreateEntry("LogSounds", true, description: "Log every positioned sound with the nearest enemy and distance to UserData/VisualCues/logs/. Turn off once the noise cue is tuned.");
+            LogSounds = Dev.CreateEntry("LogSounds", false, description: "Log every positioned sound with the nearest enemy and distance to UserData/VisualCues/logs/. Turn off once the noise cue is tuned.");
             HotkeysEnabled = Dev.CreateEntry("HotkeysEnabled", true,
                 description: "Quote (') = send a call as if a stick was clicked; Period (.) = fake an enemy noise on the nearest enemy; Comma (,) = reload settings.");
         }
