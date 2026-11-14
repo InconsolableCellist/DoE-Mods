@@ -1,5 +1,9 @@
 # StayPutVR changelog
 
+## 0.5.4 — 2026-11-13
+
+**The armed state is remembered across sessions.** It was meant to be already, but quitting disarms the link so no shock is left latched on in StayPutVR, and that disarm was saved like any other: every quit wrote `Armed = false`, so every session started disarmed. Quitting now only sends any pending release, so nothing is left latched on, without disarming. Arm once and the next launch starts armed (`ARMED (remembered from last session)` in the log); disarm with the sticks and it starts disarmed.
+
 ## 0.5.3 — 2026-11-11 (performance)
 
 **The jaw is read with a direct call.** Biting reads CustomAvatars' jaw value every frame; it went through reflection each time (an argument array, boxing, a slow invoke). The call is now bound once. While no jaw parameter arrives, the candidate names are tried once a second instead of every frame. Biting stays on by default.

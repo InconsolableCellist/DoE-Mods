@@ -6,7 +6,7 @@ using StayPutVR.Net;
 using StayPutVR.Osc;
 using StayPutVR.Trigger;
 
-[assembly: MelonInfo(typeof(StayPutVR.Core), "StayPutVR", "0.5.3", "Foxipso")]
+[assembly: MelonInfo(typeof(StayPutVR.Core), "StayPutVR", "0.5.4", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace StayPutVR
@@ -45,7 +45,7 @@ namespace StayPutVR
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.5.3";
+        public const string Version = "0.5.4";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -130,9 +130,9 @@ namespace StayPutVR
             // The game calls this twice on the way out; the second pass has nothing left to say.
             if (_quit) return;
             _quit = true;
-            // Never leave the parameter latched true in StayPutVR on the way out: disarming
-            // flushes a pending release, and the flush covers the already-disarmed case.
-            if (ModConfig.Enabled.Value) ShockPolicy.SetArmed(false, "quitting");
+            // Never leave the parameter latched true in StayPutVR on the way out: send any
+            // pending release now. This does not disarm: until 0.5.4 it did, through SetArmed,
+            // which saved Armed = false on every quit, so every session started disarmed.
             ShockPolicy.FlushRelease();
             ShockLog.Headline($"Quit. {ShockPolicy.Stats()}; {Discovery.Stats()}; {DamageWatch.Stats()}; {HealWatch.Stats()}; {BiteSense.Describe()}; {JawWatch.Describe()}; {BiteNet.Stats()}; panel {StatusHud.Describe()}.");
             Discovery.Stop();

@@ -1,4 +1,4 @@
-# StayPutVR (Dungeons of Eternity mod) — 0.5.3
+# StayPutVR (Dungeons of Eternity mod) — 0.5.4
 
 Take damage in the dungeon and your shock device fires, through the
 [StayPutVR](https://github.com/InconsolableCellist/StayPutVR) app. Bite another player and theirs
