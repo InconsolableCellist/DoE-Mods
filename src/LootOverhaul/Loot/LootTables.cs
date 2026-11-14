@@ -91,7 +91,6 @@ namespace LootOverhaul.Loot
             new Junk("Rune Stone",          "Rune_01",              2, 200, 550, 0.8f),
             new Junk("Gilded Skull Crown",  "Trophy_SkullCrown",    2, 200, 500, 1.5f),
             new Junk("Religious Icon",      "Trophy_NovaGuild",     2, 150, 400, 1.2f),
-            new Junk("Reliquary Chest",     "Trophy_Chest_01",      2, 180, 450, 2.0f),
         };
 
         public static string JunkTierName(int tier) => tier switch { 0 => "trinket", 1 => "curio", _ => "artifact" };

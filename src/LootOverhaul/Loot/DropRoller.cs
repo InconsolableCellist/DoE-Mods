@@ -165,8 +165,8 @@ namespace LootOverhaul.Loot
                         QueuePile(() => DropPiece(cls, pos, kick, killer, source, why));
                     }
                     inv.Save();
-                    // Bosses roll their trinket three times as often; the goblin always leaves a few, per pile.
-                    var junkRolls = goblin ? Math.Max(1, ModConfig.GoblinJunkRolls.Value) * piles : 1;
+                    // Bosses roll their trinket three times as often. The goblin leaves junk only with GoblinJunk on.
+                    var junkRolls = goblin ? (ModConfig.GoblinJunk.Value ? Math.Max(0, ModConfig.GoblinJunkRolls.Value) * piles : 0) : 1;
                     for (var j = 0; j < junkRolls; j++)
                     {
                         var jkick = goblin ? ScatterKick(j, junkRolls) * 0.5f : (Vector3?)null;
