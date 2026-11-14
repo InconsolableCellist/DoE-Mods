@@ -111,11 +111,20 @@ namespace CustomAvatars.Avatars
         /// </summary>
         public static float Size { get; private set; } = 1f;
 
+        /// <summary>
+        /// `RingOffset`, sanitised: how far every ring this client places is moved along the
+        /// finger, as a fraction of the finger bone's length. Positive is toward the tip.
+        /// </summary>
+        public static float Offset { get; private set; }
+
         public static void RefreshSize()
         {
             var v = 1f;
             try { v = ModConfig.RingSize.Value; } catch { }
             Size = float.IsFinite(v) && v > 0f ? Mathf.Clamp(v, MinSize, MaxSize) : 1f;
+            var o = 0f;
+            try { o = ModConfig.RingOffset.Value; } catch { }
+            Offset = float.IsFinite(o) ? Mathf.Clamp(o, -1f, 1f) : 0f;
         }
 
         private readonly string _who;
@@ -291,6 +300,16 @@ namespace CustomAvatars.Avatars
             ring.Along = d.z / vanilla.Length;
             ring.Across = new Vector2(d.x / radius - cPer.x / rPer, d.y / radius - cPer.y / rPer);
             ring.Rot = Quaternion.Inverse(vanilla.Frame) * (Quaternion.Inverse(bone.rotation) * t.rotation);
+            if (!(ring.Along > -0.5f && ring.Along < 1.5f) || !(ring.Across.magnitude < 4f))
+            {
+                // The ring is nowhere near the finger it was measured against: copying that
+                // would put it metres away. The middle of the segment, centred, instead.
+                Core.Log.Warning($"ring: `{ring.Name}` on {_who}'s {Describe(site.Bone)} ({site.Where}) measured " +
+                                 $"{ring.Along * 100f:0}% along and {ring.Across.magnitude:0.0} radii off the vanilla finger — " +
+                                 "not believed, placed mid-segment.");
+                ring.Along = 0.5f;
+                ring.Across = Vector2.zero;
+            }
             var radiusWorld = WorldRadius(vanilla, rPer);
             ring.SizePerRadius = radiusWorld > 1e-6f ? Mathf.Abs(t.lossyScale.x) / radiusWorld : 1f;
             ring.CentreInRing = t.InverseTransformPoint(centre);
@@ -324,7 +343,7 @@ namespace CustomAvatars.Avatars
             var radius = tube.Length * rPer;
             var local = new Vector3(cPer.x * tube.Length + ring.Across.x * radius,
                                     cPer.y * tube.Length + ring.Across.y * radius,
-                                    ring.Along * tube.Length);
+                                    (ring.Along + Offset) * tube.Length);
             var bone = tube.Bone;
             var target = bone.TransformPoint(tube.Frame * local);
             var rotation = bone.rotation * tube.Frame * ring.Rot;
@@ -627,6 +646,23 @@ namespace CustomAvatars.Avatars
                 // The holster is parented to the bone by Initiate; before that it is elsewhere
                 // and the ring would be too.
                 if (!Interop.Alive(site.VanillaBone)) site.VanillaBone = holster.transform.parent;
+                // The animator may drive a different copy of the skeleton than the one the
+                // holster hangs on (the mannequin: its rings were measured against a finger
+                // hundreds of segment lengths away). The finger the ring is really on is the
+                // holster's parent; take its neighbours from the same rig, by name.
+                var parent = holster.transform.parent;
+                if (Interop.Alive(parent) && !SameObject(parent, site.VanillaBone) && parent.name == Interop.Name(site.VanillaBone))
+                {
+                    var hand = parent.parent;
+                    var next = FindChildNamed(parent, Interop.Name(site.VanillaNext));
+                    var index = FindChildNamed(hand, Interop.Name(site.VanillaIndex));
+                    var little = FindChildNamed(hand, Interop.Name(site.VanillaLittle));
+                    site.VanillaBone = parent;
+                    site.VanillaHand = hand;
+                    site.VanillaNext = next;
+                    site.VanillaIndex = index;
+                    site.VanillaLittle = little;
+                }
                 if (Interop.Alive(skin)) site.VanillaSkins.Add(skin);
                 into.Add(site);
             }

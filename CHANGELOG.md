@@ -2,6 +2,14 @@
 
 Versions are the mod's `Version` constant in `src/CustomAvatars/Core.cs`. This file was reconstructed from the git history on 2026-09-01.
 
+## 0.42.13 (2026-11-14)
+
+### Added
+- `RingOffset` (`[CustomAvatars]`, default 0, -1 to 1): moves the rings on custom avatars along the finger, as a share of the finger bone's length. Positive is toward the fingertip, negative toward the hand. Like `RingSize` it is local, read at startup and on F3, and shown in the `Preferences reloaded` line. For rigs whose ring-finger bone does not start where the game's does, so the copied position lands too far up or down.
+
+### Fixed
+- Rings on the equipment-room mannequin were measured against a finger on another copy of the skeleton, not the one the ring hangs on: the log said `79962% along the segment`, which puts the ring metres away. The finger is now the ring holster's own parent, with its neighbours from the same rig. A ring that still measures far off its finger (more than half a segment beyond either end, or four radii to the side) is logged as not believed and put in the middle of the segment instead.
+
 ## 0.42.12 (2026-11-13)
 
 ### Added
