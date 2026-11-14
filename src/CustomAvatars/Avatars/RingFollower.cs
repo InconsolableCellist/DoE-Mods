@@ -103,6 +103,9 @@ namespace CustomAvatars.Avatars
         private const float FallbackRadiusPerLength = 0.2f;
         private const float ScanSeconds = 0.5f;
         private const float SiteSeconds = 2f;
+        // The band's hole against the finger's measured radius (a median of its surface), so
+        // the ring sits on the skin rather than in it.
+        private const float FitSlack = 1.1f;
         private const float MinSize = 0.5f, MaxSize = 4f;
 
         /// <summary>
@@ -323,6 +326,27 @@ namespace CustomAvatars.Avatars
             ring.SizePerRadius = radiusWorld > 1e-6f ? Mathf.Abs(t.lossyScale.x) / radiusWorld : 1f;
             ring.CentreInRing = t.InverseTransformPoint(centre);
 
+            // The fit. Copying the game's placement copies its slack too: its band sits loosely
+            // and off-centre on a thin finger, which on a thicker one leaves the band sunk in.
+            // Where the avatar's finger was measured from its mesh, and the band's hole can be
+            // measured from the ring's, centre the band on the finger and size it so the hole
+            // is just around it. Along the finger and the roll stay as the game had them.
+            string fit = null;
+            if (avatar.FromMesh)
+            {
+                var axis = Quaternion.Inverse(ring.Rot) * Vector3.forward;   // the finger, in the ring's space
+                var hole = HoleRadius(t, ring.CentreInRing, axis, out var holeCentre);
+                if (hole > 1e-6f)
+                {
+                    ring.UseMesh = true;
+                    ring.CentreInRing = holeCentre;
+                    ring.Across = Vector2.zero;
+                    ring.SizePerRadius = FitSlack / hole;
+                    fit = $"hole fitted around the finger ({FitSlack:0.00}x its radius)";
+                }
+                else fit = "ring hole not measurable, game's fit copied";
+            }
+
             Place(ring);
             var avatarRadius = WorldRadius(avatar, ring.UseMesh ? avatar.RadiusPerLength : FallbackRadiusPerLength);
             Core.Log.Msg($"ring: `{ring.Name}` on {_who}'s {Describe(site.Bone)} ({site.Where}) re-homed from " +
@@ -330,8 +354,83 @@ namespace CustomAvatars.Avatars
                          $"{ring.Along * 100f:0}% along the segment, finger radius " +
                          $"{radiusWorld * 100f:0.00} cm → {avatarRadius * 100f:0.00} cm " +
                          $"(x{(radiusWorld > 1e-6f ? avatarRadius / radiusWorld : 1f):0.00}, " +
-                         (ring.UseMesh ? "measured from both meshes" : $"by segment length: vanilla {vanilla.Note}, avatar {avatar.Note}") + ").");
+                         (ring.UseMesh ? "measured from both meshes" : $"by segment length: vanilla {vanilla.Note}, avatar {avatar.Note}") +
+                         (fit != null ? $"; {fit}" : "") + ").");
             return ring;
+        }
+
+        /// <summary>
+        /// The radius of the band's hole, in the ring's own units: how close the band's vertices
+        /// come to the hole's centre line, read from the generated mesh. A low percentile, not
+        /// the minimum, so a stray vertex (a seam, the setting of a stone) can't decide it.
+        /// -1 when there is no readable band or the answer is implausible.
+        /// </summary>
+        private static float HoleRadius(Transform ring, Vector3 centre, Vector3 axis, out Vector3 holeCentre)
+        {
+            holeCentre = centre;
+            try
+            {
+                if (axis.sqrMagnitude < 1e-12f) return -1f;
+                axis.Normalize();
+                MeshFilter band = null;
+                var best = -1f;
+                foreach (var mf in ring.GetComponentsInChildren<MeshFilter>(true))
+                {
+                    if (!Interop.Alive(mf) || !Interop.Alive(mf.sharedMesh)) continue;
+                    var size = mf.sharedMesh.bounds.size.sqrMagnitude;
+                    if (size > best) { best = size; band = mf; }
+                }
+                if (band == null) return -1f;
+                var mesh = band.sharedMesh;
+                if (!mesh.isReadable) return -1f;
+                var vertices = mesh.vertices;
+                if (vertices == null || vertices.Length < 8) return -1f;
+
+                var toRing = ring.worldToLocalMatrix * band.transform.localToWorldMatrix;
+                var flat = new List<Vector3>(vertices.Length);   // across the hole, relative to centre
+                foreach (var v in vertices)
+                {
+                    var p = toRing.MultiplyPoint3x4(v) - centre;
+                    flat.Add(p - Vector3.Dot(p, axis) * axis);
+                }
+
+                // The bounds centre leans toward a stone or setting on top. The hole's own centre
+                // is the middle of the band's inner surface: the nearer vertices, whose extent
+                // is a full circle. Two passes settle it.
+                var shift = Vector3.zero;
+                var distances = new List<float>(flat.Count);
+                for (var pass = 0; pass < 2; pass++)
+                {
+                    distances.Clear();
+                    foreach (var p in flat) distances.Add((p - shift).magnitude);
+                    var sorted = new List<float>(distances);
+                    sorted.Sort();
+                    var cut = sorted[sorted.Count * 2 / 5];
+                    Vector3 min = Vector3.positiveInfinity, max = Vector3.negativeInfinity;
+                    var n = 0;
+                    for (var i = 0; i < flat.Count; i++)
+                    {
+                        if (distances[i] > cut) continue;
+                        min = Vector3.Min(min, flat[i]);
+                        max = Vector3.Max(max, flat[i]);
+                        n++;
+                    }
+                    if (n < 8) break;
+                    var mid = (min + max) * 0.5f;
+                    shift = mid - Vector3.Dot(mid, axis) * axis;
+                }
+
+                distances.Clear();
+                foreach (var p in flat) distances.Add((p - shift).magnitude);
+                distances.Sort();
+                var inner = distances[distances.Count / 20];
+                var outer = distances[distances.Count - 1];
+                // A hole that is nearly nothing, or as wide as the whole ring, is not a band.
+                if (!(inner > 1e-6f) || !(inner < outer * 0.98f) || inner < outer * 0.2f) return -1f;
+                holeCentre = centre + shift;
+                return inner;
+            }
+            catch { return -1f; }
         }
 
         // ---- placing ------------------------------------------------------------------------

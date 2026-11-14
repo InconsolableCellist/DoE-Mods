@@ -9,6 +9,9 @@ Versions are the mod's `Version` constant in `src/CustomAvatars/Core.cs`. This f
 - `RingSlide` (`[CustomAvatars]`, default 0, -1 to 1): moves the rings along the finger, as a share of the finger bone's length. Positive is toward the fingertip.
 - Both are local like `RingSize`: they are read at startup and on F3, and shown in the `Preferences reloaded` line.
 
+### Changed
+- **Rings are fitted to the avatar's finger instead of copying the game's fit.** Before, the ring kept the game's placement around its own finger, off-centre and loose on a thin finger, which on a thicker avatar finger left the band sunk in. Now, where the avatar's finger was measured from its mesh, the band is centred on that finger and sized so that its hole is 1.1x the finger's radius. The hole's size and centre are read from the ring's own generated mesh: the band's inner surface, ignoring any stone on top. The distance along the finger and the roll still come from the game. Where either mesh can't be read, the old copy is used. The `ring:` line says which was done (`hole fitted around the finger`). `RingSize`, `RingOffset` and `RingSlide` apply on top, as fine-tuning.
+
 ### Fixed
 - Rings on the equipment-room mannequin were measured against a finger on another copy of the skeleton, not the one the ring hangs on: the log said `79962% along the segment`, which puts the ring metres away. The finger is now the ring holster's own parent, with its neighbours from the same rig. A ring that still measures far off its finger (more than half a segment beyond either end, or four radii to the side) is logged as not believed and put in the middle of the segment instead.
 

@@ -20,7 +20,7 @@ The design notes are in [docs/PLAN.md](../../docs/PLAN.md) and
 - **Hand poses** from trigger and grip, and **spring bones** for secondary motion, rebuilt from the
   captured PhysBone setup.
 - **Rings** you wear sit on your avatar's own finger, for you and for everyone who can see you,
-  sized to that finger. An avatar with no bone for that finger has the ring hidden while it is on.
+  fitted around that finger (centred, hole read from the ring's mesh). An avatar with no bone for that finger has the ring hidden while it is on.
   If an avatar's fingers swallow the ring, `RingSize` makes every ring you see bigger, on your
   screen only. `RingOffset` lifts them toward the back of the hand and `RingSlide` moves them along
   the finger.
