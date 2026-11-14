@@ -44,12 +44,12 @@ The [INSTALL.md](INSTALL.md) walks through the steps in more detail.
 
 | Mod | Version | Needs everyone modded? |
 |---|---|---|
-| [CustomAvatars](src/CustomAvatars/README.md) | 0.42.8 | Yes |
+| [CustomAvatars](src/CustomAvatars/README.md) | 0.42.11 | Yes |
 | [LootOverhaul](src/LootOverhaul/README.md) | 0.10.10 | Yes |
-| [VisualCues](src/VisualCues/README.md) | 0.1.3 | No |
-| [Descent](src/Descent/README.md) | 0.1.0 | Yes |
-| [StayPutVR](src/StayPutVR/README.md) | 0.4.0 | No |
-| [PartyHealth](src/PartyHealth/README.md) | 0.1.1 | No |
+| [VisualCues](src/VisualCues/README.md) | 0.1.5 | No |
+| [Descent](src/Descent/README.md) | 0.1.1 | Yes |
+| [StayPutVR](src/StayPutVR/README.md) | 0.5.4 | No |
+| [PartyHealth](src/PartyHealth/README.md) | 0.1.3 | No |
 
 ## Restrictions
 
