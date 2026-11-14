@@ -100,6 +100,16 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<float> ChestArmorDistance;
         /// <summary>Seconds between a chest opening and its armor piece appearing (the key turner has a hand out; 0 = at once).</summary>
         public static MelonPreferences_Entry<float> ChestArmorDelay;
+        /// <summary>Chest armor rolls once for every player in the room, each roll on its own: more players, more shared pieces.</summary>
+        public static MelonPreferences_Entry<bool> ChestArmorScalesWithPlayers;
+        /// <summary>Degrees between neighbouring pieces when a chest drops several (they fan out in front of it).</summary>
+        public static MelonPreferences_Entry<float> ChestDropSpread;
+        /// <summary>Seconds between neighbouring pieces when a chest drops several.</summary>
+        public static MelonPreferences_Entry<float> ChestDropStagger;
+        /// <summary>The loot goblin drops its pile even while EnemyDropsEnabled is off.</summary>
+        public static MelonPreferences_Entry<bool> GoblinDropsEnabled;
+        /// <summary>The loot goblin drops one shared pile for every player in the room.</summary>
+        public static MelonPreferences_Entry<bool> GoblinDropsScaleWithPlayers;
         /// <summary>Tokens per point of the game's salvage value when selling to the kobold.</summary>
         public static MelonPreferences_Entry<float> SellMultiplier;
         /// <summary>Shop asking price = the game's cost figure × this.</summary>
@@ -149,6 +159,8 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<bool> HotkeysEnabled;
         /// <summary>Echo every transcript line to the MelonLoader console as well.</summary>
         public static MelonPreferences_Entry<bool> MirrorReconToConsole;
+        /// <summary>Testing: players counted for the drop rolls that scale with the party (0 = the real room size).</summary>
+        public static MelonPreferences_Entry<int> DropPlayersOverride;
 
         public static void Load()
         {
@@ -210,6 +222,11 @@ namespace LootOverhaul
             ChestArmorBoss = Main.CreateEntry("ChestArmorBoss", 1.0f, description: "Chance a boss chest drops armor (Legendary rarity).");
             ChestArmorDistance = Main.CreateEntry("ChestArmorDistance", 0.2f, description: "How far in front of the chest (metres) its armor piece starts. It is tossed a little further along the same line.");
             ChestArmorDelay = Main.CreateEntry("ChestArmorDelay", 2.0f, description: "Seconds after a chest opens before its armor piece appears, so the person who turned the key does not grab it by accident. 0 = it appears at once.");
+            ChestArmorScalesWithPlayers = Main.CreateEntry("ChestArmorScalesWithPlayers", true, description: "A chest rolls its armor once for every player in the room, every roll on its own at the full chance, so more players means more pieces: 2 players at an epic chest give 2 Rare pieces, a small chest makes two separate 10% rolls. The pieces are shared floor loot: everyone sees them and anyone can pick them up. Off: one roll per chest.");
+            ChestDropSpread = Main.CreateEntry("ChestDropSpread", 35f, description: "Degrees between neighbouring pieces when a chest drops several; they fan out in front of it.");
+            ChestDropStagger = Main.CreateEntry("ChestDropStagger", 0.35f, description: "Seconds between neighbouring pieces when a chest drops several, so they do not collide in the air.");
+            GoblinDropsEnabled = Main.CreateEntry("GoblinDropsEnabled", true, description: "The loot goblin drops its pile (GoblinDrops, GoblinJunkRolls) even while EnemyDropsEnabled is off. Other enemies still drop nothing.");
+            GoblinDropsScaleWithPlayers = Main.CreateEntry("GoblinDropsScaleWithPlayers", true, description: "The loot goblin drops one pile for every player in the room, every pile rolled on its own. The piles are shared floor loot: everyone sees them and anyone can pick them up. Off: one pile.");
             SellMultiplier = Main.CreateEntry("SellMultiplier", 1.0f);
             ShopPriceMultiplier = Main.CreateEntry("ShopPriceMultiplier", 2.5f);
             ShopSlots = Main.CreateEntry("ShopSlots", 6);
@@ -242,6 +259,8 @@ namespace LootOverhaul
             HotkeysEnabled = Dev.CreateEntry("HotkeysEnabled", true,
                 description: "Insert = generator survey, Delete = spawn test weapon, Backslash = lobby survey, Scroll Lock = button test.");
             MirrorReconToConsole = Dev.CreateEntry("MirrorReconToConsole", false);
+            DropPlayersOverride = Dev.CreateEntry("DropPlayersOverride", 0,
+                description: "Testing: count this many players for every drop roll (chest armor and goblin piles, party scaling). 0 = the real room size.");
 
             // ---- one-off migrations -------------------------------------------------------
             // MelonPreferences keeps whatever value is already saved, so changing a default in code
