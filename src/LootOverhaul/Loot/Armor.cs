@@ -253,6 +253,21 @@ namespace LootOverhaul.Loot
             return Math.Max(1, (int)Math.Round(baseCost * ModConfig.ShopPriceMultiplier.Value * Math.Max(0f, ModConfig.ArmorUpgradeCostMultiplier.Value)));
         }
 
+        /// <summary>
+        /// What raising a stat that stands at <paramref name="m"/> costs: the full step price, or a
+        /// share of it when the rarity's cap clips the last step (half a step costs half; 0.10.10,
+        /// a 1.275 -> 1.28 step was charged in full).
+        /// </summary>
+        public static int UpgradePrice(LootItem item, float m)
+        {
+            var full = UpgradePrice(item);
+            if (AtMax(item, m)) return full;
+            var gain = NextMult(item, m) - m;
+            var share = Math.Max(0f, Math.Min(1f, gain / UpgradeStep));
+            if (share >= 0.999f) return full;
+            return Math.Max(1, (int)Math.Round(full * share));
+        }
+
         /// <summary>Raise one stat of a bag or worn piece by a step. The piece's sell value is not touched.</summary>
         public static bool Upgrade(LootItem item, int index)
         {
@@ -265,7 +280,7 @@ namespace LootOverhaul.Loot
             var (st, m) = stats[index];
             if (AtMax(live, m)) { BagManager.Toast("That stat is already at its best."); return false; }
             var next = NextMult(live, m);
-            var price = UpgradePrice(live);
+            var price = UpgradePrice(live, m);
             if (inv.Gold < price) { BagManager.Toast($"Upgrading costs {price} tokens; you have {inv.Gold}."); return false; }
             inv.Gold -= price;
             stats[index] = (st, next);

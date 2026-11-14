@@ -1,4 +1,4 @@
-# LootOverhaul 0.10.4 — building
+# LootOverhaul 0.10.10 — building
 
 A second, independent MelonLoader mod for Dungeons of Eternity. Design and game-internals
 findings: [docs/LOOT-OVERHAUL.md](../../docs/LOOT-OVERHAUL.md).
@@ -35,6 +35,26 @@ Both prefixes coexist: Harmony chains them and each mod ignores the other's code
 gate rule is the same: private room, every occupant on the identical version and DLL hash of
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
+
+## 0.10.10 — tonics to order
+
+Tonics are bought at the kobold's TONICS tab for your **next run**. Nothing goes into the bag:
+the tonic is *prepared*, and when the next dungeon starts every prepared tonic is drunk on its own
+and a toast lists them ("Tonics active: Grand Light Potion, Major Bruiser's Brew"). They last until
+you return to the lobby. Nothing is drunk in the lobby, the practice arena or the tutorial, and a
+room where the mod is inert leaves them prepared for the run after. Prepared tonics are saved with
+the bag file and survive a restart.
+
+- **One per kind.** Each tonic can be prepared in one strength. Its row turns green with a
+  "PREPARED" plate on that strength, the other strengths are locked, and **REVERT** on the row
+  refunds the full price and unlocks it. **REVERT ALL** in the header refunds every prepared tonic;
+  the header shows how many are prepared and their total cost.
+- **No stacking.** A stat takes the strongest tonic active on it, never the product of two. Worn
+  armor still multiplies on top, as before. A bag tonic (older bottles, a Minor Light Potion from a
+  crypt) can still be drunk by hand; if something as strong or stronger is already active, the
+  bottle stays in the bag.
+- **Prices** are 80 / 240 / 800 × `ShopPriceMultiplier` for Minor / Major / Grand, every tonic and
+  the Light Potion alike: **200 / 600 / 2,000 tokens** at the default 2.5.
 
 ## 0.10.0 — the end screen pays in tokens; the drop roll is off by default
 

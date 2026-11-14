@@ -7,7 +7,7 @@ using LootOverhaul.Loot;
 using LootOverhaul.Net;
 using LootOverhaul.Recon;
 
-[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.10.8", "Foxipso")]
+[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.10.10", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace LootOverhaul
@@ -25,7 +25,7 @@ namespace LootOverhaul
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.10.9";
+        public const string Version = "0.10.10";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -100,6 +100,7 @@ namespace LootOverhaul
             Tokens.Tick();
             Buffs.Tick();
             LightPotion.Tick();
+            PreparedTonics.Tick();
             Loadout.Tick();
             SceneExit.Tick();
             LootInventory.Tick();
@@ -142,6 +143,7 @@ namespace LootOverhaul
             BagPanel.Hide();
             Booth.Hide();
             Tokens.OnSceneChanged(sceneName);
+            PreparedTonics.OnSceneChanged(sceneName);
             _templateCaptureAt = sceneName == Il2Cpp.GameManager.LOBBY_SCENE ? UnityEngine.Time.unscaledTime + 3f : -1f;
             if (!ModConfig.ReconEnabled.Value) return;
             ReconLog.Section($"Scene initialized: {sceneName} (#{buildIndex})");
