@@ -198,12 +198,12 @@ namespace LootOverhaul.Loot
                 var item = items[start + i];
                 var row = UiKit.NewRow(_sell, $"SellRow_{i}", S.Row0Y - i * S.Pitch, i);
                 UiKit.Icon(row, new Vector3(S.IconX, 0f, -0.03f), item);
-                UiKit.TypeTag(row, new Vector3(S.TagX, 0f, 0f), item);
                 var slot = inv.EquippedSlotOf(item);
                 var inUse = inv.InUse(item);
                 // 0.13.2: no LOCKED word, the closed padlock beside the price says it.
                 var chip = item.IsBound ? "ARMORY" : inUse ? (slot >= 0 ? "EQUIPPED" : "WORN") : null;
-                UiKit.RowText(row, cols.TextEnd, UiKit.NameOf(item), StatsOf(item), chip, S.Text2, statsLines: 1);
+                UiKit.TypeTag(row, new Vector3(S.TagX, 0f, 0f), item, chip);
+                UiKit.RowText(row, cols.TextEnd, UiKit.NameOf(item), StatsOf(item), null, S.Text2, statsLines: 1);
                 UiKit.Price(row, cols.Price, 0f, SellPrice(item));
                 var captured = item;
                 UiKit.LockToggle(row, new Vector3(cols.Lock, 0f, 0f), item.Locked, () => ToggleLock(captured));
@@ -461,13 +461,13 @@ namespace LootOverhaul.Loot
                 if (!_enchantStock) Enchanting.ReadRolledPerks(item);
                 var row = UiKit.NewRow(_buy, $"EnchRow_{i}", S.Row0Y - i * S.Pitch, i);
                 UiKit.Icon(row, new Vector3(S.IconX, 0f, -0.03f), item);
-                UiKit.TypeTag(row, new Vector3(S.TagX, 0f, 0f), item);
                 var slot = _enchantStock ? (stockSlots.TryGetValue(item.Id, out var ss) ? ss : -1) : inv.EquippedSlotOf(item);
                 var chip = slot >= 0 ? "EQUIPPED" : !_enchantStock && item.IsBound ? "ARMORY" : null;
+                UiKit.TypeTag(row, new Vector3(S.TagX, 0f, 0f), item, chip);
                 var price = Enchanting.Price(item);
                 UiKit.RowText(row, cols.TextEnd, UiKit.NameOf(item),
                     $"slots {Math.Min(Enchanting.UsedSlots(item), Enchanting.Slots(item.WeaponClass))}/{Enchanting.Slots(item.WeaponClass)} · {(item.DamageType >= 0 ? Enchanting.ElementName(item.DamageType).ToLowerInvariant() : "no element")}",
-                    chip, S.Text2);
+                    null, S.Text2);
                 UiKit.Price(row, cols.Price, 0f, price, inv.Gold >= price);
                 var captured = item;
                 UiKit.ActionBtn(row, cols.Act[0], 0f, "SELECT", () => { _enchantTarget = captured.Id; BuildBuy(); });

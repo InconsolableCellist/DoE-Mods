@@ -164,7 +164,8 @@ namespace LootOverhaul.Loot
         /// block is centred vertically on <paramref name="localPos"/>.
         /// </summary>
         public static TextMeshPro Text(Transform parent, Vector3 localPos, float width, float height, float size, string text,
-                                       TextAlignmentOptions align = TextAlignmentOptions.Left, bool fit = false, int lines = 1)
+                                       TextAlignmentOptions align = TextAlignmentOptions.Left, bool fit = false, int lines = 1,
+                                       float? minSize = null, TextOverflowModes overflow = TextOverflowModes.Truncate)
         {
             try
             {
@@ -183,12 +184,13 @@ namespace LootOverhaul.Loot
                     tmp.enableAutoSizing = true;
                     tmp.fontSizeMax = size;
                     // 0.13.0: shrink to 80% at most, and never below the legibility floor (0.30).
-                    tmp.fontSizeMin = Mathf.Max(size * UiStyle.FitShare, Mathf.Min(size, UiStyle.Floor));
+                    tmp.fontSizeMin = minSize.HasValue ? Mathf.Min(size, minSize.Value) : Mathf.Max(size * UiStyle.FitShare, Mathf.Min(size, UiStyle.Floor));
                 }
                 tmp.alignment = align;
                 tmp.enableWordWrapping = lines > 1;
                 // Truncate to the rect: a line that overflows runs under the buttons to its right.
-                tmp.overflowMode = TextOverflowModes.Truncate;
+                // 0.13.2: list rows use Ellipsis, so a cut name ends in "…" instead of mid-word.
+                tmp.overflowMode = overflow;
                 tmp.richText = true;
                 tmp.rectTransform.sizeDelta = new Vector2(width, Mathf.Max(height, size * 0.14f * Mathf.Max(1, lines)));
                 tmp.rectTransform.pivot = new Vector2(align == TextAlignmentOptions.Center ? 0.5f : 0f, 0.5f);
@@ -228,13 +230,16 @@ namespace LootOverhaul.Loot
         /// "Sword" over "T7" for a weapon, "Head" over "armor", "Tonic", "Junk". It replaces the
         /// "Sword t7" that used to lead the stats line, so the line starts with the numbers.
         /// </summary>
-        public static void TypeTag(Transform row, Vector3 localPos, LootItem item)
+        public static void TypeTag(Transform row, Vector3 localPos, LootItem item, string chip = null)
         {
             string text;
-            if (item.IsWeapon) text = $"{LootTables.TypeName(item.PropType)}\n{Grey($"T{item.WeaponTier + 1}")}";
-            else if (item.IsArmor) text = $"{Armor.SlotNames[item.ArmorSlot]}\n{Grey("armor")}";
-            else if (item.IsBuff) text = "Tonic";
-            else text = "Junk";
+            // 0.13.2: a status word (EQUIPPED, WORN, ARMORY) takes the tag's second line instead of
+            // sitting in front of the stats, where it took room the name and stats needed.
+            var second = chip != null ? Grey(chip) : null;
+            if (item.IsWeapon) text = $"{LootTables.TypeName(item.PropType)}\n{second ?? Grey($"T{item.WeaponTier + 1}")}";
+            else if (item.IsArmor) text = $"{Armor.SlotNames[item.ArmorSlot]}\n{second ?? Grey("armor")}";
+            else if (item.IsBuff) text = second == null ? "Tonic" : $"Tonic\n{second}";
+            else text = second == null ? "Junk" : $"Junk\n{second}";
             Text(row, localPos, UiStyle.TagWidth, 0.1f, UiStyle.Body, Paint("#D7DCE4", text), TextAlignmentOptions.Center, fit: true, lines: 2);
         }
 
@@ -631,12 +636,15 @@ namespace LootOverhaul.Loot
                                       float size = UiStyle.Row, float coin = UiStyle.CoinSize)
         {
             var textW = width - coin - 0.01f;
+            // 0.13.2: a number shrinks to the floor and is never cut ("60,00" for 60,000); if it is
+            // still wider, it runs left and the coin moves with it.
             var tmp = Text(parent, new Vector3(xRight - textW, y, 0f), textW, 0.05f, size,
-                Paint(HexOf(color), $"<b>{Number(amount)}</b>"), TextAlignmentOptions.Right, fit: true);
+                Paint(HexOf(color), $"<b>{Number(amount)}</b>"), TextAlignmentOptions.Right, fit: true,
+                minSize: UiStyle.Floor, overflow: TextOverflowModes.Overflow);
             var numW = textW;
             try
             {
-                if (tmp != null) { tmp.ForceMeshUpdate(); var b = tmp.textBounds.size.x; if (b > 0.001f && b <= textW + 0.001f) numW = b; }
+                if (tmp != null) { tmp.enableWordWrapping = false; tmp.ForceMeshUpdate(); var b = tmp.textBounds.size.x; if (b > 0.001f) numW = b; }
             }
             catch { }
             Coin(parent, new Vector3(xRight - numW - 0.008f - coin * 0.5f, y, 0f), coin);
@@ -653,11 +661,12 @@ namespace LootOverhaul.Loot
             const float gap = 0.008f;
             var textW = width - coin - gap;
             var tmp = Text(parent, new Vector3(xc - width * 0.5f + coin + gap, y, 0f), textW, 0.05f, size,
-                Paint(HexOf(color), $"<b>{Number(amount)}</b>"), TextAlignmentOptions.Left, fit: true);
+                Paint(HexOf(color), $"<b>{Number(amount)}</b>"), TextAlignmentOptions.Left, fit: true,
+                minSize: UiStyle.Floor, overflow: TextOverflowModes.Overflow);
             var numW = textW;
             try
             {
-                if (tmp != null) { tmp.ForceMeshUpdate(); var b = tmp.textBounds.size.x; if (b > 0.001f && b <= textW + 0.001f) numW = b; }
+                if (tmp != null) { tmp.ForceMeshUpdate(); var b = tmp.textBounds.size.x; if (b > 0.001f) numW = b; }
             }
             catch { }
             var left = xc - (coin + gap + numW) * 0.5f;
@@ -716,13 +725,17 @@ namespace LootOverhaul.Loot
         public static void RowText(Transform row, float textEnd, string name, string stats, string chip = null, Color? statsColor = null, float textX = UiStyle.TextX,
                                    int statsLines = 2)
         {
-            Text(row, new Vector3(textX, statsLines == 1 ? 0.025f : 0.04f, 0f), textEnd - textX, 0.05f, UiStyle.Row, name, fit: true);
+            // 0.13.2: a long name or stats line shrinks down to the 0.30 floor before anything is cut,
+            // and what still doesn't fit ends in "…" (it was cut mid-word at 80% size).
+            Text(row, new Vector3(textX, statsLines == 1 ? 0.025f : 0.04f, 0f), textEnd - textX, 0.05f, UiStyle.Row, name, fit: true,
+                minSize: UiStyle.Floor, overflow: TextOverflowModes.Ellipsis);
             var sx = textX;
             var sy = statsLines == 1 ? -0.03f : -0.025f;
             if (!string.IsNullOrEmpty(chip)) sx += Chip(row, textX, sy, chip) + 0.015f;
             if (!string.IsNullOrEmpty(stats))
                 Text(row, new Vector3(sx, sy, 0f), textEnd - sx, statsLines == 1 ? 0.045f : 0.085f, UiStyle.Body,
-                    Paint(HexOf(statsColor ?? UiStyle.Text), stats), fit: true, lines: statsLines);
+                    Paint(HexOf(statsColor ?? UiStyle.Text), stats), fit: true, lines: statsLines,
+                    minSize: UiStyle.Floor, overflow: TextOverflowModes.Ellipsis);
         }
 
         /// <summary>A new row object at <paramref name="y"/> under <paramref name="parent"/>, with its stripe.</summary>
