@@ -11,8 +11,8 @@
   `ht.cfg` Photon player properties). Anything else stays vanilla and the log says why.
   Re-checked twice a second and whenever a board is rolled. Replaces the earlier
   `PrivateLobbyOnly` setting.
-- `RoundUpTo` (default 5) rounds every scaled bonus up to the next multiple of 5%, so the
-  board never shows decimals (37.5% -> 40%).
+- `RoundUpTo` (default 1) rounds every scaled bonus up to the next whole percent, so the
+  board never shows decimals (37.5% -> 38%).
 - F9 reloads the settings (and republishes the settings hash).
 - README notes that a higher gold bonus also raises LootOverhaul's end-of-run tokens.
 

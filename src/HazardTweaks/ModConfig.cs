@@ -18,7 +18,7 @@ namespace HazardTweaks
         public static MelonPreferences_Entry<string> AlsoRemove;
         /// <summary>Every hazard's XP and gold bonus is multiplied by this. 1.5 = Death +25% becomes +37.5% at tier 7.</summary>
         public static MelonPreferences_Entry<float> BonusMultiplier;
-        /// <summary>Round every scaled bonus up to the next multiple of this many percent. 5 = 37.5% shows and pays 40%. 0 = no rounding.</summary>
+        /// <summary>Round every scaled bonus up to the next multiple of this many percent. 1 = 37.5% shows and pays 38%. 0 = no rounding.</summary>
         public static MelonPreferences_Entry<int> RoundUpTo;
         public static MelonPreferences_Entry<bool> VerboseLogging;
 
@@ -32,8 +32,8 @@ namespace HazardTweaks
                 description: "More hazards to drop, comma separated, by game name: Death, NoPotions, Potions50Pct, NoRevives, CreatureSwarms, Damage150Pct, Damage200Pct, DragonBattle, MiniBossBattle, BossBattle. The log lists every name at startup.");
             BonusMultiplier = Main.CreateEntry("BonusMultiplier", 1.5f,
                 description: "Multiplies every hazard's XP/gold bonus. 1 = vanilla, 1.5 = half again (Death +25% -> +37.5% at tier 7), 2 = double.");
-            RoundUpTo = Main.CreateEntry("RoundUpTo", 5,
-                description: "Round every scaled bonus UP to the next multiple of this many percent, so there are no decimals. 5: 37.5% -> 40%. 1: 37.5% -> 38%. 0: no rounding. Only applies when BonusMultiplier is not 1.");
+            RoundUpTo = Main.CreateEntry("RoundUpTo", 1,
+                description: "Round every scaled bonus UP to the next multiple of this many percent, so there are no decimals. 1: 37.5% -> 38%. 5: 37.5% -> 40%. 0: no rounding. Only applies when BonusMultiplier is not 1.");
             VerboseLogging = Main.CreateEntry("VerboseLogging", true,
                 description: "Log every hazard list the mod changes.");
         }
