@@ -193,7 +193,7 @@ namespace LootOverhaul.Loot
             inv.Save();
             ModuleCache.Remove(Norm(item.WeaponGuid));
             ArmorySales++;
-            BagManager.Toast($"Sold {item.ColoredName} for <color=#F5C542>{price} tokens</color>  (now {inv.Gold})");
+            BagManager.Toast($"Sold {item.ColoredName} for {UiKit.Paint(UiStyle.GoldHex, UiKit.Money(price))} (now {UiKit.Number(inv.Gold)})");
             ReconLog.Line($"armory: sold bag weapon {item.Name} for {price} tokens -> {inv.Gold}; salvage coins will be refused");
             BagPanel.Refresh(); Booth.Refresh();
         }

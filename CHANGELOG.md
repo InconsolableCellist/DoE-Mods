@@ -2,6 +2,26 @@
 
 Versions are the mod's `Version` constant in `src/CustomAvatars/Core.cs`. This file was reconstructed from the git history on 2026-09-01.
 
+## 0.42.21 (2026-11-15)
+
+#19 (written as 0.42.20) on top of #18's 0.42.20.
+
+### Fixed
+- **Avatars no longer get stuck running on the spot.** The avatar copies the game body's pose, and the game body walks through FinalIK's animated locomotion, which writes `VRIK_IsMoving`, `VRIK_Horizontal`, `VRIK_Vertical`, `VRIK_Speed` and `VRIK_Turn` from inside the VRIK solve. `CharacterPrefab.OnLateUpdate` only runs that solve while the body counts as visible to you, but `CharacterPrefab.UpdatePhysics` calls `Animator.Update` every tick regardless. So when the game stops solving a body that was moving, it keeps playing its last walk state until the solve comes back. Your own body is never solved in normal VR play (`ikEnabled=False` on every self swap), and peers drop out of the solve at swaps and respawns (LOD 2 at 9 swaps and 18 respawns in one session's log). A new `WalkState` sets those parameters on every frame the game skipped, from how fast the body's root really moves: root-local velocity smoothed with the solver's own `animationSmoothTime`, and moving or not by its own `moveThreshold` with FinalIK's 0.9 hysteresis and 0.05 s stop delay. Frames the game does solve are left to the game. Nothing new goes over the network. The log says `walk state:` the first time it takes over a body, then at most every 30 s.
+
+### Added
+- `WalkStateFromSpeed` (Dev, default on) switches this off.
+
+## 0.42.20 (2026-11-15)
+
+#18 (written as 0.42.19) on top of master's 0.42.19.
+
+### Fixed
+- **The left ring no longer starts several times too big.** The fit measures the band's hole around the finger's direction. On the left hand that direction was taken from the transforms' rotations, while the band's vertices go through their matrices. A left-hand ring is mirrored, so the two disagreed, the hole was measured across the band instead of along it (`hole 0.0025 against outside 0.0235`, a tenth of the real hole), and the ring was sized to match. Seen at a playtest on 2026-11-14 with 0.42.17: one player's left ring was far too big and `RingLeftSize` could not bring it down far enough. The finger's direction now goes through the same matrices as the vertices. As a safety net, the band's own three axes are measured too, and one of them takes over when it shows a clearly cleaner hole. The `ring:` line names it when that happens (`hole measured along the band's X axis …`). The fallback that estimates the hole from the band's bounds uses the band's narrowest axis in the same case.
+
+### Changed
+- `Ring{Left|Right}Size` now goes from 0.05 to 10 (was 0.5 to 4), so a ring can be shrunk or enlarged much further.
+
 ## 0.42.19 (2026-11-14)
 
 ### Fixed

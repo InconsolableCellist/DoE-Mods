@@ -3,6 +3,35 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.13.1 (2026-11-15)
+
+The run payout message stays up long enough to read. This is #20 (written as 0.12.1) on top of 0.13.0.
+
+### Changed
+- **`TokenToastSeconds` is a setting again**, in `[LootOverhaul_Tokens]`, and defaults to 30 seconds instead of a fixed 5. The "+N tokens (gold x mult)" message after a run used to vanish while the end screen was still up. It is still reposted every 2 seconds, because the game's notifications ignore their own display time. 0 shows it once for the game's own short time; values above 300 are treated as 300. Display only: it does not change the payout and is not part of the room gate.
+
+## 0.13.0 (2026-11-15)
+
+One look for the whole kobold stall and the bag, made to be read in a headset. Prices, rules, what each button does, saved data and network messages are unchanged.
+
+### Changed
+- **One style, in one place.** The new `Loot/UiStyle.cs` holds the text sizes, colours and panel grid; the shared components are in `UiKit.cs`. `Booth.cs` and `BagPanel.cs` set no colour, size or button scale of their own.
+- **Four text sizes**, all larger: Title 0.56, Row 0.46, Label 0.42 (buttons), Body 0.36, plus the sign at 0.9. Auto-fit shrinks to 80% at most and never below 0.30 (was down to 60%, so the SELL stats could end up at 0.16). Stats wrap to a second line before they shrink.
+- **One button.** A lit plate with a frame and a bold label, with the game's button invisible on top for the pointer. The plate lights up while the pointer is on it. Blue for buy, sell, wear, select and add; green for SELL ALL; grey for back, restock, sort and take off; red for undo and loss (drop, revert, take a perk off, reset). A button you can't use is dimmed with the same label; the reason is in the price (red) or a status word, never in the label ("NEED 120 tk" and "MINOR locked" are gone).
+- **Tabs are a tab strip**, with the open tab filled white: the main tabs, the armor slots, LEFT RING / RIGHT RING, BAG / ARMORY on the enchant list, and the bag's sort. The cogwheel is now the RINGS tab.
+- **Same grid on every page and on the bag:** header with the token balance always top right, tab strip, a toolbar row, rows 0.14 m apart (0.105 for help, compare and ring rows), and the pager in the same place, hidden when there is one page. Panels are 1.26 m tall (was 1.20); the stall stays where it is.
+- **Prices** are a gold coin (drawn, no font glyph) right before the number, with a thousands separator, in a price column; red when you can't afford it. In sentences and toasts the unit is always "tokens" ("T" and "tk" are gone).
+- **Status words** (LOCKED, EQUIPPED, WORN, ARMORY) are small grey capitals in front of the stats.
+- **SELL:** name over stats like every other list. SELL ALL is four green buttons at the top with the total each one pays under it. The bag upgrade is a row lined up with the price and button columns.
+- **TONICS:** six per page (was four). Tier buttons say only MINOR / MAJOR / GRAND, with the price under each; the prepared tier is the white button with PREPARED under it.
+- **ENCHANT, one weapon:** the weapon and all its stats on top, then ADD, BOOMERANG and TAKE OFF, each with the price per change on the right. Perk buttons are four to a row and no longer touch.
+- **Armor upgrading:** an UPGRADE button with the price beside it replaces the drawn arrow.
+- **RINGS:** values in one column; the + and - steppers are drawn from bars.
+- **Bag:** DROP is always the small red button on the right, dimmed with a status word for an equipped weapon or worn armor.
+- **Colours:** one meaning each, gold for tokens only. Rare and Legendary armor names are lighter (they were dark blue on dark blue), also for armor rolled earlier; valuable junk is orange instead of gold. Weapon name colours come from the game and do not change.
+- **Floor labels** over dropped loot are 0.36 and bold (were 0.32, with the caption at 0.22).
+- **Wording:** MENU is BACK, "item(s)" is "1 item" / "3 items", and the empty pages say "Your bag is empty.", "Sold out. New stock in 12 min.", "No weapons in your bag." and "Unlock exosuit perks to buy tonics for them."
+
 ## 0.12.0 (2026-11-14)
 
 Enchant your armory weapons, take enchantments off again, and Boomerang for throwing weapons.
@@ -41,6 +70,11 @@ Tokens now come only from chest armor sold at the kobold and from the end-of-run
 - **Chosen prices** (all × `ShopPriceMultiplier` 2.5):
   - An armory enchantment costs **500 / 1,000 / 2,000 / 4,000** (Common to Legendary). That is about half a run to three runs. It is two thirds of the bag price (750 / 1,500 / 3,000 / 6,000, unchanged), because an armory weapon was earned already and cannot be sold.
   - Removing a perk or element costs **200 / 400 / 800 / 1,600**. That is about 40% of an armory enchantment: undoing a mistake should cost, but less than making it.
+
+## 0.11.3 (2026-11-14)
+
+### Changed
+- The ring page's SIZE goes from x0.05 to x10 (was x0.5 to x4). At a playtest a left ring started far too big and could not be shrunk enough. CustomAvatars 0.42.19 (#18) fixes the starting size and accepts the same range; an older CustomAvatars still holds the ring to 0.5–4 whatever the page shows.
 
 ## 0.11.2 (2026-11-14)
 

@@ -1,4 +1,4 @@
-# StayPutVR (Dungeons of Eternity mod) — 0.5.4
+# StayPutVR (Dungeons of Eternity mod) — 0.5.5
 
 Take damage in the dungeon and your shock device fires, through the
 [StayPutVR](https://github.com/InconsolableCellist/StayPutVR) app. Bite another player and theirs
@@ -140,6 +140,19 @@ advertised they accept them, only to that one player, and their client checks it
 before anything happens. The bitten player's own client applies the hit point to itself. A player
 without the mod, or with the switch off, cannot be damaged or shocked by any of it.
 
+## Mimics
+
+Wake a mimic, by turning a key in its lock or touching it with your weapon, and you get one shock.
+Only the player who woke it is shocked, not the others standing nearby, and only once per mimic.
+After that the mimic shocks nobody: not its attacks (damage type `Mimic`), not hitting it, not
+looting it. Only the arm switch can hold the shock back; like the killing blow, it goes past the
+cooldown and `MaxPerMinute`.
+
+The mod only says how hard: `MimicShockStrength` is the share of the max the app holds for the
+parameter it fires. The max itself and the duration are set in the StayPutVR app per parameter. By
+default the mimic fires `ShockPath`, so it shares those with hits; set `MimicPath` to a parameter of
+its own (e.g. `/avatar/parameters/SPVR_Mimic`) and add that in the app to give it its own.
+
 ## Settings
 
 `UserData\MelonPreferences.cfg`, section `[StayPutVR]`. Edit with the game closed; it rewrites the
@@ -181,6 +194,9 @@ file on quit.
 | `BiteSnapSeconds` | `0.2` | How fast the mouth must shut. Filters speech. |
 | `BiteGestureCooldownSeconds` | `0.6` | Shortest gap between recognised chomps. |
 | `BiteJawParam` | *(empty)* | Force a face parameter. Empty tries the usual spellings. |
+| `MimicShock` | `true` | Waking a mimic shocks you, once; its attacks then do not. See [Mimics](#mimics). |
+| `MimicShockStrength` | `1` | How hard that shock is, 0 to 1 of the app's max for its parameter. |
+| `MimicPath` | *(empty)* | What waking a mimic fires. Empty = `ShockPath`. |
 | `HudEnabled` | `true` | Draw the desktop panel. |
 
 `Fall` fires by default, so put it in `IgnoreDamageTypes` if tripping over scenery should not count.
@@ -215,7 +231,7 @@ src/StayPutVR/
 ├── Hooks.cs             guarded Harmony patching (shared-stub check)
 ├── ShockLog.cs          session log: every hit and every decision
 ├── Osc/                 OSC 1.0 encoder, the one outbound socket, OSC Query discovery
-├── Trigger/             the damage and heal hooks, the policy, the stick gesture
+├── Trigger/             the damage, heal and mimic hooks, the policy, the stick gesture
 ├── Bite/                the jaw, the chomp, who gets bitten
 ├── Net/                 consent and bites, Photon events 180-181
 ├── Hud/                 the desktop panel, and the heal shield's arc in the headset

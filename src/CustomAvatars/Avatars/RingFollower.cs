@@ -107,7 +107,7 @@ namespace CustomAvatars.Avatars
         // The band's hole against the finger's measured radius (a median of its surface), so
         // the ring sits on the skin rather than in it.
         private const float FitSlack = 1.1f;
-        private const float MinSize = 0.5f, MaxSize = 4f;
+        private const float MinSize = 0.05f, MaxSize = 10f;
 
         /// <summary>
         /// How one of your own rings is shown, on top of the automatic fit. Read from
@@ -376,7 +376,12 @@ namespace CustomAvatars.Avatars
             string fit = null;
             if (avatar.FromMesh)
             {
-                var axis = Quaternion.Inverse(ring.Rot) * Vector3.forward;   // the finger, in the ring's space
+                // The finger, in the ring's space. Through the transforms' matrices rather than
+                // their rotations, because the vertices go through the matrices too, and a
+                // mirrored (left-hand) ring has a negative scale that a rotation leaves out.
+                Vector3 axis;
+                try { axis = t.InverseTransformVector(bone.TransformVector(vanilla.Frame * Vector3.forward)); }
+                catch { axis = Quaternion.Inverse(ring.Rot) * Vector3.forward; }
                 var hole = HoleRadius(t, ring.CentreInRing, axis, out var holeCentre, out var holeWhy);
                 if (hole > 1e-6f)
                 {
@@ -429,50 +434,88 @@ namespace CustomAvatars.Avatars
                 if (vertices == null || vertices.Length < 8) { why = $"{vertices?.Length ?? 0} band vertices"; return -1f; }
 
                 var toRing = ring.worldToLocalMatrix * band.transform.localToWorldMatrix;
-                var flat = new List<Vector3>(vertices.Length);   // across the hole, relative to centre
-                foreach (var v in vertices)
+                var points = new List<Vector3>(vertices.Length);   // relative to centre, in the ring's space
+                foreach (var v in vertices) points.Add(toRing.MultiplyPoint3x4(v) - centre);
+
+                // The finger's direction should be the hole's axis. If it isn't (a mirrored or
+                // oddly built ring), measuring across it cuts through the band and finds a hole
+                // a tenth of its real size, which made the ring several times too big. So the
+                // band's own three axes are tried too, and the one that shows the clearest hole
+                // (the biggest hole against the outside) wins.
+                var candidates = new List<(Vector3 axis, string name)> { (axis, null) };
+                var bandAxes = new[] { (Vector3.right, "X"), (Vector3.up, "Y"), (Vector3.forward, "Z") };
+                foreach (var (dir, name) in bandAxes)
                 {
-                    var p = toRing.MultiplyPoint3x4(v) - centre;
-                    flat.Add(p - Vector3.Dot(p, axis) * axis);
+                    var a = toRing.MultiplyVector(dir);
+                    if (a.sqrMagnitude > 1e-12f) candidates.Add((a.normalized, name));
                 }
 
-                // The bounds centre leans toward a stone or setting on top. The hole's own centre
-                // is the middle of the band's inner surface: the nearer vertices, whose extent
-                // is a full circle. Two passes settle it.
-                var shift = Vector3.zero;
-                var distances = new List<float>(flat.Count);
-                for (var pass = 0; pass < 2; pass++)
+                float bestInner = -1f, bestOuter = -1f, bestRatio = -1f;
+                Vector3 bestShift = Vector3.zero;
+                string bestName = null, fingerResult = null;
+                foreach (var (a, name) in candidates)
                 {
-                    distances.Clear();
-                    foreach (var p in flat) distances.Add((p - shift).magnitude);
-                    var sorted = new List<float>(distances);
-                    sorted.Sort();
-                    var cut = sorted[sorted.Count * 2 / 5];
-                    Vector3 min = Vector3.positiveInfinity, max = Vector3.negativeInfinity;
-                    var n = 0;
-                    for (var i = 0; i < flat.Count; i++)
-                    {
-                        if (distances[i] > cut) continue;
-                        min = Vector3.Min(min, flat[i]);
-                        max = Vector3.Max(max, flat[i]);
-                        n++;
-                    }
-                    if (n < 8) break;
-                    var mid = (min + max) * 0.5f;
-                    shift = mid - Vector3.Dot(mid, axis) * axis;
+                    var inner = MeasureHole(points, a, out var outer, out var shift);
+                    if (name == null) fingerResult = $"{inner:0.0000} against outside {outer:0.0000}";
+                    // A hole that is nearly nothing, or as wide as the whole ring, is not a band.
+                    if (!(inner > 1e-6f) || !(inner < outer * 0.98f) || inner < outer * 0.2f) continue;
+                    var ratio = inner / outer;
+                    // The finger's own axis keeps the job unless another is clearly better.
+                    if (name != null && bestName == null && bestRatio > 0f && ratio < bestRatio * 1.25f) continue;
+                    if (ratio <= bestRatio) continue;
+                    bestRatio = ratio; bestInner = inner; bestOuter = outer; bestShift = shift; bestName = name;
                 }
-
-                distances.Clear();
-                foreach (var p in flat) distances.Add((p - shift).magnitude);
-                distances.Sort();
-                var inner = distances[distances.Count / 20];
-                var outer = distances[distances.Count - 1];
-                // A hole that is nearly nothing, or as wide as the whole ring, is not a band.
-                if (!(inner > 1e-6f) || !(inner < outer * 0.98f) || inner < outer * 0.2f) return BoundsHole(ring, band, centre, axis, $"hole {inner:0.0000} against outside {outer:0.0000} from the vertices", out holeCentre, out why);
-                holeCentre = centre + shift;
-                return inner;
+                if (bestInner < 0f)
+                    return BoundsHole(ring, band, centre, axis, $"hole {fingerResult} from the vertices", out holeCentre, out why);
+                if (bestName != null)
+                    why = $"hole measured along the band's {bestName} axis ({bestInner:0.0000} against outside {bestOuter:0.0000}); across the finger it read {fingerResult}";
+                holeCentre = centre + bestShift;
+                return bestInner;
             }
             catch (Exception e) { why = e.GetType().Name; return -1f; }
+        }
+
+        /// <summary>
+        /// The hole around one axis: the 5th-percentile distance of the band's vertices from the
+        /// line, and the farthest as the outside. <paramref name="points"/> are relative to the
+        /// band's bounds centre.
+        /// </summary>
+        private static float MeasureHole(List<Vector3> points, Vector3 axis, out float outer, out Vector3 shift)
+        {
+            var flat = new List<Vector3>(points.Count);   // across the hole
+            foreach (var p in points) flat.Add(p - Vector3.Dot(p, axis) * axis);
+
+            // The bounds centre leans toward a stone or setting on top. The hole's own centre
+            // is the middle of the band's inner surface: the nearer vertices, whose extent
+            // is a full circle. Two passes settle it.
+            shift = Vector3.zero;
+            var distances = new List<float>(flat.Count);
+            for (var pass = 0; pass < 2; pass++)
+            {
+                distances.Clear();
+                foreach (var p in flat) distances.Add((p - shift).magnitude);
+                var sorted = new List<float>(distances);
+                sorted.Sort();
+                var cut = sorted[sorted.Count * 2 / 5];
+                Vector3 min = Vector3.positiveInfinity, max = Vector3.negativeInfinity;
+                var n = 0;
+                for (var i = 0; i < flat.Count; i++)
+                {
+                    if (distances[i] > cut) continue;
+                    min = Vector3.Min(min, flat[i]);
+                    max = Vector3.Max(max, flat[i]);
+                    n++;
+                }
+                if (n < 8) break;
+                var mid = (min + max) * 0.5f;
+                shift = mid - Vector3.Dot(mid, axis) * axis;
+            }
+
+            distances.Clear();
+            foreach (var p in flat) distances.Add((p - shift).magnitude);
+            distances.Sort();
+            outer = distances[distances.Count - 1];
+            return distances[distances.Count / 20];
         }
 
         // A band's hole against its outside, for when only the bounds can be read: a typical
@@ -492,10 +535,24 @@ namespace CustomAvatars.Avatars
             why = because;
             try
             {
-                var u = Vector3.Cross(axis, Mathf.Abs(axis.y) < 0.9f ? Vector3.up : Vector3.right).normalized;
-                var v = Vector3.Cross(axis, u);
                 var b = band.sharedMesh.bounds;
                 var toRing = ring.worldToLocalMatrix * band.transform.localToWorldMatrix;
+                // A band is narrowest along its hole. If the finger's direction is not that
+                // (the narrow extent would then be the band's width, and the ring come out
+                // several times too big), the band's own narrowest axis is used instead.
+                var s = b.size;
+                var narrow = s.x <= s.y && s.x <= s.z ? Vector3.right : s.y <= s.z ? Vector3.up : Vector3.forward;
+                var narrowAxis = toRing.MultiplyVector(narrow);
+                var narrowest = Mathf.Min(s.x, Mathf.Min(s.y, s.z));
+                var middle = s.x + s.y + s.z - narrowest - Mathf.Max(s.x, Mathf.Max(s.y, s.z));
+                if (narrowAxis.sqrMagnitude > 1e-12f && narrowest < middle * 0.8f &&
+                    Mathf.Abs(Vector3.Dot(narrowAxis.normalized, axis)) < 0.7f)
+                {
+                    axis = narrowAxis.normalized;
+                    because += ", band's narrowest axis used as the hole";
+                }
+                var u = Vector3.Cross(axis, Mathf.Abs(axis.y) < 0.9f ? Vector3.up : Vector3.right).normalized;
+                var v = Vector3.Cross(axis, u);
                 float uMin = float.MaxValue, uMax = float.MinValue, vMin = float.MaxValue, vMax = float.MinValue;
                 for (var i = 0; i < 8; i++)
                 {

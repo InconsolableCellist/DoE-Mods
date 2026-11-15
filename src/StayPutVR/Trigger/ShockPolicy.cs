@@ -140,6 +140,7 @@ namespace StayPutVR.Trigger
             if (!_armed) hold = "disarmed";
             else if (alreadyDown) hold = "already down; one shock per death";
             else if (IsIgnoredType(damageType)) hold = $"{damageType} is in IgnoreDamageTypes";
+            else if (ModConfig.MimicShock.Value && string.Equals(damageType, "Mimic", StringComparison.OrdinalIgnoreCase)) hold = "a mimic's attack; with MimicShock on, only waking it shocks";
             else if (damage < ModConfig.MinDamage.Value) hold = $"{damage:0.#} HP is under MinDamage {ModConfig.MinDamage.Value:0.#}";
             else if (fraction < ModConfig.MinDamageFraction.Value) hold = $"{fraction * 100f:0}% is under MinDamageFraction {ModConfig.MinDamageFraction.Value * 100f:0}%";
             else if (Shield.Holds(now, lethal)) hold = $"heal shield, {Shield.Left(now):0.0} s left";
@@ -199,6 +200,36 @@ namespace StayPutVR.Trigger
                 RecentBites.Add(now);
                 ShockLog.Headline($"Bitten by actor {fromActor} — fired {path}");
             }
+        }
+
+        /// <summary>
+        /// You woke a mimic (<see cref="MimicWatch"/>, which already makes it once per mimic).
+        /// Fires <c>MimicPath</c> (or <c>ShockPath</c> when that is empty) at
+        /// <c>MimicShockStrength</c>. Only the arm switch holds it: it happens once, so like the
+        /// killing blow it goes past the cooldown and the per-minute ceiling, and the heal shield
+        /// does not apply since this is not damage.
+        /// </summary>
+        public static void OnMimic(string what)
+        {
+            var now = Time.unscaledTime;
+            LastHitAt = now;
+            LastHit = what;
+
+            if (!_armed)
+            {
+                HeldBack++;
+                LastHold = "disarmed";
+                ShockLog.Line($"{what} — held back: disarmed");
+                return;
+            }
+
+            LastHold = "";
+            var path = OscPacket.IsUsableAddress(ModConfig.MimicPath.Value)
+                ? ModConfig.MimicPath.Value.Trim()
+                : PathSummary();
+            var magnitude = Mathf.Clamp01(ModConfig.MimicShockStrength.Value);
+            if (Fire(path, what, magnitude))
+                ShockLog.Headline($"{what} — fired {path} at {magnitude:0.00}");
         }
 
         /// <summary>Seconds of shield a heal from <paramref name="source"/> buys, from its setting. 0 = none.</summary>

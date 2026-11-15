@@ -44,7 +44,7 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<float> BoomerangPullSpeed;
 
         public static MelonPreferences_Entry<float> GoldToTokenRate, BossKillBonus, MinibossKillBonus, HazardBonusPerLevel,
-            TierBonusPerLevel, TokenPlayerBonusPerExtraPlayer, TokenChestBonusPerChest;
+            TierBonusPerLevel, TokenPlayerBonusPerExtraPlayer, TokenChestBonusPerChest, TokenToastSeconds;
 
         public static MelonPreferences_Entry<float> BoothX, BoothY, BoothZ, BoothYaw;
         public static MelonPreferences_Entry<bool> BoothPlaced;
@@ -63,7 +63,6 @@ namespace LootOverhaul
             public const float BagAutoCloseMeters = 2f;
             public const float BagGestureHoldSeconds = 0.7f;
             public const string PedestalFrameColor = "#FFD24A";
-            public const float TokenToastSeconds = 5f;
             public const float TokenToastRepeatSeconds = 2f;
         }
 
@@ -129,6 +128,7 @@ namespace LootOverhaul
             TierBonusPerLevel = TokenPay.CreateEntry("TierBonusPerLevel", 0.1f, description: "Extra payout per dungeon tier above the first.");
             TokenPlayerBonusPerExtraPlayer = TokenPay.CreateEntry("TokenPlayerBonusPerExtraPlayer", 0.5f, description: "Extra payout per party member beyond you.");
             TokenChestBonusPerChest = TokenPay.CreateEntry("TokenChestBonusPerChest", 0.02f, description: "Extra payout per chest you opened.");
+            TokenToastSeconds = TokenPay.CreateEntry("TokenToastSeconds", 30f, description: "Seconds the +tokens message from a run stays on screen (it is reposted every 2 s). 0 = shown once, the game's own short time. At most 300.");
 
             BoothPos = MelonPreferences.CreateCategory("LootOverhaul_Booth");
             BoothX = BoothPos.CreateEntry("BoothX", Loot.Booth.DefaultPosition.x);

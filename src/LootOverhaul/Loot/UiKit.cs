@@ -155,49 +155,9 @@ namespace LootOverhaul.Loot
             return n;
         }
 
-        public static InteractableButton Button(Transform parent, Vector3 localPos, string label, Action onPressed, float scale = 1f, bool enabled = true)
-        {
-            if (!Interop.Alive(_buttonTemplate)) return null;
-            try
-            {
-                var go = UnityEngine.Object.Instantiate(_buttonTemplate, parent);
-                go.name = $"Btn_{label}";
-                go.transform.localPosition = localPos;
-                go.transform.localRotation = Quaternion.identity;
-                go.transform.localScale = _buttonTemplate.transform.localScale * scale;
-                go.SetActive(true);
-                var btn = go.GetComponent<InteractableButton>();
-                try { btn.ShowButton(true, label, null); } catch { }
-                try { btn.SetLabel(label); } catch { }
-                if (!enabled)
-                {
-                    // Greyed: dimmed frame, no pointer response. The laser catcher behind it still shows the beam.
-                    try
-                    {
-                        foreach (var r in go.GetComponentsInChildren<Renderer>(true))
-                        {
-                            if (!Interop.Alive(r)) continue;
-                            try { Tint(r, new Color(0.35f, 0.35f, 0.4f, 1f), new Color(0.1f, 0.1f, 0.12f, 1f)); } catch { }
-                        }
-                        btn.enabled = false;
-                        foreach (var c in go.GetComponentsInChildren<Collider>(true)) if (Interop.Alive(c)) c.enabled = false;
-                    }
-                    catch { }
-                    return btn;
-                }
-                if (onPressed != null)
-                    btn.onPressed.AddListener(DelegateSupport.ConvertDelegate<UnityAction>(onPressed));
-                return btn;
-            }
-            catch (Exception e)
-            {
-                Core.Log.Warning($"Button `{label}` failed: {e.GetType().Name}: {e.Message}");
-                return null;
-            }
-        }
 
         /// <summary>
-        /// A label. With <paramref name="fit"/> the font shrinks (to 60% of <paramref name="size"/>)
+        /// A label. With <paramref name="fit"/> the font shrinks (to 80% of <paramref name="size"/>, never below UiStyle.Floor)
         /// until the line fits the rect, so a long stats line is read in full instead of cut off
         /// under the buttons (report 2026-09-08: two-perk weapons). With <paramref name="lines"/>
         /// above 1 the text wraps onto that many lines first and shrinks only after that; the
@@ -222,7 +182,8 @@ namespace LootOverhaul.Loot
                 {
                     tmp.enableAutoSizing = true;
                     tmp.fontSizeMax = size;
-                    tmp.fontSizeMin = size * 0.6f;
+                    // 0.13.0: shrink to 80% at most, and never below the legibility floor (0.30).
+                    tmp.fontSizeMin = Mathf.Max(size * UiStyle.FitShare, Mathf.Min(size, UiStyle.Floor));
                 }
                 tmp.alignment = align;
                 tmp.enableWordWrapping = lines > 1;
@@ -270,28 +231,11 @@ namespace LootOverhaul.Loot
         public static void TypeTag(Transform row, Vector3 localPos, LootItem item)
         {
             string text;
-            if (item.IsWeapon) text = $"<color=#C8C8C8>{LootTables.TypeName(item.PropType)}</color>\n<color=#F5C542>T{item.WeaponTier + 1}</color>";
-            else if (item.IsArmor) text = $"<color=#C8C8C8>{Armor.SlotNames[item.ArmorSlot]}</color>\n<color=#B0B0B0>armor</color>";
-            else if (item.IsBuff) text = "<color=#7FD8FF>Tonic</color>";
-            else text = "<color=#B0B0B0>Junk</color>";
-            Text(row, localPos, 0.13f, 0.07f, 0.26f, text, TextAlignmentOptions.Center, fit: true, lines: 2);
-        }
-        /// <summary>
-        /// The game's stats text one stat per line: "44 Fire Damage",
-        /// "Elite Damage". The leading "+ " the game puts before perks is dropped.
-        /// </summary>
-        public static string StatsList(string raw)
-        {
-            if (string.IsNullOrEmpty(raw)) return "";
-            var s = System.Text.RegularExpressions.Regex.Replace(raw, @"<color=[^>]*>\s*</color>", "");
-            var lines = new System.Collections.Generic.List<string>();
-            foreach (var line in s.Replace("\r", "").Split(new[] { '\n', '|' }))
-            {
-                var t = System.Text.RegularExpressions.Regex.Replace(line, @"\s+", " ").Trim();
-                t = System.Text.RegularExpressions.Regex.Replace(t, @"^\+\s*", "");
-                if (t.Length > 0) lines.Add(t);
-            }
-            return string.Join("\n", lines);
+            if (item.IsWeapon) text = $"{LootTables.TypeName(item.PropType)}\n{Grey($"T{item.WeaponTier + 1}")}";
+            else if (item.IsArmor) text = $"{Armor.SlotNames[item.ArmorSlot]}\n{Grey("armor")}";
+            else if (item.IsBuff) text = "Tonic";
+            else text = "Junk";
+            Text(row, localPos, UiStyle.TagWidth, 0.1f, UiStyle.Body, Paint("#D7DCE4", text), TextAlignmentOptions.Center, fit: true, lines: 2);
         }
 
         /// <summary>
@@ -389,18 +333,6 @@ namespace LootOverhaul.Loot
             }
         }
 
-        /// <summary>
-        /// A small padlock that toggles on press: gold with the shackle closed when
-        /// <paramref name="locked"/>, grey with the shackle lifted when not. Drawn from bars,
-        /// so it needs no font glyph.
-        /// </summary>
-        public static void LockIcon(Transform parent, Vector3 localPos, bool locked, Action onPressed)
-        {
-            var c = locked ? new Color(0.96f, 0.77f, 0.26f, 1f) : new Color(0.5f, 0.54f, 0.62f, 1f);
-            Bar(parent, localPos + new Vector3(0f, -0.014f, -0.004f), 0.05f, 0.036f, c);
-            Frame(parent, localPos + new Vector3(locked ? 0f : 0.01f, locked ? 0.016f : 0.03f, 0f), 0.03f, 0.032f, 0.007f, c);
-            HitBox(parent, localPos, 0.11f, 0.09f, onPressed);
-        }
 
         /// <summary>A flat dark backdrop. The default primitive material tinted; good enough until the booth gets art.</summary>
         public static GameObject Backdrop(Transform parent, Vector3 localPos, float width, float height, Color color)
@@ -448,21 +380,6 @@ namespace LootOverhaul.Loot
             catch (Exception e) { Core.Log.Warning($"Laser catcher failed: {e.GetType().Name}: {e.Message}"); }
         }
 
-        /// <summary>
-        /// A preview that fits in <paramref name="fit"/> metres whatever the item: the weapon's
-        /// generated mesh scaled by its bounds, or a text glyph for junk.
-        /// </summary>
-        public static GameObject Preview(Transform parent, Vector3 localPos, LootItem item, float fit)
-        {
-            if (!item.IsWeapon)
-            {
-                var glyph = item.IsBuff ? "○" : item.IsArmor ? "▲" : item.WeaponClass >= 2 ? "✦" : item.WeaponClass == 1 ? "◆" : "•";
-                var color = item.IsBuff ? "#7FD8FF" : item.IsArmor ? Armor.ClassColor(item.WeaponClass) : LootTables.JunkColor(item.WeaponClass);
-                var t = Text(parent, localPos + new Vector3(-fit * 0.25f, 0f, 0f), fit, fit, fit * 1.6f, $"<color={color}>{glyph}</color>", TextAlignmentOptions.Center);
-                return t == null ? null : t.gameObject;
-            }
-            return WeaponPreview(parent, localPos, item, fit);
-        }
 
         /// <summary>The weapon's generated mesh and material, scaled so its longest side is <paramref name="fit"/> metres.</summary>
         public static GameObject WeaponPreview(Transform parent, Vector3 localPos, LootItem item, float fit)
@@ -499,6 +416,279 @@ namespace LootOverhaul.Loot
                 Core.Log.Warning($"Weapon preview failed for {item.Name}: {e.GetType().Name}: {e.Message}");
                 return null;
             }
+        }
+
+        // =====================================================================================
+        // 0.13.0: the shared components. Every panel of the stall and the bag is built only
+        // from these and from UiStyle, so all of them look and behave alike.
+        // =====================================================================================
+
+        public static string HexOf(Color c) => "#" + ColorUtility.ToHtmlStringRGB(c);
+        public static string Paint(string hex, string text) => $"<color={hex}>{text}</color>";
+        public static string Grey(string text) => Paint(UiStyle.Text2Hex, text);
+
+        /// <summary>
+        /// An item's coloured name for the panels. Armor rolled before 0.13.0 keeps the old dark
+        /// Rare/Legendary blues in its saved name, which are hard to read on the dark panel; they
+        /// are shown in today's colours (the saved name is not changed).
+        /// </summary>
+        public static string NameOf(LootItem item)
+        {
+            var n = item?.ColoredName ?? "";
+            if (item != null && item.IsArmor)
+                n = n.Replace("#1020FF", UiStyle.ArmorHex[2]).Replace("#4010FF", UiStyle.ArmorHex[3]).Replace("#31BC2F", UiStyle.ArmorHex[1]);
+            return n;
+        }
+
+        /// <summary>"1,240": the one way a token amount is written.</summary>
+        public static string Number(long n) => n.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
+        /// <summary>"1,240 tokens": the one way tokens are written in sentences and toasts.</summary>
+        public static string Money(long n) => $"{Number(n)} tokens";
+        /// <summary>"1 item", "3 items".</summary>
+        public static string Plural(int n, string word) => $"{n} {(n == 1 ? word : word + "s")}";
+
+        /// <summary>A label of one size and colour (rich text inside still works).</summary>
+        public static TextMeshPro Label(Transform parent, float x, float y, float width, float height, float size, string text, Color color,
+                                        TextAlignmentOptions align = TextAlignmentOptions.Left, int lines = 1)
+            => Text(parent, new Vector3(x, y, 0f), width, height, size, Paint(HexOf(color), text), align, fit: true, lines: lines);
+
+        /// <summary>A divider across the panel.</summary>
+        public static void Rule(Transform parent, float y)
+            => Bar(parent, new Vector3(0f, y, 0.004f), UiStyle.PanelWidth - 0.04f, 0.004f, UiStyle.Rule);
+
+        /// <summary>The lit band behind a row: every other row, or always when a colour is given.</summary>
+        public static void RowStripe(Transform row, int i, float pitch, Color? color = null)
+        {
+            if (color.HasValue || i % 2 == 0)
+                Bar(row, new Vector3(0f, 0f, 0.006f), UiStyle.PanelWidth - 0.03f, pitch - 0.008f, color ?? UiStyle.Stripe);
+        }
+
+        /// <summary>
+        /// The one button: a lit plate, a frame, a bold label, and an invisible game button on top
+        /// for the pointer. The plate lights up while the pointer is on it (the game button's own
+        /// hover event). Disabled: dim plate and frame, same label, no hit box.
+        /// </summary>
+        public static InteractableButton Btn(Transform parent, Vector3 pos, Vector2 size, string label, Action onPressed,
+                                             UiStyle.Variant variant = UiStyle.Variant.Primary, UiStyle.State state = UiStyle.State.Normal,
+                                             float labelSize = UiStyle.Label)
+        {
+            var look = UiStyle.ButtonLook(variant, state);
+            var plate = Bar(parent, pos + new Vector3(0f, 0f, 0.002f), size.x, size.y, look.Plate);
+            Frame(parent, pos, size.x, size.y, UiStyle.FrameWidth, look.Frame);
+            if (!string.IsNullOrEmpty(label))
+                Text(parent, pos + new Vector3(0f, 0f, -0.004f), size.x - 0.016f, size.y, labelSize,
+                    Paint(HexOf(look.Label), $"<b>{(label == "<" || label == ">" ? $"<noparse>{label}</noparse>" : label)}</b>"), TextAlignmentOptions.Center, fit: true);
+            if (state == UiStyle.State.Disabled || onPressed == null) return null;
+            var hit = HitBox(parent, pos, size.x, size.y, onPressed);
+            Hover(hit, plate, look.Plate, look.Hover);
+            return hit;
+        }
+
+        /// <summary>Lights <paramref name="plate"/> while the pointer is on <paramref name="hit"/>.</summary>
+        private static void Hover(InteractableButton hit, GameObject plate, Color normal, Color lit)
+        {
+            if (!Interop.Alive(hit) || !Interop.Alive(plate)) return;
+            try
+            {
+                var r = plate.GetComponent<Renderer>();
+                Action<bool> onHover = on =>
+                {
+                    try { if (Interop.Alive(r)) { var c = on ? lit : normal; Tint(r, c, c, enableEmission: true); } } catch { }
+                };
+                hit.onHover.AddListener(DelegateSupport.ConvertDelegate<UnityAction<bool>>(onHover));
+            }
+            catch (Exception e) { Core.Log.Warning($"Button hover hook failed: {e.GetType().Name}: {e.Message}"); }
+        }
+
+        public static InteractableButton ActionBtn(Transform parent, float x, float y, string label, Action onPressed,
+                                                   UiStyle.Variant v = UiStyle.Variant.Primary, UiStyle.State s = UiStyle.State.Normal)
+            => Btn(parent, new Vector3(x, y, 0f), UiStyle.Action, label, onPressed, v, s);
+
+        public static InteractableButton CompactBtn(Transform parent, float x, float y, string label, Action onPressed,
+                                                    UiStyle.Variant v = UiStyle.Variant.Secondary, UiStyle.State s = UiStyle.State.Normal)
+            => Btn(parent, new Vector3(x, y, 0f), UiStyle.Compact, label, onPressed, v, s);
+
+        /// <summary>A stepper (- -- + ++): the signs are drawn from bars, big, and need no font glyph.</summary>
+        public static void Stepper(Transform parent, Vector3 pos, string kind, Action onPressed)
+        {
+            Btn(parent, pos, UiStyle.Stepper, null, onPressed, UiStyle.Variant.Secondary);
+            var col = UiStyle.ButtonLook(UiStyle.Variant.Secondary, UiStyle.State.Normal).Label;
+            var n = kind.Length;
+            var plus = kind[0] == '+';
+            var arm = n == 2 ? 0.022f : 0.032f;
+            const float th = 0.008f;
+            for (var i = 0; i < n; i++)
+            {
+                var cx = n == 2 ? (i == 0 ? -0.015f : 0.015f) : 0f;
+                var c = pos + new Vector3(cx, 0f, -0.006f);
+                Bar(parent, c, arm, th, col);
+                if (plus) Bar(parent, c, th, arm, col);
+            }
+        }
+
+        /// <summary>The padlock toggle: a stepper-sized button, white (selected) with a closed lock when locked.</summary>
+        public static void LockToggle(Transform parent, Vector3 pos, bool locked, Action onPressed)
+        {
+            Btn(parent, pos, UiStyle.Stepper, null, onPressed, UiStyle.Variant.Secondary, locked ? UiStyle.State.Selected : UiStyle.State.Normal);
+            var c = locked ? UiStyle.Panel : UiStyle.Hex("#C9D1DD");
+            var z = new Vector3(0f, 0f, -0.006f);
+            Bar(parent, pos + z + new Vector3(0f, -0.010f, 0f), 0.034f, 0.024f, c);
+            Frame(parent, pos + z + new Vector3(locked ? 0f : 0.008f, locked ? 0.012f : 0.020f, 0f), 0.022f, 0.024f, 0.006f, c);
+        }
+
+        /// <summary>
+        /// A strip of equal tab cells from <paramref name="x0"/> to <paramref name="x1"/>; the open
+        /// one is a white plate with dark text.
+        /// </summary>
+        public static void Tabs(Transform parent, float x0, float x1, float y, string[] labels, int selected, Action<int> onPick)
+        {
+            var n = labels.Length;
+            var w = (x1 - x0 - UiStyle.Gap * (n - 1)) / n;
+            for (var i = 0; i < n; i++)
+            {
+                var idx = i;
+                Btn(parent, new Vector3(x0 + w * 0.5f + i * (w + UiStyle.Gap), y, 0f), new Vector2(w, UiStyle.TabHeight), labels[i],
+                    () => onPick(idx), UiStyle.Variant.Tab, i == selected ? UiStyle.State.Selected : UiStyle.State.Normal);
+            }
+        }
+
+        /// <summary>The token coin: a gold octagon (two squares) with a darker centre. No font glyph.</summary>
+        public static void Coin(Transform parent, Vector3 pos, float size)
+        {
+            var z = new Vector3(0f, 0f, -0.004f);
+            var side = size * 0.83f;
+            Bar(parent, pos + z, side, side, UiStyle.Gold);
+            Bar(parent, pos + z, side, side, UiStyle.Gold).transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
+            Bar(parent, pos + z + new Vector3(0f, 0f, -0.001f), size * 0.3f, size * 0.3f, UiStyle.Hex("#8C6A14")).transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
+        }
+
+        /// <summary>
+        /// A number right-aligned so it ends at <paramref name="xRight"/>, with the coin right
+        /// before its first digit (measured after auto-fit, so 3 and 5 digits look the same).
+        /// </summary>
+        public static void CoinNumber(Transform parent, float xRight, float y, float width, long amount, Color color,
+                                      float size = UiStyle.Row, float coin = UiStyle.CoinSize)
+        {
+            var textW = width - coin - 0.01f;
+            var tmp = Text(parent, new Vector3(xRight - textW, y, 0f), textW, 0.05f, size,
+                Paint(HexOf(color), $"<b>{Number(amount)}</b>"), TextAlignmentOptions.Right, fit: true);
+            var numW = textW;
+            try
+            {
+                if (tmp != null) { tmp.ForceMeshUpdate(); var b = tmp.textBounds.size.x; if (b > 0.001f && b <= textW + 0.001f) numW = b; }
+            }
+            catch { }
+            Coin(parent, new Vector3(xRight - numW - 0.008f - coin * 0.5f, y, 0f), coin);
+        }
+
+        /// <summary>The price column (0.16 m centred on <paramref name="xc"/>): coin and amount, gold or red; with a weight under it on the bag.</summary>
+        public static void Price(Transform parent, float xc, float y, long amount, bool affordable = true, float? weight = null)
+        {
+            var w = UiStyle.PriceWidth;
+            var py = weight.HasValue ? y + 0.025f : y;
+            CoinNumber(parent, xc + w * 0.5f, py, w, amount, affordable ? UiStyle.Gold : UiStyle.Red);
+            if (weight.HasValue)
+                Label(parent, xc - w * 0.5f, y - 0.035f, w, 0.045f, UiStyle.Body, $"{weight.Value:0.0} wt", UiStyle.Text2, TextAlignmentOptions.Right);
+        }
+
+        /// <summary>A status word (LOCKED, EQUIPPED, WORN, ARMORY): small grey capitals, no frame. Returns its width.</summary>
+        public static float Chip(Transform parent, float xLeft, float y, string label, Color? color = null)
+        {
+            var tmp = Text(parent, new Vector3(xLeft, y, 0f), 0.4f, 0.045f, UiStyle.Floor, Paint(HexOf(color ?? UiStyle.Text2), label));
+            var w = 0.02f + label.Length * 0.024f;
+            try { if (tmp != null) { tmp.ForceMeshUpdate(); var b = tmp.textBounds.size.x; if (b > 0.001f) w = b + 0.01f; } } catch { }
+            return w;
+        }
+
+        /// <summary>
+        /// The panel header: title on the left, context in grey after it, the token balance always
+        /// in the top right corner, and a rule under it.
+        /// </summary>
+        public static void Header(Transform parent, string title, string context, long tokens, float contextSize = UiStyle.Body)
+        {
+            const float L = UiStyle.Left, R = UiStyle.Right, y = UiStyle.HeaderY;
+            Text(parent, new Vector3(L, y, 0f), 0.36f, 0.07f, UiStyle.Title, Paint(UiStyle.TextHex, $"<b>{title}</b>"), fit: true);
+            if (!string.IsNullOrEmpty(context))
+                Text(parent, new Vector3(L + 0.38f, y, 0f), R - 0.29f - (L + 0.38f), 0.06f, contextSize, Grey(context), fit: true);
+            CoinNumber(parent, R, y, 0.26f, tokens, UiStyle.Gold, UiStyle.Row, 0.036f);
+            Rule(parent, UiStyle.RuleHeaderY);
+        }
+
+        /// <summary>Column positions of a row, from the right edge: action buttons, the padlock, the price, then the text.</summary>
+        public struct Cols { public float[] Act; public float Lock, Price, TextEnd; }
+
+        public static Cols Columns(int actions, bool lockCol = false, bool price = true)
+        {
+            var e = UiStyle.Right;
+            var c = new Cols { Act = new float[Math.Max(0, actions)] };
+            for (var i = 0; i < actions; i++) { c.Act[i] = e - UiStyle.Action.x * 0.5f; e -= UiStyle.Action.x; if (i < actions - 1) e -= UiStyle.Gap; }
+            if (lockCol) { e -= UiStyle.Gap; c.Lock = e - UiStyle.Stepper.x * 0.5f; e -= UiStyle.Stepper.x; }
+            if (price) { e -= UiStyle.Gap; c.Price = e - UiStyle.PriceWidth * 0.5f; e -= UiStyle.PriceWidth; }
+            c.TextEnd = e - UiStyle.Gap;
+            return c;
+        }
+
+        /// <summary>A row's text: the name on top; under it an optional status word, then the stats, which wrap to a second line before they shrink.</summary>
+        public static void RowText(Transform row, float textEnd, string name, string stats, string chip = null, Color? statsColor = null, float textX = UiStyle.TextX)
+        {
+            Text(row, new Vector3(textX, 0.04f, 0f), textEnd - textX, 0.05f, UiStyle.Row, name, fit: true);
+            var sx = textX;
+            if (!string.IsNullOrEmpty(chip)) sx += Chip(row, textX, -0.025f, chip) + 0.015f;
+            if (!string.IsNullOrEmpty(stats))
+                Text(row, new Vector3(sx, -0.025f, 0f), textEnd - sx, 0.085f, UiStyle.Body, Paint(HexOf(statsColor ?? UiStyle.Text), stats), fit: true, lines: 2);
+        }
+
+        /// <summary>A new row object at <paramref name="y"/> under <paramref name="parent"/>, with its stripe.</summary>
+        public static Transform NewRow(Transform parent, string name, float y, int i, float pitch = UiStyle.Pitch, Color? stripe = null)
+        {
+            var go = new GameObject(name); go.transform.SetParent(parent, false);
+            go.transform.localPosition = new Vector3(0f, y, 0f);
+            RowStripe(go.transform, i, pitch, stripe);
+            return go.transform;
+        }
+
+        /// <summary>The pager, in the same place on every page; nothing when there is one page.</summary>
+        public static void Pager(Transform parent, int page, int pages, Action prev, Action next)
+        {
+            if (pages <= 1) return;
+            CompactBtn(parent, -0.2f, UiStyle.PagerY, "<", prev, UiStyle.Variant.Secondary, page <= 0 ? UiStyle.State.Disabled : UiStyle.State.Normal);
+            Label(parent, -0.12f, UiStyle.PagerY, 0.24f, 0.05f, UiStyle.Body, $"{page + 1} / {pages}", UiStyle.Text2, TextAlignmentOptions.Center);
+            CompactBtn(parent, 0.2f, UiStyle.PagerY, ">", next, UiStyle.Variant.Secondary, page >= pages - 1 ? UiStyle.State.Disabled : UiStyle.State.Normal);
+        }
+
+        /// <summary>A centred message where a list would be.</summary>
+        public static void Empty(Transform parent, string text)
+            => Label(parent, -0.6f, UiStyle.Row0Y - UiStyle.Pitch, 1.2f, 0.06f, UiStyle.Row, text, UiStyle.Text2, TextAlignmentOptions.Center);
+
+        /// <summary>
+        /// The small picture at a row's left: the weapon's own mesh, or a shape drawn from bars for
+        /// everything else (bottle for a tonic, helmet for armor, diamond for junk), so no font glyph is needed.
+        /// </summary>
+        public static void Icon(Transform row, Vector3 pos, LootItem item)
+        {
+            if (item.IsWeapon) { WeaponPreview(row, pos, item, 0.085f); return; }
+            var z = new Vector3(0f, 0f, -0.01f);
+            if (item.IsBuff) TonicIcon(row, pos);
+            else if (item.IsArmor)
+            {
+                var c = UiStyle.Hex(Armor.ClassColor(item.WeaponClass));
+                Bar(row, pos + z + new Vector3(0f, 0.024f, 0f), 0.05f, 0.012f, c);
+                Bar(row, pos + z + new Vector3(-0.019f, 0.002f, 0f), 0.012f, 0.034f, c);
+                Bar(row, pos + z + new Vector3(0.019f, 0.002f, 0f), 0.012f, 0.034f, c);
+                Bar(row, pos + z + new Vector3(0f, -0.016f, 0f), 0.026f, 0.012f, c);
+                Bar(row, pos + z + new Vector3(0f, -0.028f, 0f), 0.012f, 0.014f, c);
+            }
+            else
+                Bar(row, pos + z, 0.036f, 0.036f, UiStyle.Hex(LootTables.JunkColor(item.WeaponClass))).transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
+        }
+
+        /// <summary>A tonic bottle drawn from two bars.</summary>
+        public static void TonicIcon(Transform row, Vector3 pos)
+        {
+            var z = new Vector3(0f, 0f, -0.01f);
+            var c = UiStyle.Hex(UiStyle.TonicHex);
+            Bar(row, pos + z + new Vector3(0f, 0.026f, 0f), 0.012f, 0.014f, c);
+            Bar(row, pos + z + new Vector3(0f, -0.008f, 0f), 0.04f, 0.052f, c);
         }
 
         public static void DestroyChildren(Transform t)

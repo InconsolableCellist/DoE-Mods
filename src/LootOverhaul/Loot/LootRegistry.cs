@@ -568,15 +568,15 @@ namespace LootOverhaul.Loot
             try
             {
                 var go = new GameObject($"LootLabel_{tag.ViewId}");
-                var text = tag.Item.ColoredName;
+                var text = UiKit.NameOf(tag.Item);
                 // The caption under the name: what kind of thing it is. Until 0.9.16 armor got the
                 // junk tier name for its rarity number, so a Rare piece read "artifact" (report
                 // 2026-09-12: "little artifact thingies" that would not walk-over).
                 var kind = tag.Item.IsArmor ? $"{Armor.SlotNames[Math.Max(0, Math.Min(2, tag.Item.ArmorSlot))].ToLowerInvariant()} armor"
                          : tag.Item.IsBuff ? "tonic"
                          : tag.Item.IsWeapon ? null : LootTables.JunkTierName(tag.Item.WeaponClass);
-                if (kind != null) text += $"  <size=70%><color=#9A9A9A>{kind}</color></size>";
-                var tmp = UiKit.Text(go.transform, Vector3.zero, 1.2f, 0.08f, 0.32f, text, Il2CppTMPro.TextAlignmentOptions.Center);
+                if (kind != null) text += $"  <size=85%>{UiKit.Grey(kind)}</size>";
+                var tmp = UiKit.Text(go.transform, Vector3.zero, 1.2f, 0.08f, UiStyle.Body, $"<b>{text}</b>", Il2CppTMPro.TextAlignmentOptions.Center);
                 if (tmp == null) { UnityEngine.Object.Destroy(go); return null; }
                 Follow(tag, go);
                 return go;

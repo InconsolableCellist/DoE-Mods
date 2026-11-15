@@ -160,7 +160,7 @@ namespace LootOverhaul.Loot
             return item;
         }
 
-        public static string ClassColor(int cls) => cls switch { 0 => "#4EA2FF", 1 => "#31BC2F", 2 => "#1020FF", _ => "#4010FF" };
+        public static string ClassColor(int cls) => UiStyle.ArmorHex[Math.Max(0, Math.Min(3, cls))];
 
         public static string Encode(List<(string stat, float mult)> stats)
         {
@@ -266,14 +266,14 @@ namespace LootOverhaul.Loot
                 if (hasC) row.NewText = $"{label} {PctText(st, c)}";
                 if (candidate != null)
                 {
-                    if (hasC && !hasW) { row.Net = $"<color=#5BD75B>+{c}</color>"; row.Verdict = 1; }
-                    else if (hasW && !hasC) { row.Net = $"<color=#E06060>-{w}</color>"; row.Verdict = -1; }
+                    if (hasC && !hasW) { row.Net = $"<color={UiStyle.GreenHex}>+{c}</color>"; row.Verdict = 1; }
+                    else if (hasW && !hasC) { row.Net = $"<color={UiStyle.RedHex}>-{w}</color>"; row.Verdict = -1; }
                     else
                     {
                         var diff = c - w;
-                        if (diff > 0) { row.Net = $"<color=#5BD75B>+{diff}</color>"; row.Verdict = 1; }
-                        else if (diff < 0) { row.Net = $"<color=#E06060>{diff}</color>"; row.Verdict = -1; }
-                        else row.Net = $"<color=#B0B0B0>=</color>";
+                        if (diff > 0) { row.Net = $"<color={UiStyle.GreenHex}>+{diff}</color>"; row.Verdict = 1; }
+                        else if (diff < 0) { row.Net = $"<color={UiStyle.RedHex}>{diff}</color>"; row.Verdict = -1; }
+                        else row.Net = $"<color={UiStyle.Text2Hex}>=</color>";
                     }
                 }
                 rows.Add(row);
