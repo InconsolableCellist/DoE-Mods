@@ -5,6 +5,7 @@ using Il2CppTMPro;
 using LootOverhaul.Recon;
 using UnityEngine;
 using Interop = LootOverhaul.Recon.Interop;
+using S = LootOverhaul.Loot.UiStyle;
 
 namespace LootOverhaul.Loot
 {
@@ -20,10 +21,6 @@ namespace LootOverhaul.Loot
         private enum Sort { Newest, Value, Weight, Rarity }
 
         private const int RowsPerPage = 6;
-        private const float RowHeight = 0.14f;
-        private const float Width = 1.45f;
-        private const float BtnScale = 0.36f;
-        private static float BtnW => UiKit.ButtonSize.x * BtnScale;
 
         private static GameObject _root;
         private static Transform _content;
@@ -122,6 +119,11 @@ namespace LootOverhaul.Loot
             return list;
         }
 
+        /// <summary>
+        /// 0.13.0: the same grid as the stall, from the shared components. Header with the token
+        /// balance, sort tabs and CLOSE, a status line, six rows, the pager. DROP is always the
+        /// small red button on the right; the item's own action (DRINK, WEAR, TAKE OFF) sits left of it.
+        /// </summary>
         private static void Rebuild()
         {
             if (!Interop.Alive(_content)) return;
@@ -132,101 +134,64 @@ namespace LootOverhaul.Loot
             if (_page >= pages) _page = pages - 1;
             if (_page < 0) _page = 0;
 
-            var height = 0.36f + RowsPerPage * RowHeight;
-            UiKit.Backdrop(_content, new Vector3(0f, 0f, 0.01f), Width, height, new Color(0.05f, 0.05f, 0.08f, 1f));
+            const float L = S.Left, R = S.Right;
+            UiKit.Backdrop(_content, new Vector3(0f, 0f, 0.01f), S.PanelWidth, S.PanelHeight, S.Panel);
+            UiKit.Header(_content, "BAG", $"{UiKit.Plural(inv.Items.Count, "item")}, {inv.TotalWeight:0.#} / {BagManager.Capacity:0} wt", inv.Gold);
 
-            var top = height * 0.5f;
-            var left = -Width * 0.5f + 0.04f;
-            UiKit.Text(_content, new Vector3(left, top - 0.05f, 0f), Width - 0.08f, 0.06f, 0.56f,
-                $"<b>BAG</b>   {inv.Items.Count} item(s)   {inv.TotalWeight:0.#} / {BagManager.Capacity:0} wt   <color=#F5C542>{inv.Gold} tokens</color>");
+            // Sort tabs and CLOSE.
+            UiKit.Label(_content, L, S.StripY, 0.12f, 0.05f, S.Body, "SORT", S.Text2);
+            var closeX = R - S.Compact.x * 0.5f;
+            UiKit.Tabs(_content, L + 0.13f, closeX - S.Compact.x * 0.5f - 0.03f, S.StripY, new[] { "NEW", "VALUE", "WEIGHT", "RARITY" }, (int)_sort,
+                i => { _sort = (Sort)i; _page = 0; Rebuild(); });
+            UiKit.CompactBtn(_content, closeX, S.StripY, "CLOSE", Hide);
+            UiKit.Rule(_content, S.RuleStripY);
+
+            // What you wear and what this run's tonics do.
             var status = "";
-            if (Buffs.AnyWorn) status += $"<color=#C9A86A>wearing:</color> {Armor.DescribeWorn()}   ";
-            if (Buffs.AnyActive) status += $"<color=#7FD8FF>this run:</color> {Buffs.DescribeActive()}";
-            if (status.Length > 0)
-                UiKit.Text(_content, new Vector3(left, top - 0.105f, 0f), Width - 0.08f, 0.05f, 0.3f, status);
+            if (Buffs.AnyWorn) status += $"{UiKit.Grey("wearing")} {Armor.DescribeWorn()}    ";
+            if (Buffs.AnyActive) status += $"{UiKit.Grey("this run")} {UiKit.Paint(S.TonicHex, Buffs.DescribeActive())}";
+            if (status.Length == 0) status = UiKit.Grey("Nothing worn, no tonics this run.");
+            UiKit.Text(_content, new Vector3(L, S.ToolY, 0f), S.PanelWidth - 0.08f, 0.085f, S.Body, UiKit.Paint(S.TextHex, status), fit: true, lines: 2);
+            UiKit.Rule(_content, S.RuleToolY);
 
-            // Sort + close buttons, laid out from the measured button width.
-            var by = top - 0.19f;
-            var gap = BtnW * 1.2f + 0.03f;   // the glow draws wider than the frame
-            var x = left + BtnW * 0.5f;
-            UiKit.Button(_content, new Vector3(x, by, 0f), _sort == Sort.Newest ? "• NEW" : "NEW", () => { _sort = Sort.Newest; _page = 0; Rebuild(); }, BtnScale); x += gap;
-            UiKit.Button(_content, new Vector3(x, by, 0f), _sort == Sort.Value ? "• VALUE" : "VALUE", () => { _sort = Sort.Value; _page = 0; Rebuild(); }, BtnScale); x += gap;
-            UiKit.Button(_content, new Vector3(x, by, 0f), _sort == Sort.Weight ? "• WEIGHT" : "WEIGHT", () => { _sort = Sort.Weight; _page = 0; Rebuild(); }, BtnScale); x += gap;
-            UiKit.Button(_content, new Vector3(x, by, 0f), _sort == Sort.Rarity ? "• RARITY" : "RARITY", () => { _sort = Sort.Rarity; _page = 0; Rebuild(); }, BtnScale);
-            UiKit.Button(_content, new Vector3(Width * 0.5f - 0.04f - BtnW * 0.5f, by, 0f), "CLOSE", Hide, BtnScale);
-
-            var y0 = top - 0.30f;
+            var dropX = R - S.Compact.x * 0.5f;
+            var mainX = dropX - S.Compact.x * 0.5f - S.Gap - S.Action.x * 0.5f;
+            var priceX = mainX - S.Action.x * 0.5f - S.Gap - S.PriceWidth * 0.5f;
+            var textEnd = priceX - S.PriceWidth * 0.5f - S.Gap;
+            var dropSize = new Vector2(S.Compact.x, S.Action.y);
             var start = _page * RowsPerPage;
-            var dropX = Width * 0.5f - 0.04f - BtnW * 0.5f;
-            var textW = dropX - BtnW * 0.5f - 0.02f - (left + UiKit.TextX);
-            var twoBtnTextW = textW - BtnW * 1.2f - 0.03f;
             for (var i = 0; i < RowsPerPage && start + i < items.Count; i++)
             {
                 var item = items[start + i];
-                var y = y0 - i * RowHeight;
-                var row = new GameObject($"Row_{i}");
-                row.transform.SetParent(_content, false);
-                row.transform.localPosition = new Vector3(0f, y, 0f);
-                if (i % 2 == 0) UiKit.Bar(row.transform, new Vector3(0f, 0f, 0.006f), Width - 0.03f, RowHeight - 0.008f, new Color(0.12f, 0.12f, 0.18f, 1f));
-
-                UiKit.Preview(row.transform, new Vector3(left + 0.055f, 0f, -0.03f), item, 0.1f);
-                UiKit.TypeTag(row.transform, new Vector3(left + UiKit.TagX, 0f, 0f), item);
-
+                var row = UiKit.NewRow(_content, $"Row_{i}", S.Row0Y - i * S.Pitch, i);
+                UiKit.Icon(row, new Vector3(S.IconX, 0f, -0.03f), item);
+                UiKit.TypeTag(row, new Vector3(S.TagX, 0f, 0f), item);
                 var slot = inv.EquippedSlotOf(item);
-                var equipped = slot >= 0 ? $"   <color=#F5C542>equipped: {Loadout.SlotNames[slot]}</color>" : "";
-                string second;
-                if (item.IsWeapon)
-                {
-                    string stats = "";
-                    try { stats = UiKit.StatsLine(WeaponCodec.ToModule(item).GetStatsText()); } catch { }
-                    second = stats;
-                }
-                else if (item.IsBuff)
-                {
-                    second = $"<color=#B0B0B0>{Buffs.Effect(item.BuffStat, item.BuffMult)}</color>";
-                }
-                else if (item.IsArmor)
-                    second = $"<color=#B0B0B0>{Armor.DescribeStats(item)}</color>";
-                else
-                    second = $"<color=#B0B0B0>{LootTables.JunkTierName(item.WeaponClass)}</color>";
-                var rowTextW = item.IsBuff || item.IsArmor ? twoBtnTextW : textW;
-                var worn = item.IsArmor && item.WornSlot >= 0 ? "   <color=#C9A86A>worn</color>" : "";
-                if (item.IsBound) worn += "   <color=#9FD8FF>armory · bound</color>";
-                else if (item.Locked) worn += "   <color=#B0B0B0>locked</color>";
-                // What the kobold pays and what it weighs, on every row (asked for 2026-09-12).
-                var worth = $"   <color=#F5C542>{Booth.SellPrice(item)} T</color> <color=#B0B0B0>· {item.Weight:0.#} wt</color>";
-                UiKit.Text(row.transform, new Vector3(left + UiKit.TextX, 0.03f, 0f), rowTextW, 0.05f, 0.46f, $"{item.ColoredName}{equipped}{worn}{worth}", fit: true);
-                UiKit.Text(row.transform, new Vector3(left + UiKit.TextX, -0.03f, 0f), rowTextW, 0.045f, 0.34f, second, fit: true);
-
                 var captured = item;
-                if (item.IsBuff)
-                {
-                    UiKit.Button(row.transform, new Vector3(dropX, 0f, 0f), "DRINK", () => Buffs.Drink(captured), BtnScale);
-                    UiKit.Button(row.transform, new Vector3(dropX - BtnW * 1.2f - 0.03f, 0f, 0f), "DROP", () => BagManager.Drop(captured), BtnScale);
-                }
+
+                string main = null; Action mainAct = null; var mainVar = S.Variant.Primary;
+                var dropState = S.State.Normal;
+                string chip = null;
+                if (item.IsBuff) { main = "DRINK"; mainAct = () => Buffs.Drink(captured); }
                 else if (item.IsArmor)
                 {
-                    if (item.WornSlot >= 0)
-                        UiKit.Button(row.transform, new Vector3(dropX, 0f, 0f), "TAKE OFF", () => Armor.Remove(captured), BtnScale);
-                    else
-                    {
-                        UiKit.Button(row.transform, new Vector3(dropX, 0f, 0f), "WEAR", () => Armor.Wear(captured), BtnScale);
-                        UiKit.Button(row.transform, new Vector3(dropX - BtnW * 1.2f - 0.03f, 0f, 0f), "DROP", () => BagManager.Drop(captured), BtnScale);
-                    }
+                    if (item.WornSlot >= 0) { main = "TAKE OFF"; mainAct = () => Armor.Remove(captured); mainVar = S.Variant.Secondary; chip = "WORN"; dropState = S.State.Disabled; }
+                    else { main = "WEAR"; mainAct = () => Armor.Wear(captured); }
                 }
-                else if (slot < 0)
-                    UiKit.Button(row.transform, new Vector3(dropX, 0f, 0f), "DROP", () => BagManager.Drop(captured), BtnScale);
-            }
+                else if (slot >= 0) { chip = "EQUIPPED"; dropState = S.State.Disabled; }
+                if (item.IsBound) chip = "ARMORY";
+                else if (item.Locked) chip = "LOCKED";
 
-            var bottom = -top + 0.06f;
-            UiKit.Text(_content, new Vector3(0f, bottom, 0f), 0.3f, 0.06f, 0.35f, $"page {_page + 1} / {pages}", TextAlignmentOptions.Center);
-            if (pages > 1)
-            {
-                UiKit.Button(_content, new Vector3(-0.22f - BtnW * 0.5f, bottom, 0f), "<", () => { _page = Math.Max(0, _page - 1); Rebuild(); }, BtnScale);
-                UiKit.Button(_content, new Vector3(0.22f + BtnW * 0.5f, bottom, 0f), ">", () => { _page = Math.Min(pages - 1, _page + 1); Rebuild(); }, BtnScale);
+                UiKit.Btn(row, new Vector3(dropX, 0f, 0f), dropSize, "DROP", () => BagManager.Drop(captured), S.Variant.Danger, dropState);
+                if (main != null) UiKit.ActionBtn(row, mainX, 0f, main, mainAct, mainVar);
+                // What the kobold pays and what it weighs, on every row (asked for 2026-09-12).
+                UiKit.Price(row, priceX, 0f, Booth.SellPrice(item), true, item.Weight);
+                // A status word goes in the free button slot when there is one, else in front of the stats.
+                if (chip != null && main == null) { UiKit.Chip(row, mainX - S.Action.x * 0.5f + 0.02f, 0f, chip); chip = null; }
+                UiKit.RowText(row, textEnd, UiKit.NameOf(item), Booth.StatsOf(item), chip, item.IsWeapon ? S.Text : S.Text2);
             }
-            if (items.Count == 0)
-                UiKit.Text(_content, new Vector3(0f, y0 - RowHeight, 0f), 0.8f, 0.06f, 0.4f, "Empty.", TextAlignmentOptions.Center);
+            if (items.Count == 0) UiKit.Empty(_content, "Your bag is empty.");
+            UiKit.Pager(_content, _page, pages, () => { _page = Math.Max(0, _page - 1); Rebuild(); }, () => { _page = Math.Min(pages - 1, _page + 1); Rebuild(); });
         }
     }
 }

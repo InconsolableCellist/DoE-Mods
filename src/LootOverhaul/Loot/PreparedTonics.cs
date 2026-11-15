@@ -106,7 +106,7 @@ namespace LootOverhaul.Loot
             inv.Gold += refund;
             inv.Save();
             ReconLog.Line($"shop: reverted all {n} prepared tonic(s), refunded {refund} -> tokens {inv.Gold}");
-            BagManager.Toast($"All {n} prepared tonic(s) reverted: {refund} tokens back.");
+            BagManager.Toast($"{(n == 1 ? "1 prepared tonic" : $"All {n} prepared tonics")} reverted: {UiKit.Money(refund)} back.");
             return true;
         }
 

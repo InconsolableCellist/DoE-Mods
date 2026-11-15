@@ -79,7 +79,7 @@ namespace LootOverhaul.Loot
         };
 
         public static string JunkTierName(int tier) => tier switch { 0 => "trinket", 1 => "curio", _ => "artifact" };
-        public static string JunkColor(int tier) => tier switch { 0 => "#9A9A9A", 1 => "#E8E8E8", _ => "#F5C542" };
+        public static string JunkColor(int tier) => UiStyle.JunkHex[Math.Max(0, Math.Min(2, tier))];
 
         /// <summary>The game's <c>AI.Type</c> names, the strength ranks the skulls over an enemy stand for.</summary>
         public static string AiTypeName(int aiType) => aiType switch

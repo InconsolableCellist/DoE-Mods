@@ -114,7 +114,7 @@ namespace LootOverhaul.Loot
             }
             // One panel rebuild for the whole toss, not one per trinket (0.10.8).
             if (tossed > 0) { BagPanel.Refresh(); Booth.Refresh(); }
-            if (tossed > 0) Toast($"Tossed {tossed} trinket(s) worth {value} T to make room for {item.ColoredName}");
+            if (tossed > 0) Toast($"Tossed {UiKit.Plural(tossed, "trinket")} worth {UiKit.Money(value)} to make room for {item.ColoredName}");
             ReconLog.Line($"bag: tossed {tossed}/{toss.Count} trinket(s) ({freed:0.#} wt) to make room for {item.Name} ({item.Weight:0.#} wt)");
             return inv.CanCarry(item.Weight, Capacity);
         }
@@ -142,7 +142,7 @@ namespace LootOverhaul.Loot
             inv.Items.Add(item);
             inv.Save();
             if (item.IsWeapon) { try { FabricatorBridge.RefreshArmories($"{item.Name} bagged"); } catch { } }
-            Toast($"Bagged {item.ColoredName}  ({item.Value} T)  bag {inv.TotalWeight:0.#}/{Capacity:0}");
+            Toast($"Bagged {item.ColoredName} ({UiKit.Money(item.Value)}), bag {inv.TotalWeight:0.#} / {Capacity:0} wt");
             BagPanel.Refresh();
             ReconLog.Line($"bag + {item.Name} [{LootTables.ClassName(item.WeaponClass)} {LootTables.TypeName(item.PropType)} t{item.WeaponTier + 1} seed {item.RandomSeed}] value={item.Value} weight={item.Weight:0.#} -> {inv.Items.Count} items, {inv.TotalWeight:0.#} wt");
         }
