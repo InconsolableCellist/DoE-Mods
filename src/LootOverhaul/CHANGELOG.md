@@ -3,6 +3,32 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.12.0 (2026-11-14)
+
+Enchant your armory weapons, and take enchantments off again.
+
+### Added
+- **ARMORY at the enchanting table.** The ENCHANT weapon list has an ARMORY button. It lists your armory weapons (generated ones only; no mythics), marked with the slot they are equipped in. Each can be enchanted like a bag weapon:
+  - The first change binds the weapon. A bag record is made with its own GUID. The record is always locked (no sell, drop, trash or salvage, and no unlock) and weighs nothing.
+  - While the record exists, the armory copy is hidden from the game's gear list. An equipped weapon keeps its slot and is swapped in hand.
+  - Nothing is written to the profile.
+- **De-enchanting.** The weapon page has a REMOVE row with one button per perk (rolled or added) and one for the element. It works on bag and armory weapons. An armory weapon taken back to exactly what it had goes back to the armory: the record is removed, the armory weapon shows again, and an equipped slot gets it back in hand. If the armory no longer has the original, the record stays as ordinary loot.
+- **Settings** in `[LootOverhaul_Shop]`: `StockEnchantCostMultiplier` (1.0) and `DisenchantCostMultiplier` (1.0).
+- **Log lines** for the playtest. Each one starts with `Enchanting:`: every enchant and de-enchant with the price paid and the new balance, every binding ("stock, now bound"), every return ("back to stock"), the fallback when the original is gone, and each armory weapon left off the table and why.
+
+### Prices and the economy behind them
+Tokens now come only from chest armor sold at the kobold and from the end-of-run payout (enemy drops are off since 0.11.0). Defaults:
+- **Payout.** Gold × 0.5 × (1 + 0.5 per boss + 0.1 per mini-boss + 0.25 per hazard level + 0.1 per tier above the first + 0.5 per extra player + 0.02 per chest).
+- **Armor.** Chests drop armor 10% (small, Common), 25% (medium, Unique), 100% (epic, Rare) and 100% (boss, Legendary). Armor sells for about 40 / 144 / 456 / 1,700 tokens.
+- **A typical solo mid-tier run (estimate).** About 600 gold, 1 boss, 2 mini-bosses, tier 5, no hazard and about 10 chests:
+  - The payout multiplier is 2.3, so the payout is about 690 tokens.
+  - Selling the armor except the Legendary adds about 590 tokens.
+  - That makes about **1,300 tokens a run**, or about 3,000 if the Legendary is sold too.
+  - The gold figure is not measured: no run log was available. `RunLogging` writes one to check it against.
+- **Chosen prices** (all × `ShopPriceMultiplier` 2.5):
+  - An armory enchantment costs **500 / 1,000 / 2,000 / 4,000** (Common to Legendary). That is about half a run to three runs. It is two thirds of the bag price (750 / 1,500 / 3,000 / 6,000, unchanged), because an armory weapon was earned already and cannot be sold.
+  - Removing a perk or element costs **200 / 400 / 800 / 1,600**. That is about 40% of an armory enchantment: undoing a mistake should cost, but less than making it.
+
 ## 0.11.2 (2026-11-14)
 
 A cogwheel at the kobold, for the ring settings of CustomAvatars.

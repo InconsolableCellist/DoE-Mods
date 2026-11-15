@@ -92,5 +92,18 @@ namespace LootOverhaul.Loot
         public int EquippedSlot = -1;
         /// <summary>Locked at the kobold: cannot be sold, dropped or trashed until unlocked.</summary>
         public bool Locked;
+
+        /// <summary>
+        /// Enchanted from a stock (armory) weapon (0.12.0): the game's GUID of that armory weapon.
+        /// While this record exists the armory copy is hidden from the game's gear list, so the
+        /// weapon exists once. A bound record is always locked: it cannot be sold, dropped or
+        /// trashed. De-enchanting it back to its base state removes this record and the armory
+        /// weapon comes back unchanged. Nothing is ever written to the profile.
+        /// </summary>
+        public string StockGuid;
+        /// <summary>What the stock weapon had when it was bound: the test for "back to stock".</summary>
+        public int BasePerkA, BasePerkB, BasePerkC;
+        public int BaseDamageType = -1;
+        [Newtonsoft.Json.JsonIgnore] public bool IsBound => !string.IsNullOrEmpty(StockGuid);
     }
 }

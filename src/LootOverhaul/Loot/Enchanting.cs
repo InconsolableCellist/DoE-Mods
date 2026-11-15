@@ -52,13 +52,30 @@ namespace LootOverhaul.Loot
 
         public static int Slots(int weaponClass) => weaponClass switch { 0 => 1, 1 => 2, 2 => 2, _ => 3 };
 
+        private static readonly int[] LootBase = { 300, 600, 1200, 2400 };
+        // Stock weapons and de-enchanting (0.12.0) are priced against what a run earns now that
+        // tokens come only from the end-screen payout and chest armor: about 1,300 tokens for a
+        // typical solo run that keeps its Legendary (see the 0.12.0 CHANGELOG entry). One stock
+        // enchantment is half a run (Common) to three runs (Legendary); removing one is 40% of that.
+        private static readonly int[] StockBase = { 200, 400, 800, 1600 };
+        private static readonly int[] DisenchantBase = { 80, 160, 320, 640 };
+
+        private static int Scaled(int[] table, int cls, float mult)
+            => Math.Max(1, (int)Math.Round(table[Math.Max(0, Math.Min(3, cls))] * ModConfig.ShopPriceMultiplier.Value * Math.Max(0f, mult)));
+
         /// <summary>
-        /// Token cost of one enchantment by rarity: the 0.9.14 price doubled, since the reagent
-        /// (a curio or artifact from the junk pile) is no longer consumed; times the shop
-        /// multiplier and <c>EnchantCostMultiplier</c>.
+        /// Token cost of one enchantment by rarity. Loot: the 0.9.14 price doubled, since the reagent
+        /// (a curio or artifact from the junk pile) is no longer consumed, times the shop multiplier
+        /// and <c>EnchantCostMultiplier</c>: 750 / 1,500 / 3,000 / 6,000 at the defaults. A stock
+        /// weapon (bound or not yet): <see cref="StockPrice"/>.
         /// </summary>
-        public static int Price(LootItem item) => Math.Max(1, (int)Math.Round((item.WeaponClass switch { 0 => 300, 1 => 600, 2 => 1200, _ => 2400 })
-            * ModConfig.ShopPriceMultiplier.Value * Math.Max(0f, ModConfig.EnchantCostMultiplier.Value)));
+        public static int Price(LootItem item) => item.IsBound ? StockPrice(item.WeaponClass) : Scaled(LootBase, item.WeaponClass, ModConfig.EnchantCostMultiplier.Value);
+
+        /// <summary>One enchantment on a stock (armory) weapon: 500 / 1,000 / 2,000 / 4,000 at the defaults.</summary>
+        public static int StockPrice(int weaponClass) => Scaled(StockBase, weaponClass, ModConfig.StockEnchantCostMultiplier.Value);
+
+        /// <summary>Removing one perk or element, loot or stock alike: 200 / 400 / 800 / 1,600 at the defaults.</summary>
+        public static int DisenchantPrice(LootItem item) => Scaled(DisenchantBase, item.WeaponClass, ModConfig.DisenchantCostMultiplier.Value);
 
         public static string PerkName(int id)
         {
@@ -158,61 +175,221 @@ namespace LootOverhaul.Loot
 
         public static int UsedSlots(LootItem item) => (item.PerkA > 0 ? 1 : 0) + (item.PerkB > 0 ? 1 : 0) + (item.PerkC > 0 ? 1 : 0);
 
+        /// <summary>What can be taken off this weapon: each perk it carries and its element.</summary>
+        public static List<(string label, int perkId, int element)> Removable(LootItem item)
+        {
+            var list = new List<(string, int, int)>();
+            foreach (var p in new[] { item.PerkA, item.PerkB, item.PerkC }) if (p > 0) list.Add((PerkName(p), p, -1));
+            if (item.DamageType >= 0) list.Add((ElementName(item.DamageType), 0, item.DamageType));
+            return list;
+        }
+
+        public static string ElementName(int damageType) => damageType < 0 ? "none" : Elements[Math.Min(Elements.Length - 1, damageType)];
+
         /// <summary>
         /// Apply one enchantment. Returns the new item (the old one is replaced in the bag) or
         /// null with a toast. An equipped weapon keeps its slot: the new record is put into the
         /// loadout and the hand straight away (report 2026-09-12: "unequip it first" was the
-        /// most common thing the table said).
+        /// most common thing the table said). <paramref name="item"/> may be a stock weapon from
+        /// <see cref="StockWeapons"/>: the first enchantment binds it (see <see cref="LootItem.StockGuid"/>).
         /// </summary>
         public static LootItem Enchant(LootItem item, int perkId, int element)
         {
-            var inv = BagManager.Inventory;
-            if (!Ready) { BagManager.Toast("Enchanting is unavailable in this game version."); return null; }
-            if (!ModGate.Active) { BagManager.Toast("Not in a modded room."); return null; }
-            var live = inv.Find(item.Id);
-            if (live == null || !live.IsWeapon) { BagManager.Toast("That's gone."); return null; }
-            var price = Price(live);
-            if (inv.Gold < price) { BagManager.Toast($"Enchanting costs {price} tokens; you have {inv.Gold}."); return null; }
-            var slot = inv.EquippedSlotOf(live);
-
-            var enchanted = Clone(live);
-            enchanted.Id = Guid.NewGuid().ToString("N");
-            enchanted.Manual = true;
-            if (perkId > 0)
+            var what = perkId > 0 ? PerkName(perkId) : ElementName(element);
+            return Rework(item, Price(item), "enchant", "+ " + what, next =>
             {
-                if (enchanted.PerkA <= 0) enchanted.PerkA = perkId;
-                else if (enchanted.PerkB <= 0) enchanted.PerkB = perkId;
-                else if (enchanted.PerkC <= 0) enchanted.PerkC = perkId;
-                else { BagManager.Toast("No free slot."); return null; }
+                if (perkId > 0)
+                {
+                    if (next.PerkA == perkId || next.PerkB == perkId || next.PerkC == perkId) return "It already has that.";
+                    if (UsedSlots(next) >= Slots(next.WeaponClass)) return "No free slot.";
+                    if (next.PerkA <= 0) next.PerkA = perkId;
+                    else if (next.PerkB <= 0) next.PerkB = perkId;
+                    else if (next.PerkC <= 0) next.PerkC = perkId;
+                    else return "No free slot.";
+                }
+                if (element >= 0)
+                {
+                    if (next.DamageType >= 0) return "It already has an element.";
+                    next.DamageType = element;
+                }
+                return null;
+            }, newModule: true);
+        }
+
+        /// <summary>
+        /// Remove one perk or the element, for <see cref="DisenchantPrice"/>. Rolled perks can be
+        /// removed as well as added ones; the result is a new manual record like an enchantment.
+        /// A stock weapon de-enchanted back to exactly what it had goes back to the armory.
+        /// </summary>
+        public static LootItem Disenchant(LootItem item, int perkId, int element)
+        {
+            var what = perkId > 0 ? PerkName(perkId) : ElementName(element);
+            return Rework(item, DisenchantPrice(item), "de-enchant", "- " + what, next =>
+            {
+                if (perkId > 0)
+                {
+                    var perks = new List<int>();
+                    var found = false;
+                    foreach (var p in new[] { next.PerkA, next.PerkB, next.PerkC })
+                    {
+                        if (p <= 0) continue;
+                        if (p == perkId && !found) { found = true; continue; }
+                        perks.Add(p);
+                    }
+                    if (!found) return "It doesn't have that.";
+                    next.PerkA = perks.Count > 0 ? perks[0] : 0;
+                    next.PerkB = perks.Count > 1 ? perks[1] : 0;
+                    next.PerkC = perks.Count > 2 ? perks[2] : 0;
+                }
+                if (element >= 0)
+                {
+                    if (next.DamageType < 0) return "It has no element.";
+                    next.DamageType = -1;
+                }
+                return null;
+            }, newModule: true);
+        }
+
+        /// <summary>
+        /// The shared path for every change at the table. <paramref name="mutate"/> changes a copy
+        /// and returns null, or a toast saying why not; nothing is spent until the game has built
+        /// the result. <paramref name="newModule"/>: the change is in the weapon itself (a new
+        /// manual record with a new GUID); otherwise only a mod-side flag changes.
+        /// </summary>
+        internal static LootItem Rework(LootItem item, int price, string verb, string what, Func<LootItem, string> mutate, bool newModule)
+        {
+            var inv = BagManager.Inventory;
+            if (newModule && !Ready) { BagManager.Toast("Enchanting is unavailable in this game version."); return null; }
+            if (!ModGate.Active) { BagManager.Toast("Not in a modded room."); return null; }
+            LootItem live;
+            bool inBag;
+            int slot;
+            if (item.IsBound && inv.Find(item.Id) == null)
+            {
+                // A stock weapon not bound yet: the preview from StockWeapons, never in the bag.
+                if (FindBound(inv, item.StockGuid) != null) { BagManager.Toast("That weapon is already at the table."); return null; }
+                live = item;
+                inBag = false;
+                slot = StockSlot(item.StockGuid);
             }
-            if (element >= 0) enchanted.DamageType = element;
-            enchanted.ModuleName = string.Format(ManualNameFormat, live.ModuleName, live.PrefabName);
-            enchanted.WeaponGuid = Guid.NewGuid().ToString("N");
+            else
+            {
+                live = inv.Find(item.Id);
+                if (live == null || !live.IsWeapon) { BagManager.Toast("That's gone."); return null; }
+                inBag = true;
+                slot = inv.EquippedSlotOf(live);
+            }
+            ReadRolledPerks(live);
+            if (inv.Gold < price) { BagManager.Toast($"That costs {price} tokens; you have {inv.Gold}."); return null; }
+
+            var next = Clone(live);
+            var err = mutate(next);
+            if (err != null) { BagManager.Toast(err); return null; }
+
+            if (!newModule && inBag)
+            {
+                // A flag on the record only: changed in place, same id and GUID, so nothing is retired.
+                if (live.IsBound && AtBase(next)) return ReturnToStock(live, price, verb, what, mutate, newModule);
+                mutate(live);
+                inv.Gold -= price;
+                inv.Save();
+                Core.Log.Msg($"Enchanting: {verb} {live.Name} {what}; paid {price} -> {inv.Gold} tokens{(live.IsBound ? " (stock)" : "")}");
+                BagPanel.Refresh();
+                return live;
+            }
+
+            next.Id = Guid.NewGuid().ToString("N");
+            // A bound record never shares the armory weapon's GUID: the armory copy keeps its own.
+            if (newModule || !inBag) next.WeaponGuid = Guid.NewGuid().ToString("N");
+            if (newModule)
+            {
+                next.Manual = true;
+                next.ModuleName = string.Format(ManualNameFormat, live.ModuleName, live.PrefabName);
+            }
+            if (inBag && next.IsBound && AtBase(next)) return ReturnToStock(live, price, verb, what, mutate, newModule);
 
             // Ask the game to build it; if it cannot, nothing is spent.
             try
             {
-                var wm = WeaponCodec.ToModule(enchanted);
-                var prefab = WeaponModule.GetWeaponPrefabData(wm, out var data);
-                if (data == null || data.Length != ManualPacketLength) { BagManager.Toast("That enchantment didn't take."); ReconLog.Line($"enchant: packet length {(data == null ? -1 : data.Length)} for {enchanted.ModuleName}"); return null; }
-                enchanted.Name = wm.GetDisplayName(false).Replace(FabricatorBridge.Marker, "");
-                enchanted.ColoredName = wm.GetDisplayName(true).Replace(FabricatorBridge.Marker, "");
-                try { var def = WeaponFactory.GetRandomWeaponStats(wm.GetWeaponType(), wm.GetWeaponClass(), wm.GetWeaponTier(), wm.GetWeaponStyle(), wm.GetRandomSeed()); enchanted.Value = def == null ? live.Value : (int)Math.Round(def.salvageValue * 1.5f); } catch { }
+                var wm = WeaponCodec.ToModule(next);
+                if (next.Manual)
+                {
+                    WeaponModule.GetWeaponPrefabData(wm, out var data);
+                    if (data == null || data.Length != ManualPacketLength)
+                    {
+                        BagManager.Toast("That enchantment didn't take.");
+                        Core.Log.Warning($"Enchanting: {verb} {what} refused, packet length {(data == null ? -1 : data.Length)} for {next.ModuleName}");
+                        return null;
+                    }
+                }
+                next.Name = wm.GetDisplayName(false).Replace(FabricatorBridge.Marker, "");
+                next.ColoredName = wm.GetDisplayName(true).Replace(FabricatorBridge.Marker, "");
+                if (newModule)
+                    try { var def = WeaponFactory.GetRandomWeaponStats(wm.GetWeaponType(), wm.GetWeaponClass(), wm.GetWeaponTier(), wm.GetWeaponStyle(), wm.GetRandomSeed()); next.Value = def == null ? live.Value : (int)Math.Round(def.salvageValue * 1.5f); } catch { }
             }
-            catch (Exception e) { BagManager.Toast("That enchantment didn't take."); Core.Log.Warning($"Enchant failed: {e.GetType().Name}: {e.Message}"); return null; }
+            catch (Exception e) { BagManager.Toast("That enchantment didn't take."); Core.Log.Warning($"Enchanting: {verb} failed: {e.GetType().Name}: {e.Message}"); return null; }
 
             inv.Gold -= price;
-            enchanted.Locked = live.Locked;
-            inv.Remove(live.Id);            // clears its loadout slot and retires the old GUID
-            inv.Items.Add(enchanted);
+            if (next.IsBound) { next.Locked = true; next.Weight = 0f; }
+            if (inBag) inv.Remove(live.Id);            // clears its loadout slot and retires the old GUID
+            inv.Items.Add(next);
             inv.Save();
-            var what = perkId > 0 ? PerkName(perkId) : Elements[element];
-            ReconLog.Line($"enchant: {live.Name} + {what} -> {enchanted.Name} [{enchanted.ModuleName}] perks {enchanted.PerkA}/{enchanted.PerkB}/{enchanted.PerkC} element {enchanted.DamageType}; paid {price}; slot {slot}");
+            var origin = inBag ? (live.IsBound ? "stock (bound)" : "bag") : "stock, now bound: the armory copy is hidden";
+            Core.Log.Msg($"Enchanting: {verb} {live.Name} {what} -> {next.Name} [{next.ModuleName}] perks {next.PerkA}/{next.PerkB}/{next.PerkC} element {next.DamageType}; " +
+                         $"paid {price} -> {inv.Gold} tokens; {origin}; slot {(slot >= 0 ? Loadout.SlotNames[slot] : "none")}");
             // The armory rebuilt its lists when the old record left; the new one is in the bag now.
-            try { FabricatorBridge.RefreshArmories($"{enchanted.Name} enchanted"); } catch { }
-            if (slot >= 0) Loadout.Set(slot, enchanted, apply: true);
+            try { FabricatorBridge.RefreshArmories($"{next.Name} {verb}ed"); } catch { }
+            if (slot >= 0) Loadout.Set(slot, next, apply: true);
             BagPanel.Refresh();
-            return enchanted;
+            return next;
+        }
+
+        /// <summary>A bound stock weapon is back to exactly what it had when it was bound.</summary>
+        private static bool AtBase(LootItem i)
+        {
+            var now = new List<int>(); var was = new List<int>();
+            foreach (var p in new[] { i.PerkA, i.PerkB, i.PerkC }) if (p > 0) now.Add(p);
+            foreach (var p in new[] { i.BasePerkA, i.BasePerkB, i.BasePerkC }) if (p > 0) was.Add(p);
+            now.Sort(); was.Sort();
+            if (now.Count != was.Count || i.DamageType != i.BaseDamageType || ExtraFlags(i)) return false;
+            for (var k = 0; k < now.Count; k++) if (now[k] != was[k]) return false;
+            return true;
+        }
+
+        /// <summary>Mod-side enchantments that are not in the weapon itself (none yet).</summary>
+        private static bool ExtraFlags(LootItem i) => false;
+
+        /// <summary>
+        /// The bound record is removed and the armory weapon, which was only hidden, is back: as it
+        /// was, same GUID, nothing written to the profile. If the armory no longer has it (sold or
+        /// salvaged in an unmodded session meanwhile), the record stays in the bag as plain loot.
+        /// Returns the stock preview, so the booth can keep showing it.
+        /// </summary>
+        private static LootItem ReturnToStock(LootItem live, int price, string verb, string what, Func<LootItem, string> mutate, bool newModule)
+        {
+            var inv = BagManager.Inventory;
+            var original = StockModule(live.StockGuid);
+            if (original == null)
+            {
+                var name = live.Name;
+                live.StockGuid = null;
+                live.Locked = false;
+                live.Weight = LootTables.Weight(live.PropType, live.WeaponTier);
+                inv.Save();
+                Core.Log.Warning($"Enchanting: {name} is back to its stock state but the armory no longer has the original; it stays in the bag as loot");
+                // Carry on as an ordinary change on a loot weapon.
+                return Rework(live, price, verb, what, mutate, newModule);
+            }
+            inv.Gold -= price;
+            var slot = inv.EquippedSlotOf(live);
+            inv.Remove(live.Id);
+            inv.Save();
+            Core.Log.Msg($"Enchanting: {verb} {live.Name} {what} -> back to stock: bound record removed, armory weapon `{live.StockGuid}` shown again; paid {price} -> {inv.Gold} tokens; slot {(slot >= 0 ? Loadout.SlotNames[slot] : "none")}");
+            BagManager.Toast($"{live.ColoredName} is back in your armory as it was.");
+            try { FabricatorBridge.RefreshArmories($"{live.Name} back to stock"); } catch { }
+            if (slot >= 0) Loadout.ApplyVanilla(slot);
+            BagPanel.Refresh();
+            return StockPreview(original, live.StockGuid);
         }
 
         private static LootItem Clone(LootItem a)
@@ -224,9 +401,137 @@ namespace LootOverhaul.Loot
                 ModuleName = a.ModuleName, ModuleType = a.ModuleType, PropType = a.PropType, Name = a.Name, ColoredName = a.ColoredName,
                 Weight = a.Weight, Value = a.Value, FoundInRealm = a.FoundInRealm, FoundAt = a.FoundAt, FoundBy = a.FoundBy, Source = a.Source,
                 Manual = a.Manual, PerkA = a.PerkA, PerkB = a.PerkB, PerkC = a.PerkC, DamageMin = a.DamageMin, DamageType = a.DamageType, Superior = a.Superior,
-                Locked = a.Locked,
+                Locked = a.Locked, StockGuid = a.StockGuid, BasePerkA = a.BasePerkA, BasePerkB = a.BasePerkB, BasePerkC = a.BasePerkC,
+                BaseDamageType = a.BaseDamageType,
             };
         }
+
+        // ---- stock (armory) weapons ------------------------------------------------------------
+
+        /// <summary>A stock weapon the table can work on, with the battle slot the profile has it in (-1 none).</summary>
+        public class StockEntry { public LootItem Item; public int Slot = -1; }
+
+        private static readonly HashSet<string> SkippedLogged = new HashSet<string>();
+
+        /// <summary>Normalised GUIDs of armory weapons that are bound at the table, so hidden from the game's gear list.</summary>
+        public static HashSet<string> BoundStockSet(LootInventory inv)
+        {
+            var set = new HashSet<string>();
+            foreach (var i in inv.Items) if (i.IsBound) set.Add(FabricatorBridge.Norm(i.StockGuid));
+            return set;
+        }
+
+        public static LootItem FindBound(LootInventory inv, string stockGuid)
+        {
+            var g = FabricatorBridge.Norm(stockGuid);
+            foreach (var i in inv.Items) if (i.IsBound && FabricatorBridge.Norm(i.StockGuid) == g) return i;
+            return null;
+        }
+
+        /// <summary>
+        /// The armory's own weapons (the profile's unlocked list without the bag's, plus loadout
+        /// weapons the list leaves out, like starter weapons), as previews the table can show and
+        /// enchant. Read-only: nothing here touches the profile. Mythics and anything that is not
+        /// a generated ("random") module are left out; the log names what was skipped, once.
+        /// </summary>
+        public static List<StockEntry> StockWeapons()
+        {
+            var inv = BagManager.Inventory;
+            var list = new List<StockEntry>();
+            var seen = new HashSet<string>();
+            var bound = BoundStockSet(inv);
+            void Consider(WeaponModule wm)
+            {
+                if (wm == null || FabricatorBridge.IsBagWeapon(wm)) return;
+                string guid;
+                try { guid = wm.GetGuid().ToString(); } catch { return; }
+                var norm = FabricatorBridge.Norm(guid);
+                if (norm.Length == 0 || !seen.Add(norm) || bound.Contains(norm) || FabricatorBridge.IsRetired(norm)) return;
+                var item = StockPreview(wm, guid);
+                if (item != null) list.Add(new StockEntry { Item = item, Slot = StockSlot(guid) });
+            }
+            try
+            {
+                var unlocked = PlayerProfile.GetUnlockedWeapons();
+                if (unlocked != null) for (var i = 0; i < unlocked.Count; i++) { try { Consider(unlocked[i]); } catch { } }
+            }
+            catch (Exception e) { Core.Log.Warning($"Enchanting: armory read failed: {e.GetType().Name}: {e.Message}"); }
+            for (var s = 0; s < 3; s++)
+            {
+                try
+                {
+                    var data = PlayerProfile.GetLoadoutData(Loadout.SlotValue(s))?.ToString();
+                    if (string.IsNullOrEmpty(data) || !data.StartsWith("#")) continue;
+                    Consider(PlayerProfile.GetWeaponModule(new Il2CppSystem.Guid(data.Substring(1))));
+                }
+                catch { }
+            }
+            return list;
+        }
+
+        /// <summary>A preview record for a stock weapon: what it would be in the bag once bound. Not in the bag.</summary>
+        public static LootItem StockPreview(WeaponModule wm, string guid)
+        {
+            LootItem item;
+            try
+            {
+                if ((int)wm.GetWeaponClass() > 3) { SkipOnce(guid, "mythic"); return null; }
+                var dto = new PlayerData.WeaponModuleDTO(wm);
+                if (!string.Equals(dto.moduleName, "random", StringComparison.OrdinalIgnoreCase)) { SkipOnce(guid, $"module `{dto.moduleName}`"); return null; }
+                item = WeaponCodec.FromModule(wm);
+            }
+            catch (Exception e) { SkipOnce(guid, $"unreadable ({e.GetType().Name})"); return null; }
+            item.Id = "stock-" + FabricatorBridge.Norm(guid);
+            item.StockGuid = guid;
+            item.Source = "loot";
+            item.FoundBy = "armory";
+            item.Weight = 0f;
+            item.Locked = true;
+            ReadRolledPerks(item);
+            item.BasePerkA = item.PerkA; item.BasePerkB = item.PerkB; item.BasePerkC = item.PerkC;
+            item.BaseDamageType = item.DamageType;
+            return item;
+        }
+
+        private static void SkipOnce(string guid, string why)
+        {
+            if (SkippedLogged.Add(guid ?? "")) Core.Log.Msg($"Enchanting: stock weapon `{guid}` left off the table: {why}");
+        }
+
+        /// <summary>The armory weapon itself, from the profile, or null when it is no longer there.</summary>
+        public static WeaponModule StockModule(string guid)
+        {
+            try
+            {
+                var wm = PlayerProfile.GetWeaponModule(new Il2CppSystem.Guid(FabricatorBridge.Norm(guid)));
+                if (wm == null) return null;
+                return FabricatorBridge.Norm(wm.GetGuid().ToString()) == FabricatorBridge.Norm(guid) ? wm : null;
+            }
+            catch { return null; }
+        }
+
+        /// <summary>The battle slot the profile has this stock weapon in, where no loot weapon overrides it; -1 otherwise.</summary>
+        public static int StockSlot(string guid)
+        {
+            var inv = BagManager.Inventory;
+            var g = FabricatorBridge.Norm(guid);
+            for (var s = 0; s < 3; s++)
+            {
+                if (inv.Loadout[s] != null) continue;
+                try
+                {
+                    var data = PlayerProfile.GetLoadoutData(Loadout.SlotValue(s))?.ToString();
+                    if (!string.IsNullOrEmpty(data) && data.StartsWith("#") && FabricatorBridge.Norm(data.Substring(1)) == g) return s;
+                }
+                catch { }
+            }
+            return -1;
+        }
+
+        /// <summary>Why a locked record cannot leave the bag, for the toasts.</summary>
+        public static string LockedReason(LootItem i) => i.IsBound
+            ? $"{i.ColoredName} is a stock weapon at the enchanting table. De-enchant it at the kobold to put it back in your armory."
+            : $"{i.ColoredName} is locked. Unlock it at the kobold first.";
 
         /// <summary>Read the perks/element the game rolled for a weapon, so the table knows what it already has.</summary>
         public static void ReadRolledPerks(LootItem item)

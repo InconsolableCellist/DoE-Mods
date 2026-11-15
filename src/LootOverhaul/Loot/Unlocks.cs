@@ -64,6 +64,8 @@ namespace LootOverhaul.Loot
                 }
             }
             catch { }
+            // Stock weapons bound at the enchanting table are hidden from the armory list; they still count.
+            try { foreach (var b in BagManager.Inventory.Items) if (b.IsBound) types.Add(b.PropType); } catch { }
             if (types.Count == 0) { types.Add(LootTables.Sword); types.Add(LootTables.Axe); types.Add(LootTables.Dagger); }
             _types = types; _staffStyles = styles;
 

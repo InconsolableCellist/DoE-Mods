@@ -35,7 +35,8 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<string> BagGesture;
         public static MelonPreferences_Entry<bool> AutoPickup;
 
-        public static MelonPreferences_Entry<float> ShopPriceMultiplier, SellMultiplier, EnchantCostMultiplier, ArmorUpgradeCostMultiplier;
+        public static MelonPreferences_Entry<float> ShopPriceMultiplier, SellMultiplier, EnchantCostMultiplier, ArmorUpgradeCostMultiplier,
+            StockEnchantCostMultiplier, DisenchantCostMultiplier;
         public static MelonPreferences_Entry<int> ShopSlots, ShopRefreshMinutes;
         public static MelonPreferences_Entry<bool> LoadoutEnabled;
 
@@ -108,6 +109,8 @@ namespace LootOverhaul
             ShopRefreshMinutes = Shop.CreateEntry("ShopRefreshMinutes", 60, description: "Minutes before the stock is rolled again for free.");
             EnchantCostMultiplier = Shop.CreateEntry("EnchantCostMultiplier", 1.0f, description: "Enchanting price on top of ShopPriceMultiplier.");
             ArmorUpgradeCostMultiplier = Shop.CreateEntry("ArmorUpgradeCostMultiplier", 1.0f, description: "Armor upgrade price on top of ShopPriceMultiplier. Every +1% costs 750 / 1,500 / 3,000 / 6,000 tokens by rarity at the defaults.");
+            StockEnchantCostMultiplier = Shop.CreateEntry("StockEnchantCostMultiplier", 1.0f, description: "Price of one enchantment on a stock (armory) weapon, on top of ShopPriceMultiplier. 500 / 1,000 / 2,000 / 4,000 tokens by rarity at the defaults: about half a run to three runs of tokens.");
+            DisenchantCostMultiplier = Shop.CreateEntry("DisenchantCostMultiplier", 1.0f, description: "Price of removing one perk or element from a weapon (loot or stock), on top of ShopPriceMultiplier. 200 / 400 / 800 / 1,600 tokens by rarity at the defaults.");
             LoadoutEnabled = Shop.CreateEntry("LoadoutEnabled", true, description: "Keep the loadout picked at the booth in your holsters.");
 
             TokenPay = MelonPreferences.CreateCategory("LootOverhaul_Tokens");

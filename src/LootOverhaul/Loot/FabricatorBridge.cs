@@ -164,7 +164,7 @@ namespace LootOverhaul.Loot
                 if (!item.Locked && !equipped) return true;
                 // Locked or equipped: skip the whole method, so the game's own lists keep the weapon too.
                 ArmoryRefusals++;   // the postfix still runs and closes the counter
-                BagManager.Toast(item.Locked ? $"{item.ColoredName} is locked. Unlock it at the kobold first." : $"{item.ColoredName} is equipped. Unequip it first.");
+                BagManager.Toast(item.Locked ? Enchanting.LockedReason(item) : $"{item.ColoredName} is equipped. Unequip it first.");
                 ReconLog.Line($"armory: salvage refused before it started, bag weapon {item.Name} is {(item.Locked ? "locked" : "equipped")}");
                 return false;
             }
@@ -177,7 +177,7 @@ namespace LootOverhaul.Loot
             if (_salvaging == 0)
             {
                 if (_salvageRefused && _salvageItem != null)
-                    BagManager.Toast(_salvageItem.Locked ? $"{_salvageItem.ColoredName} is locked. Unlock it at the kobold first." : $"{_salvageItem.ColoredName} is equipped. Unequip it first.");
+                    BagManager.Toast(_salvageItem.Locked ? Enchanting.LockedReason(_salvageItem) : $"{_salvageItem.ColoredName} is equipped. Unequip it first.");
                 _salvageItem = null;
                 _salvageRefused = false;
             }
@@ -374,7 +374,16 @@ namespace LootOverhaul.Loot
                 var inv = BagManager.Inventory;
                 if (inv.Items.Count == 0) return;
                 var copy = new Il2CppSystem.Collections.Generic.List<WeaponModule>();
-                if (__result != null) for (var i = 0; i < __result.Count; i++) copy.Add(__result[i]);
+                // Stock weapons bound at the enchanting table are in the bag now; their armory
+                // copy is left out so the weapon is listed once (0.12.0).
+                var bound = Enchanting.BoundStockSet(inv);
+                if (__result != null)
+                    for (var i = 0; i < __result.Count; i++)
+                    {
+                        var wm = __result[i];
+                        if (bound.Count > 0 && wm != null && bound.Contains(GuidOf(wm))) continue;
+                        copy.Add(wm);
+                    }
                 var n = 0;
                 foreach (var item in inv.Items)
                 {
@@ -576,7 +585,7 @@ namespace LootOverhaul.Loot
                 }
                 if (item.Locked)
                 {
-                    BagManager.Toast($"{item.ColoredName} is locked. Unlock it at the kobold first.");
+                    BagManager.Toast(Enchanting.LockedReason(item));
                     ReconLog.Line($"fabricator: trash refused, bag weapon {item.Name} is locked");
                     __result = false;
                     return false;

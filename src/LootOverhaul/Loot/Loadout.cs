@@ -150,6 +150,33 @@ namespace LootOverhaul.Loot
             finally { ProfileWatch.Probe = null; }
         }
 
+        /// <summary>
+        /// Put the profile's own weapon for this slot back in the hand (a bag weapon just left the
+        /// slot). Reads the profile's loadout only; nothing is written.
+        /// </summary>
+        public static void ApplyVanilla(int slot)
+        {
+            if (!ModGate.Active) return;
+            var local = AvatarPlayer.LocalAvatar;
+            if (!Interop.Alive(local)) return;
+            ProfileWatch.Probe = "loadout apply";
+            try
+            {
+                var lv = SlotValue(slot);
+                var data = PlayerProfile.GetLoadoutData(lv)?.ToString();
+                if (string.IsNullOrEmpty(data) || !data.StartsWith("#")) { Core.Log.Msg($"Loadout: {SlotNames[slot]} has no profile weapon to put back (`{data}`); it fills at the next respawn"); return; }
+                var wm = PlayerProfile.GetWeaponModule(new Il2CppSystem.Guid(data.Substring(1)));
+                if (wm == null) { Core.Log.Msg($"Loadout: {SlotNames[slot]} profile weapon `{data}` not found; it fills at the next respawn"); return; }
+                local.ResetWeapon(lv);
+                var spawned = new Il2CppSystem.Collections.Generic.List<Prop>();
+                local.AssignWeapon(lv, wm, spawned);
+                _applied++;
+                ReconLog.Line($"loadout: {SlotNames[slot]} <- profile weapon {data} (immediate); AssignWeapon spawned {spawned.Count} prop(s)");
+            }
+            catch (Exception e) { Core.Log.Warning($"Loadout vanilla apply for {SlotNames[slot]} failed: {e.GetType().Name}: {e.Message}"); }
+            finally { ProfileWatch.Probe = null; }
+        }
+
         public static string Describe()
         {
             var inv = BagManager.Inventory;

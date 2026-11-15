@@ -60,7 +60,8 @@ namespace LootOverhaul.Loot
         private static int _buyMode;            // 0 weapons, 1 tonics, 2 enchant, 3 armor, 4 config
         private static int _armorSlot;          // ARMOR tab: which slot is being compared (0 head, 1 chest, 2 legs)
         private static bool _enchantHelp;       // ENCHANT tab: the "what do they do" page
-        private static string _enchantTarget;   // bag item id being enchanted, or null for the list
+        private static string _enchantTarget;   // bag item id being enchanted ("stock-…" for an armory weapon), or null for the list
+        private static bool _enchantStock;      // ENCHANT weapon list: the armory's stock weapons instead of the bag's
         private static int _enchantKind = -1;   // ENCHANT tab: -1 the menu, 0 weapon, 1 armor
         private static int _upSlot;             // armor upgrade page: which slot (0 head, 1 chest, 2 legs)
         /// <summary>Text width left of a button column whose centre is at <paramref name="btnX"/>, from <paramref name="textX"/>.</summary>
@@ -525,7 +526,9 @@ namespace LootOverhaul.Loot
                 UiKit.Button(_buy, new Vector3(bx, top - 0.05f, 0f), "HELP", () => { _enchantHelp = true; _helpPage = 0; BuildBuy(); }, BtnScale);
                 var menuX = bx - BtnW - 0.04f;
                 UiKit.Button(_buy, new Vector3(menuX, top - 0.05f, 0f), "MENU", () => { _enchantKind = -1; BuildBuy(); }, BtnScale);
-                headerW = WidthBefore(menuX, left);
+                var srcX = menuX - BtnW - 0.04f;
+                UiKit.Button(_buy, new Vector3(srcX, top - 0.05f, 0f), _enchantStock ? "BAG" : "ARMORY", () => { _enchantStock = !_enchantStock; _enchantPage = 0; BuildBuy(); }, BtnScale);
+                headerW = WidthBefore(srcX, left);
             }
             if (!Enchanting.Ready)
             {
@@ -534,15 +537,27 @@ namespace LootOverhaul.Loot
                 return;
             }
             var target = _enchantTarget == null ? null : inv.Find(_enchantTarget);
+            List<Enchanting.StockEntry> stockList = null;
+            if (target == null && _enchantTarget != null && _enchantTarget.StartsWith("stock-"))
+            {
+                stockList = Enchanting.StockWeapons();
+                foreach (var e in stockList) if (e.Item.Id == _enchantTarget) target = e.Item;
+            }
             if (target == null)
             {
                 // Every bag weapon, equipped ones included: an enchanted weapon keeps its slot.
+                // ARMORY: the stock weapons instead; the first enchantment moves one into the bag.
                 var weapons = new List<LootItem>();
-                foreach (var w in inv.Items) if (w.IsWeapon) weapons.Add(w);
+                var stockSlots = new Dictionary<string, int>();
+                if (_enchantStock)
+                {
+                    foreach (var e in stockList ?? Enchanting.StockWeapons()) { weapons.Add(e.Item); stockSlots[e.Item.Id] = e.Slot; }
+                }
+                else foreach (var w in inv.Items) if (w.IsWeapon) weapons.Add(w);
                 weapons.Sort((a, b) => b.WeaponClass != a.WeaponClass ? b.WeaponClass.CompareTo(a.WeaponClass) : b.Value.CompareTo(a.Value));
                 var pages = Math.Max(1, (weapons.Count + RowsPerPage - 1) / RowsPerPage);
                 _enchantPage = Math.Max(0, Math.Min(_enchantPage, pages - 1));
-                UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), headerW, 0.06f, HeadSize, $"<b>ENCHANT</b>   {Tokens(inv)}   <color=#B0B0B0>pick a weapon</color>", fit: true);
+                UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), headerW, 0.06f, HeadSize, $"<b>ENCHANT</b>   {Tokens(inv)}   <color=#B0B0B0>{(_enchantStock ? "pick an armory weapon" : "pick a weapon")}</color>", fit: true);
                 var y0 = top - 0.27f;
                 var start = _enchantPage * RowsPerPage;
                 var textX = left + UiKit.TextX;
@@ -550,14 +565,15 @@ namespace LootOverhaul.Loot
                 for (var i = 0; i < RowsPerPage && start + i < weapons.Count; i++)
                 {
                     var item = weapons[start + i];
-                    Enchanting.ReadRolledPerks(item);
+                    if (!_enchantStock) Enchanting.ReadRolledPerks(item);
                     var row = new GameObject($"EnchRow_{i}"); row.transform.SetParent(_buy, false);
                     row.transform.localPosition = new Vector3(0f, y0 - i * RowHeight, 0f);
                     Stripe(row.transform, i, StripeBuy);
                     UiKit.Preview(row.transform, new Vector3(left + 0.055f, 0f, -0.03f), item, 0.1f);
                     UiKit.TypeTag(row.transform, new Vector3(left + UiKit.TagX, 0f, 0f), item);
-                    var slot = inv.EquippedSlotOf(item);
-                    var equipped = slot >= 0 ? $"   <color=#F5C542>equipped: {Loadout.SlotNames[slot]}</color>" : "";
+                    var slot = _enchantStock ? (stockSlots.TryGetValue(item.Id, out var ss) ? ss : -1) : inv.EquippedSlotOf(item);
+                    var equipped = (slot >= 0 ? $"   <color=#F5C542>equipped: {Loadout.SlotNames[slot]}</color>" : "") +
+                                   (item.IsBound ? $"   <color=#9FD8FF>{(_enchantStock ? "armory" : "armory · bound")}</color>" : "");
                     var price = Enchanting.Price(item);
                     var afford = inv.Gold >= price;
                     UiKit.Text(row.transform, new Vector3(textX, 0.03f, 0f), textW, 0.05f, TitleSize, $"{item.ColoredName}{equipped}", fit: true);
@@ -573,17 +589,18 @@ namespace LootOverhaul.Loot
                     UiKit.Button(_buy, new Vector3(-0.22f - BtnW * 0.5f, bottom, 0f), "<", () => { _enchantPage--; BuildBuy(); }, BtnScale);
                     UiKit.Button(_buy, new Vector3(0.22f + BtnW * 0.5f, bottom, 0f), ">", () => { _enchantPage++; BuildBuy(); }, BtnScale);
                 }
-                if (weapons.Count == 0) UiKit.Text(_buy, new Vector3(0f, y0 - RowHeight, 0f), 0.8f, 0.06f, 0.4f, "The bag contains no weapons.", TextAlignmentOptions.Center);
+                if (weapons.Count == 0) UiKit.Text(_buy, new Vector3(0f, y0 - RowHeight, 0f), 0.8f, 0.06f, 0.4f, _enchantStock ? "No armory weapons can be enchanted." : "The bag contains no weapons.", TextAlignmentOptions.Center);
                 return;
             }
 
-            Enchanting.ReadRolledPerks(target);
-            var tslot = inv.EquippedSlotOf(target);
+            var preview = inv.Find(target.Id) == null;   // a stock weapon not bound yet
+            if (!preview) Enchanting.ReadRolledPerks(target);
+            var tslot = preview ? Enchanting.StockSlot(target.StockGuid) : inv.EquippedSlotOf(target);
             UiKit.Text(_buy, new Vector3(left, top - 0.05f, 0f), headerW, 0.06f, HeadSize, $"<b>ENCHANT</b>   {target.ColoredName}{(tslot >= 0 ? $"   <color=#F5C542>equipped: {Loadout.SlotNames[tslot]}</color>" : "")}", fit: true);
             var tprice = Enchanting.Price(target);
             UiKit.Text(_buy, new Vector3(left, top - 0.22f, 0f), PanelWidth - 0.08f, 0.05f, 0.34f,
                 $"<color=#B0B0B0>has: {Enchanting.PerkName(target.PerkA)} {Enchanting.PerkName(target.PerkB)} {Enchanting.PerkName(target.PerkC)}   element {(target.DamageType < 0 ? "none" : Enchanting.Elements[Math.Min(2, target.DamageType)])}   " +
-                $"each costs <color={(inv.Gold >= tprice ? "#F5C542" : "#E06060")}>{tprice} tokens</color> · you have {inv.Gold}{(tslot >= 0 ? " · stays in your hand" : "")}</color>", fit: true);
+                $"each costs <color={(inv.Gold >= tprice ? "#F5C542" : "#E06060")}>{tprice} tokens</color> · you have {inv.Gold}{(tslot >= 0 ? " · stays in your hand" : "")}{(target.IsBound ? " · armory weapon" : "")}</color>", fit: true);
             var options = Enchanting.Options(target);
             var y1 = top - 0.28f;
             var col = 0; var rowI = 0;
@@ -594,9 +611,28 @@ namespace LootOverhaul.Loot
                 var pid = perkId; var el = element;
                 UiKit.Button(_buy, new Vector3(x, y, 0f), (element >= 0 ? "+ " : "") + label, () => { var r = Enchanting.Enchant(target, pid, el); if (r != null) _enchantTarget = r.Id; Rebuild(); }, BtnScale * 0.9f, enabled: inv.Gold >= tprice);
                 col++; if (col >= 3) { col = 0; rowI++; }
-                if (rowI > 7) break;
+                if (rowI > 6) break;
             }
             if (options.Count == 0) UiKit.Text(_buy, new Vector3(0f, y1 - 0.1f, 0f), 0.8f, 0.06f, 0.4f, "Nothing more can be added to this weapon.", TextAlignmentOptions.Center);
+
+            // De-enchanting: take a perk or the element off. A stock weapon taken back to what it
+            // had goes back to the armory.
+            var removable = Enchanting.Removable(target);
+            if (removable.Count > 0)
+            {
+                var dprice = Enchanting.DisenchantPrice(target);
+                UiKit.Text(_buy, new Vector3(left, -0.30f, 0f), PanelWidth - 0.08f, 0.05f, 0.34f,
+                    $"<color=#B0B0B0>REMOVE · <color={(inv.Gold >= dprice ? "#F5C542" : "#E06060")}>{dprice} tokens</color> each" +
+                    $"{(target.IsBound ? " · back to how it was returns it to your armory" : "")}</color>", fit: true);
+                var rx = 0;
+                foreach (var (label, perkId, element) in removable)
+                {
+                    var x = left + Mathf.Max(BtnW, 0.24f) * 0.5f + rx * (Mathf.Max(BtnW, 0.24f) + 0.06f);
+                    var pid = perkId; var el = element;
+                    UiKit.Button(_buy, new Vector3(x, -0.40f, 0f), "- " + label, () => { var r = Enchanting.Disenchant(target, pid, el); if (r != null) _enchantTarget = r.Id; Rebuild(); }, BtnScale * 0.9f, enabled: inv.Gold >= dprice);
+                    rx++;
+                }
+            }
         }
 
         /// <summary>ENCHANT's first page: a weapon or your armor? Two cards, one word each.</summary>
@@ -926,6 +962,7 @@ namespace LootOverhaul.Loot
             var inv = BagManager.Inventory;
             var live = inv.Find(item.Id);
             if (live == null) { BagManager.Toast("Already gone."); Refresh(); return; }
+            if (live.IsBound) { BagManager.Toast(Enchanting.LockedReason(live)); return; }
             live.Locked = !live.Locked;
             inv.Save();
             Rebuild();
@@ -939,7 +976,7 @@ namespace LootOverhaul.Loot
             if (live == null) { BagManager.Toast("Already gone."); Refresh(); return; }
             if (inv.EquippedSlotOf(live) >= 0) { BagManager.Toast("Unequip it first."); return; }
             if (live.WornSlot >= 0) { BagManager.Toast("Take it off first."); return; }
-            if (live.Locked) { BagManager.Toast("Locked."); return; }
+            if (live.Locked) { BagManager.Toast(live.IsBound ? Enchanting.LockedReason(live) : "Locked."); return; }
             var price = SellPrice(live);
             inv.Remove(live.Id);
             inv.Gold += price;

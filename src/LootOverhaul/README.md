@@ -1,4 +1,4 @@
-# LootOverhaul 0.11.2 — building
+# LootOverhaul 0.12.0 — building
 
 A second, independent MelonLoader mod for Dungeons of Eternity. Design and game-internals
 findings: [docs/LOOT-OVERHAUL.md](../../docs/LOOT-OVERHAUL.md).
@@ -36,6 +36,45 @@ gate rule is the same: private room, every occupant on the identical version and
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
 
+## 0.12.0 — enchant armory weapons, de-enchant
+
+### Armory weapons at the table
+
+The ENCHANT weapon list has an **ARMORY** button beside MENU and HELP. It lists your own
+armory weapons (not mythics, and only the game's generated weapons), with the slot each one
+is equipped in. SELECT one and enchant it as you would a bag weapon.
+
+The first change **binds** the weapon. A bag record is made for it. The record has its own
+GUID, is always locked (it cannot be sold, dropped, trashed or salvaged, and the lock does not
+open), and weighs nothing. While the record exists, the armory copy is hidden from the game's
+gear list, so the weapon exists once. If the weapon was equipped, the enchanted one takes its
+slot and goes into your hand. Nothing is written to your profile: in a game without the mod,
+the armory weapon is there as it always was.
+
+De-enchant it back to exactly what it had and it goes **back to the armory**. The bound
+record is removed, the armory weapon is shown again, and an equipped slot gets the armory
+weapon back in hand. If the armory no longer has it (salvaged in a game without the mod), the
+record stays in the bag as ordinary loot, and the log says so.
+
+### De-enchanting
+
+The weapon page has a **REMOVE** row: one `- Perk` button for each perk the weapon has, rolled
+or added, and one for its element. It works on bag weapons and armory weapons.
+
+### Prices
+
+All prices are multiplied by `ShopPriceMultiplier` (2.5):
+
+| | Common | Unique | Rare | Legendary | Setting |
+|---|---|---|---|---|---|
+| Enchant a bag weapon (unchanged) | 750 | 1,500 | 3,000 | 6,000 | `EnchantCostMultiplier` |
+| Enchant an armory weapon | 500 | 1,000 | 2,000 | 4,000 | `StockEnchantCostMultiplier` |
+| Remove a perk or the element | 200 | 400 | 800 | 1,600 | `DisenchantCostMultiplier` |
+
+These prices assume about 1,300 tokens from a typical solo run. The reasoning is in
+[CHANGELOG.md](CHANGELOG.md) under 0.12.0. That run figure is an estimate; turn on
+`RunLogging` to measure it.
+
 ## 0.11.0 — fewer settings, armor from every perk
 
 The mod drops **armor only**: from chests as they open, and from the loot goblin. Enemy weapon
@@ -54,7 +93,7 @@ longer exist.
 | `[LootOverhaul_Goblin]` | `GoblinDropsEnabled`, `GoblinDrops` (2), `GoblinGuaranteedClass` (1 = Unique), `GoblinDropsScaleWithPlayers`, `LootGoblinScale` (1.1) |
 | `[LootOverhaul_FloorLoot]` | `DropBeams` (off), `BeamMinClass` (2 = Rare), `DropLabels` (off / hover / always), `DropSparkles`, `DropSound` (start / finish / collected / off) |
 | `[LootOverhaul_Bag]` | `BagWeightCapacity` (30), `BagGesture` (stick-hold / back-grip / off), `AutoPickup` (off) |
-| `[LootOverhaul_Shop]` | `ShopPriceMultiplier` (2.5), `SellMultiplier`, `ShopSlots`, `ShopRefreshMinutes`, `EnchantCostMultiplier`, `ArmorUpgradeCostMultiplier`, `LoadoutEnabled` |
+| `[LootOverhaul_Shop]` | `ShopPriceMultiplier` (2.5), `SellMultiplier`, `ShopSlots`, `ShopRefreshMinutes`, `EnchantCostMultiplier`, `StockEnchantCostMultiplier`, `DisenchantCostMultiplier`, `ArmorUpgradeCostMultiplier`, `LoadoutEnabled` |
 | `[LootOverhaul_Tokens]` | `GoldToTokenRate` and the payout bonuses per boss, mini-boss, hazard level, tier, extra player and chest |
 | `[LootOverhaul_Booth]` | the booth's position, set by pressing = in the lobby |
 | `[LootOverhaul_Dev]` | `DevTools` (recon transcript, profile watch, survey hotkeys), `VerboseLogging`, `RunLogging`, `DropPlayersOverride` |

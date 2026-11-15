@@ -191,7 +191,8 @@ namespace LootOverhaul.Loot
                     second = $"<color=#B0B0B0>{LootTables.JunkTierName(item.WeaponClass)}</color>";
                 var rowTextW = item.IsBuff || item.IsArmor ? twoBtnTextW : textW;
                 var worn = item.IsArmor && item.WornSlot >= 0 ? "   <color=#C9A86A>worn</color>" : "";
-                if (item.Locked) worn += "   <color=#B0B0B0>locked</color>";
+                if (item.IsBound) worn += "   <color=#9FD8FF>armory · bound</color>";
+                else if (item.Locked) worn += "   <color=#B0B0B0>locked</color>";
                 // What the kobold pays and what it weighs, on every row (asked for 2026-09-12).
                 var worth = $"   <color=#F5C542>{Booth.SellPrice(item)} T</color> <color=#B0B0B0>· {item.Weight:0.#} wt</color>";
                 UiKit.Text(row.transform, new Vector3(left + UiKit.TextX, 0.03f, 0f), rowTextW, 0.05f, 0.46f, $"{item.ColoredName}{equipped}{worn}{worth}", fit: true);

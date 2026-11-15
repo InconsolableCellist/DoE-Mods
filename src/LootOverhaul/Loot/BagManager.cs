@@ -163,7 +163,7 @@ namespace LootOverhaul.Loot
             if (live == null) { Toast("That's gone."); return false; }
             if (inv.EquippedSlotOf(live) >= 0) { Toast("Unequip it at the pedestal first."); return false; }
             if (live.WornSlot >= 0) { Toast("Take it off first."); return false; }
-            if (live.Locked) { Toast("Locked. Unlock it at the kobold first."); return false; }
+            if (live.Locked) { Toast(Enchanting.LockedReason(live)); return false; }
             if (!Gate.ModGate.Active) { Toast("Not in a modded room."); return false; }
             try
             {
