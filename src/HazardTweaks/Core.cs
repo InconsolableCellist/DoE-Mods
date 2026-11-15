@@ -16,7 +16,10 @@ namespace HazardTweaks
     /// list) and are switched on by <c>GameManager.InitHazardsForLevel</c>; both get the list
     /// filtered. The bonus percentages live in the <c>HazardData</c> asset's per-tier table,
     /// which is scaled in memory, so the mission board, the per-hazard "+X% Bonus" lines and
-    /// the end-of-run total all read the same scaled numbers. Nothing is sent over the network.
+    /// the end-of-run total all read the same scaled numbers.
+    ///
+    /// Everything is behind <see cref="Gate"/>: offline, or a private lobby where every player
+    /// advertises the same version, DLL hash and hazard-settings hash. Anything else is vanilla.
     /// </summary>
     public class Core : MelonMod
     {
@@ -36,6 +39,7 @@ namespace HazardTweaks
             if (!ModConfig.Enabled.Value) { LoggerInstance.Msg("Enabled=false: doing nothing."); return; }
 
             Hazards.LogNames();
+            Gate.ComputeDllHash();
             Hooks.Init(HarmonyInstance);
             Hazards.Install();
             Hooks.Report();
@@ -51,6 +55,8 @@ namespace HazardTweaks
         public override void OnUpdate()
         {
             if (!ModConfig.Enabled.Value) return;
+            try { Gate.Tick(UnityEngine.Time.unscaledDeltaTime); }
+            catch (Exception e) { LoggerInstance.Warning($"Lobby check: {e.GetType().Name}: {e.Message}"); }
             if (!Hotkeys.Pressed(UnityEngine.InputSystem.Key.F9)) return;
             try
             {

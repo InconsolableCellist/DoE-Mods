@@ -46,7 +46,7 @@ namespace HazardTweaks
                     Core.Log.Msg("Hazard bonus table found: " + Describe(_original, 1f));
                 }
 
-                float want = Hazards.Active(out _) ? Math.Max(0f, ModConfig.BonusMultiplier.Value) : 1f;
+                float want = Gate.Evaluate(out _) ? Math.Max(0f, ModConfig.BonusMultiplier.Value) : 1f;
                 if (Math.Abs(want - _applied) < 0.0001f) return;
 
                 for (int r = 0; r < rows.Count; r++)

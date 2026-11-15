@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using Il2Cpp;
-using Il2CppPhoton.Pun;
 using HazardList = Il2CppSystem.Collections.Generic.List<Il2Cpp.GameManager.HazardModifier>;
 
 namespace HazardTweaks
@@ -25,7 +24,6 @@ namespace HazardTweaks
             new Regex(@"Only$|^SwordAndShield$|^FireballStaffs$|^RandomWeapons", RegexOptions.IgnoreCase);
 
         private static HashSet<int> _removed;
-        private static bool _loggedGate;
 
         public static void Install()
         {
@@ -35,32 +33,17 @@ namespace HazardTweaks
                 Hooks.Of(typeof(Hazards), nameof(InitPrefix)), null, "GameManager.InitHazardsForLevel");
         }
 
-        /// <summary>Is the mod allowed to change anything right now.</summary>
-        public static bool Active(out string why)
+        /// <summary>The lobby check at the moment a list is rolled or switched on; logs why when it says no.</summary>
+        public static bool ActiveLogged(string where)
         {
-            why = null;
-            if (!ModConfig.Enabled.Value) { why = "disabled"; return false; }
-            if (!ModConfig.PrivateLobbyOnly.Value) return true;
-            try
-            {
-                if (!PhotonNetwork.InRoom) return true; // solo / offline
-                var room = PhotonNetwork.CurrentRoom;
-                if (ReferenceEquals(room, null)) return true;
-                if (room.IsVisible) { why = "public lobby"; return false; }
-                return true;
-            }
-            catch (Exception e) { why = "room check threw " + e.GetType().Name; return false; }
-        }
-
-        public static bool ActiveLogged()
-        {
-            var on = Active(out var why);
-            if (!on && !_loggedGate) { _loggedGate = true; Core.Log.Msg($"Inert ({why}): hazards and bonuses stay vanilla."); }
-            if (on) _loggedGate = false;
+            var on = Gate.Evaluate(out var why);
+            if (!on && ModConfig.VerboseLogging.Value) Core.Log.Msg($"{where}: inert ({why}), hazards left vanilla.");
             return on;
         }
 
         public static void ResetParse() => _removed = null;
+
+        public static IEnumerable<int> RemovedSet() => Removed();
 
         private static HashSet<int> Removed()
         {
@@ -90,8 +73,8 @@ namespace HazardTweaks
             var names = new List<string>();
             try { foreach (var v in Removed()) names.Add(((GameManager.HazardModifier)v).ToString()); }
             catch { names.Add("?"); }
-            return $"removing [{(names.Count == 0 ? "nothing" : string.Join(", ", names))}], hazard bonus x{ModConfig.BonusMultiplier.Value:0.##}, " +
-                   (ModConfig.PrivateLobbyOnly.Value ? "private lobbies and solo only" : "any lobby");
+            return $"removing [{(names.Count == 0 ? "nothing" : string.Join(", ", names))}], hazard bonus x{ModConfig.BonusMultiplier.Value:0.##}; " +
+                   "offline, or private lobbies where everyone runs this build with the same settings";
         }
 
         public static void LogNames()
@@ -121,8 +104,8 @@ namespace HazardTweaks
         {
             try
             {
-                if (!ActiveLogged()) { Bonus.Sync(null); return; }
                 Bonus.Sync(null);
+                if (!ActiveLogged($"Dungeon seed {__0}")) return;
                 var gone = Filter(__result);
                 if (gone != null && ModConfig.VerboseLogging.Value)
                     Core.Log.Msg($"Dungeon seed {__0}: removed {gone}; left {Names(__result)}.");
@@ -135,7 +118,7 @@ namespace HazardTweaks
             try
             {
                 Bonus.Sync(null);
-                if (!ActiveLogged()) return;
+                if (!ActiveLogged("Run start")) return;
                 var gone = Filter(__0);
                 if (gone != null && ModConfig.VerboseLogging.Value)
                     Core.Log.Msg($"Run start: removed {gone}; active hazards {Names(__0)}.");
