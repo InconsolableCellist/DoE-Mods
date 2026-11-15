@@ -3,6 +3,14 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.13.3 (2026-11-15)
+
+Smaller hazard and tier token bonuses.
+
+### Changed
+- **`HazardBonusPerLevel` 0.25 → 0.20** and **`TierBonusPerLevel` 0.1 → 0.05**, in `[LootOverhaul_Tokens]`. A hazard level now adds +20% to the run payout instead of +25%, and each tier above the first +5% instead of +10%. A Tier 7 run with one hazard level goes from ×1.85 to ×1.50 on these two parts.
+- **Config layout 13.** A settings file that still holds the old defaults (0.25 / 0.1) gets the new ones on first start; a value you set yourself is kept. Payout settings are local to each player and not part of the room gate, so a friend on other values only gets a different payout.
+
 ## 0.13.2 (2026-11-15)
 
 Fixes from the first headset playtest of the 0.13.0 look, and a third perk that never worked.
