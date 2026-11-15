@@ -28,7 +28,7 @@ from pathlib import Path
 
 REPO = "InconsolableCellist/DoE-Mods"
 SRC = Path(__file__).resolve().parent
-MODS = ["CustomAvatars", "LootOverhaul", "VisualCues", "Descent", "StayPutVR", "PartyHealth"]
+MODS = ["CustomAvatars", "LootOverhaul", "VisualCues", "Descent", "StayPutVR", "PartyHealth", "HazardTweaks"]
 DOTNET_CANDIDATES = ["dotnet", "/mnt/c/Program Files/dotnet/dotnet.exe"]
 
 

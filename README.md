@@ -23,6 +23,8 @@ Mods for **Dungeons of Eternity**, the co-op VR dungeon crawler by Othergate.
 
 **PartyHealth** puts a small health bar over each friend's head in a networked game: hidden at full health, it appears on the first hit, goes red as they drop, and says DOWN when they need a rescue. Your friends need nothing installed.
 
+**HazardTweaks** removes the dungeon hazards you don't want (by default every one that takes your own weapons away) and raises the XP and gold bonus the rest give by a quarter.
+
 ## Quickstart
 
 Find your game folder under Steam, usually `C:\Program Files (x86)\Steam\steamapps\common\Dungeons of Eternity`. In Steam: **right-click the game → Manage → Browse local files**.
@@ -32,7 +34,7 @@ Find your game folder under Steam, usually `C:\Program Files (x86)\Steam\steamap
 3. **Drop the mod DLL into `Mods`** inside the game folder. Create the folder if it isn't there. Any combination of the five is fine.
 4. **Launch.** A console window opens alongside the game and each mod prints a line naming itself and its version.
 
-**Settings** are in `UserData\MelonPreferences.cfg` in the game folder, one section per mod (`[CustomAvatars]`, `[LootOverhaul]`, `[VisualCues]`, `[Descent]`, `[StayPutVR]`, `[PartyHealth]`). The file appears after the first run with a mod installed, and most settings have a comment above it. Edit it with the game closed, or use the mod's reload key: the game writes its own copy back on quit and will undo an edit it never loaded.
+**Settings** are in `UserData\MelonPreferences.cfg` in the game folder, one section per mod (`[CustomAvatars]`, `[LootOverhaul]`, `[VisualCues]`, `[Descent]`, `[StayPutVR]`, `[PartyHealth]`, `[HazardTweaks]`). The file appears after the first run with a mod installed, and most settings have a comment above it. Edit it with the game closed, or use the mod's reload key: the game writes its own copy back on quit and will undo an edit it never loaded.
 
 **Logs** are in `MelonLoader\Latest.log` in the game folder. That is the file to send when something breaks.
 
@@ -50,6 +52,7 @@ The [INSTALL.md](INSTALL.md) walks through the steps in more detail.
 | [Descent](src/Descent/README.md) | 0.1.1 | Yes |
 | [StayPutVR](src/StayPutVR/README.md) | 0.5.5 | No |
 | [PartyHealth](src/PartyHealth/README.md) | 0.1.3 | No |
+| [HazardTweaks](src/HazardTweaks/README.md) | 0.1.0 | Yes (same settings) |
 
 ## Restrictions
 
