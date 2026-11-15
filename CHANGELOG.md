@@ -2,6 +2,16 @@
 
 Versions are the mod's `Version` constant in `src/CustomAvatars/Core.cs`. This file was reconstructed from the git history on 2026-09-01.
 
+## 0.42.20 (2026-11-15)
+
+#18 (written as 0.42.19) on top of master's 0.42.19.
+
+### Fixed
+- **The left ring no longer starts several times too big.** The fit measures the band's hole around the finger's direction. On the left hand that direction was taken from the transforms' rotations, while the band's vertices go through their matrices. A left-hand ring is mirrored, so the two disagreed, the hole was measured across the band instead of along it (`hole 0.0025 against outside 0.0235`, a tenth of the real hole), and the ring was sized to match. Seen at a playtest on 2026-11-14 with 0.42.17: one player's left ring was far too big and `RingLeftSize` could not bring it down far enough. The finger's direction now goes through the same matrices as the vertices. As a safety net, the band's own three axes are measured too, and one of them takes over when it shows a clearly cleaner hole. The `ring:` line names it when that happens (`hole measured along the band's X axis …`). The fallback that estimates the hole from the band's bounds uses the band's narrowest axis in the same case.
+
+### Changed
+- `Ring{Left|Right}Size` now goes from 0.05 to 10 (was 0.5 to 4), so a ring can be shrunk or enlarged much further.
+
 ## 0.42.19 (2026-11-14)
 
 ### Fixed

@@ -168,7 +168,7 @@ namespace CustomAvatars
         private static RingEntries CreateRing(string side, string hand) => new RingEntries
         {
             Visible = Main.CreateEntry($"Ring{side}Visible", false, description: $"Show the ring on your {hand} hand (off by default)."),
-            Size = Main.CreateEntry($"Ring{side}Size", 1.0f, description: "Size, a multiple of the automatic fit (0.5 to 4)."),
+            Size = Main.CreateEntry($"Ring{side}Size", 1.0f, description: "Size, a multiple of the automatic fit (0.05 to 10)."),
             Offset = Main.CreateEntry($"Ring{side}Offset", 0.0f, description: "Up from the back of the hand, in finger radii (-5 to 5)."),
             Slide = Main.CreateEntry($"Ring{side}Slide", 0.0f, description: "Toward the fingertip, as a share of the finger bone (-1 to 1)."),
             Tilt = Main.CreateEntry($"Ring{side}Tilt", 0.0f, description: "Degrees: tips the top of the ring toward the fingertip."),
