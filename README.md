@@ -44,7 +44,7 @@ The [INSTALL.md](INSTALL.md) walks through the steps in more detail.
 
 | Mod | Version | Needs everyone modded? |
 |---|---|---|
-| [CustomAvatars](src/CustomAvatars/README.md) | 0.42.20 | Yes |
+| [CustomAvatars](src/CustomAvatars/README.md) | 0.42.21 | Yes |
 | [LootOverhaul](src/LootOverhaul/README.md) | 0.13.1 | Yes |
 | [VisualCues](src/VisualCues/README.md) | 0.1.6 | No |
 | [Descent](src/Descent/README.md) | 0.1.1 | Yes |

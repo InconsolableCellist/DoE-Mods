@@ -39,6 +39,7 @@ namespace CustomAvatars.Avatars
         private PoseRetargeter _retarget;
         private ArmIK _armIk;
         private LegIK _legIk;
+        private WalkState _walk;            // walk cycle on frames the game skips the solve
         private float _nextLegLogAt;
         private float _tposeSince, _lastRebindAt;
         private Face.FaceDriver _face;
@@ -368,6 +369,8 @@ namespace CustomAvatars.Avatars
                         Core.Log.Msg($"    legs: {_legIk.Build(_model, manifest, _retarget.SourceOf)}");
                         if (!_legIk.HasLegs) _legIk = null;
                     }
+                    if (ModConfig.WalkStateFromSpeed.Value)
+                        _walk = new WalkState(player, fullBody, isSelf ? "your" : $"{SafeName(player)}'s");
                     ArmReferenceAgain("swapped in");
                     if (_retarget.LinkCount == 0)
                     {
@@ -1021,6 +1024,17 @@ namespace CustomAvatars.Avatars
         /// locomotion moves the root to place the feet, and pinning the root every frame leaves
         /// it nothing to move.
         /// </summary>
+        /// <summary>
+        /// Walk cycle from the body's real speed on frames the game didn't solve it; see
+        /// <see cref="WalkState"/>. Not while ragdolling: a corpse isn't walking.
+        /// </summary>
+        private void ApplyWalkState(float deltaTime)
+        {
+            if (_walk == null || _ragdolling || !ModConfig.WalkStateFromSpeed.Value) return;
+            try { _walk.Tick(deltaTime); }
+            catch (Exception e) { Core.Log.Warning($"Walk state failed, disabling: {e.Message}"); _walk = null; }
+        }
+
         private void ApplyLocomotionWeight()
         {
             if (_vrik == null) return;
@@ -1293,6 +1307,7 @@ namespace CustomAvatars.Avatars
             ApplyVanillaMeshVisibility();
             if (IsSelf) ApplyFpsArmVisibility();
             ApplyLocomotionWeight();
+            ApplyWalkState(deltaTime);
             if (IsSelf) ApplyHeadChop();
             Leash();
 
@@ -2516,6 +2531,7 @@ namespace CustomAvatars.Avatars
             _retarget = null;
             _armIk = null;
             _legIk = null;
+            _walk = null;
             _face = null;
             _player = null;
             // _lastRebindAt deliberately survives a revert: a re-bind IS a revert, and the

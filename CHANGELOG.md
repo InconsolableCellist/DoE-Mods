@@ -2,6 +2,16 @@
 
 Versions are the mod's `Version` constant in `src/CustomAvatars/Core.cs`. This file was reconstructed from the git history on 2026-09-01.
 
+## 0.42.21 (2026-11-15)
+
+#19 (written as 0.42.20) on top of #18's 0.42.20.
+
+### Fixed
+- **Avatars no longer get stuck running on the spot.** The avatar copies the game body's pose, and the game body walks through FinalIK's animated locomotion, which writes `VRIK_IsMoving`, `VRIK_Horizontal`, `VRIK_Vertical`, `VRIK_Speed` and `VRIK_Turn` from inside the VRIK solve. `CharacterPrefab.OnLateUpdate` only runs that solve while the body counts as visible to you, but `CharacterPrefab.UpdatePhysics` calls `Animator.Update` every tick regardless. So when the game stops solving a body that was moving, it keeps playing its last walk state until the solve comes back. Your own body is never solved in normal VR play (`ikEnabled=False` on every self swap), and peers drop out of the solve at swaps and respawns (LOD 2 at 9 swaps and 18 respawns in one session's log). A new `WalkState` sets those parameters on every frame the game skipped, from how fast the body's root really moves: root-local velocity smoothed with the solver's own `animationSmoothTime`, and moving or not by its own `moveThreshold` with FinalIK's 0.9 hysteresis and 0.05 s stop delay. Frames the game does solve are left to the game. Nothing new goes over the network. The log says `walk state:` the first time it takes over a body, then at most every 30 s.
+
+### Added
+- `WalkStateFromSpeed` (Dev, default on) switches this off.
+
 ## 0.42.20 (2026-11-15)
 
 #18 (written as 0.42.19) on top of master's 0.42.19.

@@ -153,6 +153,7 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<string> SwapArmSource;
         public static MelonPreferences_Entry<string> SwapArmTargetSource;
         public static MelonPreferences_Entry<bool> SwapForceVanillaIK;
+        public static MelonPreferences_Entry<bool> WalkStateFromSpeed;
         public static MelonPreferences_Entry<float> RetargetHipsFollow;
         public static MelonPreferences_Entry<bool> RetargetHipsGuard;
         public static MelonPreferences_Entry<bool> PeerSpineToHead;
@@ -477,6 +478,10 @@ namespace CustomAvatars
             SwapForceVanillaIK = Dev.CreateEntry("SwapForceVanillaIK", false, description:
                 "Re-enable the IK the game deliberately turned off on your own body. It doesn't " +
                 "produce usable arms, so there's no reason to interfere.");
+            WalkStateFromSpeed = Dev.CreateEntry("WalkStateFromSpeed", true, description:
+                "On frames the game skips solving a body (always for your own, and for a peer whose " +
+                "body it counts as unseen), set its walk cycle from how fast it really moves. Off, " +
+                "the body keeps playing its last walk state and the avatar runs on the spot.");
             SwapSolvePeerArms = Dev.CreateEntry("SwapSolvePeerArms", true, description:
                 "Solve a peer's avatar arms to their own hand targets instead of copying their " +
                 "rig's arm rotations. The game blends a peer's arm IK weight up and down " +
