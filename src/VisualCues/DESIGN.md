@@ -3,7 +3,7 @@
 Player-facing install and usage: [README.md](README.md). This page has the full settings
 table, how each cue works, and what remains untested.
 
-A third, independent MelonLoader mod for Dungeons of Eternity. It does two things:
+A third, independent MelonLoader mod for Dungeons of Eternity. It does four things:
 
 - **The call.** Double-click a thumbstick in (either stick by default) and every player in the room
   who runs the mod gets an arrow to you on their HUD with your name and distance, plus the
@@ -13,10 +13,14 @@ A third, independent MelonLoader mod for Dungeons of Eternity. It does two thing
   footsteps, attacks, growls, casts. Turn to face it and the marker goes away; when it goes
   quiet, or has been up six seconds, the marker fades. Bosses are labelled. This part is
   entirely local.
+- **The gate cue.** A yellow marker labelled GATE OPEN on a gate that starts to open, and
+  UNLOCKED on a lock (keyhole pedestal or door) that is unlocked, for five seconds. Local.
+- **The puzzle cue.** When a cube goes into a rune-chest slot, a green tick labelled RIGHT or
+  a red X labelled WRONG on that slot for three seconds. Local.
 
 There is **no gate**: no handshake, no version check, no private-room rule. The mod works in
 any room with anyone. The call needs the mod on both ends (a friend without it sees nothing;
-you need it to send). The noise cue needs nobody else.
+you need it to send). The noise, gate and puzzle cues need nobody else.
 
 ## Build
 
@@ -37,6 +41,8 @@ Everything is automatic. In VR:
 | Double-click a stick in | Sends the call. The game's own single click (item outline) still works. `SummonStick` picks left / right / either; `SummonPress` can be `single` or `hold` instead. |
 | Someone else calls | Marker toward them, name and distance, for `SummonDurationSeconds`. Calling again restarts the pulse. Walk to within `SummonDismissMeters` of them while facing them and the marker goes away. |
 | An enemy you can't see makes noise | Orange arc on the edge ring in its direction, with the distance. Pink for a boss. |
+| A gate opens, a lock is unlocked | Yellow circle (in view) or arc (out of view), `GATE OPEN` / `UNLOCKED`, with the distance. |
+| A cube goes into a rune-chest slot | Green tick `RIGHT` or red X `WRONG` on the slot (in view), or an arc with that label. The slot that completes the chest says `RIGHT - SOLVED`. |
 
 Desktop keys (window focused): **'** (quote) sends a call, **.** (period) marks the nearest
 enemy whether or not you can see it (to check the HUD without a fight), **,** (comma)
@@ -98,6 +104,12 @@ Their double-click still buzzes the controller and sends the call; nothing is ev
 | `NoiseFootsteps` / `NoiseAnimationFx` / `NoiseAttributeSounds` | `true` | The three noise sources (below). |
 | `NoiseAttributeRadius` | `2.0` | Metres. A positioned sound this close to an enemy is that enemy's. |
 | `NoiseMaxMarkers` | `8` | Nearest enemies win. |
+| `GateEnabled` | `true` | Gate and lock markers. |
+| `GateRangeMeters` | `40` | Gates and locks farther away get no marker. |
+| `GateDurationSeconds` | `5` | How long the gate marker stays. |
+| `PuzzleEnabled` | `true` | Rune-chest slot markers. |
+| `PuzzleRangeMeters` | `25` | Slots farther away get no marker. |
+| `PuzzleDurationSeconds` | `3` | How long the slot marker stays. |
 | `HudDistance` / `HudRingDegrees` / `HudScale` | `1.2` / `24` / `1.0` | Plane distance, ring radius as an angle, size multiplier for arc width, tip and labels. |
 | `HudOnTop` | `true` | Draw over walls and enemies when the shader allows it. |
 | `HudShowDistance` | `true` | Distance next to each marker. |
@@ -128,10 +140,32 @@ own transform, or within 0.75 m of its head, counts as reaching it). The facing 
 because a gate stops the ray but not the eyes: in the first test an enemy behind a gate kept
 its marker while the player looked straight at it.
 
+**The gate cue** has two hooks, both checked in the disassembly to run on every client:
+
+1. `Gate.Open` (RVA 0x6D6560, a `[PunRPC]`). `Operable.Net_Open` sends it to `RpcTarget.All`
+   (offline it calls it directly), and `SoulHarvest.UpdateRoundFinished` calls it on each
+   gate in its list directly, from the round state machine every client runs. A prefix reads
+   the state; only a call that takes the gate from Closed or Closing to Opening, the same test
+   `Operable.Open` makes, shows a marker. A late joiner gets gate state through
+   `SyncInitialState`, not `Open`. The marker sits on the middle of the gate's renderers'
+   bounds (fallback: a metre above its transform).
+2. `Lock.Remote_Unlock` (RVA 0xBBC4B0), the body of `RPC_Unlock`, which `Lock.Net_Unlock`
+   sends to `RpcTarget.All` when a key is turned. `Door.Remote_Unlock` calls it. Only a lock
+   that was still locked counts. `Lock.OnPlayerEnteredRoom` also sends it to a late joiner for
+   locks already open, so nothing is shown for the first 12 seconds after a scene loads.
+
+**The puzzle cue** hooks `RuneChest.RPC_SyncLockState(int[] data, int changedIndex)`
+(RVA 0x70D540). The chest's owner judges the cube in `OnKeyAdded` and sends this RPC to
+`RpcTarget.All`; inside it every client plays `validAttachmentSound` when
+`data[changedIndex]` is 1 or `invalidAttachmentSound` when it is 2, at
+`receptacles[changedIndex]`. The postfix makes the same test at the same place. The late-join
+sync sends `changedIndex = -1` and a removed cube sets 0, so neither shows anything.
+
 The HUD is repositioned to the main camera every LateUpdate (falling back to the local
 avatar's eye, then head, transform). The arc and the circle are two generated double-sided
 meshes at unit radius, scaled to the ring; labels are 3D TextMeshPro with the game's font,
-captured from any live text.
+captured from any live text. The puzzle tick and X are two more generated stroke meshes;
+right and wrong differ in shape and label as well as colour.
 
 ## Tested so far
 
@@ -156,6 +190,13 @@ lifetime cap are for. Still to check, in order of what would stop the mod workin
    that should have been an enemy's but read `skip`, or the reverse, are the tuning input for
    `NoiseAttributeRadius`. Footsteps from `AE_Footstep` need no attribution.
 
+6. **The gate and puzzle cues (0.1.6), never seen in a headset.** The console prints
+   `First gate cue fired — …` and `First puzzle cue fired — …` once per session; every later
+   one is a `gate cue:` or `puzzle cue:` line in the session log, including the ones skipped
+   for range or the settle window. Check that a lever, a soul-harvest round end and a
+   skeleton key each give one, as host and as a guest, and that a cube in a slot gives RIGHT
+   or WRONG matching the game's sound.
+
 Grep the MelonLoader log for `[VisualCues]`; the session log is the fuller record.
 
 ## Layout
@@ -173,5 +214,7 @@ src/VisualCues/
 ├── Net/CueNet.cs         event 160, send and receive
 ├── Cues/SummonCue.cs     the call: send, receive, follow the caller
 ├── Cues/NoiseCue.cs      the three noise hooks, attribution, seen test
+├── Cues/GateCue.cs       Gate.Open and Lock.Remote_Unlock: gate and lock markers
+├── Cues/PuzzleCue.cs     RuneChest.RPC_SyncLockState: right/wrong slot markers
 └── Hud/CueHud.cs         the head-locked HUD: markers, ring, labels, flash
 ```

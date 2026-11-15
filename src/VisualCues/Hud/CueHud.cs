@@ -26,6 +26,17 @@ namespace VisualCues.Hud
     /// </summary>
     public static class CueHud
     {
+        /// <summary>What an in-view cue draws around its target. Off-screen cues are always the edge-ring arc.</summary>
+        public enum CueShape
+        {
+            /// <summary>The thin circle (calls, noise, gates).</summary>
+            Ring,
+            /// <summary>A tick: a puzzle slot that took the right cube.</summary>
+            Check,
+            /// <summary>An X: a puzzle slot that took the wrong cube.</summary>
+            Cross,
+        }
+
         public struct Cue
         {
             public string Key;
@@ -36,11 +47,16 @@ namespace VisualCues.Hud
             public int Priority;
             /// <summary>Quieter: lower alpha, and the in-view circle is thin and faint. Used for the call, which can sit on screen for seconds.</summary>
             public bool Subtle;
+            /// <summary>In-view shape; defaults to the ring.</summary>
+            public CueShape Shape;
         }
 
         public static readonly Color SummonColor = new Color(0.30f, 0.90f, 1.00f);
         public static readonly Color NoiseColor = new Color(1.00f, 0.50f, 0.15f);
         public static readonly Color BossColor = new Color(1.00f, 0.30f, 0.80f);
+        public static readonly Color GateColor = new Color(1.00f, 0.88f, 0.25f);
+        public static readonly Color PuzzleRightColor = new Color(0.35f, 1.00f, 0.45f);
+        public static readonly Color PuzzleWrongColor = new Color(1.00f, 0.28f, 0.28f);
 
         private sealed class Marker
         {
@@ -61,7 +77,7 @@ namespace VisualCues.Hud
         private static float _headCheckedAt = -100f;
         private static string _headSource = "";
 
-        private static Mesh _arcMesh, _circleMesh, _thinCircleMesh;
+        private static Mesh _arcMesh, _circleMesh, _thinCircleMesh, _checkMesh, _crossMesh;
         private static float _meshScaleKey = -1f;
         private static Material _shapeTemplate;
         private static bool _onTop, _materialLogged;
@@ -213,13 +229,16 @@ namespace VisualCues.Hud
                 Vector3 labelPos;
                 if (onTarget)
                 {
-                    // A thin circle around the target, label under it.
+                    // A thin circle around the target (or a tick / an X for a puzzle slot), label under it.
                     var circle = cue.Subtle && _thinCircleMesh != null ? _thinCircleMesh : _circleMesh;
+                    var shapeR = circleR;
+                    if (cue.Shape == CueShape.Check && _checkMesh != null) { circle = _checkMesh; shapeR = circleR * 1.3f; }
+                    else if (cue.Shape == CueShape.Cross && _crossMesh != null) { circle = _crossMesh; shapeR = circleR * 1.3f; }
                     if (m.ShapeFilter != null && circle != null && m.ShapeFilter.sharedMesh != circle) m.ShapeFilter.sharedMesh = circle;
                     m.Shape.localPosition = new Vector3(proj.x, proj.y, 0f);
                     m.Shape.localRotation = Quaternion.identity;
-                    m.Shape.localScale = new Vector3(circleR, circleR, 1f);
-                    labelPos = new Vector3(proj.x, proj.y - circleR - fontSize * 0.09f, 0f);
+                    m.Shape.localScale = new Vector3(shapeR, shapeR, 1f);
+                    labelPos = new Vector3(proj.x, proj.y - shapeR - fontSize * 0.09f, 0f);
                 }
                 else
                 {
@@ -345,7 +364,7 @@ namespace VisualCues.Hud
         /// </summary>
         private static void EnsureShapeAssets(float scale)
         {
-            if (_arcMesh == null || _circleMesh == null || _thinCircleMesh == null || Mathf.Abs(scale - _meshScaleKey) > 0.001f)
+            if (_arcMesh == null || _circleMesh == null || _thinCircleMesh == null || _checkMesh == null || _crossMesh == null || Mathf.Abs(scale - _meshScaleKey) > 0.001f)
             {
                 _meshScaleKey = scale;
                 // Edge-ring arc: ±16° of band, 2.5 % of the radius wide, with a small outward tip.
@@ -356,6 +375,16 @@ namespace VisualCues.Hud
                 if (_circleMesh != null) SwapMesh(_circleMesh, circle); else _circleMesh = circle;
                 var thin = BuildArc(180f, 0.04f * Mathf.Sqrt(scale), tipHeight: 0f, tipHalfWidth: 0f);
                 if (_thinCircleMesh != null) SwapMesh(_thinCircleMesh, thin); else _thinCircleMesh = thin;
+                // Puzzle slot shapes, so right and wrong differ in shape and not only in colour.
+                var stroke = 0.16f * Mathf.Sqrt(scale);
+                var check = BuildStrokes(stroke, "VisualCues_Check",
+                    new Vector2(-0.75f, 0.05f), new Vector2(-0.25f, -0.55f),
+                    new Vector2(-0.25f, -0.55f), new Vector2(0.8f, 0.7f));
+                var cross = BuildStrokes(stroke, "VisualCues_Cross",
+                    new Vector2(-0.65f, -0.65f), new Vector2(0.65f, 0.65f),
+                    new Vector2(-0.65f, 0.65f), new Vector2(0.65f, -0.65f));
+                if (_checkMesh != null) SwapMesh(_checkMesh, check); else _checkMesh = check;
+                if (_crossMesh != null) SwapMesh(_crossMesh, cross); else _crossMesh = cross;
             }
             if (_shapeTemplate == null)
             {
@@ -432,6 +461,40 @@ namespace VisualCues.Hud
                 tris.AddRange(new[] { b, b + 1, b + 2, b, b + 2, b + 1 });
             }
             var mesh = new Mesh { name = tipHeight > 0f ? "VisualCues_Arc" : "VisualCues_Circle" };
+            mesh.vertices = (Il2CppStructArray<Vector3>)verts.ToArray();
+            mesh.uv = (Il2CppStructArray<Vector2>)uvs.ToArray();
+            mesh.triangles = (Il2CppStructArray<int>)tris.ToArray();
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        /// <summary>
+        /// Straight strokes at unit size, <paramref name="width"/> thick: the points are taken
+        /// in pairs, one stroke per pair, each extended by half its width at both ends so the
+        /// joints close. Both windings are emitted.
+        /// </summary>
+        private static Mesh BuildStrokes(float width, string name, params Vector2[] points)
+        {
+            var verts = new List<Vector3>();
+            var uvs = new List<Vector2>();
+            var tris = new List<int>();
+            var h = width * 0.5f;
+            for (var i = 0; i + 1 < points.Length; i += 2)
+            {
+                var d = points[i + 1] - points[i];
+                if (d.sqrMagnitude < 1e-6f) continue;
+                d.Normalize();
+                var n = new Vector2(-d.y, d.x) * h;
+                var a = points[i] - d * h;
+                var b = points[i + 1] + d * h;
+                var v = verts.Count;
+                verts.Add(new Vector3(a.x - n.x, a.y - n.y, 0f)); uvs.Add(new Vector2(0f, 0f));
+                verts.Add(new Vector3(a.x + n.x, a.y + n.y, 0f)); uvs.Add(new Vector2(0f, 1f));
+                verts.Add(new Vector3(b.x + n.x, b.y + n.y, 0f)); uvs.Add(new Vector2(1f, 1f));
+                verts.Add(new Vector3(b.x - n.x, b.y - n.y, 0f)); uvs.Add(new Vector2(1f, 0f));
+                Quad(tris, v, v + 1, v + 2, v + 3);
+            }
+            var mesh = new Mesh { name = name };
             mesh.vertices = (Il2CppStructArray<Vector3>)verts.ToArray();
             mesh.uv = (Il2CppStructArray<Vector2>)uvs.ToArray();
             mesh.triangles = (Il2CppStructArray<int>)tris.ToArray();

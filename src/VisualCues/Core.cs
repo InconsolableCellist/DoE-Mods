@@ -6,7 +6,7 @@ using VisualCues.Cues;
 using VisualCues.Hud;
 using VisualCues.Net;
 
-[assembly: MelonInfo(typeof(Core), "VisualCues", "0.1.5", "Foxipso")]
+[assembly: MelonInfo(typeof(Core), "VisualCues", "0.1.6", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace VisualCues
@@ -18,13 +18,15 @@ namespace VisualCues
     ///    with your name and distance (one Photon custom event, code 160).
     ///  - The noise cue: an arrow toward every nearby enemy that makes a sound outside your
     ///    view, from the enemy's own animation events and the game's positional audio.
+    ///  - The gate cue: a marker on a gate that opens or a lock that is unlocked.
+    ///  - The puzzle cue: a tick (right) or an X (wrong) on a rune-chest slot when a cube goes in.
     ///
     /// No gate, no roster, no handshake. The mod works alone in any room; the call needs the
     /// mod on both ends, the noise cue is entirely local. Nothing is written to the profile.
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.1.5";
+        public const string Version = "0.1.6";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -36,7 +38,7 @@ namespace VisualCues
             try { MelonPreferences.Save(); }
             catch (Exception e) { LoggerInstance.Warning($"Could not write MelonPreferences.cfg: {e.Message}"); }
 
-            LoggerInstance.Msg($"VisualCues {Version} — stick-click call (event {CueNet.CodeSummon}), unseen-enemy noise markers. Logs in {ModPaths.LogDir}");
+            LoggerInstance.Msg($"VisualCues {Version} — stick-click call (event {CueNet.CodeSummon}), unseen-enemy noise markers, gate and puzzle-slot markers. Logs in {ModPaths.LogDir}");
 
             PhotonHook.Install(HarmonyInstance);
             CueNet.Init();
@@ -44,6 +46,8 @@ namespace VisualCues
 
             Hooks.Init(HarmonyInstance);
             NoiseCue.Install();
+            GateCue.Install();
+            PuzzleCue.Install();
             Hooks.Report();
 
             LoggerInstance.Msg("Hotkeys (window focused): ' (quote) = send a call, . (period) = mark the nearest enemy, , (comma) = reload settings.");
@@ -55,6 +59,8 @@ namespace VisualCues
             if (ModConfig.Enabled.Value && ModConfig.SummonEnabled.Value) StickPress.Tick();
             SummonCue.Tick();
             NoiseCue.Tick();
+            GateCue.Tick();
+            PuzzleCue.Tick();
 
             if (!ModConfig.HotkeysEnabled.Value) return;
             try
@@ -80,12 +86,14 @@ namespace VisualCues
         {
             SummonCue.Clear($"scene changed to {sceneName}");
             NoiseCue.Clear($"scene changed to {sceneName}");
+            GateCue.Clear($"scene changed to {sceneName}");
+            PuzzleCue.Clear($"scene changed to {sceneName}");
             CueHud.Reset();
         }
 
         public override void OnApplicationQuit()
         {
-            CueLog.Headline($"Quit. {SummonCue.Describe()}; {NoiseCue.Describe()}; net {CueNet.Stats()}; HUD {CueHud.Describe()}");
+            CueLog.Headline($"Quit. {SummonCue.Describe()}; {NoiseCue.Describe()}; {GateCue.Describe()}; {PuzzleCue.Describe()}; net {CueNet.Stats()}; HUD {CueHud.Describe()}");
             CueLog.Close();
         }
     }

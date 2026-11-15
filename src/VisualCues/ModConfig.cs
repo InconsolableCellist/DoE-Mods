@@ -71,6 +71,20 @@ namespace VisualCues
         /// <summary>Most markers on screen at once. The nearest win.</summary>
         public static MelonPreferences_Entry<int> NoiseMaxMarkers;
 
+        /// <summary>The gate cue: a marker on a gate that opens (lever, soul-harvest round, key) and on a lock that is unlocked.</summary>
+        public static MelonPreferences_Entry<bool> GateEnabled;
+        /// <summary>Gates and locks farther than this (metres) get no marker.</summary>
+        public static MelonPreferences_Entry<float> GateRangeMeters;
+        /// <summary>How long the gate marker stays.</summary>
+        public static MelonPreferences_Entry<float> GateDurationSeconds;
+
+        /// <summary>The puzzle cue: a tick (right) or an X (wrong) on a rune-chest slot when a cube goes in.</summary>
+        public static MelonPreferences_Entry<bool> PuzzleEnabled;
+        /// <summary>Slots farther than this (metres) get no marker.</summary>
+        public static MelonPreferences_Entry<float> PuzzleRangeMeters;
+        /// <summary>How long the slot marker stays.</summary>
+        public static MelonPreferences_Entry<float> PuzzleDurationSeconds;
+
         /// <summary>HUD plane distance from the eyes, metres. Closer walls and enemies can cover it unless HudOnTop works.</summary>
         public static MelonPreferences_Entry<float> HudDistance;
         /// <summary>Radius of the edge ring as an angle from straight ahead, degrees. Off-screen cues sit on this ring.</summary>
@@ -121,6 +135,14 @@ namespace VisualCues
             NoiseAttributeSounds = Main.CreateEntry("NoiseAttributeSounds", true);
             NoiseAttributeRadius = Main.CreateEntry("NoiseAttributeRadius", 2.0f);
             NoiseMaxMarkers = Main.CreateEntry("NoiseMaxMarkers", 8);
+
+            GateEnabled = Main.CreateEntry("GateEnabled", true, description: "Marker on a gate or door that opens (lever, soul-harvest round, key) and on a lock that is unlocked, labelled GATE OPEN / UNLOCKED.");
+            GateRangeMeters = Main.CreateEntry("GateRangeMeters", 40f, description: "Gates and locks farther than this (metres) get no marker.");
+            GateDurationSeconds = Main.CreateEntry("GateDurationSeconds", 5f, description: "How long the gate marker stays.");
+
+            PuzzleEnabled = Main.CreateEntry("PuzzleEnabled", true, description: "Rune-chest cube slots: a green tick labelled RIGHT or a red X labelled WRONG on the slot when a cube goes in.");
+            PuzzleRangeMeters = Main.CreateEntry("PuzzleRangeMeters", 25f, description: "Slots farther than this (metres) get no marker.");
+            PuzzleDurationSeconds = Main.CreateEntry("PuzzleDurationSeconds", 3f, description: "How long the slot marker stays.");
 
             HudDistance = Main.CreateEntry("HudDistance", 1.2f);
             HudRingDegrees = Main.CreateEntry("HudRingDegrees", 24f);

@@ -1,11 +1,22 @@
-# VisualCues 0.1.5
+# VisualCues 0.1.6
 
 A mod for **Dungeons of Eternity** designed to assist Deaf/HoH users:
 
 - **Calls.** Users can now double-click a thumbstick and it'll send out a networked ping or "call," which tells other users of the mod that the user wishes to summon them. Summoned users will see a HUD indication that goes away when you get close, and a directional marker.
 - **Enemy noise.** Enemies in your vicinity that make a sound will now trigger a brief HUD indicator, pointing in their direction and estimating their distance. When you face the source of the sound it'll fade away.
+- **Gates and locks.** When a gate starts to open (a lever, the end of a soul-harvest round, a key) or a lock is unlocked, a yellow marker labelled GATE OPEN or UNLOCKED points to it.
+- **Rune-chest cube slots.** When a cube goes into a slot on the crypt-gem chest, the slot gets a green tick labelled RIGHT or a red X labelled WRONG.
 
-The enemy noise feature works regardless of whether other users have the mod, but the call feature requires other users to have it. The mod doesn't affect your profile, character, progression, or save games.
+The enemy noise, gate and cube-slot features work regardless of whether other users have the mod, but the call feature requires other users to have it. The mod doesn't affect your profile, character, progression, or save games.
+
+## What's new in 0.1.6
+
+Two new cues for sounds a deaf player misses:
+
+- **A gate opens or a lock is unlocked.** A yellow marker on the gate or lock for 5 seconds (`GateDurationSeconds`), labelled `GATE OPEN` or `UNLOCKED`, with the distance: a circle around it when it is in view, an arc at the edge of the view pointing to it when it is not. This covers levers, the end of each soul-harvest round, skeleton keys and other keys, and anything else that opens a gate. Gates and locks over 40 m away (`GateRangeMeters`) are ignored, and so is anything in the first 12 seconds after a level loads, when the game is only syncing what is already open. Turn it off with `GateEnabled = false`.
+- **A cube goes into a rune-chest slot.** The slot gets a green tick labelled `RIGHT` or a red X labelled `WRONG` for 3 seconds (`PuzzleDurationSeconds`); the slot that completes the chest says `RIGHT - SOLVED`. Right and wrong differ in shape and text as well as colour. Off-screen, it is an arc with the same label. Turn it off with `PuzzleEnabled = false`.
+
+Both work for every player in the room, host or not, and neither sends anything over the network.
 
 ## What's new in 0.1.5
 
@@ -43,8 +54,8 @@ Find it by **right-clicking the game in Steam → Manage → Browse local files*
 4. **Launch.** The MelonLoader console should show:
 
    ```
-   VisualCues 0.1.4 — stick-click call (event 160), unseen-enemy noise markers.
-   Patches: 3 installed, 0 refused, 0 failed.
+   VisualCues 0.1.6 — stick-click call (event 160), unseen-enemy noise markers, gate and puzzle-slot markers.
+   Patches: 6 installed, 0 refused, 0 failed.
    ```
 
 ## Settings
@@ -70,6 +81,10 @@ Other settings:
 | `SummonDurationSeconds` | `4` | How long the caller's marker stays. |
 | `NoiseRangeMeters` | `18` | Ignore enemies farther than this. |
 | `NoiseDurationSeconds` | `2.5` | How long an arc stays after the last sound. |
+| `GateEnabled` | `true` | Marker on a gate that opens or a lock that is unlocked. |
+| `GateDurationSeconds` | `5` | How long the gate marker stays. |
+| `PuzzleEnabled` | `true` | Tick or X on a rune-chest slot when a cube goes in. |
+| `PuzzleDurationSeconds` | `3` | How long the slot marker stays. |
 | `HudScale` | `1.0` | Bigger or smaller markers and text. |
 | `HudDistance` | `1.2` | How far in front of your eyes the markers float, in metres. |
 
