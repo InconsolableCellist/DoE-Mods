@@ -14,7 +14,7 @@ namespace LootOverhaul
     /// </summary>
     public static class ModConfig
     {
-        public const int Layout = 12;
+        public const int Layout = 13;
 
         public static MelonPreferences_Category Main, ChestArmor, Goblin, FloorLoot, Bag, Shop, BoomerangCat, TokenPay, BoothPos, Dev;
 
@@ -124,8 +124,8 @@ namespace LootOverhaul
             GoldToTokenRate = TokenPay.CreateEntry("GoldToTokenRate", 0.5f, description: "Tokens per gold earned in a run, before the bonuses below.");
             BossKillBonus = TokenPay.CreateEntry("BossKillBonus", 0.5f, description: "Extra payout per boss killed. 0.5 = +50%.");
             MinibossKillBonus = TokenPay.CreateEntry("MinibossKillBonus", 0.1f, description: "Extra payout per mini-boss killed.");
-            HazardBonusPerLevel = TokenPay.CreateEntry("HazardBonusPerLevel", 0.25f, description: "Extra payout per hazard level of the run (0-3).");
-            TierBonusPerLevel = TokenPay.CreateEntry("TierBonusPerLevel", 0.1f, description: "Extra payout per dungeon tier above the first.");
+            HazardBonusPerLevel = TokenPay.CreateEntry("HazardBonusPerLevel", 0.2f, description: "Extra payout per hazard level of the run (0-3). 0.2 = +20% per level.");
+            TierBonusPerLevel = TokenPay.CreateEntry("TierBonusPerLevel", 0.05f, description: "Extra payout per dungeon tier above the first. 0.05 = +5% per tier.");
             TokenPlayerBonusPerExtraPlayer = TokenPay.CreateEntry("TokenPlayerBonusPerExtraPlayer", 0.5f, description: "Extra payout per party member beyond you.");
             TokenChestBonusPerChest = TokenPay.CreateEntry("TokenChestBonusPerChest", 0.02f, description: "Extra payout per chest you opened.");
             TokenToastSeconds = TokenPay.CreateEntry("TokenToastSeconds", 30f, description: "Seconds the +tokens message from a run stays on screen (it is reposted every 2 s). 0 = shown once, the game's own short time. At most 300.");
@@ -145,7 +145,8 @@ namespace LootOverhaul
             ConfigVersion = Dev.CreateEntry("ConfigVersion", 0, description: "Internal. Do not edit.");
 
             if (ConfigVersion.Value == 11) RepairLayout11();
-            else if (ConfigVersion.Value < Layout) Migrate(old);
+            else if (ConfigVersion.Value < 11) Migrate(old);
+            if (ConfigVersion.Value == 12) RepairLayout12();
         }
 
         private static readonly string[] OldMainKeys =
@@ -214,9 +215,31 @@ namespace LootOverhaul
             Reset(AutoPickup, true);
             Reset(DevTools, true);
 
+            ConfigVersion.Value = 12;
+            MelonPreferences.Save();
+            MelonLogger.Msg($"LootOverhaul config layout 12: {fixedCount} old default(s) from the first 0.11.0 migration replaced by the new defaults.");
+        }
+
+        /// <summary>
+        /// Layout 13 (0.13.3): the hazard-level and tier token bonuses dropped from +25% / +10% to
+        /// +20% / +5%. A layout-12 file that still holds the old default gets the new one; a value
+        /// the player chose is kept.
+        /// </summary>
+        private static void RepairLayout12()
+        {
+            var fixedCount = 0;
+            void Reset(MelonPreferences_Entry<float> entry, float oldDefault)
+            {
+                if (Math.Abs(entry.Value - oldDefault) >= 0.0001f) return;
+                entry.Value = entry.DefaultValue;
+                fixedCount++;
+            }
+            Reset(HazardBonusPerLevel, 0.25f);
+            Reset(TierBonusPerLevel, 0.1f);
+
             ConfigVersion.Value = Layout;
             MelonPreferences.Save();
-            MelonLogger.Msg($"LootOverhaul config layout {Layout}: {fixedCount} old default(s) from the first 0.11.0 migration replaced by the new defaults.");
+            MelonLogger.Msg($"LootOverhaul config layout {Layout}: {fixedCount} token bonus default(s) updated (hazard level +20%, tier +5%).");
         }
 
         /// <summary>
