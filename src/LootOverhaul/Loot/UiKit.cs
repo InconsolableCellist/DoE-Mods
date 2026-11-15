@@ -247,7 +247,7 @@ namespace LootOverhaul.Loot
         /// A bright rectangular frame: four thin bars around <paramref name="center"/> in the
         /// parent's plane, unlit-looking (colour plus emission) so it reads in a dark room.
         /// </summary>
-        public static GameObject Frame(Transform parent, Vector3 center, float width, float height, float thickness, Color color, float depth = 0.004f, float emission = 1.5f)
+        public static GameObject Frame(Transform parent, Vector3 center, float width, float height, float thickness, Color color, float depth = 0.004f, float emission = UiStyle.FrameGlow)
         {
             var root = new GameObject("Frame");
             root.transform.SetParent(parent, false);
@@ -299,7 +299,7 @@ namespace LootOverhaul.Loot
             try
             {
                 var r = quad.GetComponent<Renderer>();
-                Tint(r, color, color, enableEmission: true);
+                Tint(r, color, color * UiStyle.PlateGlow, enableEmission: true);
                 r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 r.receiveShadows = false;
             }
@@ -559,7 +559,7 @@ namespace LootOverhaul.Loot
                 var r = plate.GetComponent<Renderer>();
                 Action<bool> onHover = on =>
                 {
-                    try { if (Interop.Alive(r)) { var c = on ? lit : normal; Tint(r, c, c, enableEmission: true); } } catch { }
+                    try { if (Interop.Alive(r)) { var c = on ? lit : normal; Tint(r, c, c * UiStyle.PlateGlow, enableEmission: true); } } catch { }
                 };
                 hit.onHover.AddListener(DelegateSupport.ConvertDelegate<UnityAction<bool>>(onHover));
             }
@@ -596,7 +596,7 @@ namespace LootOverhaul.Loot
         public static void LockToggle(Transform parent, Vector3 pos, bool locked, Action onPressed)
         {
             Btn(parent, pos, UiStyle.Stepper, null, onPressed, UiStyle.Variant.Secondary, locked ? UiStyle.State.Selected : UiStyle.State.Normal);
-            var c = locked ? UiStyle.Panel : UiStyle.Hex("#C9D1DD");
+            var c = locked ? UiStyle.Hex("#FFFFFF") : UiStyle.Hex("#C9D1DD");
             var z = new Vector3(0f, 0f, -0.006f);
             Bar(parent, pos + z + new Vector3(0f, -0.010f, 0f), 0.034f, 0.024f, c);
             Frame(parent, pos + z + new Vector3(locked ? 0f : 0.008f, locked ? 0.012f : 0.020f, 0f), 0.022f, 0.024f, 0.006f, c);

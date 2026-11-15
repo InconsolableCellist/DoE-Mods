@@ -1,4 +1,4 @@
-# LootOverhaul 0.13.3 — building
+# LootOverhaul 0.13.5 — building
 
 A second, independent MelonLoader mod for Dungeons of Eternity. Design and game-internals
 findings: [docs/LOOT-OVERHAUL.md](../../docs/LOOT-OVERHAUL.md).
