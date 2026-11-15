@@ -195,7 +195,7 @@ file on quit.
 | `BiteGestureCooldownSeconds` | `0.6` | Shortest gap between recognised chomps. |
 | `BiteJawParam` | *(empty)* | Force a face parameter. Empty tries the usual spellings. |
 | `MimicShock` | `true` | Waking a mimic shocks you, once; its attacks then do not. See [Mimics](#mimics). |
-| `MimicShockStrength` | `0.5` | How hard that shock is, 0 to 1 of the app's max for its parameter. |
+| `MimicShockStrength` | `1` | How hard that shock is, 0 to 1 of the app's max for its parameter. |
 | `MimicPath` | *(empty)* | What waking a mimic fires. Empty = `ShockPath`. |
 | `HudEnabled` | `true` | Draw the desktop panel. |
 

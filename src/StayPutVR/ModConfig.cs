@@ -108,7 +108,7 @@ namespace StayPutVR
             BiteCooldownSeconds = Main.CreateEntry("BiteCooldownSeconds", 3f);
 
             MimicShock = Main.CreateEntry("MimicShock", true, description: "Waking a mimic (a key in its lock, or a weapon touching it) shocks the player who did it, once per mimic. Its attacks then do not shock.");
-            MimicShockStrength = Main.CreateEntry("MimicShockStrength", 0.5f, description: "How hard the mimic shock is, 0 to 1 of the max the app holds for the parameter it fires.");
+            MimicShockStrength = Main.CreateEntry("MimicShockStrength", 1f, description: "How hard the mimic shock is, 0 to 1 of the max the app holds for the parameter it fires.");
             MimicPath = Main.CreateEntry("MimicPath", "", description: "What waking a mimic fires. Empty = ShockPath. Give it its own parameter to set its own intensity and duration in the app.");
 
             HudEnabled = Main.CreateEntry("HudEnabled", true);
