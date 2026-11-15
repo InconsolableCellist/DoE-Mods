@@ -142,10 +142,16 @@ without the mod, or with the switch off, cannot be damaged or shocked by any of 
 
 ## Mimics
 
-Wake a mimic and you get shocked: pressing its open prompt, turning a key in its lock, or hitting
-it with a weapon. Only the player who did it is shocked, at `MimicShockStrength`, not the others
-standing nearby. A dead mimic opened for its loot does not count. The arm switch, the cooldown and
-`MaxPerMinute` apply; the heal shield does not. Once it is awake, its bites are ordinary hits.
+Wake a mimic, by turning a key in its lock or touching it with your weapon, and you get one shock.
+Only the player who woke it is shocked, not the others standing nearby, and only once per mimic.
+After that the mimic shocks nobody: not its attacks (damage type `Mimic`), not hitting it, not
+looting it. Only the arm switch can hold the shock back; like the killing blow, it goes past the
+cooldown and `MaxPerMinute`.
+
+The mod only says how hard: `MimicShockStrength` is the share of the max the app holds for the
+parameter it fires. The max itself and the duration are set in the StayPutVR app per parameter. By
+default the mimic fires `ShockPath`, so it shares those with hits; set `MimicPath` to a parameter of
+its own (e.g. `/avatar/parameters/SPVR_Mimic`) and add that in the app to give it its own.
 
 ## Settings
 
@@ -188,8 +194,9 @@ file on quit.
 | `BiteSnapSeconds` | `0.2` | How fast the mouth must shut. Filters speech. |
 | `BiteGestureCooldownSeconds` | `0.6` | Shortest gap between recognised chomps. |
 | `BiteJawParam` | *(empty)* | Force a face parameter. Empty tries the usual spellings. |
-| `MimicShock` | `true` | Waking a mimic shocks you. See [Mimics](#mimics). |
-| `MimicShockStrength` | `0.5` | How hard that shock is, 0 to 1 of the app's Shock max. |
+| `MimicShock` | `true` | Waking a mimic shocks you, once; its attacks then do not. See [Mimics](#mimics). |
+| `MimicShockStrength` | `0.5` | How hard that shock is, 0 to 1 of the app's max for its parameter. |
+| `MimicPath` | *(empty)* | What waking a mimic fires. Empty = `ShockPath`. |
 | `HudEnabled` | `true` | Draw the desktop panel. |
 
 `Fall` fires by default, so put it in `IgnoreDamageTypes` if tripping over scenery should not count.

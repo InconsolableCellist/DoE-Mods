@@ -2,7 +2,7 @@
 
 ## 0.5.5 — 2026-11-15 (untested in the headset)
 
-**Waking a mimic shocks you.** Pressing a mimic's open prompt, turning a key in its lock or hitting it with a weapon fires `ShockPath` at `MimicShockStrength` (default 0.5) for the player who did it. The game never records who woke a mimic, so each of these three actions is hooked on the PC where it happens: the prompt is always pressed by your own controller, and the key and the weapon count only when they are yours. Other players near the mimic are not shocked for it. A dead mimic opened for its loot does not count, and each mimic shocks at most once in 5 s. The cooldown, `MaxPerMinute` and the arm switch apply as for a hit; the heal shield does not. `MimicShock = false` turns it off. Once awake, the mimic's bites are ordinary hits as before.
+**Waking a mimic shocks you, once.** Turning a key in a mimic's lock or touching it with your weapon wakes it, and fires one shock for the player who did it, at `MimicShockStrength` (default 0.5) on `MimicPath` (empty = `ShockPath`; give it its own parameter to set its own intensity and duration in the app). The game never records who woke a mimic, so both actions are hooked on the PC where they happen and count only when the key or weapon is yours: other players near the mimic are not shocked. Once per mimic, and only a live, closed one. After that the mimic shocks nobody: hits of damage type `Mimic` are held while `MimicShock` is on, the game removes the wake trigger so hitting it does nothing, and looting a dead one does not count. Only the arm switch holds the wake shock; it goes past the cooldown and `MaxPerMinute` like the killing blow. `MimicShock = false` turns all of this off and the mimic's attacks shock as before.
 
 ## 0.5.4 — 2026-11-13
 

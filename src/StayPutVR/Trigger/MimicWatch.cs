@@ -6,43 +6,40 @@ using UnityEngine;
 namespace StayPutVR.Trigger
 {
     /// <summary>
-    /// Waking a mimic shocks the player who did it. The game never records who that was: its
-    /// open is an RPC with no arguments, and its events carry no player. What it does have is
-    /// three places that only run, or only count, on the PC of the player responsible, and
-    /// those are what is hooked here:
+    /// Waking a mimic shocks the player who woke it, once. The game never records who that was:
+    /// its open is an RPC with no arguments, and its events carry no player. What it does have is
+    /// two places that only count on the PC of the player responsible, and those are hooked here:
     ///
     /// <list type="bullet">
-    /// <item><c>TriggeredInteractable.OnButtonPressed</c>: the open prompt on the chest. It is
-    /// driven by this client's own controller, so a press here is always the local player's.</item>
     /// <item><c>Lock.OnKeyTurned(Key, PropRoot)</c>: a key turned in the mimic's lock. It counts
     /// when the key is this client's (<c>IsMine</c>), which is the player holding it.</item>
-    /// <item><c>Mimic_Trigger.OnTriggerEnter(Collider)</c>: a weapon touching the mimic, which
-    /// wakes it. Only when the trigger actually fired (its <c>isTriggered</c> went from false to
-    /// true) and the weapon is this client's.</item>
+    /// <item><c>Mimic_Trigger.OnTriggerEnter(Collider)</c>: a weapon touching the sleeping mimic,
+    /// which wakes it. Only when the trigger actually fired (its <c>isTriggered</c> went from
+    /// false to true) and the weapon is this client's. The game destroys the trigger right
+    /// after, so hitting the mimic once it is awake never comes through here.</item>
     /// </list>
     ///
-    /// Only a mimic that is still alive and closed counts, so opening a dead one for its loot does
-    /// not shock. One shock per mimic per <see cref="RepeatSeconds"/>, so pressing and then
-    /// turning a key in the same mimic is one shock. Everything is read-only: the game's own
-    /// behaviour is untouched, and every other player decides for themselves on their own PC.
+    /// Only a mimic that is still alive and closed counts, so looting a dead one does not shock.
+    /// Each mimic shocks once per scene and never again. The mimic's own attacks do not shock
+    /// either while this is on (<see cref="ShockPolicy.OnHit"/> holds the <c>Mimic</c> damage
+    /// type). Everything is read-only: the game's own behaviour is untouched, and every other
+    /// player decides for themselves on their own PC.
     /// </summary>
     public static class MimicWatch
     {
-        private const float RepeatSeconds = 5f;
-
-        private static readonly Dictionary<IntPtr, float> LastShockAt = new Dictionary<IntPtr, float>();
+        private static readonly HashSet<IntPtr> Woken = new HashSet<IntPtr>();
         private static int _seen, _foreign;
 
         public static void Install()
         {
-            Patch(typeof(TriggeredInteractable), "OnButtonPressed", 0, nameof(Button_Prefix), null, "TriggeredInteractable.OnButtonPressed");
             Patch(typeof(Lock), "OnKeyTurned", 2, nameof(KeyTurned_Prefix), null, "Lock.OnKeyTurned");
             Patch(typeof(Mimic_Trigger), "OnTriggerEnter", 1, nameof(Trigger_Prefix), nameof(Trigger_Postfix), "Mimic_Trigger.OnTriggerEnter");
         }
 
-        public static string Stats() => $"{_seen} mimic wake(s) by you, {_foreign} by others ignored";
+        public static string Stats() => $"{_seen} mimic(s) woken by you, {_foreign} by others ignored";
 
-        public static void Clear() => LastShockAt.Clear();
+        /// <summary>A new scene has new mimics.</summary>
+        public static void Clear() => Woken.Clear();
 
         private static void Patch(Type type, string name, int argc, string prefix, string postfix, string label)
         {
@@ -59,21 +56,6 @@ namespace StayPutVR.Trigger
                 label);
         }
 
-        // ---- the open prompt -------------------------------------------------------------
-
-        private static void Button_Prefix(TriggeredInteractable __instance)
-        {
-            try
-            {
-                if (!ModConfig.Enabled.Value || !ModConfig.MimicShock.Value) return;
-                if (!Interop.Alive(__instance)) return;
-                var mimic = __instance.GetComponentInParent<Mimic>();
-                if (!Sleeping(mimic)) return;
-                Shock(mimic, "pressed open");
-            }
-            catch (Exception e) { Swallow("button", e); }
-        }
-
         // ---- a key in the lock -----------------------------------------------------------
 
         private static void KeyTurned_Prefix(Lock __instance, Key __0)
@@ -84,7 +66,7 @@ namespace StayPutVR.Trigger
                 if (!Interop.Alive(__instance)) return;
                 var mimic = __instance.GetComponentInParent<Mimic>();
                 if (!Sleeping(mimic)) return;
-                if (!Interop.Alive(__0) || !__0.IsMine) { _foreign++; return; }
+                if (!Interop.Alive(__0) || !__0.IsMine) { NoteForeign(mimic); return; }
                 Shock(mimic, "turned a key in it");
             }
             catch (Exception e) { Swallow("key", e); }
@@ -106,10 +88,10 @@ namespace StayPutVR.Trigger
                 if (__state) return;                                  // already woken before this touch
                 if (!ModConfig.Enabled.Value || !ModConfig.MimicShock.Value) return;
                 if (!Interop.Alive(__instance) || !__instance.isTriggered) return;   // this touch did not wake it
-                if (!IsMine(__0)) { _foreign++; return; }
                 var mimic = __instance.mimic;
                 if (!Interop.Alive(mimic)) return;
-                Shock(mimic, "hit it with a weapon");
+                if (!IsMine(__0)) { NoteForeign(mimic); return; }
+                Shock(mimic, "woke it with a weapon");
             }
             catch (Exception e) { Swallow("weapon", e); }
         }
@@ -136,12 +118,15 @@ namespace StayPutVR.Trigger
             catch { return false; }
         }
 
+        /// <summary>Someone else woke it: that mimic is spent for us too.</summary>
+        private static void NoteForeign(Mimic mimic)
+        {
+            if (Woken.Add(mimic.Pointer)) _foreign++;
+        }
+
         private static void Shock(Mimic mimic, string how)
         {
-            var now = Time.unscaledTime;
-            var key = mimic.Pointer;
-            if (LastShockAt.TryGetValue(key, out var at) && now - at < RepeatSeconds) return;
-            LastShockAt[key] = now;
+            if (!Woken.Add(mimic.Pointer)) return;   // once per mimic
             _seen++;
             ShockPolicy.OnMimic($"mimic `{Interop.Name(mimic)}`: you {how}");
         }
