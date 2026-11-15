@@ -1,5 +1,9 @@
 # StayPutVR changelog
 
+## 0.5.5 — 2026-11-15 (untested in the headset)
+
+**Waking a mimic shocks you.** Pressing a mimic's open prompt, turning a key in its lock or hitting it with a weapon fires `ShockPath` at `MimicShockStrength` (default 0.5) for the player who did it. The game never records who woke a mimic, so each of these three actions is hooked on the PC where it happens: the prompt is always pressed by your own controller, and the key and the weapon count only when they are yours. Other players near the mimic are not shocked for it. A dead mimic opened for its loot does not count, and each mimic shocks at most once in 5 s. The cooldown, `MaxPerMinute` and the arm switch apply as for a hit; the heal shield does not. `MimicShock = false` turns it off. Once awake, the mimic's bites are ordinary hits as before.
+
 ## 0.5.4 — 2026-11-13
 
 **The armed state is remembered across sessions.** It was meant to be already, but quitting disarms the link so no shock is left latched on in StayPutVR, and that disarm was saved like any other: every quit wrote `Armed = false`, so every session started disarmed. Quitting now only sends any pending release, so nothing is left latched on, without disarming. Arm once and the next launch starts armed (`ARMED (remembered from last session)` in the log); disarm with the sticks and it starts disarmed.

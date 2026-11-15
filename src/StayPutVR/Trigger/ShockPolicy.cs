@@ -201,6 +201,37 @@ namespace StayPutVR.Trigger
             }
         }
 
+        /// <summary>
+        /// You woke a mimic (<see cref="MimicWatch"/>). Fires <c>ShockPath</c> at
+        /// <c>MimicShockStrength</c>. The cooldown and the per-minute ceiling apply as for a hit;
+        /// the heal shield does not, since this is not damage.
+        /// </summary>
+        public static void OnMimic(string what)
+        {
+            var now = Time.unscaledTime;
+            LastHitAt = now;
+            LastHit = what;
+
+            string hold = null;
+            if (!_armed) hold = "disarmed";
+            else if (now - _lastFireAt < ModConfig.CooldownSeconds.Value) hold = $"cooldown, {ModConfig.CooldownSeconds.Value - (now - _lastFireAt):0.#} s left";
+            else if (OverBudget(now)) hold = $"per-minute ceiling of {ModConfig.MaxPerMinute.Value} reached";
+
+            if (hold != null)
+            {
+                HeldBack++;
+                LastHold = hold;
+                ShockLog.Line($"{what} — held back: {hold}");
+                return;
+            }
+
+            LastHold = "";
+            var path = PathSummary();
+            var magnitude = Mathf.Clamp01(ModConfig.MimicShockStrength.Value);
+            if (Fire(path, what, magnitude))
+                ShockLog.Headline($"{what} — fired {path} at {magnitude:0.00}");
+        }
+
         /// <summary>Seconds of shield a heal from <paramref name="source"/> buys, from its setting. 0 = none.</summary>
         public static float ShieldSeconds(HealSource source) => source switch
         {

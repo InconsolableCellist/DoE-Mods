@@ -53,6 +53,9 @@ namespace StayPutVR
         public static MelonPreferences_Entry<float> BiteFacingAngle;
         public static MelonPreferences_Entry<float> BiteCooldownSeconds;
 
+        public static MelonPreferences_Entry<bool> MimicShock;
+        public static MelonPreferences_Entry<float> MimicShockStrength;
+
         public static MelonPreferences_Entry<bool> HudEnabled;
 
         public static MelonPreferences_Entry<bool> VerboseLogging;
@@ -102,6 +105,9 @@ namespace StayPutVR
             BiteVerticalMeters = Main.CreateEntry("BiteVerticalMeters", 0.9f);
             BiteFacingAngle = Main.CreateEntry("BiteFacingAngle", 70f);
             BiteCooldownSeconds = Main.CreateEntry("BiteCooldownSeconds", 3f);
+
+            MimicShock = Main.CreateEntry("MimicShock", true, description: "Waking a mimic (pressing it open, turning a key in it, hitting it with a weapon) shocks the player who did it.");
+            MimicShockStrength = Main.CreateEntry("MimicShockStrength", 0.5f, description: "How hard the mimic shock is, 0 to 1 of the app's Shock max.");
 
             HudEnabled = Main.CreateEntry("HudEnabled", true);
 

@@ -1,4 +1,4 @@
-# StayPutVR (Dungeons of Eternity mod) — 0.5.4
+# StayPutVR (Dungeons of Eternity mod) — 0.5.5
 
 Take damage in the dungeon and your shock device fires, through the
 [StayPutVR](https://github.com/InconsolableCellist/StayPutVR) app. Bite another player and theirs
@@ -140,6 +140,13 @@ advertised they accept them, only to that one player, and their client checks it
 before anything happens. The bitten player's own client applies the hit point to itself. A player
 without the mod, or with the switch off, cannot be damaged or shocked by any of it.
 
+## Mimics
+
+Wake a mimic and you get shocked: pressing its open prompt, turning a key in its lock, or hitting
+it with a weapon. Only the player who did it is shocked, at `MimicShockStrength`, not the others
+standing nearby. A dead mimic opened for its loot does not count. The arm switch, the cooldown and
+`MaxPerMinute` apply; the heal shield does not. Once it is awake, its bites are ordinary hits.
+
 ## Settings
 
 `UserData\MelonPreferences.cfg`, section `[StayPutVR]`. Edit with the game closed; it rewrites the
@@ -181,6 +188,8 @@ file on quit.
 | `BiteSnapSeconds` | `0.2` | How fast the mouth must shut. Filters speech. |
 | `BiteGestureCooldownSeconds` | `0.6` | Shortest gap between recognised chomps. |
 | `BiteJawParam` | *(empty)* | Force a face parameter. Empty tries the usual spellings. |
+| `MimicShock` | `true` | Waking a mimic shocks you. See [Mimics](#mimics). |
+| `MimicShockStrength` | `0.5` | How hard that shock is, 0 to 1 of the app's Shock max. |
 | `HudEnabled` | `true` | Draw the desktop panel. |
 
 `Fall` fires by default, so put it in `IgnoreDamageTypes` if tripping over scenery should not count.
@@ -215,7 +224,7 @@ src/StayPutVR/
 ├── Hooks.cs             guarded Harmony patching (shared-stub check)
 ├── ShockLog.cs          session log: every hit and every decision
 ├── Osc/                 OSC 1.0 encoder, the one outbound socket, OSC Query discovery
-├── Trigger/             the damage and heal hooks, the policy, the stick gesture
+├── Trigger/             the damage, heal and mimic hooks, the policy, the stick gesture
 ├── Bite/                the jaw, the chomp, who gets bitten
 ├── Net/                 consent and bites, Photon events 180-181
 ├── Hud/                 the desktop panel, and the heal shield's arc in the headset

@@ -6,7 +6,7 @@ using StayPutVR.Net;
 using StayPutVR.Osc;
 using StayPutVR.Trigger;
 
-[assembly: MelonInfo(typeof(StayPutVR.Core), "StayPutVR", "0.5.4", "Foxipso")]
+[assembly: MelonInfo(typeof(StayPutVR.Core), "StayPutVR", "0.5.5", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace StayPutVR
@@ -45,7 +45,7 @@ namespace StayPutVR
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.5.4";
+        public const string Version = "0.5.5";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -72,6 +72,7 @@ namespace StayPutVR
             Hooks.Init(HarmonyInstance);
             DamageWatch.Install();
             HealWatch.Install();
+            MimicWatch.Install();
             Hooks.Report();
 
             PhotonHook.Install(HarmonyInstance);
@@ -121,6 +122,7 @@ namespace StayPutVR
             ShockPolicy.ClearDown();
             ShockPolicy.ClearShield();
             HealWatch.Clear();
+            MimicWatch.Clear();
         }
 
         private static bool _quit;
@@ -134,7 +136,7 @@ namespace StayPutVR
             // pending release now. This does not disarm: until 0.5.4 it did, through SetArmed,
             // which saved Armed = false on every quit, so every session started disarmed.
             ShockPolicy.FlushRelease();
-            ShockLog.Headline($"Quit. {ShockPolicy.Stats()}; {Discovery.Stats()}; {DamageWatch.Stats()}; {HealWatch.Stats()}; {BiteSense.Describe()}; {JawWatch.Describe()}; {BiteNet.Stats()}; panel {StatusHud.Describe()}.");
+            ShockLog.Headline($"Quit. {ShockPolicy.Stats()}; {Discovery.Stats()}; {DamageWatch.Stats()}; {HealWatch.Stats()}; {MimicWatch.Stats()}; {BiteSense.Describe()}; {JawWatch.Describe()}; {BiteNet.Stats()}; panel {StatusHud.Describe()}.");
             Discovery.Stop();
             ShockLog.Close();
             OscSender.Close();
