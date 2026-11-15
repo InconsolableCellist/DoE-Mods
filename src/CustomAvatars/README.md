@@ -1,4 +1,4 @@
-# CustomAvatars 0.42.21
+# CustomAvatars 0.42.22
 
 Wear a VRChat-style avatar in Dungeons of Eternity, in a private lobby with friends who run the
 same build. Face and eye tracking come from VRCFaceTracking over OSC, full-body tracking from
@@ -28,8 +28,8 @@ The design notes are in [docs/PLAN.md](../../docs/PLAN.md) and
 - **Rings** you wear sit on your avatar's own finger, for you and for everyone who can see you,
   fitted around that finger (centred, hole read from the ring's mesh). An avatar with no bone for that finger has the ring hidden while it is on.
   Off until you turn them on; each of your rings then has its own size, position and angle
-  (`Ring{Left|Right}*`, or the cogwheel tab at LootOverhaul's kobold), on your screen only.
-  Other players' rings get the fit alone, behind `RingsOthersVisible`.
+  (`Ring{Left|Right}*`, or the cogwheel tab at LootOverhaul's kobold), and your friends see them that way too.
+  Other players' rings, behind `RingsOthersVisible`, look as their owner set them, times `RingsOthersSize`.
 - **Player sizing** — your avatar's real height, applied after spawn. The game's own height
   calibration, which runs at every scene load, is held at vanilla scale for its one call so a
   sized player is not sunk into the floor by it. When you are bigger than normal, the game's

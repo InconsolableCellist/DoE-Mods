@@ -281,12 +281,13 @@ namespace LootOverhaul.Loot
 
         // ---- RINGS tab: CustomAvatars' ring settings, for your own avatar ---------------------
 
-        private static bool _ringLeft = true;   // which ring the page edits
+        private static int _ringPage;   // 0 your left ring, 1 your right ring, 2 friends' rings
+        private static bool _ringLeft => _ringPage == 0;
 
         private static void BuildConfig()
         {
             var inv = BagManager.Inventory;
-            UiKit.Header(_buy, "RINGS", "only on your screen, saved at once", inv.Gold);
+            UiKit.Header(_buy, "RINGS", "saved at once, friends see yours as you do", inv.Gold);
             if (!RingSettings.Available)
             {
                 UiKit.Rule(_buy, S.RuleToolY);
@@ -295,12 +296,10 @@ namespace LootOverhaul.Loot
                 return;
             }
             var side = _ringLeft;
-            UiKit.Tabs(_buy, L, L + 0.52f, S.ToolY, new[] { "LEFT RING", "RIGHT RING" }, _ringLeft ? 0 : 1, i => { _ringLeft = i == 0; BuildBuy(); });
-            var others = RingSettings.OthersVisible;
-            UiKit.Label(_buy, L + 0.56f, S.ToolY, 0.38f, 0.05f, S.Body,
-                $"Friends' rings  <b>{(others ? UiKit.Paint(S.GreenHex, "ON") : UiKit.Paint(S.RedHex, "OFF"))}</b>", S.Text2);
-            UiKit.CompactBtn(_buy, R - S.Compact.x * 0.5f - S.Compact.x - 0.03f, S.ToolY, others ? "HIDE" : "SHOW", () => { RingSettings.OthersVisible = !others; BuildBuy(); });
-            UiKit.CompactBtn(_buy, R - S.Compact.x * 0.5f, S.ToolY, "RESET", () => { RingSettings.Reset(side); BuildBuy(); }, S.Variant.Danger);
+            var friends = _ringPage == 2;
+            UiKit.Tabs(_buy, L, L + 0.78f, S.ToolY, new[] { "LEFT RING", "RIGHT RING", "FRIENDS" }, _ringPage, i => { _ringPage = i; BuildBuy(); });
+            UiKit.CompactBtn(_buy, R - S.Compact.x * 0.5f, S.ToolY, "RESET",
+                () => { if (friends) RingSettings.ResetOthers(); else RingSettings.Reset(side); BuildBuy(); }, S.Variant.Danger);
             UiKit.Rule(_buy, S.RuleToolY);
 
             // -- - + ++ on the right of each row; values in one column.
@@ -311,6 +310,34 @@ namespace LootOverhaul.Loot
             var vx = L + 0.47f;
             var helpW = x1 - bw * 0.5f - 0.03f - lx;
             var y0 = S.RuleToolY - 0.01f - S.Compact_Pitch * 0.5f;
+
+            if (friends)
+            {
+                // Everyone else's rings: shown or not, and one size on top of how they tuned them.
+                var others = RingSettings.OthersVisible;
+                var f0 = UiKit.NewRow(_buy, "CfgRow_others", y0, 0, S.Compact_Pitch);
+                UiKit.Label(f0, lx, 0.022f, 0.44f, 0.055f, S.Row, "<b>SHOW FRIENDS' RINGS</b>", S.Text);
+                UiKit.Label(f0, vx, 0.022f, 0.24f, 0.055f, S.Row, $"<b>{(others ? "ON" : "OFF")}</b>", others ? S.Green : S.Red);
+                UiKit.Label(f0, lx, -0.028f, helpW, 0.045f, S.Body, "as each friend set them up", S.Text2);
+                UiKit.Btn(f0, new Vector3((x3 + x4) * 0.5f, 0f, 0f), new Vector2(bw * 2f + S.Gap, S.Stepper.y), others ? "TURN OFF" : "TURN ON",
+                    () => { RingSettings.OthersVisible = !others; BuildBuy(); }, S.Variant.Secondary);
+
+                var os = RingSettings.OthersSize;
+                var f1 = UiKit.NewRow(_buy, "CfgRow_othersSize", y0 - S.Compact_Pitch, 1, S.Compact_Pitch);
+                UiKit.Label(f1, lx, 0.022f, 0.44f, 0.055f, S.Row, $"<b>{os.Label}</b>", S.Text);
+                if (!RingSettings.OthersSizeAvailable)
+                {
+                    UiKit.Label(f1, lx, -0.028f, 1.0f, 0.045f, S.Body, "needs CustomAvatars 0.42.22 or later", S.Text2);
+                    return;
+                }
+                UiKit.Label(f1, vx, 0.022f, 0.24f, 0.055f, S.Row, $"<b>{string.Format(os.Format, RingSettings.GetOthersSize())}</b>", S.Text);
+                UiKit.Label(f1, lx, -0.028f, helpW, 0.045f, S.Body, os.Help, S.Text2);
+                UiKit.Stepper(f1, new Vector3(x1, 0f, 0f), "--", () => { RingSettings.NudgeOthersSize(-os.BigStep); BuildBuy(); });
+                UiKit.Stepper(f1, new Vector3(x2, 0f, 0f), "-", () => { RingSettings.NudgeOthersSize(-os.Step); BuildBuy(); });
+                UiKit.Stepper(f1, new Vector3(x3, 0f, 0f), "+", () => { RingSettings.NudgeOthersSize(os.Step); BuildBuy(); });
+                UiKit.Stepper(f1, new Vector3(x4, 0f, 0f), "++", () => { RingSettings.NudgeOthersSize(os.BigStep); BuildBuy(); });
+                return;
+            }
 
             // Shown or not: off until the player turns it on.
             var on = RingSettings.Visible(side);

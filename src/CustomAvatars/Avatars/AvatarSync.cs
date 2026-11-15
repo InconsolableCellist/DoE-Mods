@@ -34,7 +34,8 @@ namespace CustomAvatars.Avatars
             _roster.PeerJoined += peer => { if (!peer.IsLocal && ModGate.Active) Broadcast($"{peer.NickName} joined"); };
             _manager.SelfAvatarChanged += () => Broadcast("we changed avatar");
             _manager.SelfHeightChanged += () => Broadcast("we changed size");
-            _roster.PeerLeft += peer => _manager.RevertRemote(peer.ActorNumber, "peer left the room");
+            RingFollower.SelfLooksChanged += () => Broadcast("we changed our ring settings");
+            _roster.PeerLeft += peer => { _manager.RevertRemote(peer.ActorNumber, "peer left the room"); RingFollower.ForgetPeer(peer.ActorNumber); };
         }
 
         /// <summary>Announce what we're wearing — or that we've taken it off.</summary>
@@ -64,7 +65,9 @@ namespace CustomAvatars.Avatars
                 // to match before they solve our avatar onto it. Without it a small player's
                 // full-size body on their screen would crouch to reach a low head target.
                 var size = PlayerSize.Applied.ToString("0.000", CultureInfo.InvariantCulture);
-                payload = $"avatar|{name}|{sha}|{height}|{size}";
+                // Sixth field: how we tuned our rings (RingFollower.EncodeSelfLooks), so a peer
+                // draws them as we see them instead of the bare fit. Older builds ignore it.
+                payload = $"avatar|{name}|{sha}|{height}|{size}|{RingFollower.EncodeSelfLooks()}";
             }
 
             if (ModNet.Send(ModNet.CodeAvatarManifest, payload, reliable: true, targetActors: targets))
@@ -100,6 +103,7 @@ namespace CustomAvatars.Avatars
                     : $"Actor {senderActor} is wearing `{name}`" +
                       (Mathf.Abs(size - 1f) > 0.0005f ? $" at x{size:0.00} their normal size." : "."));
 
+                RingFollower.SetPeerLooks(senderActor, parts.Length > 5 ? parts[5] : null);
                 _manager.SetRemoteAvatar(senderActor, name, sha, height, size);
             }
             catch (Exception e)

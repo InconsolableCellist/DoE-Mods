@@ -55,6 +55,7 @@ namespace CustomAvatars
         }
         public static RingEntries RingLeft, RingRight;
         public static MelonPreferences_Entry<bool> RingsOthersVisible;
+        public static MelonPreferences_Entry<float> RingsOthersSize;
 
         // ---- [CustomAvatars_Tuning] -----------------------------------------------------
         public static MelonPreferences_Entry<float> SpringStiffnessScale;
@@ -211,12 +212,15 @@ namespace CustomAvatars
                 "PageUp/PageDown change it in game, Home sets it back to 1.");
             // Rings on your own avatar, one set per hand, on top of the automatic fit. Off until
             // you turn them on, so a ring that would be placed badly never shows by surprise.
-            // All local; the kobold's cogwheel tab in LootOverhaul edits them in game, and
+            // The kobold's cogwheel tab in LootOverhaul edits them in game; they are sent to
+            // peers with your avatar so your rings look the same on their screen, and
             // they are re-read twice a second (Avatars/RingFollower.cs).
             RingLeft = CreateRing("Left", "left");
             RingRight = CreateRing("Right", "right");
             RingsOthersVisible = Main.CreateEntry("RingsOthersVisible", false, description:
-                "Show other players' rings on their custom avatars (automatic fit only). Only changes what you see.");
+                "Show other players' rings on their custom avatars, the way they tuned them. Only changes what you see.");
+            RingsOthersSize = Main.CreateEntry("RingsOthersSize", 1.0f, description:
+                "Size of other players' rings, a multiple of how they look on their own screen (0.05 to 10). Only changes what you see.");
 
             // ---- tuning -----------------------------------------------------------------
             // Restoring force toward the resting pose.
