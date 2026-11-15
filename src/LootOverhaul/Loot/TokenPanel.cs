@@ -97,7 +97,6 @@ namespace LootOverhaul.Loot
                 _shownAt = Time.unscaledTime;
                 _root.SetActive(false);
                 _statsSig = StatsSignature();
-                Rebuild();
                 TryPlace(false);
             }
             catch (Exception e) { Core.Log.Warning($"TokenPanel: show failed: {e.GetType().Name}: {e.Message}"); }
@@ -204,6 +203,9 @@ namespace LootOverhaul.Loot
             _placed = true;
             Apply();
             _root.SetActive(true);
+            // Build the content only now that the panel is active: text laid out while it was
+            // inactive stayed empty until the first arrow press rebuilt it (0.13.5 playtest).
+            Rebuild();
         }
 
         /// <summary>

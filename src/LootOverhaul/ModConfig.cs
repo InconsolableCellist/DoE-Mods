@@ -43,8 +43,8 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<string> BoomerangTrigger;
         public static MelonPreferences_Entry<float> BoomerangPullSpeed;
 
-        public static MelonPreferences_Entry<float> GoldToTokenRate, BossKillBonus, MinibossKillBonus, HazardBonusPerLevel,
-            TierBonusPerLevel, TokenPlayerBonusPerExtraPlayer, TokenChestBonusPerChest;
+        public static MelonPreferences_Entry<float> GoldToTokenRate, BossKillBonus, MinibossKillBonus,
+            TokenPlayerBonusPerExtraPlayer, TokenChestBonusPerChest;
 
         public static MelonPreferences_Entry<bool> TokenPanelEnabled, TokenPanelShowStats;
         public static MelonPreferences_Entry<float> TokenPanelRight, TokenPanelUp, TokenPanelAhead, TokenPanelTurn;
@@ -126,8 +126,10 @@ namespace LootOverhaul
             GoldToTokenRate = TokenPay.CreateEntry("GoldToTokenRate", 0.5f, description: "Tokens per gold earned in a run, before the bonuses below.");
             BossKillBonus = TokenPay.CreateEntry("BossKillBonus", 0.5f, description: "Extra payout per boss killed. 0.5 = +50%.");
             MinibossKillBonus = TokenPay.CreateEntry("MinibossKillBonus", 0.1f, description: "Extra payout per mini-boss killed.");
-            HazardBonusPerLevel = TokenPay.CreateEntry("HazardBonusPerLevel", 0.2f, description: "Extra payout per hazard level of the run (0-3). 0.2 = +20% per level.");
-            TierBonusPerLevel = TokenPay.CreateEntry("TierBonusPerLevel", 0.05f, description: "Extra payout per dungeon tier above the first. 0.05 = +5% per tier.");
+            // 0.14.1: no hazard-level or tier bonus any more (they paid too much for too little); drop the keys.
+            if (old.TryGetValue("LootOverhaul_Tokens", out var oldPay))
+                foreach (var key in new[] { "HazardBonusPerLevel", "TierBonusPerLevel" })
+                    if (oldPay.ContainsKey(key)) { TokenPay.CreateEntry(key, 0f); SafeDelete(TokenPay, key); }
             TokenPlayerBonusPerExtraPlayer = TokenPay.CreateEntry("TokenPlayerBonusPerExtraPlayer", 0.5f, description: "Extra payout per party member beyond you.");
             TokenChestBonusPerChest = TokenPay.CreateEntry("TokenChestBonusPerChest", 0.02f, description: "Extra payout per chest you opened.");
             // 0.12.1's toast setting is gone with the toast (0.13.4); take it out of files that still hold it.
@@ -240,25 +242,15 @@ namespace LootOverhaul
         }
 
         /// <summary>
-        /// Layout 13 (0.13.3): the hazard-level and tier token bonuses dropped from +25% / +10% to
-        /// +20% / +5%. A layout-12 file that still holds the old default gets the new one; a value
-        /// the player chose is kept.
+        /// Layout 13 (0.13.3) lowered the hazard-level and tier token bonuses. Since 0.14.1 those
+        /// bonuses no longer exist (their keys are dropped in <see cref="Load"/>), so a layout-12
+        /// file only gets its layout number moved on.
         /// </summary>
         private static void RepairLayout12()
         {
-            var fixedCount = 0;
-            void Reset(MelonPreferences_Entry<float> entry, float oldDefault)
-            {
-                if (Math.Abs(entry.Value - oldDefault) >= 0.0001f) return;
-                entry.Value = entry.DefaultValue;
-                fixedCount++;
-            }
-            Reset(HazardBonusPerLevel, 0.25f);
-            Reset(TierBonusPerLevel, 0.1f);
-
             ConfigVersion.Value = Layout;
             MelonPreferences.Save();
-            MelonLogger.Msg($"LootOverhaul config layout {Layout}: {fixedCount} token bonus default(s) updated (hazard level +20%, tier +5%).");
+            MelonLogger.Msg($"LootOverhaul config layout {Layout}: settings updated (the hazard and tier bonuses are gone since 0.14.1).");
         }
 
         /// <summary>
@@ -286,7 +278,7 @@ namespace LootOverhaul
                 Carry(e, m);
             foreach (var e in new[] { ChestArmorSmall, ChestArmorMedium, ChestArmorEpic, ChestArmorBoss, LootGoblinScale, BagWeightCapacity, ShopPriceMultiplier,
                                       SellMultiplier, EnchantCostMultiplier, ArmorUpgradeCostMultiplier, GoldToTokenRate, BossKillBonus, MinibossKillBonus,
-                                      HazardBonusPerLevel, TierBonusPerLevel, TokenPlayerBonusPerExtraPlayer, TokenChestBonusPerChest,
+                                      TokenPlayerBonusPerExtraPlayer, TokenChestBonusPerChest,
                                       BoothX, BoothY, BoothZ, BoothYaw })
                 Carry(e, m);
             foreach (var e in new[] { GoblinDrops, GoblinGuaranteedClass, BeamMinClass, ShopSlots, ShopRefreshMinutes })
