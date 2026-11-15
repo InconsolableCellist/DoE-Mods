@@ -1,4 +1,4 @@
-# LootOverhaul 0.13.0 — building
+# LootOverhaul 0.13.1 — building
 
 A second, independent MelonLoader mod for Dungeons of Eternity. Design and game-internals
 findings: [docs/LOOT-OVERHAUL.md](../../docs/LOOT-OVERHAUL.md).
@@ -188,7 +188,7 @@ The `[LootOverhaul]` settings:
 | `TierBonusPerLevel` | 0.1 | +10% per dungeon tier above the first |
 | `TokenPlayerBonusPerExtraPlayer` | 0.5 | +50% per party member beyond you — the trade for losing last stand |
 | `TokenChestBonusPerChest` | 0.02 | +2% per chest you opened |
-| `TokenToastSeconds` | 5 | seconds the payout message stays on screen |
+| `TokenToastSeconds` | 30 | seconds the payout message stays on screen (0 = shown once, at most 300) |
 
 A completed run and a wipe both pay, because both report gold.
 

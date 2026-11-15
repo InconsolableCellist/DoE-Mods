@@ -439,7 +439,7 @@ namespace LootOverhaul.Loot
         private static void ToastLong(string text)
         {
             Toast(text);
-            float total = ModConfig.Fixed.TokenToastSeconds;
+            float total = Math.Min(ModConfig.TokenToastSeconds.Value, 300f);
             float every = ModConfig.Fixed.TokenToastRepeatSeconds;
             if (total <= 0f || every <= 0f) return;
             _toastText = text;
