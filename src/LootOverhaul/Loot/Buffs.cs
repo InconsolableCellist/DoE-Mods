@@ -176,7 +176,7 @@ namespace LootOverhaul.Loot
                 Kind = "buff",
                 PrefabName = "Potion_S",
                 Name = name,
-                ColoredName = $"<color=#7FD8FF>{name}</color>",
+                ColoredName = UiKit.Paint(UiStyle.TonicHex, name),
                 WeaponClass = tier,
                 BuffStat = d.Stat,
                 BuffMult = d.Mults[tier],
