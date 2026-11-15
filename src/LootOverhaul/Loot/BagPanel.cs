@@ -168,7 +168,6 @@ namespace LootOverhaul.Loot
             {
                 var item = items[start + i];
                 var row = UiKit.NewRow(_content, $"Row_{i}", S.Row0Y - i * S.Pitch, i);
-                UiKit.Icon(row, new Vector3(S.IconX, 0f, -0.03f), item);
                 var slot = inv.EquippedSlotOf(item);
                 var captured = item;
 
@@ -191,8 +190,7 @@ namespace LootOverhaul.Loot
                 UiKit.Price(row, priceX, 0f, Booth.SellPrice(item), true, item.Weight);
                 // A status word goes in the free button slot when there is one, else in front of the stats.
                 if (chip != null && main == null) { UiKit.Chip(row, mainX - S.Action.x * 0.5f + 0.02f, 0f, chip); chip = null; }
-                UiKit.TypeTag(row, new Vector3(S.TagX, 0f, 0f), item, chip);
-                UiKit.RowText(row, textEnd, UiKit.NameOf(item), Booth.StatsOf(item), null, S.Text2, statsLines: 1);
+                UiKit.ItemText(row, textEnd, item, chip);
             }
             if (items.Count == 0) UiKit.Empty(_content, "Your bag is empty.");
             UiKit.Pager(_content, _page, pages, () => { _page = Math.Max(0, _page - 1); Rebuild(); }, () => { _page = Math.Min(pages - 1, _page + 1); Rebuild(); });

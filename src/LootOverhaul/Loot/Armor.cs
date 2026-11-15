@@ -197,6 +197,19 @@ namespace LootOverhaul.Loot
         }
 
         /// <summary>The stats in short labels, for the worn piece's line on the ARMOR tab.</summary>
+        /// <summary>
+        /// The stats for a list row on two lines (0.13.2): the first half of the stats, a line break,
+        /// the rest, joined with " · ". One or two stats stay on one line.
+        /// </summary>
+        public static string StatsTwoLines(LootItem item)
+        {
+            var parts = new List<string>();
+            foreach (var (st, m) in Decode(item.ArmorStats)) parts.Add($"{ShortLabel(st)} {PctText(st, m)}");
+            if (parts.Count <= 2) return string.Join(" · ", parts);
+            var first = (parts.Count + 1) / 2;
+            return string.Join(" · ", parts.GetRange(0, first)) + "\n" + string.Join(" · ", parts.GetRange(first, parts.Count - first));
+        }
+
         public static string DescribeStatsShort(LootItem item)
         {
             var parts = new List<string>();

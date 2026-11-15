@@ -738,6 +738,33 @@ namespace LootOverhaul.Loot
                     minSize: UiStyle.Floor, overflow: TextOverflowModes.Ellipsis);
         }
 
+        /// <summary>
+        /// The left part of an item row on the SELL and bag lists: icon, type tag, name and stats.
+        /// 0.13.2: an armor row gives its stats the room they need. The slot word goes under the
+        /// icon instead of in a type-tag column, the text starts right after the icon, and the stats
+        /// get two lines split between stats, so three stats show in full
+        /// ("weapon dmg +28% · leap +26%" over "run speed +26%"). A status word (WORN) leads the name.
+        /// </summary>
+        public static void ItemText(Transform row, float textEnd, LootItem item, string chip)
+        {
+            if (!item.IsArmor)
+            {
+                Icon(row, new Vector3(UiStyle.IconX, 0f, -0.03f), item);
+                TypeTag(row, new Vector3(UiStyle.TagX, 0f, 0f), item, chip);
+                RowText(row, textEnd, NameOf(item), Booth.StatsOf(item), null, UiStyle.Text2, statsLines: 1);
+                return;
+            }
+            Icon(row, new Vector3(UiStyle.IconX, 0.018f, -0.03f), item);
+            Text(row, new Vector3(UiStyle.IconX, -0.045f, 0f), 0.13f, 0.035f, UiStyle.Floor,
+                Grey(Armor.SlotNames[item.ArmorSlot].ToUpperInvariant()), TextAlignmentOptions.Center);
+            var x = UiStyle.Left + 0.11f;
+            var name = string.IsNullOrEmpty(chip) ? NameOf(item) : $"{Grey($"<size=70%>{chip}</size>")}  {NameOf(item)}";
+            Text(row, new Vector3(x, 0.04f, 0f), textEnd - x, 0.05f, UiStyle.Row, name, fit: true,
+                minSize: UiStyle.Floor, overflow: TextOverflowModes.Ellipsis);
+            Text(row, new Vector3(x, -0.025f, 0f), textEnd - x, 0.085f, UiStyle.Body, Paint(UiStyle.Text2Hex, Armor.StatsTwoLines(item)),
+                fit: true, lines: 2, minSize: UiStyle.Floor, overflow: TextOverflowModes.Ellipsis);
+        }
+
         /// <summary>A new row object at <paramref name="y"/> under <paramref name="parent"/>, with its stripe.</summary>
         public static Transform NewRow(Transform parent, string name, float y, int i, float pitch = UiStyle.Pitch, Color? stripe = null)
         {

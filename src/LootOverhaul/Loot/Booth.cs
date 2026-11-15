@@ -197,13 +197,11 @@ namespace LootOverhaul.Loot
             {
                 var item = items[start + i];
                 var row = UiKit.NewRow(_sell, $"SellRow_{i}", S.Row0Y - i * S.Pitch, i);
-                UiKit.Icon(row, new Vector3(S.IconX, 0f, -0.03f), item);
                 var slot = inv.EquippedSlotOf(item);
                 var inUse = inv.InUse(item);
                 // 0.13.2: no LOCKED word, the closed padlock beside the price says it.
                 var chip = item.IsBound ? "ARMORY" : inUse ? (slot >= 0 ? "EQUIPPED" : "WORN") : null;
-                UiKit.TypeTag(row, new Vector3(S.TagX, 0f, 0f), item, chip);
-                UiKit.RowText(row, cols.TextEnd, UiKit.NameOf(item), StatsOf(item), null, S.Text2, statsLines: 1);
+                UiKit.ItemText(row, cols.TextEnd, item, chip);
                 UiKit.Price(row, cols.Price, 0f, SellPrice(item));
                 var captured = item;
                 UiKit.LockToggle(row, new Vector3(cols.Lock, 0f, 0f), item.Locked, () => ToggleLock(captured));
