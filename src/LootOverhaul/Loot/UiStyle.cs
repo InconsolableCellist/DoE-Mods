@@ -38,7 +38,7 @@ namespace LootOverhaul.Loot
         public static readonly Color Card = Hex("#161D29");
         public static readonly Color Rule = Hex("#33415A");
         public static readonly Color Track = Hex("#2A3446");       // progress bar background
-        public static readonly Color Fill = Hex("#C9D3E3");        // progress bar so far
+        public static readonly Color Fill = Hex("#4D8CFF");        // progress bar so far (0.13.2: blue, was near-white)
 
         /// <summary>Rarity colours for armor names (Rare and Legendary lifted for contrast on the dark panel).</summary>
         public static readonly string[] ArmorHex = { "#4EA2FF", "#3FCF3D", "#7A86FF", "#B48CFF" };
@@ -54,7 +54,8 @@ namespace LootOverhaul.Loot
         public static Look ButtonLook(Variant v, State s)
         {
             if (s == State.Disabled) return L("#141922", "#2C3442", "#6B7482", "#141922");
-            if (s == State.Selected) return L("#EEF1F6", "#EEF1F6", "#0F141C", "#FFFFFF");
+            // 0.13.2: selected is the blue plate with white text (was white with black text, blinding in a headset).
+            if (s == State.Selected) return L("#1F4E9E", "#7FB0FF", "#FFFFFF", "#2A62C0");
             switch (v)
             {
                 case Variant.Secondary: return L("#1D2533", "#6B7A94", "#E4E8EF", "#2E394C");
@@ -73,6 +74,8 @@ namespace LootOverhaul.Loot
         public const float TabHeight = 0.075f;
         public const float Gap = 0.02f;            // between any two hit boxes
         public const float FrameWidth = 0.006f;
+        /// <summary>0.13.2: emission of frames and lit plates, toned down from 1.5 and 1.0 (too bright on an Index).</summary>
+        public const float FrameGlow = 0.6f, PlateGlow = 0.55f;
 
         // ---- panel grid (metres, from the panel's centre; every panel and the bag)
         public const float PanelWidth = 1.45f;

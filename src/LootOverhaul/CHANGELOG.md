@@ -3,6 +3,14 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.13.5 (2026-11-15)
+
+Less glow at the kobold and in the bag. (0.13.4 is the token panel, a separate change.)
+
+### Changed
+- **No white blocks.** A selected tab or button (and a locked padlock) is a blue plate with white text instead of a white plate with black text, which was blinding on an Index.
+- **Less glow.** Frames glow at 0.6 (was 1.5) and lit plates at 0.55 of their colour (was 1.0). The armor upgrade bar fills blue instead of near-white.
+
 ## 0.13.4 (2026-11-15)
 
 The run payout gets its own panel in the end room; the toast is gone.
