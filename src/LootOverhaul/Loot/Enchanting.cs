@@ -141,6 +141,9 @@ namespace LootOverhaul.Loot
             var list = new List<PerkDoc>();
             foreach (var d in Docs) list.Add(Localized(d));
             foreach (var d in ElementDocs) list.Add(d);
+            list.Add(new PerkDoc { Name = Boomerang.Name, Key = "", GameName = Boomerang.Name,
+                Description = "A thrown weapon flies back to your hand at the top of its flight, or when you pull an empty hand back while gripping. Grip to catch it",
+                Types = "axe, dagger, spear, hammer, long axe, sword with Spire" });
             return list;
         }
 
@@ -181,8 +184,12 @@ namespace LootOverhaul.Loot
             var list = new List<(string, int, int)>();
             foreach (var p in new[] { item.PerkA, item.PerkB, item.PerkC }) if (p > 0) list.Add((PerkName(p), p, -1));
             if (item.DamageType >= 0) list.Add((ElementName(item.DamageType), 0, item.DamageType));
+            if (item.Boomerang) list.Add((Boomerang.Name, BoomerangId, -1));
             return list;
         }
+
+        /// <summary>Stands for Boomerang in <see cref="Removable"/>; not a game perk id.</summary>
+        public const int BoomerangId = -100;
 
         public static string ElementName(int damageType) => damageType < 0 ? "none" : Elements[Math.Min(Elements.Length - 1, damageType)];
 
@@ -223,6 +230,7 @@ namespace LootOverhaul.Loot
         /// </summary>
         public static LootItem Disenchant(LootItem item, int perkId, int element)
         {
+            if (perkId == BoomerangId) return SetBoomerang(item, false);
             var what = perkId > 0 ? PerkName(perkId) : ElementName(element);
             return Rework(item, DisenchantPrice(item), "de-enchant", "- " + what, next =>
             {
@@ -356,8 +364,26 @@ namespace LootOverhaul.Loot
             return true;
         }
 
-        /// <summary>Mod-side enchantments that are not in the weapon itself (none yet).</summary>
-        private static bool ExtraFlags(LootItem i) => false;
+        /// <summary>Mod-side enchantments that are not in the weapon itself.</summary>
+        private static bool ExtraFlags(LootItem i) => i.Boomerang;
+
+        public static int BoomerangPrice(LootItem item) => Math.Max(1, (int)Math.Round(Price(item) * Math.Max(0f, ModConfig.BoomerangCostMultiplier.Value)));
+
+        /// <summary>
+        /// Add or remove Boomerang. It is a flag on the bag record, so the weapon, its GUID and
+        /// its slot do not change (a stock weapon is bound by the first one, like any enchantment).
+        /// Adding costs <see cref="BoomerangPrice"/>, removing <see cref="DisenchantPrice"/>.
+        /// </summary>
+        public static LootItem SetBoomerang(LootItem item, bool on)
+        {
+            if (on && !Boomerang.CanTake(item)) { BagManager.Toast("Only throwing weapons take Boomerang (a sword needs Spire)."); return null; }
+            return Rework(item, on ? BoomerangPrice(item) : DisenchantPrice(item), on ? "enchant" : "de-enchant", (on ? "+ " : "- ") + Boomerang.Name, next =>
+            {
+                if (next.Boomerang == on) return on ? "It already has Boomerang." : "It doesn't have Boomerang.";
+                next.Boomerang = on;
+                return null;
+            }, newModule: false);
+        }
 
         /// <summary>
         /// The bound record is removed and the armory weapon, which was only hidden, is back: as it
@@ -402,7 +428,7 @@ namespace LootOverhaul.Loot
                 Weight = a.Weight, Value = a.Value, FoundInRealm = a.FoundInRealm, FoundAt = a.FoundAt, FoundBy = a.FoundBy, Source = a.Source,
                 Manual = a.Manual, PerkA = a.PerkA, PerkB = a.PerkB, PerkC = a.PerkC, DamageMin = a.DamageMin, DamageType = a.DamageType, Superior = a.Superior,
                 Locked = a.Locked, StockGuid = a.StockGuid, BasePerkA = a.BasePerkA, BasePerkB = a.BasePerkB, BasePerkC = a.BasePerkC,
-                BaseDamageType = a.BaseDamageType,
+                BaseDamageType = a.BaseDamageType, Boomerang = a.Boomerang,
             };
         }
 

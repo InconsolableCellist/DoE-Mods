@@ -68,6 +68,7 @@ namespace LootOverhaul
             Goblins.Install();
             Loadout.Install();
             ChestDrops.Install();
+            Boomerang.Install();
 
             if (ModConfig.DevTools.Value)
             {
@@ -102,6 +103,7 @@ namespace LootOverhaul
             LightPotion.Tick();
             PreparedTonics.Tick();
             Loadout.Tick();
+            try { Boomerang.Tick(); } catch (Exception e) { LoggerInstance.Warning($"Boomerang tick threw: {e.GetType().Name}: {e.Message}"); }
             SceneExit.Tick();
             LootInventory.Tick();
             DropRoller.Tick();
@@ -135,6 +137,7 @@ namespace LootOverhaul
             LootInventory.FlushAll();
             LootRegistry.Clear($"scene changed to {sceneName}", destroyOwned: true);
             BagManager.DroppedByMe.Clear();
+            Boomerang.Clear($"scene changed to {sceneName}");
             Unlocks.Invalidate();
             ChestDrops.OnSceneChanged();
             DropRoller.OnSceneChanged();
@@ -181,7 +184,7 @@ namespace LootOverhaul
             // The drop roll and the pickup prefix each check ModGate.Active on every call, so
             // there is nothing to arm. Disarming means forgetting the floor loot: in a room
             // that just went vanilla, those weapons are ordinary weapons now.
-            if (!active) { LootRegistry.Clear("gate closed", destroyOwned: true); Booth.Hide(); }
+            if (!active) { LootRegistry.Clear("gate closed", destroyOwned: true); Booth.Hide(); Boomerang.Clear("gate closed"); }
             else
             {
                 if (Il2Cpp.GameManager.IsLobbyScene) _templateCaptureAt = UnityEngine.Time.unscaledTime + 1f;

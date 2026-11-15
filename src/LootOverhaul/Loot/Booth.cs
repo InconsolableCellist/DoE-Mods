@@ -611,9 +611,23 @@ namespace LootOverhaul.Loot
                 var pid = perkId; var el = element;
                 UiKit.Button(_buy, new Vector3(x, y, 0f), (element >= 0 ? "+ " : "") + label, () => { var r = Enchanting.Enchant(target, pid, el); if (r != null) _enchantTarget = r.Id; Rebuild(); }, BtnScale * 0.9f, enabled: inv.Gold >= tprice);
                 col++; if (col >= 3) { col = 0; rowI++; }
-                if (rowI > 6) break;
+                if (rowI > 5) break;
             }
-            if (options.Count == 0) UiKit.Text(_buy, new Vector3(0f, y1 - 0.1f, 0f), 0.8f, 0.06f, 0.4f, "Nothing more can be added to this weapon.", TextAlignmentOptions.Center);
+            if (options.Count == 0 && (target.Boomerang || !Boomerang.CanTake(target)))
+                UiKit.Text(_buy, new Vector3(0f, y1 - 0.1f, 0f), 0.8f, 0.06f, 0.4f, "Nothing more can be added to this weapon.", TextAlignmentOptions.Center);
+
+            // Boomerang (throwing weapons, or a sword with Spire): a flag, priced on its own.
+            if (Boomerang.CanTake(target) && !target.Boomerang)
+            {
+                var bprice = Enchanting.BoomerangPrice(target);
+                var bxL = left + Mathf.Max(BtnW, 0.24f) * 0.5f;
+                UiKit.Button(_buy, new Vector3(bxL, -0.20f, 0f), "+ " + Boomerang.Name, () => { var r = Enchanting.SetBoomerang(target, true); if (r != null) _enchantTarget = r.Id; Rebuild(); }, BtnScale * 0.9f, enabled: inv.Gold >= bprice);
+                UiKit.Text(_buy, new Vector3(bxL + Mathf.Max(BtnW, 0.24f) * 0.5f + 0.04f, -0.20f, 0f), 0.9f, 0.05f, 0.34f,
+                    $"<color=#B0B0B0>returns to your hand when thrown · <color={(inv.Gold >= bprice ? "#F5C542" : "#E06060")}>{bprice} tokens</color></color>", fit: true);
+            }
+            else if (target.Boomerang)
+                UiKit.Text(_buy, new Vector3(left, -0.20f, 0f), PanelWidth - 0.08f, 0.05f, 0.34f,
+                    $"<color=#9FD8FF>{Boomerang.Name}</color><color=#B0B0B0>{(Boomerang.CanTake(target) ? ": returns to your hand when thrown" : ": inactive, this weapon cannot be thrown")}</color>", fit: true);
 
             // De-enchanting: take a perk or the element off. A stock weapon taken back to what it
             // had goes back to the armory.

@@ -5,7 +5,7 @@ and earlier are in the version sections of [README.md](README.md).
 
 ## 0.12.0 (2026-11-14)
 
-Enchant your armory weapons, and take enchantments off again.
+Enchant your armory weapons, take enchantments off again, and Boomerang for throwing weapons.
 
 ### Added
 - **ARMORY at the enchanting table.** The ENCHANT weapon list has an ARMORY button. It lists your armory weapons (generated ones only; no mythics), marked with the slot they are equipped in. Each can be enchanted like a bag weapon:
@@ -13,7 +13,20 @@ Enchant your armory weapons, and take enchantments off again.
   - While the record exists, the armory copy is hidden from the game's gear list. An equipped weapon keeps its slot and is swapped in hand.
   - Nothing is written to the profile.
 - **De-enchanting.** The weapon page has a REMOVE row with one button per perk (rolled or added) and one for the element. It works on bag and armory weapons. An armory weapon taken back to exactly what it had goes back to the armory: the record is removed, the armory weapon shows again, and an equipped slot gets it back in hand. If the armory no longer has the original, the record stays as ordinary loot.
-- **Settings** in `[LootOverhaul_Shop]`: `StockEnchantCostMultiplier` (1.0) and `DisenchantCostMultiplier` (1.0).
+- **Boomerang**, for axe, dagger, spear, hammer, long axe, and a sword with Spire. It does not use a perk slot.
+  - **Price.** One enchantment on that weapon × `BoomerangCostMultiplier`. Removing it costs the de-enchant price.
+  - **Triggers.** A thrown weapon flies back to an empty hand:
+    - at the top of its flight, or when it hits something and stops, if that hand is gripping;
+    - or when an empty hand is pulled back sharply while gripping.
+  - **The return** is the game's own force grab. Hold grip to catch.
+  - **Fallback.** When it cannot come back to the hand, the game's own auto-holster returns it to its holster: stuck, both hands full, over 15 m away, the force grab refused, grip let go, or the player dead.
+    - In flat-screen mode the game's own pick-up returns it to the hand.
+    - With no trigger, the usual 1.5 s return to the holster is untouched.
+  - **No duplicates and no lost weapons.** Nothing is spawned or destroyed, and a weapon destroyed or taken over in flight is left alone.
+  - **Where it works.** Gated like everything else. Only weapons in your loadout are tracked.
+  - **Settings.** New section `[LootOverhaul_Boomerang]`: `BoomerangTrigger` (both / apex / pull / off) and `BoomerangPullSpeed` (1.5 m/s).
+  - **Log lines.** Each one starts with `Boomerang:`: the throw, apex or stop, the return and which hand, the catch, every fallback and its reason, and flights dropped on a scene change or gate close.
+- **Settings** in `[LootOverhaul_Shop]`: `StockEnchantCostMultiplier` (1.0), `DisenchantCostMultiplier` (1.0) and `BoomerangCostMultiplier` (1.0).
 - **Log lines** for the playtest. Each one starts with `Enchanting:`: every enchant and de-enchant with the price paid and the new balance, every binding ("stock, now bound"), every return ("back to stock"), the fallback when the original is gone, and each armory weapon left off the table and why.
 
 ### Prices and the economy behind them

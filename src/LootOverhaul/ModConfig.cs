@@ -16,7 +16,7 @@ namespace LootOverhaul
     {
         public const int Layout = 12;
 
-        public static MelonPreferences_Category Main, ChestArmor, Goblin, FloorLoot, Bag, Shop, TokenPay, BoothPos, Dev;
+        public static MelonPreferences_Category Main, ChestArmor, Goblin, FloorLoot, Bag, Shop, BoomerangCat, TokenPay, BoothPos, Dev;
 
         public static MelonPreferences_Entry<bool> Enabled;
 
@@ -36,9 +36,12 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<bool> AutoPickup;
 
         public static MelonPreferences_Entry<float> ShopPriceMultiplier, SellMultiplier, EnchantCostMultiplier, ArmorUpgradeCostMultiplier,
-            StockEnchantCostMultiplier, DisenchantCostMultiplier;
+            StockEnchantCostMultiplier, DisenchantCostMultiplier, BoomerangCostMultiplier;
         public static MelonPreferences_Entry<int> ShopSlots, ShopRefreshMinutes;
         public static MelonPreferences_Entry<bool> LoadoutEnabled;
+
+        public static MelonPreferences_Entry<string> BoomerangTrigger;
+        public static MelonPreferences_Entry<float> BoomerangPullSpeed;
 
         public static MelonPreferences_Entry<float> GoldToTokenRate, BossKillBonus, MinibossKillBonus, HazardBonusPerLevel,
             TierBonusPerLevel, TokenPlayerBonusPerExtraPlayer, TokenChestBonusPerChest;
@@ -111,7 +114,12 @@ namespace LootOverhaul
             ArmorUpgradeCostMultiplier = Shop.CreateEntry("ArmorUpgradeCostMultiplier", 1.0f, description: "Armor upgrade price on top of ShopPriceMultiplier. Every +1% costs 750 / 1,500 / 3,000 / 6,000 tokens by rarity at the defaults.");
             StockEnchantCostMultiplier = Shop.CreateEntry("StockEnchantCostMultiplier", 1.0f, description: "Price of one enchantment on a stock (armory) weapon, on top of ShopPriceMultiplier. 500 / 1,000 / 2,000 / 4,000 tokens by rarity at the defaults: about half a run to three runs of tokens.");
             DisenchantCostMultiplier = Shop.CreateEntry("DisenchantCostMultiplier", 1.0f, description: "Price of removing one perk or element from a weapon (loot or stock), on top of ShopPriceMultiplier. 200 / 400 / 800 / 1,600 tokens by rarity at the defaults.");
+            BoomerangCostMultiplier = Shop.CreateEntry("BoomerangCostMultiplier", 1.0f, description: "Price of the Boomerang enchantment as a multiple of one enchantment on that weapon (stock or loot price). Removing it costs the de-enchant price.");
             LoadoutEnabled = Shop.CreateEntry("LoadoutEnabled", true, description: "Keep the loadout picked at the booth in your holsters.");
+
+            BoomerangCat = MelonPreferences.CreateCategory("LootOverhaul_Boomerang");
+            BoomerangTrigger = BoomerangCat.CreateEntry("BoomerangTrigger", "both", description: "When a thrown Boomerang weapon flies back: apex (at the top of its flight, or when it hits something, if an empty hand is gripping), pull (pull an empty gripping hand back sharply), both, or off.");
+            BoomerangPullSpeed = BoomerangCat.CreateEntry("BoomerangPullSpeed", 1.5f, description: "How fast (m/s, relative to your head) an empty gripping hand must move back for the pull trigger.");
 
             TokenPay = MelonPreferences.CreateCategory("LootOverhaul_Tokens");
             GoldToTokenRate = TokenPay.CreateEntry("GoldToTokenRate", 0.5f, description: "Tokens per gold earned in a run, before the bonuses below.");

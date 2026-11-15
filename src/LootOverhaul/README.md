@@ -36,7 +36,7 @@ gate rule is the same: private room, every occupant on the identical version and
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
 
-## 0.12.0 — enchant armory weapons, de-enchant
+## 0.12.0 — enchant armory weapons, de-enchant, Boomerang
 
 ### Armory weapons at the table
 
@@ -71,6 +71,26 @@ All prices are multiplied by `ShopPriceMultiplier` (2.5):
 | Enchant an armory weapon | 500 | 1,000 | 2,000 | 4,000 | `StockEnchantCostMultiplier` |
 | Remove a perk or the element | 200 | 400 | 800 | 1,600 | `DisenchantCostMultiplier` |
 
+### Boomerang
+
+A new enchantment for throwing weapons: axe, dagger, spear, hammer, long axe, and a sword with
+Spire. It is a button of its own on the weapon page. It costs one enchantment on that weapon ×
+`BoomerangCostMultiplier`, and the de-enchant price to remove. It does not use a perk slot.
+
+A thrown Boomerang weapon comes back to an empty hand:
+- **apex:** at the top of its flight, or as soon as it hits something and stops, if an empty
+  hand is gripping. Grip after the apex and it still comes back.
+- **pull:** pull an empty hand back sharply while holding grip (`BoomerangPullSpeed`, measured
+  relative to your head).
+
+The return is the game's own force grab. Keep holding grip to catch it, as with any force
+grab. When the weapon cannot come back to the hand, it goes back to its holster through the
+game's own auto-holster (as on respawn): when it is stuck in something, both hands are full,
+it is over 15 m away, the game refuses the force grab, or grip is let go mid-flight. In
+flat-screen mode the game's own pick-up puts it in hand. With no trigger, the game returns it
+to the holster after 1.5 s as before. Nothing is spawned or destroyed: it is always the same
+weapon.
+
 These prices assume about 1,300 tokens from a typical solo run. The reasoning is in
 [CHANGELOG.md](CHANGELOG.md) under 0.12.0. That run figure is an estimate; turn on
 `RunLogging` to measure it.
@@ -93,7 +113,8 @@ longer exist.
 | `[LootOverhaul_Goblin]` | `GoblinDropsEnabled`, `GoblinDrops` (2), `GoblinGuaranteedClass` (1 = Unique), `GoblinDropsScaleWithPlayers`, `LootGoblinScale` (1.1) |
 | `[LootOverhaul_FloorLoot]` | `DropBeams` (off), `BeamMinClass` (2 = Rare), `DropLabels` (off / hover / always), `DropSparkles`, `DropSound` (start / finish / collected / off) |
 | `[LootOverhaul_Bag]` | `BagWeightCapacity` (30), `BagGesture` (stick-hold / back-grip / off), `AutoPickup` (off) |
-| `[LootOverhaul_Shop]` | `ShopPriceMultiplier` (2.5), `SellMultiplier`, `ShopSlots`, `ShopRefreshMinutes`, `EnchantCostMultiplier`, `StockEnchantCostMultiplier`, `DisenchantCostMultiplier`, `ArmorUpgradeCostMultiplier`, `LoadoutEnabled` |
+| `[LootOverhaul_Shop]` | `ShopPriceMultiplier` (2.5), `SellMultiplier`, `ShopSlots`, `ShopRefreshMinutes`, `EnchantCostMultiplier`, `StockEnchantCostMultiplier`, `DisenchantCostMultiplier`, `BoomerangCostMultiplier`, `ArmorUpgradeCostMultiplier`, `LoadoutEnabled` |
+| `[LootOverhaul_Boomerang]` | `BoomerangTrigger` (both / apex / pull / off), `BoomerangPullSpeed` (1.5 m/s) |
 | `[LootOverhaul_Tokens]` | `GoldToTokenRate` and the payout bonuses per boss, mini-boss, hazard level, tier, extra player and chest |
 | `[LootOverhaul_Booth]` | the booth's position, set by pressing = in the lobby |
 | `[LootOverhaul_Dev]` | `DevTools` (recon transcript, profile watch, survey hotkeys), `VerboseLogging`, `RunLogging`, `DropPlayersOverride` |

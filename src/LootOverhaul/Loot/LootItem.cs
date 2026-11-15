@@ -104,6 +104,8 @@ namespace LootOverhaul.Loot
         /// <summary>What the stock weapon had when it was bound: the test for "back to stock".</summary>
         public int BasePerkA, BasePerkB, BasePerkC;
         public int BaseDamageType = -1;
+        /// <summary>The Boomerang enchantment (0.12.0): a thrown weapon returns to the hand. A flag only; the weapon itself is unchanged.</summary>
+        public bool Boomerang;
         [Newtonsoft.Json.JsonIgnore] public bool IsBound => !string.IsNullOrEmpty(StockGuid);
     }
 }
