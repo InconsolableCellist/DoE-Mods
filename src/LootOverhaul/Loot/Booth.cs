@@ -599,7 +599,7 @@ namespace LootOverhaul.Loot
                     var pid = perkId; var el = element;
                     // 0.13.2: a third perk from before never worked; taking it off is free and pays back.
                     var inactive = Enchanting.IsInactive(target, perkId);
-                    if (inactive) refundNote = $"{label} never worked, the game keeps two perks. Taking it off is free and pays back {UiKit.Money(-Enchanting.RemovePrice(target, perkId))}.";
+                    if (inactive) refundNote = $"{label} never worked, the game keeps two perks. Taking it off is free.";
                     UiKit.Btn(_buy, new Vector3(GridX(i), y - (i / 4) * 0.10f, 0f), new Vector2(gw, S.Action.y), label.ToUpperInvariant(),
                         () => { var r = Enchanting.Disenchant(target, pid, el); if (r != null) _enchantTarget = r.Id; Rebuild(); },
                         inactive ? S.Variant.Sell : S.Variant.Danger, inactive || dok ? S.State.Normal : S.State.Disabled);

@@ -95,10 +95,10 @@ namespace LootOverhaul.Loot
             => Math.Max(1, (int)Math.Round(Price(item) * DisenchantShare * Math.Max(0f, ModConfig.DisenchantCostMultiplier.Value)));
 
         /// <summary>
-        /// Taking off a third perk that never worked (see <see cref="IsInactive"/>) is free and pays
-        /// back what adding it cost at today's price.
+        /// Taking off a third perk that never worked (see <see cref="IsInactive"/>) is free, with no
+        /// tokens back.
         /// </summary>
-        public static int RemovePrice(LootItem item, int perkId) => IsInactive(item, perkId) ? -Price(item) : DisenchantPrice(item);
+        public static int RemovePrice(LootItem item, int perkId) => IsInactive(item, perkId) ? 0 : DisenchantPrice(item);
 
         public static string PerkName(int id)
         {
