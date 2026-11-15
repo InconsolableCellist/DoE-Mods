@@ -2,6 +2,14 @@
 
 Versions are the mod's `Version` constant in `src/CustomAvatars/Core.cs`. This file was reconstructed from the git history on 2026-09-01.
 
+## 0.42.22 (2026-11-15)
+
+### Fixed
+- **Friends' rings no longer look far too big on your screen.** Other players' rings were drawn with the automatic fit alone: their owner's own `Ring{Left|Right}*` tuning never left their PC, and your own `RingLeftSize`/`RingRightSize` only ever touched your two rings. The bare fit runs large (at a playtest on 2026-11-15 the owner had his left ring at x0.55 to look right), so a friend whose rings looked normal on their screen had rings about twice as big on everyone else's, and no setting changed that. Your ring settings now go to peers as a sixth field of the avatar message (fourteen invariant numbers: visible, size, up, slide, tilt, turn, roll per hand), re-sent a second after you stop changing them. A friend's ring is then drawn the way they set it up, and hidden if they hid it. Peers on an older build send no such field; their rings keep the bare fit. The `ring:` log names each peer's settings when they arrive.
+
+### Added
+- `RingsOthersSize` (default 1, 0.05 to 10): a size of your own for everyone else's rings, on top of their tuning. Only changes what you see. LootOverhaul 0.13.6 edits it on the kobold's ring tab (FRIENDS).
+
 ## 0.42.21 (2026-11-15)
 
 #19 (written as 0.42.20) on top of #18's 0.42.20.

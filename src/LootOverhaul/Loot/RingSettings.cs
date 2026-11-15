@@ -8,7 +8,8 @@ namespace LootOverhaul.Loot
     /// CustomAvatars' own `[CustomAvatars]` preferences as `Ring{Left|Right}*` and
     /// `RingsOthersVisible`; this reads and writes them by name, so neither mod needs the
     /// other. CustomAvatars re-reads them twice a second, so a change shows on the hand at
-    /// once. They apply to your own avatar only and change only what you see.
+    /// once. They change only what you see; CustomAvatars also sends your own two rings'
+    /// settings to your friends, so your rings look the same on their screen.
     /// </summary>
     public static class RingSettings
     {
@@ -85,6 +86,40 @@ namespace LootOverhaul.Loot
         {
             get { var e = BoolEntry("RingsOthersVisible"); return e != null && e.Value; }
             set { var e = BoolEntry("RingsOthersVisible"); if (e == null) return; e.Value = value; Save(); }
+        }
+
+        /// <summary>
+        /// Size of everyone else's rings on your screen, on top of how they tuned them
+        /// (`RingsOthersSize`, CustomAvatars 0.42.22 or later).
+        /// </summary>
+        public static readonly Setting OthersSize = new Setting
+        {
+            Key = "RingsOthersSize", Label = "SIZE", Format = "x{0:0.00}", Default = 1f, Min = 0.05f, Max = 10f,
+            Step = 0.05f, BigStep = 0.25f, Help = "friends' rings, bigger or smaller",
+        };
+
+        public static bool OthersSizeAvailable => FloatEntry(OthersSize.Key) != null;
+
+        public static float GetOthersSize()
+        {
+            var e = FloatEntry(OthersSize.Key);
+            return e != null && float.IsFinite(e.Value) ? e.Value : OthersSize.Default;
+        }
+
+        public static void NudgeOthersSize(float by)
+        {
+            var e = FloatEntry(OthersSize.Key);
+            if (e == null) return;
+            var v = (float)Math.Round((GetOthersSize() + by) / OthersSize.Step) * OthersSize.Step;
+            e.Value = Math.Max(OthersSize.Min, Math.Min(OthersSize.Max, v));
+            Save();
+        }
+
+        public static void ResetOthers()
+        {
+            var e = FloatEntry(OthersSize.Key);
+            if (e != null) e.Value = OthersSize.Default;
+            Save();
         }
 
         /// <summary>

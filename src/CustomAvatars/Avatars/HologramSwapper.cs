@@ -209,6 +209,7 @@ namespace CustomAvatars.Avatars
                     RingFollower.AddHolsterSites(sites, ringRoot, ringSource, skin, "mannequin");
                     return sites;
                 });
+                entry.Rings.Actor = entry.ActorNumber;
 
                 entry.VanillaMesh = hologram.avatarMesh;
                 if (Interop.Alive(entry.VanillaMesh))
@@ -301,7 +302,7 @@ namespace CustomAvatars.Avatars
             // it could be showing is you — the same reasoning as WantedAvatarFor.
             entry.IsSelf = actor < 0 || actor == localActor;
             // A friend's mannequin shows their rings with the friends' setting, not your per-ring ones.
-            if (entry.Rings != null) entry.Rings.IsSelf = entry.IsSelf;
+            if (entry.Rings != null) { entry.Rings.IsSelf = entry.IsSelf; entry.Rings.Actor = actor; }
         }
 
         private void ApplyEntry(Entry entry, float deltaTime)

@@ -3,6 +3,11 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.13.6 (2026-11-15)
+
+### Added
+- **FRIENDS page on the ring tab.** Next to LEFT RING and RIGHT RING: show or hide other players' rings (moved here from the toolbar) and a SIZE for them (`RingsOthersSize`, needs CustomAvatars 0.42.22). RESET on that page puts the size back to x1. With CustomAvatars 0.42.22 your own two rings' settings also reach your friends, so they see your rings as you do.
+
 ## 0.13.5 (2026-11-15)
 
 Less glow at the kobold and in the bag. (0.13.4 is the token panel, a separate change.)

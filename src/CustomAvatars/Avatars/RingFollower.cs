@@ -46,8 +46,9 @@ namespace CustomAvatars.Avatars
     ///
     /// Your own rings are then shown per your settings for that hand (`Look`: off until you
     /// turn it on, then size, up, slide and three angles on top of the fit); other players'
-    /// rings get the fit alone, behind one switch. All local: it only changes what this client
-    /// draws. Size and angles pivot on the band's centre, so the ring stays on the finger.
+    /// rings, behind one switch, as their owner tuned them on their own screen (the settings
+    /// travel with their avatar message) times a size of your own for everyone else's rings.
+    /// It only changes what this client draws. Size and angles pivot on the band's centre, so the ring stays on the finger.
     ///
     /// Grep the log for `ring:`.
     /// </summary>
@@ -136,10 +137,24 @@ namespace CustomAvatars.Avatars
         public static readonly Look Left = new Look(), Right = new Look();
 
         /// <summary>
-        /// Other players' rings: the automatic fit alone (your tuning is for your fingers, not
-        /// theirs), shown only when `RingsOthersVisible` is on. Off by default.
+        /// Other players' rings, shown only when `RingsOthersVisible` is on (off by default).
+        /// Each is drawn the way its owner tuned it on their own screen (their looks arrive
+        /// with their avatar, see AvatarSync), times `RingsOthersSize`. A player on an older
+        /// build sends no looks; their rings get the automatic fit times `RingsOthersSize`.
+        /// Your per-hand tuning is for your fingers and never touches theirs.
         /// </summary>
         public static readonly Look Others = new Look();
+
+        /// <summary>Each peer's own ring looks, by actor number: [0] left, [1] right.</summary>
+        private static readonly Dictionary<int, Look[]> PeerLooks = new Dictionary<int, Look[]>();
+
+        /// <summary>
+        /// Fired (at most once a second, after the numbers settle) when your own ring settings
+        /// change, so peers can be told; AvatarSync re-sends your avatar message.
+        /// </summary>
+        public static event Action SelfLooksChanged;
+        private static string _sentLooks, _seenLooks;
+        private static float _seenLooksAt;
 
         private static float _nextRefreshAt;
 
@@ -154,6 +169,65 @@ namespace CustomAvatars.Avatars
             ReadLook(Left, ModConfig.RingLeft);
             ReadLook(Right, ModConfig.RingRight);
             try { Others.Visible = ModConfig.RingsOthersVisible.Value; } catch { Others.Visible = false; }
+            Others.Size = Read(ModConfig.RingsOthersSize, MinSize, MaxSize, 1f);
+
+            // Tell peers when our own looks change, once the steppers stop moving.
+            var looks = EncodeSelfLooks();
+            var now = Time.unscaledTime;
+            if (_sentLooks == null) { _sentLooks = _seenLooks = looks; return; }
+            if (looks != _seenLooks) { _seenLooks = looks; _seenLooksAt = now; return; }
+            if (looks != _sentLooks && now - _seenLooksAt >= 1f)
+            {
+                _sentLooks = looks;
+                try { SelfLooksChanged?.Invoke(); }
+                catch (Exception e) { Core.Log.Warning($"ring: telling peers about our ring settings failed: {e.GetType().Name}: {e.Message}"); }
+            }
+        }
+
+        /// <summary>
+        /// Our two rings' looks for the avatar message: fourteen invariant numbers, left then
+        /// right, each visible (0/1), size, offset, slide, tilt, turn, roll. No '|' in it.
+        /// </summary>
+        public static string EncodeSelfLooks()
+        {
+            var ci = System.Globalization.CultureInfo.InvariantCulture;
+            string One(Look l) => string.Join(",", l.Visible ? "1" : "0", l.Size.ToString("0.###", ci), l.Offset.ToString("0.###", ci),
+                                              l.Slide.ToString("0.###", ci), l.Tilt.ToString("0.#", ci), l.Turn.ToString("0.#", ci),
+                                              l.Roll.ToString("0.#", ci));
+            return One(Left) + "," + One(Right);
+        }
+
+        /// <summary>A peer's ring looks from their avatar message; null or unreadable forgets them (older build).</summary>
+        public static void SetPeerLooks(int actor, string encoded)
+        {
+            var looks = DecodeLooks(encoded);
+            if (looks == null) { PeerLooks.Remove(actor); return; }
+            PeerLooks[actor] = looks;
+            Core.Log.Msg($"ring: actor {actor}'s own ring settings: left {looks[0]}, right {looks[1]}.");
+        }
+
+        public static void ForgetPeer(int actor) => PeerLooks.Remove(actor);
+
+        private static Look[] DecodeLooks(string encoded)
+        {
+            if (string.IsNullOrEmpty(encoded)) return null;
+            var p = encoded.Split(',');
+            if (p.Length < 14) return null;
+            var ci = System.Globalization.CultureInfo.InvariantCulture;
+            var f = new float[14];
+            for (var i = 0; i < 14; i++)
+                if (!float.TryParse(p[i], System.Globalization.NumberStyles.Float, ci, out f[i]) || !float.IsFinite(f[i])) return null;
+            Look Make(int o) => new Look
+            {
+                Visible = f[o] > 0.5f,
+                Size = Mathf.Clamp(f[o + 1], MinSize, MaxSize),
+                Offset = Mathf.Clamp(f[o + 2], -5f, 5f),
+                Slide = Mathf.Clamp(f[o + 3], -1f, 1f),
+                Tilt = Mathf.Clamp(f[o + 4], -180f, 180f),
+                Turn = Mathf.Clamp(f[o + 5], -180f, 180f),
+                Roll = Mathf.Clamp(f[o + 6], -180f, 180f),
+            };
+            return new[] { Make(0), Make(7) };
         }
 
         private static void ReadLook(Look look, ModConfig.RingEntries e)
@@ -179,6 +253,8 @@ namespace CustomAvatars.Avatars
         private readonly string _who;
         /// <summary>Your own rings: your per-ring settings apply. A mannequin can change hands, so its owner sets this on every scan.</summary>
         public bool IsSelf { get; set; }
+        /// <summary>Whose rings these are when not yours: the actor whose own ring looks apply. -1 = unknown.</summary>
+        public int Actor { get; set; } = -1;
         private readonly GameObject _model;
         private readonly AvatarManifest _manifest;
         private readonly Func<List<Site>> _findSites;
@@ -591,19 +667,30 @@ namespace CustomAvatars.Avatars
             var tube = ring.Avatar;
             if (tube == null || !Interop.Alive(tube.Bone)) return;
             var isLeft = ring.Site.Bone <= HumanBodyBones.LeftLittleDistal;
-            var look = !IsSelf ? Others : isLeft ? Left : Right;
-            if (!look.Visible)
+            // Yours: your settings for that hand. Someone else's: shown only with the friends'
+            // switch on, then as they tuned it on their own screen (when their build tells us),
+            // times your friends' size. Never your per-hand tuning: that is for your fingers.
+            Look tune;
+            var visible = true;
+            var extra = 1f;
+            if (IsSelf) { tune = isLeft ? Left : Right; visible = tune.Visible; }
+            else
+            {
+                tune = Actor >= 0 && PeerLooks.TryGetValue(Actor, out var theirs) ? theirs[isLeft ? 0 : 1] : null;
+                visible = Others.Visible && (tune == null || tune.Visible);
+                extra = Others.Size;
+            }
+            if (!visible)
             {
                 if (ring.T.localScale != Vector3.zero) ring.T.localScale = Vector3.zero;
                 return;
             }
-            // Someone else's ring: the fit alone, none of your tuning.
-            var size = IsSelf ? look.Size : 1f;
-            var up = IsSelf ? look.Offset : 0f;
-            var slide = IsSelf ? look.Slide : 0f;
-            var tiltDeg = IsSelf ? look.Tilt : 0f;
-            var turnDeg = IsSelf ? look.Turn : 0f;
-            var rollDeg = IsSelf ? look.Roll : 0f;
+            var size = (tune?.Size ?? 1f) * extra;
+            var up = tune?.Offset ?? 0f;
+            var slide = tune?.Slide ?? 0f;
+            var tiltDeg = tune?.Tilt ?? 0f;
+            var turnDeg = tune?.Turn ?? 0f;
+            var rollDeg = tune?.Roll ?? 0f;
 
             var rPer = ring.UseMesh ? tube.RadiusPerLength : FallbackRadiusPerLength;
             var cPer = ring.UseMesh ? tube.CentrePerLength : Vector2.zero;
