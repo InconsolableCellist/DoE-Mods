@@ -1,4 +1,4 @@
-# LootOverhaul 0.14.1 — building
+# LootOverhaul 0.14.2 — building
 
 A second, independent MelonLoader mod for Dungeons of Eternity. Design and game-internals
 findings: [docs/LOOT-OVERHAUL.md](../../docs/LOOT-OVERHAUL.md).
@@ -156,6 +156,11 @@ Power is +50% at level 5, so a Legendary Power stat drops at +7 to +13% and can 
 +25%. The upper limits per stat: Power, Distance, Farshot, Resilience, Mystify, Haste, Jump, Leap,
 Armor, Dispel, Ricochet and Antifreeze 25%; Critical and Vitality 100%; Knockback and Stillness
 50%; Heal, Blast, Antidote and Absorb 40%; Fortune 10%. Each upgrade step at the kobold is +1%.
+
+**Bomb damage and bomb radius (0.14.2)** have no perk in the game; they are measured against +50%, so
+they drop and upgrade exactly as the table says. Bomb damage rolls on head armor, bomb radius on leg
+armor. They make a thrown bomb's blast hit enemies and mimics harder and further; damage to players
+is unchanged. In a party the host uses the thrower's stats (shared while the room is gated).
 
 ## 0.10.10 — tonics to order
 

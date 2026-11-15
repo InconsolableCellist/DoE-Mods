@@ -3,6 +3,15 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.14.2 (2026-11-15)
+
+Two new armor stats for bombs. #30 (written as 0.13.8) on top of 0.14.1.
+
+### Added
+- **Bomb damage** (head armor) and **bomb radius** (leg armor). They roll on armor like the other stats, with the same ranges (Common 1-5%, Unique 4-8%, Rare 7-14%, Legendary 13-25%) and upgrade ceilings (10 / 16 / 28 / 50%), and show in the ARMOR and upgrade pages. They are never tonics.
+- **How it works.** A bomb's blast is the game's area-damage effect, run on every client with the bomb's damage and radius. The mod makes that blast hit harder and reach further on enemies and mimics (the radius also reaches more barrels, crates and crypt lids). Damage to players is unchanged, the thrower included. The explosion looks the same size.
+- **Multiplayer.** Enemies take damage on the client that runs them (usually the host), so each player's bomb stats are put on their Photon player while the room is gated, and the host uses the thrower's. The thrower is whoever owned the bomb when it broke. Each boosted blast is logged (`bombs: blast radius ... damage ...`).
+
 ## 0.14.1 (2026-11-15)
 
 #29 (written as 0.13.6) on top of 0.14.0.

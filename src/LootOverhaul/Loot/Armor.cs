@@ -55,6 +55,9 @@ namespace LootOverhaul.Loot
             { "Chest_Antifreeze", 25 }, { "Chest_Heal", 40 }, { "Chest_Vitality", 100 }, { "Chest_Resilience", 25 },
             { "Mind_Stillness", 50 }, { "Mind_Mystify", 25 },
             { "Legs_Haste", 25 }, { "Legs_Jump", 25 }, { "Legs_Leap", 25 }, { "Legs_Absorb", 40 }, { "Mind_Fortune", 10 },
+            // No perk in the game (0.14.2): measured against a made-up +50% top level, like Knockback, so the
+            // ranges are the README table's as they stand (Legendary drops 13-25%, upgrades to 50%).
+            { Bombs.Damage, 50 }, { Bombs.Radius, 50 },
         };
 
         /// <summary>
@@ -103,14 +106,15 @@ namespace LootOverhaul.Loot
         /// Which stats each slot rolls, so no stat can sit on two worn pieces: head is offense,
         /// chest is defense, legs are utility (the game's exosuit groups its perks the same way:
         /// arms, chest, legs). The mind perks have no slot of their own: enemy aim and standing-still
-        /// regeneration are defensive, run coins is a utility.
+        /// regeneration are defensive, run coins is a utility. Bomb damage (0.14.2) is offense; bomb
+        /// radius is a utility, so the two can be worn together.
         /// </summary>
         private static readonly string[][] SlotStats =
         {
-            new[] { "Arms_Power", "Arms_Critical", "Arms_Knockback", "Arms_Distance", "Arms_Farshot" },
+            new[] { "Arms_Power", "Arms_Critical", "Arms_Knockback", "Arms_Distance", "Arms_Farshot", Bombs.Damage },
             new[] { "Chest_Armor", "Chest_Ricochet", "Chest_Dispel", "Chest_Blast", "Chest_Antidote", "Chest_Antifreeze",
                     "Chest_Heal", "Chest_Vitality", "Chest_Resilience", "Mind_Stillness", "Mind_Mystify" },
-            new[] { "Legs_Haste", "Legs_Jump", "Legs_Leap", "Legs_Absorb", "Mind_Fortune" },
+            new[] { "Legs_Haste", "Legs_Jump", "Legs_Leap", "Legs_Absorb", "Mind_Fortune", Bombs.Radius },
         };
 
         /// <summary>The slot's stats. Every one can roll, whether or not the player has the perk.</summary>
