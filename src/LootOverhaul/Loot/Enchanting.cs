@@ -192,11 +192,54 @@ namespace LootOverhaul.Loot
             var have = new HashSet<int> { item.PerkA, item.PerkB, item.PerkC };
             if (UsedSlots(item) < Slots(item.WeaponClass))
             {
-                foreach (var p in GenericPerks) if (!have.Contains(p.id)) list.Add((p.name, p.id, -1));
-                if (TypePerks.TryGetValue(item.PropType, out var tp)) foreach (var p in tp) if (!have.Contains(p.id)) list.Add((p.name, p.id, -1));
+                // 0.13.2: only perks the game itself can roll on this weapon type (no Criticals on a shield).
+                var natural = NaturalPerks(item.PropType);
+                foreach (var p in GenericPerks) if (!have.Contains(p.id) && (natural == null || natural.Contains(p.id))) list.Add((p.name, p.id, -1));
+                if (TypePerks.TryGetValue(item.PropType, out var tp))
+                    foreach (var p in tp) if (!have.Contains(p.id) && (natural == null || natural.Contains(p.id))) list.Add((p.name, p.id, -1));
             }
             if (item.DamageType < 0) for (var e = 0; e < Elements.Length; e++) list.Add((Elements[e], 0, e));
             return list;
+        }
+
+        private static readonly Dictionary<int, HashSet<int>> Natural = new Dictionary<int, HashSet<int>>();
+
+        /// <summary>
+        /// The perks the game's generator can roll on a weapon type: every <c>WeaponPerkDef</c> in the
+        /// four rarity tables of <c>WeaponFactory</c> (common, unique, rare, legendary) that is valid for
+        /// the type (<c>LookUpWeaponType</c>, <c>IsValidFor</c>). Read once per type and logged; null when
+        /// the factory cannot be read (the table then offers what it did before, and says so in the log).
+        /// </summary>
+        public static HashSet<int> NaturalPerks(int propType)
+        {
+            if (Natural.TryGetValue(propType, out var cached)) return cached;
+            HashSet<int> set = null;
+            try
+            {
+                WeaponFactory wf = null;
+                foreach (var f in UnityEngine.Resources.FindObjectsOfTypeAll<WeaponFactory>()) if (Interop.Alive(f)) { wf = f; break; }
+                if (wf != null)
+                {
+                    var wt = WeaponFactory.LookUpWeaponType((Prop.Type)propType);
+                    set = new HashSet<int>();
+                    foreach (var gen in new[] { wf.common, wf.unique, wf.rare, wf.legendary })
+                    {
+                        if (gen == null) continue;
+                        foreach (var list in new[] { gen.weaponPerks, gen.AllPerks })
+                        {
+                            if (list == null) continue;
+                            foreach (var d in list) if (d != null && d.IsValidFor(wt)) set.Add((int)d.perk);
+                        }
+                    }
+                    if (set.Count == 0) set = null;
+                }
+            }
+            catch (Exception e) { Core.Log.Warning($"Enchanting: perk table unreadable: {e.GetType().Name}: {e.Message}"); set = null; }
+            if (set == null) { Core.Log.Warning($"Enchanting: no game perk table for {LootTables.TypeName(propType)}; offering every perk the table knows."); return null; }
+            Natural[propType] = set;
+            var names = new List<string>(); foreach (var p in set) names.Add(PerkName(p));
+            Core.Log.Msg($"Enchanting: {LootTables.TypeName(propType)} can roll {string.Join(", ", names)}");
+            return set;
         }
 
         public static int UsedSlots(LootItem item) => (item.PerkA > 0 ? 1 : 0) + (item.PerkB > 0 ? 1 : 0) + (item.PerkC > 0 ? 1 : 0);
@@ -232,6 +275,8 @@ namespace LootOverhaul.Loot
                 {
                     if (next.PerkA == perkId || next.PerkB == perkId || next.PerkC == perkId) return "It already has that.";
                     if (UsedSlots(next) >= Slots(next.WeaponClass)) return "No free slot.";
+                    var natural = NaturalPerks(next.PropType);
+                    if (natural != null && !natural.Contains(perkId)) return $"A {LootTables.TypeName(next.PropType).ToLowerInvariant()} can't carry {PerkName(perkId)}.";
                     if (next.PerkA <= 0) next.PerkA = perkId;
                     else if (next.PerkB <= 0) next.PerkB = perkId;
                     else if (next.PerkC <= 0) next.PerkC = perkId;

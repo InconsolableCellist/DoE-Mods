@@ -15,6 +15,7 @@ Fixes from the first headset playtest of the 0.13.0 look, and a third perk that 
 - **SELL ALL** goes back to the first page after a sweep instead of staying on a page that may now hold one row.
 - **Centred labels sat half their width too far left**: the WEAPON / ARMOR card titles at the card's edge, "none" under SELL ALL off its button, "locked, can't be sold" over the SELL button on the ARMOR page, the page number on top of the < button, and the CURRENT / NEXT / MAX values. `UiKit.Label` now centres them in their box.
 - **Armor upgrade page:** MAX no longer shows less than CURRENT on a piece rolled under the older, higher caps, and the piece's name runs up to "sells for" instead of cutting off its rarity.
+- **Only perks a weapon can roll.** ADD offers only the perks the game's own generator can roll on that weapon type (its four rarity tables in `WeaponFactory`, read once per type and written to the log), so no more Criticals on a shield. Perks already on a weapon stay.
 - **Enchant weapon list:** each row says "slots 2 / 2 · fire" on one line ("price per enchantment" is gone; the price column says it).
 
 ### Changed
