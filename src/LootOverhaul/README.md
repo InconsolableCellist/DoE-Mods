@@ -1,4 +1,4 @@
-# LootOverhaul 0.13.5 — building
+# LootOverhaul 0.13.6 — building
 
 A second, independent MelonLoader mod for Dungeons of Eternity. Design and game-internals
 findings: [docs/LOOT-OVERHAUL.md](../../docs/LOOT-OVERHAUL.md).
@@ -115,7 +115,7 @@ longer exist.
 | `[LootOverhaul_Bag]` | `BagWeightCapacity` (30), `BagGesture` (stick-hold / back-grip / off), `AutoPickup` (off) |
 | `[LootOverhaul_Shop]` | `ShopPriceMultiplier` (2.5), `SellMultiplier`, `ShopSlots`, `ShopRefreshMinutes`, `EnchantCostMultiplier`, `StockEnchantCostMultiplier`, `DisenchantCostMultiplier`, `BoomerangCostMultiplier`, `ArmorUpgradeCostMultiplier`, `LoadoutEnabled` |
 | `[LootOverhaul_Boomerang]` | `BoomerangTrigger` (both / apex / pull / off), `BoomerangPullSpeed` (1.5 m/s) |
-| `[LootOverhaul_Tokens]` | `GoldToTokenRate` and the payout bonuses per boss, mini-boss, hazard level, tier, extra player and chest |
+| `[LootOverhaul_Tokens]` | `GoldToTokenRate` and the payout bonuses per boss, mini-boss, extra player and chest |
 | `[LootOverhaul_Booth]` | the booth's position, set by pressing = in the lobby |
 | `[LootOverhaul_Dev]` | `DevTools` (recon transcript, profile watch, survey hotkeys), `VerboseLogging`, `RunLogging`, `DropPlayersOverride` |
 
@@ -184,8 +184,6 @@ The `[LootOverhaul]` settings:
 | `GoldToTokenRate` | 0.5 | tokens per gold of payout, before bonuses |
 | `BossKillBonus` | 0.5 | +50% per boss killed in the run |
 | `MinibossKillBonus` | 0.1 | +10% per mini-boss killed |
-| `HazardBonusPerLevel` | 0.2 | +20% per hazard level the run had (0–3) |
-| `TierBonusPerLevel` | 0.05 | +5% per dungeon tier above the first |
 | `TokenPlayerBonusPerExtraPlayer` | 0.5 | +50% per party member beyond you — the trade for losing last stand |
 | `TokenChestBonusPerChest` | 0.02 | +2% per chest you opened |
 

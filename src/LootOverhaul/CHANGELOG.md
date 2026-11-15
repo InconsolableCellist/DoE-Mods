@@ -3,6 +3,16 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.13.6 (2026-11-15)
+
+Fewer tokens per run, and the token panel shows its numbers at once.
+
+### Changed
+- **No hazard-level or tier bonus any more.** A run's payout is now gold × `GoldToTokenRate` × (1 + bosses + mini-bosses + extra players + chests). The two bonuses added little meaning and too many tokens. `HazardBonusPerLevel` and `TierBonusPerLevel` are gone from `[LootOverhaul_Tokens]` and are removed from settings files that still hold them. The log still reports the run's tier and hazards, and `runs.csv` keeps its `hazard_bonus` / `tier_bonus` columns (always 0) so old and new rows line up.
+
+### Fixed
+- **The token panel was empty until an arrow was pressed.** Its text was laid out while the panel was still hidden. It is now built after it appears, so the numbers show straight away.
+
 ## 0.13.5 (2026-11-15)
 
 Less glow at the kobold and in the bag. (0.13.4 is the token panel, a separate change.)

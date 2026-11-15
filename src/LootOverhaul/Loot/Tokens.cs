@@ -229,21 +229,19 @@ namespace LootOverhaul.Loot
 
                 double bossPart = BossKills * (double)ModConfig.BossKillBonus.Value;
                 double miniPart = MiniKills * (double)ModConfig.MinibossKillBonus.Value;
-                double hazardPart = ctx.HazardSteps * (double)ModConfig.HazardBonusPerLevel.Value;
-                double tierPart = ctx.TierSteps * (double)ModConfig.TierBonusPerLevel.Value;
                 double playerPart = ctx.ExtraPlayers * (double)ModConfig.TokenPlayerBonusPerExtraPlayer.Value;
                 double chestPart = ctx.Chests * (double)ModConfig.TokenChestBonusPerChest.Value;
                 // No malus, and no floor to bound one: bonuses only ever add. The run's own gold
                 // already reflects how it went - a wipe, or dying early, costs the quest reward -
                 // so charging deaths a second time would take it out of the same run twice.
-                double mult = 1.0 + bossPart + miniPart + hazardPart + tierPart + playerPart + chestPart;
+                double mult = 1.0 + bossPart + miniPart + playerPart + chestPart;
                 long payout = (long)Math.Floor(goldEarned * (double)ModConfig.GoldToTokenRate.Value * mult);
 
                 Log($"end screen: mode={ctx.GameModeName}({ctx.GameModeRaw}) dungeon='{ctx.DungeonName}' " +
                     $"endState={ctx.EndStateName}({ctx.EndStateRaw}) success={success} gold={goldEarned} xp={xpEarned} killsSeen={KillsSeen}");
                 Log($"  bosses={BossKills} (+{bossPart:P0})  minis={MiniKills} (+{miniPart:P0})  " +
-                    $"tier={ctx.TierRaw} -> {ctx.TierSteps} above first (+{tierPart:P0})");
-                Log($"  hazards={ctx.HazardRaw} (+{hazardPart:P0}){ctx.HazardNames}");
+                    $"tier={ctx.TierRaw} -> {ctx.TierSteps} above first [reported only]");
+                Log($"  hazards={ctx.HazardRaw}{ctx.HazardNames}  [reported only]");
                 Log($"  players={ctx.Players} (+{playerPart:P0})  chests={ctx.Chests} (+{chestPart:P0})");
                 // Recorded for tuning, never charged: see the note above the multiplier.
                 Log($"  deaths={ctx.Deaths} (own {ctx.OwnDeaths}, party {ctx.RoomDeaths})  [reported only]");
@@ -281,8 +279,6 @@ namespace LootOverhaul.Loot
                     }
                     Bonus($"Bosses ({BossKills})", bossPart);
                     Bonus($"Mini-bosses ({MiniKills})", miniPart);
-                    Bonus($"Hazard level {ctx.HazardSteps}", hazardPart);
-                    Bonus($"Tier, {ctx.TierSteps} above the first", tierPart);
                     Bonus($"Party, {ctx.ExtraPlayers} more {(ctx.ExtraPlayers == 1 ? "player" : "players")}", playerPart);
                     Bonus($"Chests ({ctx.Chests})", chestPart);
                     TokenPanel.Show(shown);
@@ -368,8 +364,8 @@ namespace LootOverhaul.Loot
                     ModConfig.GoldToTokenRate.Value.ToString("0.###"),
                     ModConfig.BossKillBonus.Value.ToString("0.###"),
                     ModConfig.MinibossKillBonus.Value.ToString("0.###"),
-                    ModConfig.HazardBonusPerLevel.Value.ToString("0.###"),
-                    ModConfig.TierBonusPerLevel.Value.ToString("0.###"),
+                    "0",   // hazard_bonus: removed in 0.13.6, column kept so old and new rows line up
+                    "0",   // tier_bonus: removed in 0.13.6
                     ModConfig.TokenPlayerBonusPerExtraPlayer.Value.ToString("0.###"),
                     ModConfig.TokenChestBonusPerChest.Value.ToString("0.###"),
                     Csv(PartyText(party)),
