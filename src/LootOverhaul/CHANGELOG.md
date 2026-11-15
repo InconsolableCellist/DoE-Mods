@@ -3,6 +3,18 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.13.4 (2026-11-15)
+
+The run payout gets its own panel in the end room; the toast is gone.
+
+### Added
+- **Token panel.** After a run, a panel stands beside the game's gold and XP screen: the tokens earned in big gold numbers, then the gold, tokens per gold, each bonus that applied (bosses, mini-bosses, hazard level, tier, party, chests), the multiplier and your new token balance. Same look as the kobold stall and the bag. Only you see your own panel.
+- **Arrows to place it.** Left, right, up, down, NEARER, FARTHER (0.1 m a press) and TURN LEFT / TURN RIGHT (10°), plus RESET. The spot is saved right away in the new `[LootOverhaul_TokenPanel]` section (`TokenPanelRight`, `TokenPanelUp`, `TokenPanelAway`, `TokenPanelTurn`), measured from the end screen's total gold, so the panel comes back to the same place after every run. `TokenPanelEnabled = false` turns it off.
+- It closes with the end screen, with its CLOSE button, or when the scene changes. If no end screen can be found within a few seconds, it stands to the right of where you look instead (logged).
+
+### Removed
+- **The payout toast and `TokenToastSeconds`** (0.12.1). The game's notifications vanish after a moment whatever the mod asks, and reposting them only made the message flicker. The setting is removed from settings files that still hold it. The payout itself is unchanged and still written to the log.
+
 ## 0.13.3 (2026-11-15)
 
 Smaller hazard and tier token bonuses.

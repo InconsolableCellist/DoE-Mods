@@ -37,11 +37,6 @@ namespace LootOverhaul.Loot
         private static long _tokensBefore;
         private static long _tokensAfter;
 
-        // ---- payout message is reposted to keep it on screen (see ToastLong)
-        private static string _toastText;
-        private static float _toastUntil;
-        private static float _toastNextAt;
-
         // ---- token balance seen when the run began, to expose shop spending between runs
         private static long _tokensAtRunStart = -1L;
 
@@ -62,9 +57,6 @@ namespace LootOverhaul.Loot
                 + $"player +{ModConfig.TokenPlayerBonusPerExtraPlayer.Value:P0}, run log {(ModConfig.RunLogging.Value ? "on" : "off")}");
             if (patched < 1) Core.Log.Warning("Tokens: the payout hook is missing - the payout will not fire.");
         }
-
-        /// <summary>Called from Core.OnUpdate; keeps the payout toast on screen.</summary>
-        public static void Tick() => RepeatToast();
 
         /// <summary>Case-insensitive comparison of a scene name against one of the game's constants.</summary>
         private static bool SceneIs(string scene, string constant) =>
@@ -274,7 +266,27 @@ namespace LootOverhaul.Loot
 
                 bool applied = AddTokens(payout);
                 if (applied)
-                    ToastLong($"+{payout} tokens  ({goldEarned} gold x{mult:0.##})");
+                {
+                    var shown = new TokenPanel.Payout
+                    {
+                        Tokens = payout,
+                        Gold = goldEarned,
+                        Rate = ModConfig.GoldToTokenRate.Value,
+                        Mult = mult,
+                        Balance = TryReadTokens(out long balNow) ? balNow : -1L,
+                    };
+                    void Bonus(string label, double part)
+                    {
+                        if (part > 0.00001) shown.Bonuses.Add(new KeyValuePair<string, double>(label, part));
+                    }
+                    Bonus($"Bosses ({BossKills})", bossPart);
+                    Bonus($"Mini-bosses ({MiniKills})", miniPart);
+                    Bonus($"Hazard level {ctx.HazardSteps}", hazardPart);
+                    Bonus($"Tier, {ctx.TierSteps} above the first", tierPart);
+                    Bonus($"Party, {ctx.ExtraPlayers} more {(ctx.ExtraPlayers == 1 ? "player" : "players")}", playerPart);
+                    Bonus($"Chests ({ctx.Chests})", chestPart);
+                    TokenPanel.Show(shown);
+                }
                 else
                     Core.Log.Warning(
                         $"payout of {payout} tokens was NOT applied — the LootOverhaul bridge is not wired (see earlier warnings)");
@@ -427,39 +439,6 @@ namespace LootOverhaul.Loot
                 Core.Log.Error("Tokens: crediting the balance failed: " + e);
                 return false;
             }
-        }
-
-        private static void Toast(string text) => BagManager.Toast(text);
-
-        /// <summary>
-        /// Shows a toast for TokenToastSeconds. The game's notifications have a short fixed life and
-        /// ignore their own display-time field - raising it was tried and changed nothing - so the
-        /// message is reposted on a timer until the window is over. Only this message is affected.
-        /// </summary>
-        private static void ToastLong(string text)
-        {
-            Toast(text);
-            float total = Math.Min(ModConfig.TokenToastSeconds.Value, 300f);
-            float every = ModConfig.Fixed.TokenToastRepeatSeconds;
-            if (total <= 0f || every <= 0f) return;
-            _toastText = text;
-            _toastUntil = UnityEngine.Time.unscaledTime + total;
-            _toastNextAt = UnityEngine.Time.unscaledTime + every;
-        }
-
-        private static void RepeatToast()
-        {
-            if (_toastText == null) return;
-            try
-            {
-                float now = UnityEngine.Time.unscaledTime;
-                if (now >= _toastUntil) { _toastText = null; return; }
-                if (now < _toastNextAt) return;
-                float every = ModConfig.Fixed.TokenToastRepeatSeconds;
-                _toastNextAt = now + (every < 0.5f ? 0.5f : every);
-                Toast(_toastText);
-            }
-            catch { _toastText = null; }
         }
 
         private sealed class PartyMember

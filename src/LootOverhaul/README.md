@@ -1,4 +1,4 @@
-# LootOverhaul 0.13.3 — building
+# LootOverhaul 0.13.4 — building
 
 A second, independent MelonLoader mod for Dungeons of Eternity. Design and game-internals
 findings: [docs/LOOT-OVERHAUL.md](../../docs/LOOT-OVERHAUL.md).
@@ -188,9 +188,16 @@ The `[LootOverhaul]` settings:
 | `TierBonusPerLevel` | 0.05 | +5% per dungeon tier above the first |
 | `TokenPlayerBonusPerExtraPlayer` | 0.5 | +50% per party member beyond you — the trade for losing last stand |
 | `TokenChestBonusPerChest` | 0.02 | +2% per chest you opened |
-| `TokenToastSeconds` | 30 | seconds the payout message stays on screen (0 = shown once, at most 300) |
 
 A completed run and a wipe both pay, because both report gold.
+
+**The token panel (0.13.4).** After the run, a panel stands beside the gold and XP screen with the
+tokens you earned, the gold, the rate, each bonus that applied, the multiplier and your new balance.
+Its arrows move it left, right, up and down, NEARER and FARTHER, and TURN it; RESET puts it back.
+The spot is saved in `[LootOverhaul_TokenPanel]` (`TokenPanelRight`, `TokenPanelUp`, `TokenPanelAway`,
+`TokenPanelTurn`, measured from the end screen's total gold) and used after every run.
+`TokenPanelEnabled = false` turns it off. It closes with the end screen, or with CLOSE. Only you see
+your own panel.
 
 **No death malus.** Deaths and last stands are *recorded* — per player in the end-screen breakdown and
 in `runs.csv` — because they are the best clue to how hard a run actually was, which is what these
