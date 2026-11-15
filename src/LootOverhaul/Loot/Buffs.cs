@@ -40,6 +40,8 @@ namespace LootOverhaul.Loot
             public float Floor;
             /// <summary>Kept so tonics and armor already in a bag still read and work, but no longer sold or rolled.</summary>
             public bool Retired;
+            /// <summary>No exosuit perk behind it (bomb damage and radius, 0.13.8): armor only, never a tonic, applied by <see cref="Bombs"/>.</summary>
+            public bool ArmorOnly;
         }
 
         /// <summary>
@@ -87,6 +89,8 @@ namespace LootOverhaul.Loot
             new Def { Stat = "Mind_Fortune",      Name = "Lucky Coin Tea",     Flavor = "more coins at the end of a run", Short = "run coins" },
             new Def { Stat = "Mind_Mystify",      Name = "Mystic Draught",     Flavor = "enemy shots miss more", Short = "enemy aim" },
             new Def { Stat = "Mind_Stillness",    Name = "Still Water",        Flavor = "health regenerates while standing still", Short = "still regen", Floor = 0.20f },
+            new Def { Stat = Bombs.Damage,        Name = "Blasting Powder",    Flavor = "bombs do more damage", Short = "bomb dmg", ArmorOnly = true },
+            new Def { Stat = Bombs.Radius,        Name = "Wide Fuse",          Flavor = "bombs blast wider", Short = "bomb radius", ArmorOnly = true },
         };
         public static readonly string[] TierNames = { "Minor", "Major", "Grand" };
 
@@ -106,6 +110,7 @@ namespace LootOverhaul.Loot
         public static void RebuildWorn()
         {
             Worn = Armor.WornMultipliers();
+            Bombs.SetLocal(Worn);
             Apply("armor changed");
         }
 
@@ -151,7 +156,7 @@ namespace LootOverhaul.Loot
         public static List<Def> Offered()
         {
             var list = new List<Def> { LightPotion.Def };   // no perk behind it
-            foreach (var d in Catalogue) if (!d.Retired && Unlocks.PerkUnlocked(d.Stat)) list.Add(d);
+            foreach (var d in Catalogue) if (!d.Retired && !d.ArmorOnly && Unlocks.PerkUnlocked(d.Stat)) list.Add(d);
             return list;
         }
 
@@ -256,6 +261,7 @@ namespace LootOverhaul.Loot
             foreach (var kv in combined)
             {
                 var def = Find(kv.Key);
+                if (def != null && def.ArmorOnly) continue;   // bombs: applied by Bombs, not the exosuit
                 if (!Enum.TryParse<ExosuitModule.PerkType>(kv.Key.Replace("_", ""), out var perk)) { parts.Add($"{kv.Key}: no such perk"); continue; }
                 table[(int)perk] = (def, kv.Value);
                 var p = Prop(kv.Key);
