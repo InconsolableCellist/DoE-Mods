@@ -16,7 +16,7 @@ namespace LootOverhaul
     {
         public const int Layout = 13;
 
-        public static MelonPreferences_Category Main, ChestArmor, Goblin, FloorLoot, Bag, Shop, BoomerangCat, TokenPay, BoothPos, Dev;
+        public static MelonPreferences_Category Main, ChestArmor, Goblin, FloorLoot, Bag, Shop, BoomerangCat, TokenPay, TokenPanelCat, BoothPos, Dev;
 
         public static MelonPreferences_Entry<bool> Enabled;
 
@@ -44,7 +44,10 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<float> BoomerangPullSpeed;
 
         public static MelonPreferences_Entry<float> GoldToTokenRate, BossKillBonus, MinibossKillBonus, HazardBonusPerLevel,
-            TierBonusPerLevel, TokenPlayerBonusPerExtraPlayer, TokenChestBonusPerChest, TokenToastSeconds;
+            TierBonusPerLevel, TokenPlayerBonusPerExtraPlayer, TokenChestBonusPerChest;
+
+        public static MelonPreferences_Entry<bool> TokenPanelEnabled;
+        public static MelonPreferences_Entry<float> TokenPanelRight, TokenPanelUp, TokenPanelAhead, TokenPanelTurn;
 
         public static MelonPreferences_Entry<float> BoothX, BoothY, BoothZ, BoothYaw;
         public static MelonPreferences_Entry<bool> BoothPlaced;
@@ -63,7 +66,6 @@ namespace LootOverhaul
             public const float BagAutoCloseMeters = 2f;
             public const float BagGestureHoldSeconds = 0.7f;
             public const string PedestalFrameColor = "#FFD24A";
-            public const float TokenToastRepeatSeconds = 2f;
         }
 
         public static bool LabelsOn => !string.Equals(DropLabels.Value, "off", StringComparison.OrdinalIgnoreCase);
@@ -128,7 +130,23 @@ namespace LootOverhaul
             TierBonusPerLevel = TokenPay.CreateEntry("TierBonusPerLevel", 0.05f, description: "Extra payout per dungeon tier above the first. 0.05 = +5% per tier.");
             TokenPlayerBonusPerExtraPlayer = TokenPay.CreateEntry("TokenPlayerBonusPerExtraPlayer", 0.5f, description: "Extra payout per party member beyond you.");
             TokenChestBonusPerChest = TokenPay.CreateEntry("TokenChestBonusPerChest", 0.02f, description: "Extra payout per chest you opened.");
-            TokenToastSeconds = TokenPay.CreateEntry("TokenToastSeconds", 30f, description: "Seconds the +tokens message from a run stays on screen (it is reposted every 2 s). 0 = shown once, the game's own short time. At most 300.");
+            // 0.12.1's toast setting is gone with the toast (0.13.4); take it out of files that still hold it.
+            if (old.TryGetValue("LootOverhaul_Tokens", out var oldTokens) && oldTokens.ContainsKey("TokenToastSeconds"))
+            {
+                TokenPay.CreateEntry("TokenToastSeconds", 30f);
+                SafeDelete(TokenPay, "TokenToastSeconds");
+            }
+
+            TokenPanelCat = MelonPreferences.CreateCategory("LootOverhaul_TokenPanel");
+            TokenPanelEnabled = TokenPanelCat.CreateEntry("TokenPanelEnabled", true, description: "After a run, a panel beside the gold and XP screen shows the tokens you earned and how they add up.");
+            // The first 0.13.4 test build measured these from the end screen (the panel landed in the wall); drop those keys.
+            if (old.TryGetValue("LootOverhaul_TokenPanel", out var oldPanel))
+                foreach (var key in new[] { "TokenPanelRight", "TokenPanelUp", "TokenPanelAway", "TokenPanelTurn" })
+                    if (oldPanel.ContainsKey(key)) { TokenPanelCat.CreateEntry(key, 0f); SafeDelete(TokenPanelCat, key); }
+            TokenPanelRight = TokenPanelCat.CreateEntry("TokenPanelSide", 0.9f, description: "Metres to the right of the line from your eyes to the end screen. Set with the arrows on the panel.");
+            TokenPanelUp = TokenPanelCat.CreateEntry("TokenPanelHeight", -0.2f, description: "Metres above your eyes (negative = below). Set with the arrows on the panel.");
+            TokenPanelAhead = TokenPanelCat.CreateEntry("TokenPanelAhead", 1.3f, description: "Metres in front of you. Set with NEARER / FARTHER on the panel. A wall in the way pulls the panel nearer.");
+            TokenPanelTurn = TokenPanelCat.CreateEntry("TokenPanelAngle", 0f, description: "Degrees the panel is turned away from facing you. Set with TURN on the panel.");
 
             BoothPos = MelonPreferences.CreateCategory("LootOverhaul_Booth");
             BoothX = BoothPos.CreateEntry("BoothX", Loot.Booth.DefaultPosition.x);

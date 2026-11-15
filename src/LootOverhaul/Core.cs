@@ -7,7 +7,7 @@ using LootOverhaul.Loot;
 using LootOverhaul.Net;
 using LootOverhaul.Recon;
 
-[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.13.3", "Foxipso")]
+[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.13.4", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace LootOverhaul
@@ -25,7 +25,7 @@ namespace LootOverhaul
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.13.3";
+        public const string Version = "0.13.4";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -62,6 +62,7 @@ namespace LootOverhaul
             // transcript all see exactly the same kills.
             GameplayHooks.InstallKillHook();
             Tokens.Install();
+            TokenPanel.Install();
             BagPickup.Install();
             FabricatorBridge.Install();
             Buffs.Install();
@@ -98,7 +99,7 @@ namespace LootOverhaul
             FabricatorBridge.Tick();
             BagGesture.Tick();
             BagPanel.Tick();
-            Tokens.Tick();
+            TokenPanel.Tick();
             Buffs.Tick();
             LightPotion.Tick();
             PreparedTonics.Tick();
@@ -145,6 +146,7 @@ namespace LootOverhaul
             BagPanel.Hide();
             Booth.Hide();
             Tokens.OnSceneChanged(sceneName);
+            TokenPanel.OnSceneChanged();
             PreparedTonics.OnSceneChanged(sceneName);
             _templateCaptureAt = sceneName == Il2Cpp.GameManager.LOBBY_SCENE ? UnityEngine.Time.unscaledTime + 3f : -1f;
             if (!ModConfig.DevTools.Value) return;
