@@ -223,17 +223,30 @@ namespace CustomAvatars.Avatars
                 var bones = container?.boneRotationDefs;
                 if (bones != null)
                 {
+                    float closed = float.NaN, opened = float.NaN;
+                    try { closed = avatar.FullBody.closedJawAngle; opened = avatar.FullBody.openedJawAngle; } catch { }
                     for (var i = 0; i < bones.Length; i++)
                     {
                         var def = bones[i];
                         if (def == null || string.IsNullOrEmpty(def.bone)) continue;
                         if (parts.Length > 0) parts.Append(", ");
                         parts.Append($"bone {def.bone} {Interop.Vec(def.rotation)}");
-                        // A jaw rotation opens the mouth; about 25° is wide open on the vanilla rig.
+                        // The jaw's rotation is its whole pose, closed position included (about -124°
+                        // on the vanilla rig), not how far it opens. The character carries its own
+                        // closed and open angles, so the opening is where the load face sits between them.
                         if (def.bone.IndexOf("jaw", StringComparison.OrdinalIgnoreCase) >= 0)
                         {
-                            var open = Mathf.Clamp01(Mathf.Max(Mathf.Abs(def.rotation.x), Mathf.Abs(def.rotation.z)) / 25f);
-                            values["JawOpen"] = Mathf.Max(values.TryGetValue("JawOpen", out var j) ? j : 0f, open);
+                            if (!float.IsFinite(closed) || !float.IsFinite(opened) || Mathf.Abs(Mathf.DeltaAngle(closed, opened)) < 0.5f)
+                            {
+                                parts.Append(" (jaw range unknown; mouth left closed)");
+                                continue;
+                            }
+                            var angle = Mathf.DeltaAngle(0f, def.rotation.x);
+                            var c = Mathf.DeltaAngle(0f, closed);
+                            var o = c + Mathf.DeltaAngle(closed, opened);
+                            var open = Mathf.Clamp01(Mathf.InverseLerp(c, o, angle));
+                            parts.Append($" (jaw {open * 100f:0}% open, closed {c:0.#}°, open {o:0.#}°)");
+                            if (open > 0f) values["JawOpen"] = Mathf.Max(values.TryGetValue("JawOpen", out var j) ? j : 0f, open);
                         }
                     }
                 }
@@ -285,7 +298,8 @@ namespace CustomAvatars.Avatars
                     driver.Apply(state, 10f);
                 }
 
-                var head = FindHead(model, manifest);
+                var head = FindBone(model, manifest, "Head", HumanBodyBones.Head);
+                var arms = LowerArms(model, manifest);
                 if (!Interop.Alive(head)) { Core.Log.Warning($"Load screen: `{avatarName}` has no head bone — keeping the game's picture."); return null; }
 
                 // Size everything by how high the head sits: a 1.55 m head bone is an ordinary
@@ -328,7 +342,7 @@ namespace CustomAvatars.Avatars
                 camera.Render();
                 camera.targetTexture = null;
 
-                how = $"{width}x{height}, face {faceResult}, {applied} expression value(s) set";
+                how = $"{width}x{height}, {arms}, face {faceResult}, {applied} expression value(s) set";
                 return texture;
             }
             catch (Exception e)
@@ -344,12 +358,49 @@ namespace CustomAvatars.Avatars
             }
         }
 
-        private static Transform FindHead(GameObject model, AvatarManifest manifest)
+        /// <summary>
+        /// The avatar comes out of its bundle in its rest pose, which is a T-pose (or an A-pose).
+        /// Each upper arm is swung down to hang at the side, a little away from the body, keeping
+        /// whatever bend the rest of the arm has. Returns a note for the log line.
+        /// </summary>
+        private static string LowerArms(GameObject model, AvatarManifest manifest)
+        {
+            const float outwardDegrees = 12f;
+            var up = model.transform.up;
+            var done = 0;
+            foreach (var (upperName, upperBone, lowerName, lowerBone) in new[]
+            {
+                ("LeftUpperArm", HumanBodyBones.LeftUpperArm, "LeftLowerArm", HumanBodyBones.LeftLowerArm),
+                ("RightUpperArm", HumanBodyBones.RightUpperArm, "RightLowerArm", HumanBodyBones.RightLowerArm),
+            })
+            {
+                try
+                {
+                    var upper = FindBone(model, manifest, upperName, upperBone);
+                    var lower = FindBone(model, manifest, lowerName, lowerBone);
+                    if (!Interop.Alive(upper) || !Interop.Alive(lower)) continue;
+                    var dir = lower.position - upper.position;
+                    if (dir.sqrMagnitude < 1e-8f) continue;
+                    // Outward is the arm's own sideways direction, so it works whichever way the rig faces.
+                    var outward = Vector3.ProjectOnPlane(dir, up);
+                    if (outward.sqrMagnitude < 1e-8f) continue;
+                    outward.Normalize();
+                    var rad = outwardDegrees * Mathf.Deg2Rad;
+                    var wanted = -up * Mathf.Cos(rad) + outward * Mathf.Sin(rad);
+                    upper.rotation = Quaternion.FromToRotation(dir, wanted) * upper.rotation;
+                    done++;
+                }
+                catch { }
+            }
+            return done == 2 ? "arms at the sides" : done == 1 ? "one arm lowered" : "arms left in the rest pose";
+        }
+
+        private static Transform FindBone(GameObject model, AvatarManifest manifest, string name, HumanBodyBones bone)
         {
             try
             {
                 if (manifest.rig?.humanoidBones != null &&
-                    manifest.rig.humanoidBones.TryGetValue("Head", out var path) && !string.IsNullOrEmpty(path))
+                    manifest.rig.humanoidBones.TryGetValue(name, out var path) && !string.IsNullOrEmpty(path))
                 {
                     var head = model.transform.Find(path);
                     if (Interop.Alive(head)) return head;
@@ -359,7 +410,7 @@ namespace CustomAvatars.Avatars
             try
             {
                 var animator = model.GetComponentInChildren<Animator>(true);
-                if (Interop.Alive(animator) && animator.isHuman) return animator.GetBoneTransform(HumanBodyBones.Head);
+                if (Interop.Alive(animator) && animator.isHuman) return animator.GetBoneTransform(bone);
             }
             catch { }
             return null;

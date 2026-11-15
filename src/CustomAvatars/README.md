@@ -1,4 +1,4 @@
-# CustomAvatars 0.42.18
+# CustomAvatars 0.42.19
 
 Wear a VRChat-style avatar in Dungeons of Eternity, in a private lobby with friends who run the
 same build. Face and eye tracking come from VRCFaceTracking over OSC, full-body tracking from

@@ -2,6 +2,14 @@
 
 Versions are the mod's `Version` constant in `src/CustomAvatars/Core.cs`. This file was reconstructed from the git history on 2026-09-01.
 
+## 0.42.19 (2026-11-14)
+
+### Fixed
+- **Loading-screen faces were all open-mouthed.** A load face's jaw entry is the jaw's whole rotation, closed position included (about -124° on the vanilla rig), and it was read as how far the jaw opens, so any face with a jaw entry came out fully open. The opening is now where that angle sits between the character's own `closedJawAngle` and `openedJawAngle`. Without that range the mouth is left closed. The `Load screen:` line gives the jaw as a percentage with both angles.
+
+### Changed
+- **Loading-screen avatars stand with their arms at their sides** instead of in the T-pose they come out of the bundle in: each upper arm hangs down, 12° away from the body. The log line says `arms at the sides` (or why not).
+
 ## 0.42.18 (2026-11-14)
 
 The final #14 merged into master. The code is 0.42.17's, mannequin fix included; it is numbered apart from earlier 0.42.17 test builds of #14 that lack that fix. The CustomAvatars row in `src/README.md` no longer says your own avatar is gated.

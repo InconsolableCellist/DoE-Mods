@@ -6,7 +6,7 @@ using CustomAvatars.Gate;
 using CustomAvatars.Net;
 using CustomAvatars.Recon;
 
-[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.42.18", "Foxipso")]
+[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.42.19", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace CustomAvatars
@@ -25,7 +25,7 @@ namespace CustomAvatars
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.42.18";
+        public const string Version = "0.42.19";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
