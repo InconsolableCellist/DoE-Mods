@@ -16,7 +16,7 @@ namespace HazardTweaks
         public static MelonPreferences_Entry<bool> RemoveWeaponRestrictions;
         /// <summary>More hazards to drop, by their game name, comma separated. Example: Death, NoRevives.</summary>
         public static MelonPreferences_Entry<string> AlsoRemove;
-        /// <summary>Every hazard's XP and gold bonus is multiplied by this. 2 = Death +25% becomes +50% at tier 7.</summary>
+        /// <summary>Every hazard's XP and gold bonus is multiplied by this. 1.5 = Death +25% becomes +37.5% at tier 7.</summary>
         public static MelonPreferences_Entry<float> BonusMultiplier;
         public static MelonPreferences_Entry<bool> VerboseLogging;
 
@@ -28,8 +28,8 @@ namespace HazardTweaks
                 description: "Drop every hazard that takes your own weapons away: Bows Only, Axes Only, Swords & Shields, Daggers Only, Fireball Staffs Only, Random Weapons (and any other *Only weapon hazard the game adds).");
             AlsoRemove = Main.CreateEntry("AlsoRemove", "",
                 description: "More hazards to drop, comma separated, by game name: Death, NoPotions, Potions50Pct, NoRevives, CreatureSwarms, Damage150Pct, Damage200Pct, DragonBattle, MiniBossBattle, BossBattle. The log lists every name at startup.");
-            BonusMultiplier = Main.CreateEntry("BonusMultiplier", 2f,
-                description: "Multiplies every hazard's XP/gold bonus. 1 = vanilla, 2 = double (Death +25% -> +50% at tier 7).");
+            BonusMultiplier = Main.CreateEntry("BonusMultiplier", 1.5f,
+                description: "Multiplies every hazard's XP/gold bonus. 1 = vanilla, 1.5 = half again (Death +25% -> +37.5% at tier 7), 2 = double.");
             VerboseLogging = Main.CreateEntry("VerboseLogging", true,
                 description: "Log every hazard list the mod changes.");
         }

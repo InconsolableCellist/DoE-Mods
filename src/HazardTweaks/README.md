@@ -6,8 +6,8 @@ mission board):
 - **Keep your own weapons.** Every hazard that takes them away is removed: Bows Only, Axes
   Only, Swords & Shields, Daggers Only, Fireball Staffs Only and Random Weapons.
 - **Remove any other hazard you choose**, such as Death, by name in the settings.
-- **Bigger rewards.** Every hazard's XP and gold bonus is doubled by default, so Death goes
-  from +25% to +50% at tier 7 and the +40% hazards go to +80%.
+- **Bigger rewards.** Every hazard's XP and gold bonus is raised by half by default, so Death goes
+  from +25% to +37.5% at tier 7 and the +40% hazards go to +60%.
 
 The mission board, the "+X% Bonus" lines and the end-of-run total all show the new numbers.
 
@@ -53,7 +53,7 @@ they apply to the next mission board. Everyone in the lobby needs the same value
 | `Enabled` | `true` | |
 | `RemoveWeaponRestrictions` | `true` | Drop every weapon-limiting hazard. |
 | `AlsoRemove` | empty | More hazards to drop, comma separated: `Death`, `NoPotions`, `Potions50Pct`, `NoRevives`, `CreatureSwarms`, `Damage150Pct`, `Damage200Pct`, `DragonBattle`, `MiniBossBattle`, `BossBattle`. The log lists every name at startup. |
-| `BonusMultiplier` | `2` | Multiplies every hazard's bonus. `1` is vanilla. |
+| `BonusMultiplier` | `1.5` | Multiplies every hazard's bonus. `1` is vanilla, `2` doubles it. |
 | `VerboseLogging` | `true` | Log each hazard list the mod changes, and why it left one alone. |
 
 A removed hazard also takes its bonus with it: a dungeon whose only hazard was Bows Only
@@ -72,5 +72,5 @@ multiplier means more XP and gold saved to your profile than vanilla would give.
 never writes to the profile itself.
 
 **LootOverhaul tokens.** LootOverhaul pays its end-of-run tokens from the run's gold, so a
-doubled hazard gold bonus also raises the tokens, which LootOverhaul 0.12.0's enchanting prices
+higher hazard gold bonus also raises the tokens, which LootOverhaul 0.12.0's enchanting prices
 were balanced against. `BonusMultiplier = 1` keeps token income vanilla.
