@@ -3,6 +3,13 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.12.1 (2026-11-15)
+
+The run payout message stays up long enough to read.
+
+### Changed
+- **`TokenToastSeconds` is a setting again**, in `[LootOverhaul_Tokens]`, and defaults to 30 seconds instead of a fixed 5. The "+N tokens (gold x mult)" message after a run used to vanish while the end screen was still up. It is still reposted every 2 seconds, because the game's notifications ignore their own display time. 0 shows it once for the game's own short time; values above 300 are treated as 300. Display only: it does not change the payout and is not part of the room gate.
+
 ## 0.12.0 (2026-11-14)
 
 Enchant your armory weapons, take enchantments off again, and Boomerang for throwing weapons.
