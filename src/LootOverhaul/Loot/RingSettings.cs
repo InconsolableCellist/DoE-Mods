@@ -22,7 +22,7 @@ namespace LootOverhaul.Loot
 
         public static readonly Setting[] All =
         {
-            new Setting { Key = "Size",   Label = "SIZE",    Format = "x{0:0.00}",         Default = 1f, Min = 0.5f,  Max = 4f,   Step = 0.05f, BigStep = 0.25f, Help = "bigger or smaller" },
+            new Setting { Key = "Size",   Label = "SIZE",    Format = "x{0:0.00}",         Default = 1f, Min = 0.05f, Max = 10f,  Step = 0.05f, BigStep = 0.25f, Help = "bigger or smaller" },
             new Setting { Key = "Offset", Label = "UP/DOWN", Format = "{0:+0.0;-0.0;0}",   Default = 0f, Min = -5f,   Max = 5f,   Step = 0.1f,  BigStep = 0.5f,  Help = "+ lifts it off the back of the hand" },
             new Setting { Key = "Slide",  Label = "SLIDE",   Format = "{0:+0.00;-0.00;0}", Default = 0f, Min = -1f,   Max = 1f,   Step = 0.02f, BigStep = 0.1f,  Help = "+ moves it toward the fingertip" },
             new Setting { Key = "Tilt",   Label = "TILT",    Format = "{0:+0;-0;0}°",      Default = 0f, Min = -180f, Max = 180f, Step = 5f,    BigStep = 30f,   Help = "+ tips its top toward the fingertip" },

@@ -41,6 +41,10 @@ Tokens now come only from chest armor sold at the kobold and from the end-of-run
 - **Chosen prices** (all × `ShopPriceMultiplier` 2.5):
   - An armory enchantment costs **500 / 1,000 / 2,000 / 4,000** (Common to Legendary). That is about half a run to three runs. It is two thirds of the bag price (750 / 1,500 / 3,000 / 6,000, unchanged), because an armory weapon was earned already and cannot be sold.
   - Removing a perk or element costs **200 / 400 / 800 / 1,600**. That is about 40% of an armory enchantment: undoing a mistake should cost, but less than making it.
+## 0.11.3 (2026-11-14)
+
+### Changed
+- The ring page's SIZE goes from x0.05 to x10 (was x0.5 to x4). At a playtest a left ring started far too big and could not be shrunk enough. CustomAvatars 0.42.19 (#18) fixes the starting size and accepts the same range; an older CustomAvatars still holds the ring to 0.5–4 whatever the page shows.
 
 ## 0.11.2 (2026-11-14)
 
