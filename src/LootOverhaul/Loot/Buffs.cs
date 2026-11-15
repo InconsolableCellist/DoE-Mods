@@ -100,6 +100,7 @@ namespace LootOverhaul.Loot
         private static bool _bypass;
 
         public static bool AnyActive => Active.Count > 0;
+        public static int ActiveCount => Active.Count;
         public static bool AnyWorn => Worn.Count > 0;
 
         public static void RebuildWorn()

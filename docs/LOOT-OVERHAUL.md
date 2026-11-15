@@ -398,7 +398,7 @@ serialized type (`ManualWeaponDTO`: perkA/B/C, damageMin, damageType, superior) 
 module carry chosen perks and an element, and the game networks it (11 values). That is
 the enchanting table: take a bag weapon, spend gold and a reagent, write a Manual module
 with an added perk or element. Slot count by rarity (Common 1, Unique 2, Rare 2,
-Legendary 3) is our rule. Needs one recon: build a Manual DTO by hand and confirm the
+Legendary 3) was our rule; since LootOverhaul 0.13.2 Legendary has 2, because `Weapon.ApplyManualParameters` keeps perkA and perkB and drops perkC. Needs one recon: build a Manual DTO by hand and confirm the
 module name the game expects (`IsMythicModule` / `manualSerializedValueIndices` suggest a
 fixed module-name convention) and that it spawns.
 

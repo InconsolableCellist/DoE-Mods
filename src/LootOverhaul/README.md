@@ -1,4 +1,4 @@
-# LootOverhaul 0.13.1 — building
+# LootOverhaul 0.13.2 — building
 
 A second, independent MelonLoader mod for Dungeons of Eternity. Design and game-internals
 findings: [docs/LOOT-OVERHAUL.md](../../docs/LOOT-OVERHAUL.md).
@@ -69,7 +69,7 @@ All prices are multiplied by `ShopPriceMultiplier` (2.5):
 |---|---|---|---|---|---|
 | Enchant a bag weapon (unchanged) | 750 | 1,500 | 3,000 | 6,000 | `EnchantCostMultiplier` |
 | Enchant an armory weapon | 500 | 1,000 | 2,000 | 4,000 | `StockEnchantCostMultiplier` |
-| Remove a perk or the element | 200 | 400 | 800 | 1,600 | `DisenchantCostMultiplier` |
+| Remove a perk or the element, bag / armory weapon (half of adding one) | 375 / 250 | 750 / 500 | 1,500 / 1,000 | 3,000 / 2,000 | `DisenchantCostMultiplier` |
 
 ### Boomerang
 

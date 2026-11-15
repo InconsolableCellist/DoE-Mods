@@ -319,6 +319,7 @@ namespace LootOverhaul.Loot
                 var baseScale = _buttonTemplate.transform.localScale;
                 go.transform.localScale = new Vector3(baseScale.x * width / ButtonSize.x, baseScale.y * height / ButtonSize.y, baseScale.z);
                 go.SetActive(true);
+                FitColliders(go, parent, localPos, width * HitShare, height * HitShare);
                 foreach (var r in go.GetComponentsInChildren<Renderer>(true)) if (Interop.Alive(r)) r.enabled = false;
                 var btn = go.GetComponent<InteractableButton>();
                 if (!Interop.Alive(btn)) return null;
@@ -333,6 +334,54 @@ namespace LootOverhaul.Loot
             }
         }
 
+
+        /// <summary>A hit box is this share of the drawn button, so two buttons a Gap apart never touch.</summary>
+        public const float HitShare = 0.9f;
+        private static bool _colliderLogged;
+
+        /// <summary>
+        /// 0.13.2: make the pointable area exactly <paramref name="width"/> × <paramref name="height"/>
+        /// (in <paramref name="parent"/>'s units) centred on the button. Until now the clone was only
+        /// scaled by width / <see cref="ButtonSize"/>, and ButtonSize is a guess (the measured
+        /// renderers are the label, so the 0.52 × 0.06 default is used). Where the game button's
+        /// collider is bigger than that guess (it covers the glow), a hit box is bigger than its
+        /// plate and reaches its neighbours: on the ARMOR page WEAR / SELL sit 0.02 m apart with the
+        /// &lt; &gt; arrows just above, the laser hops between overlapping boxes every frame (the
+        /// hover sound over and over) and sticks to the middle of the panel. The same overlap was
+        /// the WEAR / SELL flicker of 0.10.4. Box colliders are set to the size asked for; any
+        /// other collider is left as scaled and named in the log once. The first fit logs the
+        /// collider's old size, so a playtest log shows how far off it was.
+        /// </summary>
+        private static void FitColliders(GameObject go, Transform parent, Vector3 localPos, float width, float height)
+        {
+            try
+            {
+                var center = parent.TransformPoint(localPos);
+                var worldW = parent.TransformVector(new Vector3(width, 0f, 0f)).magnitude;
+                var worldH = parent.TransformVector(new Vector3(0f, height, 0f)).magnitude;
+                var others = "";
+                foreach (var c in go.GetComponentsInChildren<Collider>(true))
+                {
+                    if (!Interop.Alive(c)) continue;
+                    var box = c.TryCast<BoxCollider>();
+                    if (box == null) { others += c.GetIl2CppType().Name + " "; continue; }
+                    var t = box.transform;
+                    var ls = t.lossyScale;
+                    var sx = Mathf.Max(1e-5f, Mathf.Abs(ls.x)); var sy = Mathf.Max(1e-5f, Mathf.Abs(ls.y));
+                    if (!_colliderLogged)
+                    {
+                        _colliderLogged = true;
+                        var was = Vector3.Scale(box.size, new Vector3(sx, sy, Mathf.Abs(ls.z)));
+                        Core.Log.Msg($"UI: hit box collider was {was.x:0.000}×{was.y:0.000} m for a {worldW:0.000}×{worldH:0.000} m button; fitted.");
+                    }
+                    box.size = new Vector3(worldW / sx, worldH / sy, box.size.z);
+                    var c0 = t.InverseTransformPoint(center);
+                    box.center = new Vector3(c0.x, c0.y, box.center.z);
+                }
+                if (others.Length > 0 && !_colliderLogged) { _colliderLogged = true; Core.Log.Warning($"UI: hit box has colliders that can't be fitted: {others.Trim()}"); }
+            }
+            catch (Exception e) { Core.Log.Warning($"Hit box fit failed: {e.GetType().Name}: {e.Message}"); }
+        }
 
         /// <summary>A flat dark backdrop. The default primitive material tinted; good enough until the booth gets art.</summary>
         public static GameObject Backdrop(Transform parent, Vector3 localPos, float width, float height, Color color)
@@ -373,6 +422,7 @@ namespace LootOverhaul.Loot
                 var baseScale = _buttonTemplate.transform.localScale;
                 go.transform.localScale = new Vector3(baseScale.x * width / ButtonSize.x, baseScale.y * height / ButtonSize.y, baseScale.z);
                 go.SetActive(true);
+                FitColliders(go, parent, localPos, width, height);
                 foreach (var r in go.GetComponentsInChildren<Renderer>(true)) if (Interop.Alive(r)) r.enabled = false;
                 var btn = go.GetComponent<InteractableButton>();
                 if (Interop.Alive(btn)) { btn.onPressedSound = null; btn.onHoverSound = null; btn.scaleOnHoverAndPress = false; }
@@ -435,8 +485,12 @@ namespace LootOverhaul.Loot
         public static string NameOf(LootItem item)
         {
             var n = item?.ColoredName ?? "";
-            if (item != null && item.IsArmor)
+            // 0.13.2: weapons too. The game names them in the same dark Rare / Legendary blues, so a
+            // Legendary weapon read as plain dark text on the enchant page.
+            if (item != null && (item.IsArmor || item.IsWeapon))
                 n = n.Replace("#1020FF", UiStyle.ArmorHex[2]).Replace("#4010FF", UiStyle.ArmorHex[3]).Replace("#31BC2F", UiStyle.ArmorHex[1]);
+            if (item != null && item.IsWeapon && !n.Contains("<color"))
+                n = Paint(UiStyle.ArmorHex[Math.Max(0, Math.Min(3, item.WeaponClass))], n);
             return n;
         }
 
@@ -581,6 +635,29 @@ namespace LootOverhaul.Loot
             Coin(parent, new Vector3(xRight - numW - 0.008f - coin * 0.5f, y, 0f), coin);
         }
 
+        /// <summary>
+        /// Coin and number as one group centred on <paramref name="xc"/> (0.13.2), for a price under
+        /// a button: the tonic tiers and SELL ALL. The number is measured, so the pair sits in the
+        /// middle whatever its digits.
+        /// </summary>
+        public static void CoinNumberCentered(Transform parent, float xc, float y, float width, long amount, Color color,
+                                              float size = UiStyle.Body, float coin = 0.026f)
+        {
+            const float gap = 0.008f;
+            var textW = width - coin - gap;
+            var tmp = Text(parent, new Vector3(xc - width * 0.5f + coin + gap, y, 0f), textW, 0.05f, size,
+                Paint(HexOf(color), $"<b>{Number(amount)}</b>"), TextAlignmentOptions.Left, fit: true);
+            var numW = textW;
+            try
+            {
+                if (tmp != null) { tmp.ForceMeshUpdate(); var b = tmp.textBounds.size.x; if (b > 0.001f && b <= textW + 0.001f) numW = b; }
+            }
+            catch { }
+            var left = xc - (coin + gap + numW) * 0.5f;
+            if (tmp != null) tmp.transform.localPosition = new Vector3(left + coin + gap, y, 0f);
+            Coin(parent, new Vector3(left + coin * 0.5f, y, 0f), coin);
+        }
+
         /// <summary>The price column (0.16 m centred on <paramref name="xc"/>): coin and amount, gold or red; with a weight under it on the bag.</summary>
         public static void Price(Transform parent, float xc, float y, long amount, bool affordable = true, float? weight = null)
         {
@@ -629,13 +706,16 @@ namespace LootOverhaul.Loot
         }
 
         /// <summary>A row's text: the name on top; under it an optional status word, then the stats, which wrap to a second line before they shrink.</summary>
-        public static void RowText(Transform row, float textEnd, string name, string stats, string chip = null, Color? statsColor = null, float textX = UiStyle.TextX)
+        public static void RowText(Transform row, float textEnd, string name, string stats, string chip = null, Color? statsColor = null, float textX = UiStyle.TextX,
+                                   int statsLines = 2)
         {
-            Text(row, new Vector3(textX, 0.04f, 0f), textEnd - textX, 0.05f, UiStyle.Row, name, fit: true);
+            Text(row, new Vector3(textX, statsLines == 1 ? 0.025f : 0.04f, 0f), textEnd - textX, 0.05f, UiStyle.Row, name, fit: true);
             var sx = textX;
-            if (!string.IsNullOrEmpty(chip)) sx += Chip(row, textX, -0.025f, chip) + 0.015f;
+            var sy = statsLines == 1 ? -0.03f : -0.025f;
+            if (!string.IsNullOrEmpty(chip)) sx += Chip(row, textX, sy, chip) + 0.015f;
             if (!string.IsNullOrEmpty(stats))
-                Text(row, new Vector3(sx, -0.025f, 0f), textEnd - sx, 0.085f, UiStyle.Body, Paint(HexOf(statsColor ?? UiStyle.Text), stats), fit: true, lines: 2);
+                Text(row, new Vector3(sx, sy, 0f), textEnd - sx, statsLines == 1 ? 0.045f : 0.085f, UiStyle.Body,
+                    Paint(HexOf(statsColor ?? UiStyle.Text), stats), fit: true, lines: statsLines);
         }
 
         /// <summary>A new row object at <paramref name="y"/> under <paramref name="parent"/>, with its stripe.</summary>

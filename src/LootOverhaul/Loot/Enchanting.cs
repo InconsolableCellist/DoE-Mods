@@ -14,7 +14,7 @@ namespace LootOverhaul.Loot
     /// with one more perk or an element, for tokens alone (0.9.15; until then a curio or
     /// artifact from the junk pile was consumed too, and the price was half). An equipped
     /// weapon may be enchanted in place: the new record takes its slot and goes into the
-    /// hand at once. Slots by rarity: Common 1, Unique 2, Rare 2, Legendary 3.
+    /// hand at once. Slots by rarity: Common 1, Unique, Rare and Legendary 2 (the game keeps two perks).
     ///
     /// The one unknown is how the game names a manual module. <see cref="SelfTest"/> builds
     /// candidates in the lobby, asks the game to serialise each, and keeps the first whose
@@ -50,7 +50,18 @@ namespace LootOverhaul.Loot
             { LootTables.Spear,     new[] { (130, "Distance"), (131, "Might"), (132, "Explode") } },
         };
 
-        public static int Slots(int weaponClass) => weaponClass switch { 0 => 1, 1 => 2, 2 => 2, _ => 3 };
+        /// <summary>
+        /// Perk slots by rarity: Common 1, Unique, Rare and Legendary 2. The game's weapon holds two
+        /// perks (0.13.2: <c>Weapon.ApplyManualParameters</c> stores perkA and perkB and drops perkC,
+        /// and <c>GetStatsText</c> lists two), so a third perk never showed and never worked.
+        /// </summary>
+        public static int Slots(int weaponClass) => weaponClass <= 0 ? 1 : 2;
+
+        /// <summary>
+        /// A third perk saved by an earlier version (Legendary had 3 slots before 0.13.2). The game
+        /// ignores it while two perks sit in front of it; taking off an active perk moves it up.
+        /// </summary>
+        public static bool IsInactive(LootItem item, int perkId) => perkId > 0 && item.PerkC == perkId && item.PerkA > 0 && item.PerkB > 0;
 
         private static readonly int[] LootBase = { 300, 600, 1200, 2400 };
         // Stock weapons and de-enchanting (0.12.0) are priced against what a run earns now that
@@ -58,7 +69,8 @@ namespace LootOverhaul.Loot
         // typical solo run that keeps its Legendary (see the 0.12.0 CHANGELOG entry). One stock
         // enchantment is half a run (Common) to three runs (Legendary); removing one is 40% of that.
         private static readonly int[] StockBase = { 200, 400, 800, 1600 };
-        private static readonly int[] DisenchantBase = { 80, 160, 320, 640 };
+        /// <summary>Taking one perk, the element or Boomerang off costs half of adding one to that weapon (0.13.2).</summary>
+        public const float DisenchantShare = 0.5f;
 
         private static int Scaled(int[] table, int cls, float mult)
             => Math.Max(1, (int)Math.Round(table[Math.Max(0, Math.Min(3, cls))] * ModConfig.ShopPriceMultiplier.Value * Math.Max(0f, mult)));
@@ -74,8 +86,19 @@ namespace LootOverhaul.Loot
         /// <summary>One enchantment on a stock (armory) weapon: 500 / 1,000 / 2,000 / 4,000 at the defaults.</summary>
         public static int StockPrice(int weaponClass) => Scaled(StockBase, weaponClass, ModConfig.StockEnchantCostMultiplier.Value);
 
-        /// <summary>Removing one perk or element, loot or stock alike: 200 / 400 / 800 / 1,600 at the defaults.</summary>
-        public static int DisenchantPrice(LootItem item) => Scaled(DisenchantBase, item.WeaponClass, ModConfig.DisenchantCostMultiplier.Value);
+        /// <summary>
+        /// Removing one perk, the element or Boomerang: half the price of adding one to that weapon
+        /// (0.13.2), times <c>DisenchantCostMultiplier</c>. Bag weapons 375 / 750 / 1,500 / 3,000,
+        /// armory weapons 250 / 500 / 1,000 / 2,000 at the defaults. Was a table of its own (200 to 1,600).
+        /// </summary>
+        public static int DisenchantPrice(LootItem item)
+            => Math.Max(1, (int)Math.Round(Price(item) * DisenchantShare * Math.Max(0f, ModConfig.DisenchantCostMultiplier.Value)));
+
+        /// <summary>
+        /// Taking off a third perk that never worked (see <see cref="IsInactive"/>) is free and pays
+        /// back what adding it cost at today's price.
+        /// </summary>
+        public static int RemovePrice(LootItem item, int perkId) => IsInactive(item, perkId) ? -Price(item) : DisenchantPrice(item);
 
         public static string PerkName(int id)
         {
@@ -232,7 +255,7 @@ namespace LootOverhaul.Loot
         {
             if (perkId == BoomerangId) return SetBoomerang(item, false);
             var what = perkId > 0 ? PerkName(perkId) : ElementName(element);
-            return Rework(item, DisenchantPrice(item), "de-enchant", "- " + what, next =>
+            return Rework(item, RemovePrice(item, perkId), "de-enchant", "- " + what, next =>
             {
                 if (perkId > 0)
                 {

@@ -21,6 +21,8 @@ namespace LootOverhaul.Loot
         private enum Sort { Newest, Value, Weight, Rarity }
 
         private const int RowsPerPage = 6;
+        /// <summary>Height of the panel's centre over the eyes, in metres.</summary>
+        private const float BagRaise = 0f;
 
         private static GameObject _root;
         private static Transform _content;
@@ -98,7 +100,9 @@ namespace LootOverhaul.Loot
                 if (!Interop.Alive(local)) return;
                 var head = local.Head;
                 var fwd = head.forward; fwd.y = 0f; fwd.Normalize();
-                var pos = head.position + fwd * 0.85f + Vector3.down * 0.15f;
+                // 0.13.2: centred at eye height (was 0.15 m below). The panel is 1.39 m tall at this
+                // scale, so the lower rows and the pager sat low.
+                var pos = head.position + fwd * 0.85f + Vector3.up * BagRaise;
                 _root.transform.position = pos;
                 _root.transform.rotation = Quaternion.LookRotation(fwd, Vector3.up);
                 _root.transform.localScale = Vector3.one * 1.1f;
@@ -146,12 +150,16 @@ namespace LootOverhaul.Loot
             UiKit.CompactBtn(_content, closeX, S.StripY, "CLOSE", Hide);
             UiKit.Rule(_content, S.RuleStripY);
 
-            // What you wear and what this run's tonics do.
-            var status = "";
-            if (Buffs.AnyWorn) status += $"{UiKit.Grey("wearing")} {Armor.DescribeWorn()}    ";
-            if (Buffs.AnyActive) status += $"{UiKit.Grey("this run")} {UiKit.Paint(S.TonicHex, Buffs.DescribeActive())}";
-            if (status.Length == 0) status = UiKit.Grey("Nothing worn, no tonics this run.");
-            UiKit.Text(_content, new Vector3(L, S.ToolY, 0f), S.PanelWidth - 0.08f, 0.085f, S.Body, UiKit.Paint(S.TextHex, status), fit: true, lines: 2);
+            // What you wear and how many tonics run, in one short line (0.13.2: it listed every worn
+            // piece's full name and every tonic's effect, two lines of small text). The ARMOR page
+            // at the kobold has the details.
+            var worn = 0;
+            for (var s = 0; s < 3; s++) if (Armor.Worn(s) != null) worn++;
+            var tonics = Buffs.ActiveCount;
+            var status = (worn == 0 ? UiKit.Grey("No armor worn") : $"{UiKit.Grey("Wearing")} {worn} / 3 {UiKit.Grey("armor")}")
+                       + UiKit.Grey("   ·   ")
+                       + (tonics == 0 ? UiKit.Grey("no tonics this run") : $"{UiKit.Paint(S.TonicHex, UiKit.Plural(tonics, "tonic"))} {UiKit.Grey("this run")}");
+            UiKit.Text(_content, new Vector3(L, S.ToolY, 0f), S.PanelWidth - 0.08f, 0.05f, S.Body, UiKit.Paint(S.TextHex, status), fit: true);
             UiKit.Rule(_content, S.RuleToolY);
 
             var dropX = R - S.Compact.x * 0.5f;
@@ -179,8 +187,8 @@ namespace LootOverhaul.Loot
                     else { main = "WEAR"; mainAct = () => Armor.Wear(captured); }
                 }
                 else if (slot >= 0) { chip = "EQUIPPED"; dropState = S.State.Disabled; }
+                // 0.13.2: no LOCKED word; DROP is the only thing a lock blocks here, and it says so when pressed.
                 if (item.IsBound) chip = "ARMORY";
-                else if (item.Locked) chip = "LOCKED";
 
                 UiKit.Btn(row, new Vector3(dropX, 0f, 0f), dropSize, "DROP", () => BagManager.Drop(captured), S.Variant.Danger, dropState);
                 if (main != null) UiKit.ActionBtn(row, mainX, 0f, main, mainAct, mainVar);
@@ -188,7 +196,7 @@ namespace LootOverhaul.Loot
                 UiKit.Price(row, priceX, 0f, Booth.SellPrice(item), true, item.Weight);
                 // A status word goes in the free button slot when there is one, else in front of the stats.
                 if (chip != null && main == null) { UiKit.Chip(row, mainX - S.Action.x * 0.5f + 0.02f, 0f, chip); chip = null; }
-                UiKit.RowText(row, textEnd, UiKit.NameOf(item), Booth.StatsOf(item), chip, item.IsWeapon ? S.Text : S.Text2);
+                UiKit.RowText(row, textEnd, UiKit.NameOf(item), Booth.StatsOf(item), chip, S.Text2, statsLines: 1);
             }
             if (items.Count == 0) UiKit.Empty(_content, "Your bag is empty.");
             UiKit.Pager(_content, _page, pages, () => { _page = Math.Max(0, _page - 1); Rebuild(); }, () => { _page = Math.Min(pages - 1, _page + 1); Rebuild(); });

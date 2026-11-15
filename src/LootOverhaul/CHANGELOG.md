@@ -3,6 +3,24 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.13.2 (2026-11-15)
+
+Fixes from the first headset playtest of the 0.13.0 look, and a third perk that never worked.
+
+### Fixed
+- **A Legendary weapon's third perk did nothing.** The game's weapon holds two perks: `Weapon.ApplyManualParameters` stores perkA and perkB and drops perkC, and `GetStatsText` lists two. A third perk added at the table was paid for, saved, and offered under TAKE OFF, but never shown in the weapon's stats and never applied. Legendary weapons now have 2 perk slots like Unique and Rare. A third perk already saved is shown grey with "(no effect)" on the enchant page; its TAKE OFF button is green, free, and pays back one enchantment on that weapon at today's price. Taking off one of the two working perks still moves the third one up, where it works.
+- **The ARMOR page pointer.** Hit boxes were the game's button scaled by a guessed button size, so where the game's collider is bigger than that guess, a box reached past its plate into the buttons next to it. On the ARMOR page (WEAR and SELL 0.02 m apart, the arrows just above them) the laser hopped between overlapping boxes every frame, played the hover sound over and over and stuck to the middle of the panel; the same overlap was the 0.10.4 WEAR / SELL flicker. Box colliders are now set to 90% of the drawn plate, so two buttons a gap apart never touch. The first hit box logs the collider's old size.
+- **Weapon names in rarity colours.** The game colours Rare and Legendary weapon names in the same dark blues as old armor, which read as dark text on the panel. Weapon names now use the panel's rarity colours, like armor.
+- **Tonic prices** are centred under the MINOR / MAJOR / GRAND buttons, and a row's text runs up to the REVERT column only on a prepared row, so the effect is no longer cut off. The effect and the three tier values are a line each.
+- **SELL ALL** goes back to the first page after a sweep instead of staying on a page that may now hold one row.
+
+### Changed
+- **Taking something off costs half of adding it** to that weapon: 375 / 750 / 1,500 / 3,000 tokens for a bag weapon, 250 / 500 / 1,000 / 2,000 for an armory weapon (Common to Legendary). Was 200 / 400 / 800 / 1,600 for both. The same for the element and Boomerang. `DisenchantCostMultiplier` now multiplies that half.
+- **The enchant page shows the weapon like the armor page:** the name in its rarity colour with rarity and type in grey after it, then damage, element (in its colour) and each perk by name, instead of the game's own stats text.
+- **Less text in the bag and on SELL.** The status line under the bag's tabs is one short line ("Wearing 3 / 3 armor · 2 tonics this run") instead of every worn piece's full name and every tonic's effect. Stats are one line per row. LOCKED is gone (the padlock on SELL says it; DROP refuses a locked item with a message).
+- **The bag opens higher**, centred at eye height (was 0.15 m below).
+- **SELL ALL buttons are compact** with a smaller label, the total centred under each.
+
 ## 0.13.1 (2026-11-15)
 
 The run payout message stays up long enough to read. This is #20 (written as 0.12.1) on top of 0.13.0.
