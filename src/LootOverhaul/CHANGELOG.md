@@ -13,12 +13,15 @@ Fixes from the first headset playtest of the 0.13.0 look, and a third perk that 
 - **Weapon names in rarity colours.** The game colours Rare and Legendary weapon names in the same dark blues as old armor, which read as dark text on the panel. Weapon names now use the panel's rarity colours, like armor.
 - **Tonic prices** are centred under the MINOR / MAJOR / GRAND buttons, and a row's text runs up to the REVERT column only on a prepared row, so the effect is no longer cut off. The effect and the three tier values are a line each.
 - **SELL ALL** goes back to the first page after a sweep instead of staying on a page that may now hold one row.
+- **Centred labels sat half their width too far left**: the WEAPON / ARMOR card titles at the card's edge, "none" under SELL ALL off its button, "locked, can't be sold" over the SELL button on the ARMOR page, the page number on top of the < button, and the CURRENT / NEXT / MAX values. `UiKit.Label` now centres them in their box.
+- **Armor upgrade page:** MAX no longer shows less than CURRENT on a piece rolled under the older, higher caps, and the piece's name runs up to "sells for" instead of cutting off its rarity.
+- **Enchant weapon list:** each row says "slots 2 / 2 · fire" on one line ("price per enchantment" is gone; the price column says it).
 
 ### Changed
 - **Taking something off costs half of adding it** to that weapon: 375 / 750 / 1,500 / 3,000 tokens for a bag weapon, 250 / 500 / 1,000 / 2,000 for an armory weapon (Common to Legendary). Was 200 / 400 / 800 / 1,600 for both. The same for the element and Boomerang. `DisenchantCostMultiplier` now multiplies that half.
 - **The enchant page shows the weapon like the armor page:** the name in its rarity colour with rarity and type in grey after it, then damage, element (in its colour) and each perk by name, instead of the game's own stats text.
 - **Less text in the bag and on SELL.** The status line under the bag's tabs is one short line ("Wearing 3 / 3 armor · 2 tonics this run") instead of every worn piece's full name and every tonic's effect. Stats are one line per row. LOCKED is gone (the padlock on SELL says it; DROP refuses a locked item with a message).
-- **The bag opens higher**, centred at eye height (was 0.15 m below).
+- **The stall's panels are 15 cm higher** (centres at 1.55 m, was 1.4; the sign moves with them). Since 0.13.0 made them taller, the pager and the bag row sat behind the counter.
 - **SELL ALL buttons are compact** with a smaller label, the total centred under each.
 
 ## 0.13.1 (2026-11-15)

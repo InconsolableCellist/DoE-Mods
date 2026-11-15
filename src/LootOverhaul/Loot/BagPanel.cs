@@ -21,8 +21,6 @@ namespace LootOverhaul.Loot
         private enum Sort { Newest, Value, Weight, Rarity }
 
         private const int RowsPerPage = 6;
-        /// <summary>Height of the panel's centre over the eyes, in metres.</summary>
-        private const float BagRaise = 0f;
 
         private static GameObject _root;
         private static Transform _content;
@@ -100,9 +98,7 @@ namespace LootOverhaul.Loot
                 if (!Interop.Alive(local)) return;
                 var head = local.Head;
                 var fwd = head.forward; fwd.y = 0f; fwd.Normalize();
-                // 0.13.2: centred at eye height (was 0.15 m below). The panel is 1.39 m tall at this
-                // scale, so the lower rows and the pager sat low.
-                var pos = head.position + fwd * 0.85f + Vector3.up * BagRaise;
+                var pos = head.position + fwd * 0.85f + Vector3.down * 0.15f;
                 _root.transform.position = pos;
                 _root.transform.rotation = Quaternion.LookRotation(fwd, Vector3.up);
                 _root.transform.localScale = Vector3.one * 1.1f;

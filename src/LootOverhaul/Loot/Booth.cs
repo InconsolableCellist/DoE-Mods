@@ -27,6 +27,11 @@ namespace LootOverhaul.Loot
         private const int SellRows = 5;
         private const int HelpRows = 8;
         private const float PanelScale = 1.1f;
+        /// <summary>
+        /// Height of the panels' centres over the booth's floor. 0.13.2: 1.55 m (was 1.4). Since 0.13.0
+        /// made the panels 1.26 m tall the bottom row and the pager sat behind the counter.
+        /// </summary>
+        private const float PanelY = 1.55f;
         private const float L = S.Left, R = S.Right;
 
         private static GameObject _root;
@@ -98,14 +103,14 @@ namespace LootOverhaul.Loot
             var buy = new GameObject("Buy"); buy.transform.SetParent(_root.transform, false);
             _sell = sell.transform; _buy = buy.transform;
             // Two panels side by side, each a little over a metre wide, angled toward the visitor.
-            _sell.localPosition = new Vector3(-0.90f, 1.4f, 0f);
+            _sell.localPosition = new Vector3(-0.90f, PanelY, 0f);
             _sell.localRotation = Quaternion.Euler(0f, -18f, 0f);
             _sell.localScale = Vector3.one * PanelScale;
-            _buy.localPosition = new Vector3(0.90f, 1.4f, 0f);
+            _buy.localPosition = new Vector3(0.90f, PanelY, 0f);
             _buy.localRotation = Quaternion.Euler(0f, 18f, 0f);
             _buy.localScale = Vector3.one * PanelScale;
-            UiKit.Text(_root.transform, new Vector3(0f, 2.27f, 0f), 1.8f, 0.15f, S.Sign, UiKit.Paint(S.TextHex, "<b>KOBOLD TRAVELER</b>"), TextAlignmentOptions.Center);
-            UiKit.Text(_root.transform, new Vector3(0f, 2.14f, 0f), 1.8f, 0.06f, S.Row, UiKit.Grey("shinies from the dungeon for tokens"), TextAlignmentOptions.Center);
+            UiKit.Text(_root.transform, new Vector3(0f, PanelY + 0.87f, 0f), 1.8f, 0.15f, S.Sign, UiKit.Paint(S.TextHex, "<b>KOBOLD TRAVELER</b>"), TextAlignmentOptions.Center);
+            UiKit.Text(_root.transform, new Vector3(0f, PanelY + 0.74f, 0f), 1.8f, 0.06f, S.Row, UiKit.Grey("shinies from the dungeon for tokens"), TextAlignmentOptions.Center);
         }
 
         private static void PlaceFromConfig()
@@ -461,7 +466,7 @@ namespace LootOverhaul.Loot
                 var chip = slot >= 0 ? "EQUIPPED" : !_enchantStock && item.IsBound ? "ARMORY" : null;
                 var price = Enchanting.Price(item);
                 UiKit.RowText(row, cols.TextEnd, UiKit.NameOf(item),
-                    $"slots {Math.Min(Enchanting.UsedSlots(item), Enchanting.Slots(item.WeaponClass))}/{Enchanting.Slots(item.WeaponClass)} · element {Enchanting.ElementName(item.DamageType).ToLowerInvariant()} · price per enchantment",
+                    $"slots {Math.Min(Enchanting.UsedSlots(item), Enchanting.Slots(item.WeaponClass))}/{Enchanting.Slots(item.WeaponClass)} · {(item.DamageType >= 0 ? Enchanting.ElementName(item.DamageType).ToLowerInvariant() : "no element")}",
                     chip, S.Text2);
                 UiKit.Price(row, cols.Price, 0f, price, inv.Gold >= price);
                 var captured = item;
@@ -651,7 +656,8 @@ namespace LootOverhaul.Loot
 
             var cols = UiKit.Columns(1);
             var py = S.Row0Y + 0.01f;
-            UiKit.Text(_buy, new Vector3(L, py, 0f), 0.66f, 0.055f, S.Row,
+            // 0.13.2: the name runs up to "sells for" (it stopped at 0.66 m and cut "Legendary head armor").
+            UiKit.Text(_buy, new Vector3(L, py, 0f), cols.Price - S.PriceWidth * 0.5f - 0.32f + 0.10f - L, 0.055f, S.Row,
                 $"{UiKit.NameOf(piece)}   {UiKit.Grey($"{LootTables.ClassName(piece.WeaponClass)} {Armor.SlotNames[_upSlot].ToLowerInvariant()} armor")}", fit: true);
             UiKit.Label(_buy, cols.Price - S.PriceWidth * 0.5f - 0.32f, py, 0.3f, 0.05f, S.Body, "sells for", S.Text2, TextAlignmentOptions.Right);
             UiKit.Price(_buy, cols.Price, py, SellPrice(piece));
@@ -664,9 +670,11 @@ namespace LootOverhaul.Loot
                 var (st, m) = stats[i];
                 var d = Buffs.Find(st);
                 var lo = Armor.Band(piece.WeaponClass, st).lo;
-                var hi = Armor.MaxPct(piece, st);
-                var totalSteps = Mathf.Max(0, hi - lo);
                 var cur = Armor.MultToPct(st, m);
+                // 0.13.2: a piece rolled under the older, higher caps can be above today's maximum
+                // (CURRENT +28%, MAX +25%); MAX then shows what it has.
+                var hi = Mathf.Max(Armor.MaxPct(piece, st), cur);
+                var totalSteps = Mathf.Max(0, hi - lo);
                 var label = d == null ? st : string.IsNullOrEmpty(d.Short) ? d.Flavor : d.Short;
                 if (label.Length > 0) label = char.ToUpperInvariant(label[0]) + label.Substring(1);
                 var atMax = Armor.AtMax(piece, st, m);

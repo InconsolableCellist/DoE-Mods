@@ -501,10 +501,17 @@ namespace LootOverhaul.Loot
         /// <summary>"1 item", "3 items".</summary>
         public static string Plural(int n, string word) => $"{n} {(n == 1 ? word : word + "s")}";
 
-        /// <summary>A label of one size and colour (rich text inside still works).</summary>
+        /// <summary>
+        /// A label of one size and colour (rich text inside still works). <paramref name="x"/> is the
+        /// left edge of its box for every alignment. 0.13.2: a centred label was drawn half its width
+        /// too far left, because <see cref="Text"/> puts a centred text's pivot in the middle (the
+        /// enchant cards' titles at the card's left edge, "none" under SELL ALL off its button,
+        /// "locked, can't be sold" over the SELL button, the page number on top of the &lt; button).
+        /// </summary>
         public static TextMeshPro Label(Transform parent, float x, float y, float width, float height, float size, string text, Color color,
                                         TextAlignmentOptions align = TextAlignmentOptions.Left, int lines = 1)
-            => Text(parent, new Vector3(x, y, 0f), width, height, size, Paint(HexOf(color), text), align, fit: true, lines: lines);
+            => Text(parent, new Vector3(align == TextAlignmentOptions.Center ? x + width * 0.5f : x, y, 0f), width, height, size,
+                    Paint(HexOf(color), text), align, fit: true, lines: lines);
 
         /// <summary>A divider across the panel.</summary>
         public static void Rule(Transform parent, float y)
