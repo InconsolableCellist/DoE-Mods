@@ -5,14 +5,14 @@
 - Removes every weapon-limiting hazard (Bows Only, Axes Only, Swords & Shields, Daggers Only,
   Fireball Staffs Only, Random Weapons) from the mission board and from a run.
 - `AlsoRemove` drops any other hazard by name, such as `Death`.
-- `BonusMultiplier` (default 1.5, so +25% becomes +37.5%) scales the hazard XP/gold bonus table in memory.
+- `BonusMultiplier` (default 1.25, so +25% becomes +32% after rounding) scales the hazard XP/gold bonus table in memory.
 - **Lobby gate** (review on PR #22): on only offline, or in a private lobby where every player
   advertises the same version, DLL hash and hazard-settings hash (`ht.ver` / `ht.sha` /
   `ht.cfg` Photon player properties). Anything else stays vanilla and the log says why.
   Re-checked twice a second and whenever a board is rolled. Replaces the earlier
   `PrivateLobbyOnly` setting.
 - `RoundUpTo` (default 1) rounds every scaled bonus up to the next whole percent, so the
-  board never shows decimals (37.5% -> 38%).
+  board never shows decimals (31.25% -> 32%).
 - F9 reloads the settings (and republishes the settings hash).
 - README notes that a higher gold bonus also raises LootOverhaul's end-of-run tokens.
 
