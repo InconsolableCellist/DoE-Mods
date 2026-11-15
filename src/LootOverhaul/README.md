@@ -191,11 +191,12 @@ The `[LootOverhaul]` settings:
 
 A completed run and a wipe both pay, because both report gold.
 
-**The token panel (0.13.4).** After the run, a panel stands beside the gold and XP screen with the
+**The token panel (0.13.4).** After the run, a panel stands in front of you, a little to the right, facing you, with the
 tokens you earned, the gold, the rate, each bonus that applied, the multiplier and your new balance.
 Its arrows move it left, right, up and down, NEARER and FARTHER, and TURN it; RESET puts it back.
-The spot is saved in `[LootOverhaul_TokenPanel]` (`TokenPanelRight`, `TokenPanelUp`, `TokenPanelAway`,
-`TokenPanelTurn`, measured from the end screen's total gold) and used after every run.
+The spot is saved in `[LootOverhaul_TokenPanel]` (`TokenPanelSide`, `TokenPanelHeight`, `TokenPanelAhead`,
+`TokenPanelAngle`, measured from your eyes looking at the end screen) and used after every run. A wall
+in the way pulls the panel nearer.
 `TokenPanelEnabled = false` turns it off. It closes with the end screen, or with CLOSE. Only you see
 your own panel.
 

@@ -47,7 +47,7 @@ namespace LootOverhaul
             TierBonusPerLevel, TokenPlayerBonusPerExtraPlayer, TokenChestBonusPerChest;
 
         public static MelonPreferences_Entry<bool> TokenPanelEnabled;
-        public static MelonPreferences_Entry<float> TokenPanelRight, TokenPanelUp, TokenPanelAway, TokenPanelTurn;
+        public static MelonPreferences_Entry<float> TokenPanelRight, TokenPanelUp, TokenPanelAhead, TokenPanelTurn;
 
         public static MelonPreferences_Entry<float> BoothX, BoothY, BoothZ, BoothYaw;
         public static MelonPreferences_Entry<bool> BoothPlaced;
@@ -139,10 +139,14 @@ namespace LootOverhaul
 
             TokenPanelCat = MelonPreferences.CreateCategory("LootOverhaul_TokenPanel");
             TokenPanelEnabled = TokenPanelCat.CreateEntry("TokenPanelEnabled", true, description: "After a run, a panel beside the gold and XP screen shows the tokens you earned and how they add up.");
-            TokenPanelRight = TokenPanelCat.CreateEntry("TokenPanelRight", 1.9f, description: "Metres to the right of the end screen's total gold. Set with the arrows on the panel.");
-            TokenPanelUp = TokenPanelCat.CreateEntry("TokenPanelUp", 0f, description: "Metres above the end screen's total gold. Set with the arrows on the panel.");
-            TokenPanelAway = TokenPanelCat.CreateEntry("TokenPanelAway", 0f, description: "Metres behind the end screen (negative = nearer to you). Set with NEARER / FARTHER on the panel.");
-            TokenPanelTurn = TokenPanelCat.CreateEntry("TokenPanelTurn", 0f, description: "Degrees the panel is turned from the end screen's facing. Set with TURN on the panel.");
+            // The first 0.13.4 test build measured these from the end screen (the panel landed in the wall); drop those keys.
+            if (old.TryGetValue("LootOverhaul_TokenPanel", out var oldPanel))
+                foreach (var key in new[] { "TokenPanelRight", "TokenPanelUp", "TokenPanelAway", "TokenPanelTurn" })
+                    if (oldPanel.ContainsKey(key)) { TokenPanelCat.CreateEntry(key, 0f); SafeDelete(TokenPanelCat, key); }
+            TokenPanelRight = TokenPanelCat.CreateEntry("TokenPanelSide", 0.9f, description: "Metres to the right of the line from your eyes to the end screen. Set with the arrows on the panel.");
+            TokenPanelUp = TokenPanelCat.CreateEntry("TokenPanelHeight", -0.2f, description: "Metres above your eyes (negative = below). Set with the arrows on the panel.");
+            TokenPanelAhead = TokenPanelCat.CreateEntry("TokenPanelAhead", 1.3f, description: "Metres in front of you. Set with NEARER / FARTHER on the panel. A wall in the way pulls the panel nearer.");
+            TokenPanelTurn = TokenPanelCat.CreateEntry("TokenPanelAngle", 0f, description: "Degrees the panel is turned away from facing you. Set with TURN on the panel.");
 
             BoothPos = MelonPreferences.CreateCategory("LootOverhaul_Booth");
             BoothX = BoothPos.CreateEntry("BoothX", Loot.Booth.DefaultPosition.x);

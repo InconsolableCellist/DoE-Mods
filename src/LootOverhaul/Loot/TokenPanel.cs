@@ -15,11 +15,12 @@ namespace LootOverhaul.Loot
     /// screen (<c>UIEndMission</c>). It replaces the payout toast: the game's notifications
     /// vanish after a moment whatever the mod asks, and reposting them only made them flicker.
     ///
-    /// The panel stands at an offset from the end screen's TOTAL GOLD text, in that text's own
-    /// frame (right, up, away from the reader), so it lands in the same spot in every end room.
-    /// Arrow buttons on the panel move and turn it; the offset is saved in
-    /// [LootOverhaul_TokenPanel]. It closes with the end screen, on CLOSE, or on the next scene.
-    /// Local only: every player sees their own payout.
+    /// The panel stands in front of the player, a little to the right, turned to face them. Its
+    /// frame is the player's eyes looking toward the end screen's TOTAL GOLD, so it lands in the
+    /// same spot after every run. A wall or the end screen in the way pulls it nearer (first
+    /// playtest: placed beside the end screen, it stood inside the wall). Arrow buttons on the
+    /// panel move and turn it; the offset is saved in [LootOverhaul_TokenPanel]. It closes with
+    /// the end screen, on CLOSE, or on the next scene. Local only: every player sees their own payout.
     /// </summary>
     public static class TokenPanel
     {
@@ -152,56 +153,114 @@ namespace LootOverhaul.Loot
         }
 
         /// <summary>
-        /// Finds the end screen's frame and places the panel in it. Without an end screen it waits
-        /// a few seconds; then (<paramref name="fallback"/>) it stands to the right of the player.
+        /// Places the panel relative to the player (0.13.4 playtest: anchored beside the end screen
+        /// it stood inside the wall). The frame is the player's eyes, looking toward the end screen's
+        /// total gold, so it is the same after every run whichever way the head happens to turn.
+        /// Without an end screen it waits a few seconds; then (<paramref name="fallback"/>) it uses
+        /// the way the player looks.
         /// </summary>
         private static void TryPlace(bool fallback)
         {
+            var local = AvatarPlayer.LocalAvatar;
+            if (!Interop.Alive(local) || !Interop.Alive(local.Head)) return;
+            var head = local.Head;
             var gold = GoldText();
+            Vector3 fwd;
             if (gold != null && gold.gameObject.activeInHierarchy)
             {
-                var tr = gold.transform;
-                var fwd = tr.forward; fwd.y = 0f;
-                if (fwd.sqrMagnitude < 1e-4f) fwd = Vector3.forward;
-                _anchorPos = tr.position;
-                _anchorRot = Quaternion.LookRotation(fwd.normalized, Vector3.up);
-                Log($"anchored to the end screen's gold text at {Fmt(tr.position)}, facing {Fmt(fwd.normalized)} (`{Interop.ScenePath(tr)}`)");
+                fwd = gold.transform.position - head.position;
+                Log($"end screen's gold text at {Fmt(gold.transform.position)}, eyes at {Fmt(head.position)} (`{Interop.ScenePath(gold.transform)}`)");
             }
             else if (fallback)
             {
-                var local = AvatarPlayer.LocalAvatar;
-                if (!Interop.Alive(local)) return;
-                var head = local.Head;
-                var fwd = head.forward; fwd.y = 0f;
-                if (fwd.sqrMagnitude < 1e-4f) fwd = Vector3.forward;
-                fwd.Normalize();
-                // As if the end screen were 2 m ahead of the player at eye height.
-                _anchorPos = head.position + fwd * 2f;
-                _anchorRot = Quaternion.LookRotation(fwd, Vector3.up);
-                Log("no end screen found - token panel placed relative to the player");
+                fwd = head.forward;
+                Log("no end screen found - token panel placed where you look");
             }
             else return;
+
+            fwd.y = 0f;
+            if (fwd.sqrMagnitude < 1e-4f) { fwd = head.forward; fwd.y = 0f; }
+            if (fwd.sqrMagnitude < 1e-4f) fwd = Vector3.forward;
+            _anchorPos = head.position;
+            _anchorRot = Quaternion.LookRotation(fwd.normalized, Vector3.up);
 
             _placed = true;
             Apply();
             _root.SetActive(true);
         }
 
-        /// <summary>Puts the panel at the saved offset from the anchor.</summary>
+        /// <summary>
+        /// Puts the panel at the saved offset from the eyes, turned to face them, then pulls it
+        /// toward the player if a wall or the end screen is in the way.
+        /// </summary>
         private static void Apply()
         {
             if (!Interop.Alive(_root)) return;
-            var off = new Vector3(ModConfig.TokenPanelRight.Value, ModConfig.TokenPanelUp.Value, ModConfig.TokenPanelAway.Value);
-            _root.transform.position = _anchorPos + _anchorRot * off;
-            _root.transform.rotation = _anchorRot * Quaternion.Euler(0f, ModConfig.TokenPanelTurn.Value, 0f);
+            var off = new Vector3(ModConfig.TokenPanelRight.Value, ModConfig.TokenPanelUp.Value, ModConfig.TokenPanelAhead.Value);
+            var pos = _anchorPos + _anchorRot * off;
+            pos = OutOfWalls(_anchorPos, pos, _anchorRot);
+            var face = pos - _anchorPos; face.y = 0f;
+            if (face.sqrMagnitude < 1e-4f) face = _anchorRot * Vector3.forward;
+            _root.transform.position = pos;
+            _root.transform.rotation = Quaternion.LookRotation(face.normalized, Vector3.up) * Quaternion.Euler(0f, ModConfig.TokenPanelTurn.Value, 0f);
             _root.transform.localScale = Vector3.one * Scale;
+        }
+
+        /// <summary>
+        /// Casts from the eyes to the panel's centre and both side edges. Anything solid on the way
+        /// (not a trigger, not the player, not this panel) moves the panel in front of it, 15 cm clear,
+        /// but never nearer than 0.5 m.
+        /// </summary>
+        private static Vector3 OutOfWalls(Vector3 eyes, Vector3 pos, Quaternion frame)
+        {
+            try
+            {
+                var local = AvatarPlayer.LocalAvatar;
+                var self = Interop.Alive(local) ? local.transform.root : null;
+                var half = Width * 0.5f * Scale;
+                var side = frame * Vector3.right;
+                var ratio = 1f;
+                foreach (var target in new[] { pos, pos - side * half, pos + side * half })
+                {
+                    var d = target - eyes;
+                    var dist = d.magnitude;
+                    if (dist < 0.01f) continue;
+                    var hits = Physics.RaycastAll(eyes, d / dist, dist, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+                    if (hits == null) continue;
+                    foreach (var h in hits)
+                    {
+                        var c = h.collider;
+                        if (!Interop.Alive(c)) continue;
+                        var t = c.transform;
+                        if (Interop.Alive(_root) && t.IsChildOf(_root.transform)) continue;
+                        if (self != null && t.IsChildOf(self)) continue;
+                        var r = (h.distance - 0.15f) / dist;
+                        if (r < ratio)
+                        {
+                            ratio = r;
+                            Log($"something in the way at {h.distance:0.00} m (`{Interop.ScenePath(t)}`)");
+                        }
+                    }
+                }
+                if (ratio >= 1f) return pos;
+                var full = (pos - eyes).magnitude;
+                ratio = Mathf.Max(ratio, full > 0.01f ? 0.5f / full : 1f);
+                ratio = Mathf.Min(ratio, 1f);
+                Log($"panel pulled in to {ratio * 100f:0}% of its distance to stay out of the wall");
+                return eyes + (pos - eyes) * ratio;
+            }
+            catch (Exception e)
+            {
+                Core.Log.Warning($"TokenPanel: wall check failed: {e.GetType().Name}: {e.Message}");
+                return pos;
+            }
         }
 
         private static void Nudge(float right, float up, float away, float turn)
         {
             ModConfig.TokenPanelRight.Value = Round(ModConfig.TokenPanelRight.Value + right);
             ModConfig.TokenPanelUp.Value = Round(ModConfig.TokenPanelUp.Value + up);
-            ModConfig.TokenPanelAway.Value = Round(ModConfig.TokenPanelAway.Value + away);
+            ModConfig.TokenPanelAhead.Value = Round(ModConfig.TokenPanelAhead.Value + away);
             var yaw = ModConfig.TokenPanelTurn.Value + turn;
             while (yaw > 180f) yaw -= 360f;
             while (yaw < -180f) yaw += 360f;
@@ -213,7 +272,7 @@ namespace LootOverhaul.Loot
         {
             ModConfig.TokenPanelRight.Value = ModConfig.TokenPanelRight.DefaultValue;
             ModConfig.TokenPanelUp.Value = ModConfig.TokenPanelUp.DefaultValue;
-            ModConfig.TokenPanelAway.Value = ModConfig.TokenPanelAway.DefaultValue;
+            ModConfig.TokenPanelAhead.Value = ModConfig.TokenPanelAhead.DefaultValue;
             ModConfig.TokenPanelTurn.Value = ModConfig.TokenPanelTurn.DefaultValue;
             Save();
         }
@@ -223,7 +282,7 @@ namespace LootOverhaul.Loot
             try { MelonPreferences.Save(); } catch (Exception e) { Core.Log.Warning($"TokenPanel: saving the position failed: {e.GetType().Name}"); }
             Apply();
             Rebuild();
-            Log($"position now right {ModConfig.TokenPanelRight.Value:0.0} m, up {ModConfig.TokenPanelUp.Value:0.0} m, away {ModConfig.TokenPanelAway.Value:0.0} m, turn {ModConfig.TokenPanelTurn.Value:0}°");
+            Log($"position now {ModConfig.TokenPanelRight.Value:0.0} m right, {ModConfig.TokenPanelUp.Value:0.0} m up, {ModConfig.TokenPanelAhead.Value:0.0} m ahead, turn {ModConfig.TokenPanelTurn.Value:0}°");
         }
 
         private static float Round(float v) => Mathf.Round(v * 100f) / 100f;
