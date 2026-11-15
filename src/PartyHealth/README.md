@@ -1,4 +1,4 @@
-# PartyHealth 0.1.3
+# PartyHealth 0.2.0
 
 A mod for **Dungeons of Eternity** that puts a small, quiet health bar over each friend's head
 in a networked game, so you know who needs a potion or a rescue without asking.
@@ -13,8 +13,16 @@ in a networked game, so you know who needs a potion or a rescue without asking.
 
 Your friends need nothing installed: the game already tells every client what happens to every
 player's health, and this mod only listens. It sends nothing over the network, never touches
-your own avatar, and does not affect your profile, character, progression or save games. The
+your own avatar (beyond reading its health for your own arc), and does not affect your profile, character, progression or save games. The
 base game has no such option (its only health-bar setting is for bosses).
+
+## What's new in 0.2.0
+
+**Your own health, in view.** While you are below 100%, a thin red arc sits low in your view,
+just under StayPutVR's blue heal-shield arc. The bright part is your health, centred and
+shrinking from both ends, over a dim track for what is missing; it pulses below a quarter and
+fades a moment after you are back to full. It only reads your own avatar, sends nothing, and
+H hides it with the bars. `SelfHealthArc = false` turns it off.
 
 ## What's new in 0.1.2
 
@@ -73,6 +81,9 @@ the game closed, or edit it and press **K** in the game to reload.
 | `ShowPercent` | `false` | Write the health percentage beside the bar. |
 | `ShowDownedLabel` | `true` | Say DOWN when they are waiting for a rescue. |
 | `OnTop` | `true` | Draw through walls and enemies. |
+| `SelfHealthArc` | `true` | Your own health as a red arc low in your view while you are below 100%. |
+| `SelfHealthArcOpacity` | `0.6` | How solid your own arc is, 0 to 1. |
+| `SelfHealthArcHoldSeconds` | `1.5` | How long your arc stays after you are back to full. |
 
 `[PartyHealth_Dev]`: `LogHealthChanges` writes every change the mod sees to the session log,
 `VerboseLogging` echoes the log to the console, `HotkeysEnabled` turns off H, J and K.

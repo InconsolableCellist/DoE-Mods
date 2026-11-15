@@ -46,7 +46,7 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<float> GoldToTokenRate, BossKillBonus, MinibossKillBonus, HazardBonusPerLevel,
             TierBonusPerLevel, TokenPlayerBonusPerExtraPlayer, TokenChestBonusPerChest;
 
-        public static MelonPreferences_Entry<bool> TokenPanelEnabled;
+        public static MelonPreferences_Entry<bool> TokenPanelEnabled, TokenPanelShowStats;
         public static MelonPreferences_Entry<float> TokenPanelRight, TokenPanelUp, TokenPanelAhead, TokenPanelTurn;
 
         public static MelonPreferences_Entry<float> BoothX, BoothY, BoothZ, BoothYaw;
@@ -139,6 +139,7 @@ namespace LootOverhaul
 
             TokenPanelCat = MelonPreferences.CreateCategory("LootOverhaul_TokenPanel");
             TokenPanelEnabled = TokenPanelCat.CreateEntry("TokenPanelEnabled", true, description: "After a run, a panel beside the gold and XP screen shows the tokens you earned and how they add up.");
+            TokenPanelShowStats = TokenPanelCat.CreateEntry("TokenPanelShowStats", true, description: "Add a THIS RUN table to the token panel: damage each player dealt and took, and bites received when StayPutVR runs. Each player counts their own and shares it; vanilla friends show as -.");
             // The first 0.13.4 test build measured these from the end screen (the panel landed in the wall); drop those keys.
             if (old.TryGetValue("LootOverhaul_TokenPanel", out var oldPanel))
                 foreach (var key in new[] { "TokenPanelRight", "TokenPanelUp", "TokenPanelAway", "TokenPanelTurn" })

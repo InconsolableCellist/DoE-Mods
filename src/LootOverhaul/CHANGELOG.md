@@ -3,6 +3,19 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.14.0 (2026-11-15)
+
+Boomerang fixes from the first playtest, a trail, and run stats on the token panel.
+
+### Fixed
+- **Boomerang stuck in an enemy.** 0.12.0 sent a stuck weapon to the game's auto-holster, which does not take a weapon still in a stab, so it stayed in the enemy. A stab now counts as the top of the flight: a gripping empty hand or a pull frees it with the game's own `DynamicAnchorStab.Break` and calls it back. With no call for 5 s it is freed and sent to the holster. Every fallback frees a stuck weapon first.
+- **Boomerang stealing holster grabs.** Any gripping empty hand after the apex summoned the weapon, including a hand reaching for a holster. A hand can now call only if its grip began away from every holster (`VRControllerProps.holsters`, each one's pick-up radius + 12 cm) and has not been near one for 0.4 s, it is in front of the head and no more than 55 cm below it, and the inventory is closed. A pull must also move back level: down to the hip or up over the shoulder is a holster grab.
+- **Long throws.** The longest return is 25 m (was 15 m). The first playtest fell back to the holster five times at 16-20 m.
+
+### Added
+- **Boomerang trail.** A glowing blue ribbon follows the weapon out and back, then fades. Modded friends draw it too (new event 152, the prop's view ID).
+- **THIS RUN on the token panel.** Damage dealt, damage taken and (with StayPutVR) bites received, for every player. Each client counts only itself: its own hits from `AI.Net_Damage` with its own actor number, its own damage from `AvatarPlayer.OnDamaged` on the local avatar, both capped at the health left so overkill does not count. It shares the totals as the player property `lo.run` while the gate is open, and the panel redraws when friends' numbers arrive. Bites come from StayPutVR's `BiteSense.Received`, read by reflection, so neither mod needs the other. `TokenPanelShowStats` (default on) in `[LootOverhaul_TokenPanel]`.
+
 ## 0.13.5 (2026-11-15)
 
 Less glow at the kobold and in the bag. (0.13.4 is the token panel, a separate change.)

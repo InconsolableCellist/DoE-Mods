@@ -4,13 +4,14 @@ using PartyHealth;
 using PartyHealth.Hud;
 using PartyHealth.Peers;
 
-[assembly: MelonInfo(typeof(Core), "PartyHealth", "0.1.3", "Foxipso")]
+[assembly: MelonInfo(typeof(Core), "PartyHealth", "0.2.0", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace PartyHealth
 {
     /// <summary>
-    /// PartyHealth: a small health bar over each friend's head in a networked game.
+    /// PartyHealth: a small health bar over each friend's head in a networked game, and (0.2.0)
+    /// your own health as a red arc low in your view while you are below full.
     ///
     /// Read-only. The game already tells every client what happens to every player's health
     /// (its own RPCs, see <see cref="PeerHealth"/>); this mod listens to those, polls the remote
@@ -19,7 +20,7 @@ namespace PartyHealth
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.1.3";
+        public const string Version = "0.2.0";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -74,12 +75,14 @@ namespace PartyHealth
         public override void OnLateUpdate()
         {
             HealthBars.LateTick();
+            SelfHealthArc.Tick();
         }
 
         public override void OnSceneWasInitialized(int buildIndex, string sceneName)
         {
             PeerHealth.Clear($"scene changed to {sceneName}");
             HealthBars.Reset();
+            SelfHealthArc.Reset();
         }
 
         public override void OnApplicationQuit()

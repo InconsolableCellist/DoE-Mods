@@ -78,6 +78,7 @@ namespace LootOverhaul.Loot
                 // Kills stop counting outside a run, but the counters are deliberately NOT cleared
                 // here: the game hands out the end-screen stats *after* the lobby has loaded.
                 if (_inRun) Log($"run left (scene '{s}') — holding {BossKills} boss / {MiniKills} mini for the end screen");
+                if (_inRun) RunStats.RunLeft();
                 _inRun = false;
             }
             else
@@ -86,6 +87,7 @@ namespace LootOverhaul.Loot
                 if (_inRun || BossKills != 0 || MiniKills != 0)
                     Log($"new run (scene '{s}') — clearing previous tally {BossKills} boss / {MiniKills} mini, paid={_paidThisRun}");
                 _inRun = true;
+                RunStats.NewRun();
                 _paidThisRun = false;
                 BossKills = 0;
                 MiniKills = 0;

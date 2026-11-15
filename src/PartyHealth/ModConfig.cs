@@ -50,6 +50,11 @@ namespace PartyHealth
         /// <summary>Draw the bar through walls and enemies (needs a shader with a depth-test switch; the log says whether it got one).</summary>
         public static MelonPreferences_Entry<bool> OnTop;
 
+        /// <summary>Your own health as a red arc low in your view (under StayPutVR's shield arc) while you are below full.</summary>
+        public static MelonPreferences_Entry<bool> SelfHealthArc;
+        public static MelonPreferences_Entry<float> SelfHealthArcOpacity;
+        public static MelonPreferences_Entry<float> SelfHealthArcHoldSeconds;
+
         // ---- [PartyHealth_Dev] -----------------------------------------------------------
         public static MelonPreferences_Entry<bool> VerboseLogging;
         /// <summary>Write every health change the mod sees, and where it came from, to the session log.</summary>
@@ -79,6 +84,10 @@ namespace PartyHealth
             ShowPercent = Main.CreateEntry("ShowPercent", false, description: "Write the health percentage beside the bar.");
             ShowDownedLabel = Main.CreateEntry("ShowDownedLabel", true, description: "Say DOWN, pulsing, when a friend is waiting for a rescue.");
             OnTop = Main.CreateEntry("OnTop", true, description: "Draw the bar through walls and enemies.");
+
+            SelfHealthArc = Main.CreateEntry("SelfHealthArc", true, description: "Your own health as a red arc low in your view while you are below 100%. It sits just under StayPutVR's heal-shield arc. H hides it with the bars.");
+            SelfHealthArcOpacity = Main.CreateEntry("SelfHealthArcOpacity", 0.6f, description: "0 to 1. How solid your own health arc is.");
+            SelfHealthArcHoldSeconds = Main.CreateEntry("SelfHealthArcHoldSeconds", 1.5f, description: "Seconds your own health arc stays after you are back to full.");
 
             Dev = MelonPreferences.CreateCategory("PartyHealth_Dev");
             VerboseLogging = Dev.CreateEntry("VerboseLogging", false, description: "Echo the session log to the console.");

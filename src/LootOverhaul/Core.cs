@@ -7,7 +7,7 @@ using LootOverhaul.Loot;
 using LootOverhaul.Net;
 using LootOverhaul.Recon;
 
-[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.13.5", "Foxipso")]
+[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.14.0", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace LootOverhaul
@@ -25,7 +25,7 @@ namespace LootOverhaul
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.13.5";
+        public const string Version = "0.14.0";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -70,6 +70,7 @@ namespace LootOverhaul
             Loadout.Install();
             ChestDrops.Install();
             Boomerang.Install();
+            RunStats.Install();
 
             if (ModConfig.DevTools.Value)
             {
@@ -104,7 +105,8 @@ namespace LootOverhaul
             LightPotion.Tick();
             PreparedTonics.Tick();
             Loadout.Tick();
-            try { Boomerang.Tick(); } catch (Exception e) { LoggerInstance.Warning($"Boomerang tick threw: {e.GetType().Name}: {e.Message}"); }
+            try { Boomerang.Tick(); Boomerang.TickRemote(); } catch (Exception e) { LoggerInstance.Warning($"Boomerang tick threw: {e.GetType().Name}: {e.Message}"); }
+            try { RunStats.Tick(); } catch { }
             SceneExit.Tick();
             LootInventory.Tick();
             DropRoller.Tick();

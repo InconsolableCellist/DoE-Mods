@@ -1,4 +1,4 @@
-# LootOverhaul 0.13.5 — building
+# LootOverhaul 0.14.0 — building
 
 A second, independent MelonLoader mod for Dungeons of Eternity. Design and game-internals
 findings: [docs/LOOT-OVERHAUL.md](../../docs/LOOT-OVERHAUL.md).
@@ -26,7 +26,7 @@ transport, re-identified so the mods never confuse each other and either install
 | | CustomAvatars | LootOverhaul |
 |---|---|---|
 | Photon player properties | `ca.ver` / `ca.sha` / `ca.caps` | `lo.ver` / `lo.sha` / `lo.caps` |
-| Event codes | 140–149 | 150–159 (`150` handshake, `151` loot with sub-opcodes) |
+| Event codes | 140–149 | 150–159 (`150` handshake, `151` loot with sub-opcodes, `152` Boomerang trail) |
 | MelonPreferences sections | `[CustomAvatars*]` | `[LootOverhaul]`, `[LootOverhaul_*]` |
 | UserData folder | `UserData/CustomAvatars/` | `UserData/LootOverhaul/` |
 | Harmony | prefix on `LoadBalancingClient.OnEvent` | its own prefix on the same method |
@@ -35,6 +35,27 @@ Both prefixes coexist: Harmony chains them and each mod ignores the other's code
 gate rule is the same: private room, every occupant on the identical version and DLL hash of
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
+
+## 0.14.0 — Boomerang fixes and trail, run stats
+
+### Boomerang
+- **Stuck in an enemy, it still comes back.** A stab now counts as the top of the flight: grip
+  an empty hand (or pull) and the weapon is pulled free with the game's own stab release, then
+  flies back. With no call for 5 s it is pulled free and goes to its holster.
+- **Holsters come first.** A hand reaching for a holster no longer summons the weapon. A hand
+  can only call it back if its grip began away from every holster and has not passed one since,
+  and it is in front of you above the waist. A pull must move back level, not down to the hip or
+  up over the shoulder.
+- **A glowing trail** follows the weapon out and back. Modded friends see it too.
+- The longest return is now 25 m (was 15 m; long throws often fell back to the holster).
+
+### Run stats on the token panel
+A **THIS RUN** table under the payout: damage each player dealt and took, and bites received
+when StayPutVR runs (the column is left out otherwise). Each player's client counts only its own
+hits and its own damage taken, then shares the totals as the Photon player property `lo.run`
+(only while the gate is open), so everyone sees the same numbers. No client counts anyone
+else's hits, so the copies cannot drift. Overkill is not counted. A vanilla friend shows as
+"-". `TokenPanelShowStats = false` hides the table.
 
 ## 0.12.0 — enchant armory weapons, de-enchant, Boomerang
 
@@ -85,8 +106,8 @@ A thrown Boomerang weapon comes back to an empty hand:
 
 The return is the game's own force grab. Keep holding grip to catch it, as with any force
 grab. When the weapon cannot come back to the hand, it goes back to its holster through the
-game's own auto-holster (as on respawn): when it is stuck in something, both hands are full,
-it is over 15 m away, the game refuses the force grab, or grip is let go mid-flight. In
+game's own auto-holster (as on respawn): when both hands are full,
+it is over 25 m away (0.14.0; was 15 m), the game refuses the force grab, or grip is let go mid-flight. In
 flat-screen mode the game's own pick-up puts it in hand. With no trigger, the game returns it
 to the holster after 1.5 s as before. Nothing is spawned or destroyed: it is always the same
 weapon.

@@ -50,6 +50,15 @@ namespace LootOverhaul.Loot
         private static bool _endScreenSeen;
         private static Vector3 _anchorPos;
         private static Quaternion _anchorRot = Quaternion.identity;
+        private static float _statsCheckAt;
+        private static string _statsSig;
+
+        private static string StatsSignature()
+        {
+            var sb = new System.Text.StringBuilder();
+            foreach (var r in RunStats.Party()) sb.Append(r.Name).Append(r.Known).Append(Mathf.RoundToInt(r.Dealt)).Append(Mathf.RoundToInt(r.Taken)).Append(r.Bites).Append(';');
+            return sb.ToString();
+        }
 
         public static bool IsOpen => Interop.Alive(_root) && _root.activeSelf;
 
@@ -87,6 +96,7 @@ namespace LootOverhaul.Loot
                 _placed = false;
                 _shownAt = Time.unscaledTime;
                 _root.SetActive(false);
+                _statsSig = StatsSignature();
                 Rebuild();
                 TryPlace(false);
             }
@@ -110,6 +120,13 @@ namespace LootOverhaul.Loot
                 {
                     TryPlace(Time.unscaledTime - _shownAt > AnchorWaitSeconds);
                     return;
+                }
+                // Friends' stats can land a moment after the panel opens: redraw when they change.
+                if (ModConfig.TokenPanelShowStats.Value && Time.unscaledTime >= _statsCheckAt)
+                {
+                    _statsCheckAt = Time.unscaledTime + 1f;
+                    var sig = StatsSignature();
+                    if (sig != _statsSig) { _statsSig = sig; Rebuild(); }
                 }
                 // Belt and braces for the hooks: the end screen's gold text gone from view means the screen is closed.
                 var gold = GoldText();
@@ -294,8 +311,11 @@ namespace LootOverhaul.Loot
             UiKit.DestroyChildren(_content);
             var p = _payout;
             const float pitch = 0.062f;
+            const float rowPitch = 0.052f;
             var lines = 3 + p.Bonuses.Count + (p.Balance >= 0 ? 1 : 0);
-            var height = 0.32f + lines * pitch + 0.40f;
+            var party = ModConfig.TokenPanelShowStats.Value ? RunStats.Party() : null;
+            var statsHeight = party == null ? 0f : 0.15f + (party.Count + 1) * rowPitch;
+            var height = 0.32f + lines * pitch + statsHeight + 0.40f;
             var top = height * 0.5f;
             const float L = -Width * 0.5f + S.Pad, R = Width * 0.5f - S.Pad;
             const float w = R - L;
@@ -321,6 +341,39 @@ namespace LootOverhaul.Loot
             foreach (var b in p.Bonuses) Line(b.Key, $"+{b.Value * 100.0:0.#}%", S.Green);
             Line("Multiplier", $"x{p.Mult:0.##}", S.Text);
             if (p.Balance >= 0) Line("Your tokens now", UiKit.Number(p.Balance), S.Gold);
+
+            // This run's party stats (0.14.0): each player's own count, shared.
+            if (party != null)
+            {
+                y -= 0.02f;
+                Rule(y + 0.035f, w);
+                UiKit.Label(_content, L, y - 0.01f, w, 0.06f, S.Body, "<b>THIS RUN</b>", S.Text);
+                y -= rowPitch + 0.02f;
+                var bites = false;
+                foreach (var r in party) if (r.Known && r.Bites >= 0) bites = true;
+                var cols = bites ? new[] { 0.40f, 0.22f, 0.22f, 0.16f } : new[] { 0.46f, 0.27f, 0.27f, 0f };
+                void Row(string a, string b, string c, string d, Color col, Color nameCol)
+                {
+                    var x = L;
+                    UiKit.Label(_content, x, y, w * cols[0], 0.05f, S.Body, a, nameCol); x += w * cols[0];
+                    UiKit.Label(_content, x, y, w * cols[1], 0.05f, S.Body, b, col, TextAlignmentOptions.Right); x += w * cols[1];
+                    UiKit.Label(_content, x, y, w * cols[2], 0.05f, S.Body, c, col, TextAlignmentOptions.Right); x += w * cols[2];
+                    if (bites) UiKit.Label(_content, x, y, w * cols[3], 0.05f, S.Body, d, col, TextAlignmentOptions.Right);
+                    y -= rowPitch;
+                }
+                Row("", "Dealt", "Taken", "Bites", S.Text2, S.Text2);
+                foreach (var r in party)
+                {
+                    var name = r.Name ?? "?";
+                    if (name.Length > 16) name = name.Substring(0, 15) + "…";
+                    if (!r.Known) { Row(name, "-", "-", "-", S.Text2, S.Text2); continue; }
+                    Row(r.IsLocal ? $"<b>{name}</b>" : name,
+                        $"<b>{UiKit.Number((long)Mathf.Round(r.Dealt))}</b>",
+                        $"<b>{UiKit.Number((long)Mathf.Round(r.Taken))}</b>",
+                        r.Bites >= 0 ? $"<b>{r.Bites}</b>" : "-",
+                        S.Text, S.Text);
+                }
+            }
 
             // Position controls, always at the bottom.
             var bottom = -top;
