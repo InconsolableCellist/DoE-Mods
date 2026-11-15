@@ -19,9 +19,10 @@ namespace HazardTweaks
     {
         private static IntPtr _asset = IntPtr.Zero;
         private static List<float[]> _original;
-        private static float _applied = 1f;
+        private static float _appliedMult = 1f;
+        private static int _appliedStep;
 
-        /// <summary>Bring the table to the multiplier the current settings and lobby call for.</summary>
+        /// <summary>Bring the table to the multiplier and rounding the current settings and lobby call for.</summary>
         public static void Sync(string why)
         {
             try
@@ -42,32 +43,49 @@ namespace HazardTweaks
                         for (int i = 0; i < copy.Length; i++) copy[i] = b[i];
                         _original.Add(copy);
                     }
-                    _applied = 1f;
-                    Core.Log.Msg("Hazard bonus table found: " + Describe(_original, 1f));
+                    _appliedMult = 1f;
+                    _appliedStep = 0;
+                    Core.Log.Msg("Hazard bonus table found: " + Describe(_original, 1f, 0));
                 }
 
-                float want = Gate.Evaluate(out _) ? Math.Max(0f, ModConfig.BonusMultiplier.Value) : 1f;
-                if (Math.Abs(want - _applied) < 0.0001f) return;
+                bool on = Gate.Evaluate(out _);
+                float mult = on ? Math.Max(0f, ModConfig.BonusMultiplier.Value) : 1f;
+                int step = on ? Math.Max(0, ModConfig.RoundUpTo.Value) : 0;
+                if (Math.Abs(mult - 1f) < 0.0001f) step = 0; // vanilla stays exactly vanilla
+                if (Math.Abs(mult - _appliedMult) < 0.0001f && step == _appliedStep) return;
 
                 for (int r = 0; r < rows.Count; r++)
                 {
                     var b = rows[r].boosts;
                     if (b == null) continue;
-                    for (int i = 0; i < b.Count && i < _original[r].Length; i++) b[i] = _original[r][i] * want;
+                    for (int i = 0; i < b.Count && i < _original[r].Length; i++) b[i] = Scaled(_original[r][i], mult, step);
                 }
-                _applied = want;
-                Core.Log.Msg($"Hazard bonus x{want:0.##}{(why == null ? "" : " (" + why + ")")}: " + Describe(_original, want));
+                _appliedMult = mult;
+                _appliedStep = step;
+                Core.Log.Msg($"Hazard bonus x{mult:0.##}{(step > 0 ? $", rounded up to {step}%" : "")}{(why == null ? "" : " (" + why + ")")}: " + Describe(_original, mult, step));
             }
             catch (Exception e) { Core.Log.Warning($"Hazard bonus table: {e.GetType().Name}: {e.Message}"); }
         }
 
-        private static string Describe(List<float[]> rows, float mult)
+        /// <summary>
+        /// One boost (a fraction, 0.25 = +25%) times the multiplier, rounded UP to the next multiple
+        /// of <paramref name="step"/> percent. The small epsilon keeps float noise from pushing an
+        /// exact multiple (0.25 x 1.6 = 40.0000006%) up a whole step.
+        /// </summary>
+        public static float Scaled(float boost, float mult, int step)
+        {
+            double pct = boost * (double)mult * 100.0;
+            if (step > 0) pct = Math.Ceiling(pct / step - 1e-4) * step;
+            return (float)(pct / 100.0);
+        }
+
+        private static string Describe(List<float[]> rows, float mult, int step)
         {
             var parts = new List<string>();
             foreach (var row in rows)
             {
                 var v = new List<string>();
-                foreach (var f in row) v.Add($"{f * mult * 100f:0}%");
+                foreach (var f in row) v.Add($"{Scaled(f, mult, step) * 100f:0.#}%");
                 parts.Add("[" + string.Join(" ", v) + "]");
             }
             return "tiers 1-7 " + string.Join(" / ", parts);

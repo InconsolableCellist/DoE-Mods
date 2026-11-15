@@ -7,7 +7,13 @@ mission board):
   Only, Swords & Shields, Daggers Only, Fireball Staffs Only and Random Weapons.
 - **Remove any other hazard you choose**, such as Death, by name in the settings.
 - **Bigger rewards.** Every hazard's XP and gold bonus is raised by half by default, so Death goes
-  from +25% to +37.5% at tier 7 and the +40% hazards go to +60%.
+  from +25% to +40% at tier 7 (37.5%, rounded up to the next 5%) and the +40% hazards go
+  to +60%. No decimals: every bonus is rounded up to a multiple of 5%.
+
+| Group | Vanilla, tier 1 → 7 | HazardTweaks default (x1.5, rounded up to 5%) |
+|---|---|---|
+| +25% hazards | 5, 7, 10, 13, 17, 21, 25 % | 10, 15, 15, 20, 30, 35, 40 % |
+| +40% hazards | 8, 12, 17, 22, 28, 34, 40 % | 15, 20, 30, 35, 45, 55, 60 % |
 
 The mission board, the "+X% Bonus" lines and the end-of-run total all show the new numbers.
 
@@ -34,13 +40,13 @@ The mod therefore only changes anything:
 
 - **offline**, or
 - in a **private lobby** where **every player** runs the same HazardTweaks version and DLL,
-  with the same `RemoveWeaponRestrictions`, `AlsoRemove` and `BonusMultiplier`.
+  with the same `RemoveWeaponRestrictions`, `AlsoRemove`, `BonusMultiplier` and `RoundUpTo`.
 
 In a public lobby, or with a friend who has no HazardTweaks, another build or other settings,
 the game stays vanilla and the log says why, for example `INERT: Sam has no HazardTweaks` or
 `INERT: settings differ from Sam's`. The check runs again twice a second and every time a
 mission board is rolled, so a join, a leave or an F9 settings reload is picked up before the
-next board. Each player publishes `ht.ver`, `ht.sha` and `ht.cfg` (a hash of those three
+next board. Each player publishes `ht.ver`, `ht.sha` and `ht.cfg` (a hash of those
 settings) as Photon player properties, in private lobbies only.
 
 ## Settings
@@ -54,6 +60,7 @@ they apply to the next mission board. Everyone in the lobby needs the same value
 | `RemoveWeaponRestrictions` | `true` | Drop every weapon-limiting hazard. |
 | `AlsoRemove` | empty | More hazards to drop, comma separated: `Death`, `NoPotions`, `Potions50Pct`, `NoRevives`, `CreatureSwarms`, `Damage150Pct`, `Damage200Pct`, `DragonBattle`, `MiniBossBattle`, `BossBattle`. The log lists every name at startup. |
 | `BonusMultiplier` | `1.5` | Multiplies every hazard's bonus. `1` is vanilla, `2` doubles it. |
+| `RoundUpTo` | `5` | Rounds every scaled bonus UP to the next multiple of this many percent, so no decimals: `5` turns 37.5% into 40%, `1` into 38%, `0` leaves it. Ignored when `BonusMultiplier` is `1`. |
 | `VerboseLogging` | `true` | Log each hazard list the mod changes, and why it left one alone. |
 
 A removed hazard also takes its bonus with it: a dungeon whose only hazard was Bows Only

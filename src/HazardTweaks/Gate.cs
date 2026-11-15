@@ -53,12 +53,12 @@ namespace HazardTweaks
             catch (Exception e) { Core.Log.Warning($"DLL hash failed: {e.GetType().Name}: {e.Message}"); }
         }
 
-        /// <summary>Hash of exactly the settings that change hazards or bonuses, after parsing.</summary>
+        /// <summary>Hash of exactly the settings that change hazards or bonuses (removed set, multiplier, rounding), after parsing.</summary>
         public static string ConfigHash()
         {
             var removed = new List<int>(Hazards.RemovedSet());
             removed.Sort();
-            var canon = $"rm={string.Join(",", removed)}|x={Math.Max(0f, ModConfig.BonusMultiplier.Value):0.####}";
+            var canon = $"rm={string.Join(",", removed)}|x={Math.Max(0f, ModConfig.BonusMultiplier.Value):0.####}|r={Math.Max(0, ModConfig.RoundUpTo.Value)}";
             using var sha = SHA256.Create();
             return Convert.ToHexString(sha.ComputeHash(Encoding.UTF8.GetBytes(canon))).ToLowerInvariant().Substring(0, 12);
         }
@@ -93,7 +93,7 @@ namespace HazardTweaks
                     var who = Nick(p);
                     if (ver == null) { reason = $"{who} has no HazardTweaks"; return false; }
                     if (ver != Core.Version || sha != DllHash) { reason = $"{who} runs HazardTweaks {ver}/{sha}, you run {Core.Version}/{DllHash}"; return false; }
-                    if (cfg != myCfg) { reason = $"settings differ from {who}'s (RemoveWeaponRestrictions / AlsoRemove / BonusMultiplier)"; return false; }
+                    if (cfg != myCfg) { reason = $"settings differ from {who}'s (RemoveWeaponRestrictions / AlsoRemove / BonusMultiplier / RoundUpTo)"; return false; }
                 }
                 reason = players.Length == 1 ? "private lobby, solo" : $"private lobby, all {players.Length} players match";
                 return true;
