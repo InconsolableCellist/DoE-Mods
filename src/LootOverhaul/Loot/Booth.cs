@@ -27,6 +27,11 @@ namespace LootOverhaul.Loot
         private const int SellRows = 5;
         private const int HelpRows = 8;
         private const float PanelScale = 1.1f;
+        /// <summary>
+        /// Height of the panels' centres over the booth's floor. 0.13.2: 1.55 m (was 1.4). Since 0.13.0
+        /// made the panels 1.26 m tall the bottom row and the pager sat behind the counter.
+        /// </summary>
+        private const float PanelY = 1.55f;
         private const float L = S.Left, R = S.Right;
 
         private static GameObject _root;
@@ -98,14 +103,14 @@ namespace LootOverhaul.Loot
             var buy = new GameObject("Buy"); buy.transform.SetParent(_root.transform, false);
             _sell = sell.transform; _buy = buy.transform;
             // Two panels side by side, each a little over a metre wide, angled toward the visitor.
-            _sell.localPosition = new Vector3(-0.90f, 1.4f, 0f);
+            _sell.localPosition = new Vector3(-0.90f, PanelY, 0f);
             _sell.localRotation = Quaternion.Euler(0f, -18f, 0f);
             _sell.localScale = Vector3.one * PanelScale;
-            _buy.localPosition = new Vector3(0.90f, 1.4f, 0f);
+            _buy.localPosition = new Vector3(0.90f, PanelY, 0f);
             _buy.localRotation = Quaternion.Euler(0f, 18f, 0f);
             _buy.localScale = Vector3.one * PanelScale;
-            UiKit.Text(_root.transform, new Vector3(0f, 2.27f, 0f), 1.8f, 0.15f, S.Sign, UiKit.Paint(S.TextHex, "<b>KOBOLD TRAVELER</b>"), TextAlignmentOptions.Center);
-            UiKit.Text(_root.transform, new Vector3(0f, 2.14f, 0f), 1.8f, 0.06f, S.Row, UiKit.Grey("shinies from the dungeon for tokens"), TextAlignmentOptions.Center);
+            UiKit.Text(_root.transform, new Vector3(0f, PanelY + 0.87f, 0f), 1.8f, 0.15f, S.Sign, UiKit.Paint(S.TextHex, "<b>KOBOLD TRAVELER</b>"), TextAlignmentOptions.Center);
+            UiKit.Text(_root.transform, new Vector3(0f, PanelY + 0.74f, 0f), 1.8f, 0.06f, S.Row, UiKit.Grey("shinies from the dungeon for tokens"), TextAlignmentOptions.Center);
         }
 
         private static void PlaceFromConfig()
@@ -169,17 +174,20 @@ namespace LootOverhaul.Loot
             UiKit.Label(_sell, L, S.StripY, 0.34f, 0.06f, S.Row, "<b>SELL ALL</b>", S.Text);
             UiKit.Label(_sell, L, S.ToolY, 0.34f, 0.08f, S.Body, "never locked, equipped or worn", S.Text2, lines: 2);
             var groups = new[] { (label: "JUNK", cls: -1), (label: "COMMON", cls: 0), (label: "UNIQUE", cls: 1), (label: "RARE", cls: 2) };
+            // 0.13.2: compact buttons (they were full action buttons stretched to a quarter of the
+            // panel), with the total centred under each.
             var x0 = L + 0.37f;
-            var gw = (R - x0 - S.Gap * 3f) / 4f;
+            var cell = (R - x0 - S.Gap * 3f) / 4f;
+            var gw = Mathf.Min(cell, 0.19f);
             for (var g = 0; g < groups.Length; g++)
             {
                 var (n, value) = SweepTotal(inv, groups[g].cls);
-                var x = x0 + gw * 0.5f + g * (gw + S.Gap);
+                var x = x0 + cell * 0.5f + g * (cell + S.Gap);
                 var cls = groups[g].cls;
-                UiKit.Btn(_sell, new Vector3(x, S.StripY, 0f), new Vector2(gw, S.Action.y), n > 0 ? $"{n} {groups[g].label}" : groups[g].label,
-                    () => SellAll(cls), S.Variant.Sell, n > 0 ? S.State.Normal : S.State.Disabled);
-                if (n > 0) UiKit.CoinNumber(_sell, x + gw * 0.5f, S.ToolY, gw, value, S.Gold, S.Body, 0.026f);
-                else UiKit.Label(_sell, x - gw * 0.5f, S.ToolY, gw, 0.05f, S.Body, "none", S.Text2, TextAlignmentOptions.Center);
+                UiKit.Btn(_sell, new Vector3(x, S.StripY, 0f), new Vector2(gw, S.Compact.y), n > 0 ? $"{n} {groups[g].label}" : groups[g].label,
+                    () => SellAll(cls), S.Variant.Sell, n > 0 ? S.State.Normal : S.State.Disabled, S.Body);
+                if (n > 0) UiKit.CoinNumberCentered(_sell, x, S.ToolY, cell, value, S.Gold);
+                else UiKit.Label(_sell, x - cell * 0.5f, S.ToolY, cell, 0.05f, S.Body, "none", S.Text2, TextAlignmentOptions.Center);
             }
             UiKit.Rule(_sell, S.RuleToolY);
 
@@ -189,12 +197,11 @@ namespace LootOverhaul.Loot
             {
                 var item = items[start + i];
                 var row = UiKit.NewRow(_sell, $"SellRow_{i}", S.Row0Y - i * S.Pitch, i);
-                UiKit.Icon(row, new Vector3(S.IconX, 0f, -0.03f), item);
-                UiKit.TypeTag(row, new Vector3(S.TagX, 0f, 0f), item);
                 var slot = inv.EquippedSlotOf(item);
                 var inUse = inv.InUse(item);
-                var chip = item.IsBound ? "ARMORY" : item.Locked ? "LOCKED" : inUse ? (slot >= 0 ? "EQUIPPED" : "WORN") : null;
-                UiKit.RowText(row, cols.TextEnd, UiKit.NameOf(item), StatsOf(item), chip, item.IsWeapon ? S.Text : S.Text2);
+                // 0.13.2: no LOCKED word, the closed padlock beside the price says it.
+                var chip = item.IsBound ? "ARMORY" : inUse ? (slot >= 0 ? "EQUIPPED" : "WORN") : null;
+                UiKit.ItemText(row, cols.TextEnd, item, chip);
                 UiKit.Price(row, cols.Price, 0f, SellPrice(item));
                 var captured = item;
                 UiKit.LockToggle(row, new Vector3(cols.Lock, 0f, 0f), item.Locked, () => ToggleLock(captured));
@@ -354,7 +361,6 @@ namespace LootOverhaul.Loot
             const float tw = 0.16f, th = 0.07f, by = 0.018f, py = -0.045f;
             var tierX = new[] { R - 0.44f, R - 0.26f, R - 0.08f };   // Minor, Major, Grand
             var revertX = R - 0.62f;
-            var textEnd = revertX - tw * 0.5f - 0.03f;
             for (var i = 0; i < RowsPerPage && start + i < offered.Count; i++)
             {
                 var def = offered[start + i];
@@ -362,7 +368,11 @@ namespace LootOverhaul.Loot
                 var row = UiKit.NewRow(_buy, $"TonicRow_{i}", S.Row0Y - i * S.Pitch, i, S.Pitch, prep != null ? S.StripeOk : (Color?)null);
                 UiKit.TonicIcon(row, new Vector3(S.IconX, 0f, -0.03f));
                 // Every row here is a tonic, so the page skips the type tag and gives the name that room.
-                UiKit.RowText(row, textEnd, UiKit.Paint(S.TonicHex, def.Name), $"{def.Flavor} · {Buffs.Tiers(def)}", null, S.Text2, L + 0.09f);
+                // 0.13.2: the text runs up to the REVERT column only on a prepared row (it stopped
+                // there on every row, and the effect was cut), and the effect and the three tier
+                // values are a line each instead of one line wrapped wherever it ran out.
+                var textEnd = (prep != null ? revertX : tierX[0]) - tw * 0.5f - 0.03f;
+                UiKit.RowText(row, textEnd, UiKit.Paint(S.TonicHex, def.Name), $"{def.Flavor}\n{Buffs.Tiers(def)}", null, S.Text2, L + 0.09f);
                 var captured = def;
                 for (var t = 0; t < 3; t++)
                 {
@@ -382,14 +392,14 @@ namespace LootOverhaul.Loot
                         var ok = inv.Gold >= price;
                         UiKit.Btn(row, new Vector3(x, by, 0f), new Vector2(tw, th), tierName, () => { if (PreparedTonics.Prepare(captured, tier)) Rebuild(); },
                             S.Variant.Primary, ok ? S.State.Normal : S.State.Disabled);
-                        UiKit.CoinNumber(row, x + tw * 0.5f + 0.01f, py, tw + 0.02f, price, ok ? S.Gold : S.Red, S.Body, 0.026f);
+                        UiKit.CoinNumberCentered(row, x, py, tw + 0.02f, price, ok ? S.Gold : S.Red);
                     }
                 }
                 if (prep != null)
                 {
                     var stat = def.Stat;
                     UiKit.Btn(row, new Vector3(revertX, by, 0f), new Vector2(tw, th), "REVERT", () => { if (PreparedTonics.Revert(stat)) Rebuild(); }, S.Variant.Danger);
-                    UiKit.CoinNumber(row, revertX + tw * 0.5f, py, tw, prep.Price, S.Gold, S.Body, 0.026f);
+                    UiKit.CoinNumberCentered(row, revertX, py, tw + 0.02f, prep.Price, S.Gold);
                 }
             }
             UiKit.Pager(_buy, _tonicPage, pages, () => { _tonicPage--; BuildBuy(); }, () => { _tonicPage++; BuildBuy(); });
@@ -449,19 +459,49 @@ namespace LootOverhaul.Loot
                 if (!_enchantStock) Enchanting.ReadRolledPerks(item);
                 var row = UiKit.NewRow(_buy, $"EnchRow_{i}", S.Row0Y - i * S.Pitch, i);
                 UiKit.Icon(row, new Vector3(S.IconX, 0f, -0.03f), item);
-                UiKit.TypeTag(row, new Vector3(S.TagX, 0f, 0f), item);
                 var slot = _enchantStock ? (stockSlots.TryGetValue(item.Id, out var ss) ? ss : -1) : inv.EquippedSlotOf(item);
                 var chip = slot >= 0 ? "EQUIPPED" : !_enchantStock && item.IsBound ? "ARMORY" : null;
+                UiKit.TypeTag(row, new Vector3(S.TagX, 0f, 0f), item, chip);
                 var price = Enchanting.Price(item);
                 UiKit.RowText(row, cols.TextEnd, UiKit.NameOf(item),
-                    $"slots {Enchanting.UsedSlots(item)}/{Enchanting.Slots(item.WeaponClass)} · element {Enchanting.ElementName(item.DamageType).ToLowerInvariant()} · price per enchantment",
-                    chip, S.Text2);
+                    $"slots {Math.Min(Enchanting.UsedSlots(item), Enchanting.Slots(item.WeaponClass))}/{Enchanting.Slots(item.WeaponClass)} · {(item.DamageType >= 0 ? Enchanting.ElementName(item.DamageType).ToLowerInvariant() : "no element")}",
+                    null, S.Text2);
                 UiKit.Price(row, cols.Price, 0f, price, inv.Gold >= price);
                 var captured = item;
                 UiKit.ActionBtn(row, cols.Act[0], 0f, "SELECT", () => { _enchantTarget = captured.Id; BuildBuy(); });
             }
             if (weapons.Count == 0) UiKit.Empty(_buy, _enchantStock ? "No armory weapons can be enchanted." : "No weapons in your bag.");
             UiKit.Pager(_buy, _enchantPage, pages, () => { _enchantPage--; BuildBuy(); }, () => { _enchantPage++; BuildBuy(); });
+        }
+
+        /// <summary>Element colours on the enchant page: fire, ice, poison (poison is the game's own green).</summary>
+        private static readonly string[] ElementHex = { "#FF8A3D", "#9CC8FF", "#30CB18" };
+
+        /// <summary>
+        /// The weapon's second line on the enchant page: "22 damage · Fire · Absorb · Elite Slayer".
+        /// A third perk from before 0.13.2 is shown grey with "no effect" (the game keeps two).
+        /// </summary>
+        private static string WeaponDetail(LootItem w)
+        {
+            var parts = new List<string>();
+            try
+            {
+                var m = System.Text.RegularExpressions.Regex.Match(StatsOf(w), @"\d+");
+                if (m.Success) parts.Add($"{UiKit.Paint(S.TextHex, $"<b>{m.Value}</b>")} damage");
+            }
+            catch { }
+            if (w.DamageType >= 0)
+                parts.Add(UiKit.Paint(ElementHex[Math.Min(ElementHex.Length - 1, w.DamageType)], Enchanting.ElementName(w.DamageType)));
+            var perks = 0;
+            foreach (var p in new[] { w.PerkA, w.PerkB, w.PerkC })
+            {
+                if (p <= 0) continue;
+                perks++;
+                parts.Add(Enchanting.IsInactive(w, p) ? $"{Enchanting.PerkName(p)} (no effect)" : UiKit.Paint(S.TextHex, Enchanting.PerkName(p)));
+            }
+            if (perks == 0) parts.Add("no perks");
+            if (w.Boomerang) parts.Add(UiKit.Paint(S.TextHex, Boomerang.Name));
+            return string.Join(" · ", parts);
         }
 
         /// <summary>A heading line with the price of each change on the right: "ADD … each (coin) 220".</summary>
@@ -488,11 +528,14 @@ namespace LootOverhaul.Loot
             ToolRow(_buy, S.ToolY, note, null, true, "BACK", () => { _enchantTarget = null; BuildBuy(); });
             UiKit.Rule(_buy, S.RuleToolY);
 
-            // The weapon itself, with all its stats.
+            // The weapon itself, laid out like the armor page (0.13.2): its name in the rarity colour
+            // with rarity and type in grey after it, then damage, element and each perk by the
+            // mod's name, instead of the game's own stats text with its own colours.
             var row = UiKit.NewRow(_buy, "EnchTarget", S.Row0Y, 0);
             UiKit.Icon(row, new Vector3(S.IconX, 0f, -0.03f), target);
             UiKit.TypeTag(row, new Vector3(S.TagX, 0f, 0f), target);
-            UiKit.RowText(row, R - S.Gap, UiKit.NameOf(target), StatsOf(target), tslot >= 0 ? "EQUIPPED" : target.IsBound ? "ARMORY" : null);
+            UiKit.RowText(row, R - S.Gap, $"{UiKit.NameOf(target)}   {UiKit.Grey($"{LootTables.ClassName(target.WeaponClass)} {LootTables.TypeName(target.PropType).ToLowerInvariant()}")}",
+                WeaponDetail(target), tslot >= 0 ? "EQUIPPED" : target.IsBound ? "ARMORY" : null, S.Text2);
 
             var gw = (S.PanelWidth - 0.08f - S.Gap * 3f) / 4f;
             float GridX(int i) => L + gw * 0.5f + (i % 4) * (gw + S.Gap);
@@ -500,7 +543,7 @@ namespace LootOverhaul.Loot
 
             var tprice = Enchanting.Price(target);
             var ok = inv.Gold >= tprice;
-            Section(y, "ADD", $"one perk or element, slots {Enchanting.UsedSlots(target)} / {Enchanting.Slots(target.WeaponClass)}", tprice, ok);
+            Section(y, "ADD", $"one perk or element, slots {Math.Min(Enchanting.UsedSlots(target), Enchanting.Slots(target.WeaponClass))} / {Enchanting.Slots(target.WeaponClass)}", tprice, ok);
             y -= 0.08f;
             var options = Enchanting.Options(target);
             for (var i = 0; i < options.Count && i < 16; i++)
@@ -547,14 +590,20 @@ namespace LootOverhaul.Loot
                 var dok = inv.Gold >= dprice;
                 Section(y, "TAKE OFF", target.IsBound ? "back to how it was returns it to your armory" : "one perk or the element", dprice, dok);
                 y -= 0.08f;
+                string refundNote = null;
                 for (var i = 0; i < removable.Count; i++)
                 {
                     var (label, perkId, element) = removable[i];
                     var pid = perkId; var el = element;
+                    // 0.13.2: a third perk from before never worked; taking it off is free and pays back.
+                    var inactive = Enchanting.IsInactive(target, perkId);
+                    if (inactive) refundNote = $"{label} never worked, the game keeps two perks. Taking it off is free.";
                     UiKit.Btn(_buy, new Vector3(GridX(i), y - (i / 4) * 0.10f, 0f), new Vector2(gw, S.Action.y), label.ToUpperInvariant(),
                         () => { var r = Enchanting.Disenchant(target, pid, el); if (r != null) _enchantTarget = r.Id; Rebuild(); },
-                        S.Variant.Danger, dok ? S.State.Normal : S.State.Disabled);
+                        inactive ? S.Variant.Sell : S.Variant.Danger, inactive || dok ? S.State.Normal : S.State.Disabled);
                 }
+                if (refundNote != null)
+                    UiKit.Label(_buy, L, y - ((removable.Count + 3) / 4) * 0.10f + 0.02f, S.PanelWidth - 0.08f, 0.05f, S.Body, refundNote, S.Green);
             }
         }
 
@@ -605,7 +654,8 @@ namespace LootOverhaul.Loot
 
             var cols = UiKit.Columns(1);
             var py = S.Row0Y + 0.01f;
-            UiKit.Text(_buy, new Vector3(L, py, 0f), 0.66f, 0.055f, S.Row,
+            // 0.13.2: the name runs up to "sells for" (it stopped at 0.66 m and cut "Legendary head armor").
+            UiKit.Text(_buy, new Vector3(L, py, 0f), cols.Price - S.PriceWidth * 0.5f - 0.32f + 0.10f - L, 0.055f, S.Row,
                 $"{UiKit.NameOf(piece)}   {UiKit.Grey($"{LootTables.ClassName(piece.WeaponClass)} {Armor.SlotNames[_upSlot].ToLowerInvariant()} armor")}", fit: true);
             UiKit.Label(_buy, cols.Price - S.PriceWidth * 0.5f - 0.32f, py, 0.3f, 0.05f, S.Body, "sells for", S.Text2, TextAlignmentOptions.Right);
             UiKit.Price(_buy, cols.Price, py, SellPrice(piece));
@@ -618,9 +668,11 @@ namespace LootOverhaul.Loot
                 var (st, m) = stats[i];
                 var d = Buffs.Find(st);
                 var lo = Armor.Band(piece.WeaponClass, st).lo;
-                var hi = Armor.MaxPct(piece, st);
-                var totalSteps = Mathf.Max(0, hi - lo);
                 var cur = Armor.MultToPct(st, m);
+                // 0.13.2: a piece rolled under the older, higher caps can be above today's maximum
+                // (CURRENT +28%, MAX +25%); MAX then shows what it has.
+                var hi = Mathf.Max(Armor.MaxPct(piece, st), cur);
+                var totalSteps = Mathf.Max(0, hi - lo);
                 var label = d == null ? st : string.IsNullOrEmpty(d.Short) ? d.Flavor : d.Short;
                 if (label.Length > 0) label = char.ToUpperInvariant(label[0]) + label.Substring(1);
                 var atMax = Armor.AtMax(piece, st, m);
@@ -674,7 +726,7 @@ namespace LootOverhaul.Loot
         {
             var inv = BagManager.Inventory;
             UiKit.Header(_buy, "ENCHANT", "what the enchantments do", inv.Gold);
-            ToolRow(_buy, S.ToolY, "Common weapons hold 1 perk, Unique and Rare 2, Legendary 3, plus one element. The game's own words for each:",
+            ToolRow(_buy, S.ToolY, "Common weapons hold 1 perk, Unique, Rare and Legendary 2, plus one element. The game's own words for each:",
                 null, true, "BACK", () => { _enchantHelp = false; BuildBuy(); });
             UiKit.Rule(_buy, S.RuleToolY);
             var docs = Enchanting.Documentation();
@@ -824,6 +876,9 @@ namespace LootOverhaul.Loot
             if (n == 0) { BagManager.Toast($"No {SweepName(cls)} to sell."); return; }
             inv.Gold += total;
             inv.Save();
+            // 0.13.2: back to the first page. It kept the old page number (clamped), so after a sweep
+            // the list could open on the last page with a single row.
+            _sellPage = 0;
             ReconLog.Line($"sold {n} {SweepName(cls)} for {total} -> tokens {inv.Gold}");
             Rebuild();
             BagPanel.Refresh();

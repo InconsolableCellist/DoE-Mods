@@ -164,7 +164,8 @@ namespace LootOverhaul.Loot
         /// block is centred vertically on <paramref name="localPos"/>.
         /// </summary>
         public static TextMeshPro Text(Transform parent, Vector3 localPos, float width, float height, float size, string text,
-                                       TextAlignmentOptions align = TextAlignmentOptions.Left, bool fit = false, int lines = 1)
+                                       TextAlignmentOptions align = TextAlignmentOptions.Left, bool fit = false, int lines = 1,
+                                       float? minSize = null, TextOverflowModes overflow = TextOverflowModes.Truncate)
         {
             try
             {
@@ -183,12 +184,13 @@ namespace LootOverhaul.Loot
                     tmp.enableAutoSizing = true;
                     tmp.fontSizeMax = size;
                     // 0.13.0: shrink to 80% at most, and never below the legibility floor (0.30).
-                    tmp.fontSizeMin = Mathf.Max(size * UiStyle.FitShare, Mathf.Min(size, UiStyle.Floor));
+                    tmp.fontSizeMin = minSize.HasValue ? Mathf.Min(size, minSize.Value) : Mathf.Max(size * UiStyle.FitShare, Mathf.Min(size, UiStyle.Floor));
                 }
                 tmp.alignment = align;
                 tmp.enableWordWrapping = lines > 1;
                 // Truncate to the rect: a line that overflows runs under the buttons to its right.
-                tmp.overflowMode = TextOverflowModes.Truncate;
+                // 0.13.2: list rows use Ellipsis, so a cut name ends in "…" instead of mid-word.
+                tmp.overflowMode = overflow;
                 tmp.richText = true;
                 tmp.rectTransform.sizeDelta = new Vector2(width, Mathf.Max(height, size * 0.14f * Mathf.Max(1, lines)));
                 tmp.rectTransform.pivot = new Vector2(align == TextAlignmentOptions.Center ? 0.5f : 0f, 0.5f);
@@ -228,13 +230,16 @@ namespace LootOverhaul.Loot
         /// "Sword" over "T7" for a weapon, "Head" over "armor", "Tonic", "Junk". It replaces the
         /// "Sword t7" that used to lead the stats line, so the line starts with the numbers.
         /// </summary>
-        public static void TypeTag(Transform row, Vector3 localPos, LootItem item)
+        public static void TypeTag(Transform row, Vector3 localPos, LootItem item, string chip = null)
         {
             string text;
-            if (item.IsWeapon) text = $"{LootTables.TypeName(item.PropType)}\n{Grey($"T{item.WeaponTier + 1}")}";
-            else if (item.IsArmor) text = $"{Armor.SlotNames[item.ArmorSlot]}\n{Grey("armor")}";
-            else if (item.IsBuff) text = "Tonic";
-            else text = "Junk";
+            // 0.13.2: a status word (EQUIPPED, WORN, ARMORY) takes the tag's second line instead of
+            // sitting in front of the stats, where it took room the name and stats needed.
+            var second = chip != null ? Grey(chip) : null;
+            if (item.IsWeapon) text = $"{LootTables.TypeName(item.PropType)}\n{second ?? Grey($"T{item.WeaponTier + 1}")}";
+            else if (item.IsArmor) text = $"{Armor.SlotNames[item.ArmorSlot]}\n{second ?? Grey("armor")}";
+            else if (item.IsBuff) text = second == null ? "Tonic" : $"Tonic\n{second}";
+            else text = second == null ? "Junk" : $"Junk\n{second}";
             Text(row, localPos, UiStyle.TagWidth, 0.1f, UiStyle.Body, Paint("#D7DCE4", text), TextAlignmentOptions.Center, fit: true, lines: 2);
         }
 
@@ -319,6 +324,7 @@ namespace LootOverhaul.Loot
                 var baseScale = _buttonTemplate.transform.localScale;
                 go.transform.localScale = new Vector3(baseScale.x * width / ButtonSize.x, baseScale.y * height / ButtonSize.y, baseScale.z);
                 go.SetActive(true);
+                FitColliders(go, parent, localPos, width * HitShare, height * HitShare);
                 foreach (var r in go.GetComponentsInChildren<Renderer>(true)) if (Interop.Alive(r)) r.enabled = false;
                 var btn = go.GetComponent<InteractableButton>();
                 if (!Interop.Alive(btn)) return null;
@@ -333,6 +339,54 @@ namespace LootOverhaul.Loot
             }
         }
 
+
+        /// <summary>A hit box is this share of the drawn button, so two buttons a Gap apart never touch.</summary>
+        public const float HitShare = 0.9f;
+        private static bool _colliderLogged;
+
+        /// <summary>
+        /// 0.13.2: make the pointable area exactly <paramref name="width"/> × <paramref name="height"/>
+        /// (in <paramref name="parent"/>'s units) centred on the button. Until now the clone was only
+        /// scaled by width / <see cref="ButtonSize"/>, and ButtonSize is a guess (the measured
+        /// renderers are the label, so the 0.52 × 0.06 default is used). Where the game button's
+        /// collider is bigger than that guess (it covers the glow), a hit box is bigger than its
+        /// plate and reaches its neighbours: on the ARMOR page WEAR / SELL sit 0.02 m apart with the
+        /// &lt; &gt; arrows just above, the laser hops between overlapping boxes every frame (the
+        /// hover sound over and over) and sticks to the middle of the panel. The same overlap was
+        /// the WEAR / SELL flicker of 0.10.4. Box colliders are set to the size asked for; any
+        /// other collider is left as scaled and named in the log once. The first fit logs the
+        /// collider's old size, so a playtest log shows how far off it was.
+        /// </summary>
+        private static void FitColliders(GameObject go, Transform parent, Vector3 localPos, float width, float height)
+        {
+            try
+            {
+                var center = parent.TransformPoint(localPos);
+                var worldW = parent.TransformVector(new Vector3(width, 0f, 0f)).magnitude;
+                var worldH = parent.TransformVector(new Vector3(0f, height, 0f)).magnitude;
+                var others = "";
+                foreach (var c in go.GetComponentsInChildren<Collider>(true))
+                {
+                    if (!Interop.Alive(c)) continue;
+                    var box = c.TryCast<BoxCollider>();
+                    if (box == null) { others += c.GetIl2CppType().Name + " "; continue; }
+                    var t = box.transform;
+                    var ls = t.lossyScale;
+                    var sx = Mathf.Max(1e-5f, Mathf.Abs(ls.x)); var sy = Mathf.Max(1e-5f, Mathf.Abs(ls.y));
+                    if (!_colliderLogged)
+                    {
+                        _colliderLogged = true;
+                        var was = Vector3.Scale(box.size, new Vector3(sx, sy, Mathf.Abs(ls.z)));
+                        Core.Log.Msg($"UI: hit box collider was {was.x:0.000}×{was.y:0.000} m for a {worldW:0.000}×{worldH:0.000} m button; fitted.");
+                    }
+                    box.size = new Vector3(worldW / sx, worldH / sy, box.size.z);
+                    var c0 = t.InverseTransformPoint(center);
+                    box.center = new Vector3(c0.x, c0.y, box.center.z);
+                }
+                if (others.Length > 0 && !_colliderLogged) { _colliderLogged = true; Core.Log.Warning($"UI: hit box has colliders that can't be fitted: {others.Trim()}"); }
+            }
+            catch (Exception e) { Core.Log.Warning($"Hit box fit failed: {e.GetType().Name}: {e.Message}"); }
+        }
 
         /// <summary>A flat dark backdrop. The default primitive material tinted; good enough until the booth gets art.</summary>
         public static GameObject Backdrop(Transform parent, Vector3 localPos, float width, float height, Color color)
@@ -373,6 +427,7 @@ namespace LootOverhaul.Loot
                 var baseScale = _buttonTemplate.transform.localScale;
                 go.transform.localScale = new Vector3(baseScale.x * width / ButtonSize.x, baseScale.y * height / ButtonSize.y, baseScale.z);
                 go.SetActive(true);
+                FitColliders(go, parent, localPos, width, height);
                 foreach (var r in go.GetComponentsInChildren<Renderer>(true)) if (Interop.Alive(r)) r.enabled = false;
                 var btn = go.GetComponent<InteractableButton>();
                 if (Interop.Alive(btn)) { btn.onPressedSound = null; btn.onHoverSound = null; btn.scaleOnHoverAndPress = false; }
@@ -435,8 +490,12 @@ namespace LootOverhaul.Loot
         public static string NameOf(LootItem item)
         {
             var n = item?.ColoredName ?? "";
-            if (item != null && item.IsArmor)
+            // 0.13.2: weapons too. The game names them in the same dark Rare / Legendary blues, so a
+            // Legendary weapon read as plain dark text on the enchant page.
+            if (item != null && (item.IsArmor || item.IsWeapon))
                 n = n.Replace("#1020FF", UiStyle.ArmorHex[2]).Replace("#4010FF", UiStyle.ArmorHex[3]).Replace("#31BC2F", UiStyle.ArmorHex[1]);
+            if (item != null && item.IsWeapon && !n.Contains("<color"))
+                n = Paint(UiStyle.ArmorHex[Math.Max(0, Math.Min(3, item.WeaponClass))], n);
             return n;
         }
 
@@ -447,10 +506,17 @@ namespace LootOverhaul.Loot
         /// <summary>"1 item", "3 items".</summary>
         public static string Plural(int n, string word) => $"{n} {(n == 1 ? word : word + "s")}";
 
-        /// <summary>A label of one size and colour (rich text inside still works).</summary>
+        /// <summary>
+        /// A label of one size and colour (rich text inside still works). <paramref name="x"/> is the
+        /// left edge of its box for every alignment. 0.13.2: a centred label was drawn half its width
+        /// too far left, because <see cref="Text"/> puts a centred text's pivot in the middle (the
+        /// enchant cards' titles at the card's left edge, "none" under SELL ALL off its button,
+        /// "locked, can't be sold" over the SELL button, the page number on top of the &lt; button).
+        /// </summary>
         public static TextMeshPro Label(Transform parent, float x, float y, float width, float height, float size, string text, Color color,
                                         TextAlignmentOptions align = TextAlignmentOptions.Left, int lines = 1)
-            => Text(parent, new Vector3(x, y, 0f), width, height, size, Paint(HexOf(color), text), align, fit: true, lines: lines);
+            => Text(parent, new Vector3(align == TextAlignmentOptions.Center ? x + width * 0.5f : x, y, 0f), width, height, size,
+                    Paint(HexOf(color), text), align, fit: true, lines: lines);
 
         /// <summary>A divider across the panel.</summary>
         public static void Rule(Transform parent, float y)
@@ -570,15 +636,42 @@ namespace LootOverhaul.Loot
                                       float size = UiStyle.Row, float coin = UiStyle.CoinSize)
         {
             var textW = width - coin - 0.01f;
+            // 0.13.2: a number shrinks to the floor and is never cut ("60,00" for 60,000); if it is
+            // still wider, it runs left and the coin moves with it.
             var tmp = Text(parent, new Vector3(xRight - textW, y, 0f), textW, 0.05f, size,
-                Paint(HexOf(color), $"<b>{Number(amount)}</b>"), TextAlignmentOptions.Right, fit: true);
+                Paint(HexOf(color), $"<b>{Number(amount)}</b>"), TextAlignmentOptions.Right, fit: true,
+                minSize: UiStyle.Floor, overflow: TextOverflowModes.Overflow);
             var numW = textW;
             try
             {
-                if (tmp != null) { tmp.ForceMeshUpdate(); var b = tmp.textBounds.size.x; if (b > 0.001f && b <= textW + 0.001f) numW = b; }
+                if (tmp != null) { tmp.enableWordWrapping = false; tmp.ForceMeshUpdate(); var b = tmp.textBounds.size.x; if (b > 0.001f) numW = b; }
             }
             catch { }
             Coin(parent, new Vector3(xRight - numW - 0.008f - coin * 0.5f, y, 0f), coin);
+        }
+
+        /// <summary>
+        /// Coin and number as one group centred on <paramref name="xc"/> (0.13.2), for a price under
+        /// a button: the tonic tiers and SELL ALL. The number is measured, so the pair sits in the
+        /// middle whatever its digits.
+        /// </summary>
+        public static void CoinNumberCentered(Transform parent, float xc, float y, float width, long amount, Color color,
+                                              float size = UiStyle.Body, float coin = 0.026f)
+        {
+            const float gap = 0.008f;
+            var textW = width - coin - gap;
+            var tmp = Text(parent, new Vector3(xc - width * 0.5f + coin + gap, y, 0f), textW, 0.05f, size,
+                Paint(HexOf(color), $"<b>{Number(amount)}</b>"), TextAlignmentOptions.Left, fit: true,
+                minSize: UiStyle.Floor, overflow: TextOverflowModes.Overflow);
+            var numW = textW;
+            try
+            {
+                if (tmp != null) { tmp.ForceMeshUpdate(); var b = tmp.textBounds.size.x; if (b > 0.001f) numW = b; }
+            }
+            catch { }
+            var left = xc - (coin + gap + numW) * 0.5f;
+            if (tmp != null) tmp.transform.localPosition = new Vector3(left + coin + gap, y, 0f);
+            Coin(parent, new Vector3(left + coin * 0.5f, y, 0f), coin);
         }
 
         /// <summary>The price column (0.16 m centred on <paramref name="xc"/>): coin and amount, gold or red; with a weight under it on the bag.</summary>
@@ -629,13 +722,47 @@ namespace LootOverhaul.Loot
         }
 
         /// <summary>A row's text: the name on top; under it an optional status word, then the stats, which wrap to a second line before they shrink.</summary>
-        public static void RowText(Transform row, float textEnd, string name, string stats, string chip = null, Color? statsColor = null, float textX = UiStyle.TextX)
+        public static void RowText(Transform row, float textEnd, string name, string stats, string chip = null, Color? statsColor = null, float textX = UiStyle.TextX,
+                                   int statsLines = 2)
         {
-            Text(row, new Vector3(textX, 0.04f, 0f), textEnd - textX, 0.05f, UiStyle.Row, name, fit: true);
+            // 0.13.2: a long name or stats line shrinks down to the 0.30 floor before anything is cut,
+            // and what still doesn't fit ends in "…" (it was cut mid-word at 80% size).
+            Text(row, new Vector3(textX, statsLines == 1 ? 0.025f : 0.04f, 0f), textEnd - textX, 0.05f, UiStyle.Row, name, fit: true,
+                minSize: UiStyle.Floor, overflow: TextOverflowModes.Ellipsis);
             var sx = textX;
-            if (!string.IsNullOrEmpty(chip)) sx += Chip(row, textX, -0.025f, chip) + 0.015f;
+            var sy = statsLines == 1 ? -0.03f : -0.025f;
+            if (!string.IsNullOrEmpty(chip)) sx += Chip(row, textX, sy, chip) + 0.015f;
             if (!string.IsNullOrEmpty(stats))
-                Text(row, new Vector3(sx, -0.025f, 0f), textEnd - sx, 0.085f, UiStyle.Body, Paint(HexOf(statsColor ?? UiStyle.Text), stats), fit: true, lines: 2);
+                Text(row, new Vector3(sx, sy, 0f), textEnd - sx, statsLines == 1 ? 0.045f : 0.085f, UiStyle.Body,
+                    Paint(HexOf(statsColor ?? UiStyle.Text), stats), fit: true, lines: statsLines,
+                    minSize: UiStyle.Floor, overflow: TextOverflowModes.Ellipsis);
+        }
+
+        /// <summary>
+        /// The left part of an item row on the SELL and bag lists: icon, type tag, name and stats.
+        /// 0.13.2: an armor row gives its stats the room they need. The slot word goes under the
+        /// icon instead of in a type-tag column, the text starts right after the icon, and the stats
+        /// get two lines split between stats, so three stats show in full
+        /// ("weapon dmg +28% · leap +26%" over "run speed +26%"). A status word (WORN) leads the name.
+        /// </summary>
+        public static void ItemText(Transform row, float textEnd, LootItem item, string chip)
+        {
+            if (!item.IsArmor)
+            {
+                Icon(row, new Vector3(UiStyle.IconX, 0f, -0.03f), item);
+                TypeTag(row, new Vector3(UiStyle.TagX, 0f, 0f), item, chip);
+                RowText(row, textEnd, NameOf(item), Booth.StatsOf(item), null, UiStyle.Text2, statsLines: 1);
+                return;
+            }
+            Icon(row, new Vector3(UiStyle.IconX, 0.018f, -0.03f), item);
+            Text(row, new Vector3(UiStyle.IconX, -0.045f, 0f), 0.13f, 0.035f, UiStyle.Floor,
+                Grey(Armor.SlotNames[item.ArmorSlot].ToUpperInvariant()), TextAlignmentOptions.Center);
+            var x = UiStyle.Left + 0.11f;
+            var name = string.IsNullOrEmpty(chip) ? NameOf(item) : $"{Grey($"<size=70%>{chip}</size>")}  {NameOf(item)}";
+            Text(row, new Vector3(x, 0.04f, 0f), textEnd - x, 0.05f, UiStyle.Row, name, fit: true,
+                minSize: UiStyle.Floor, overflow: TextOverflowModes.Ellipsis);
+            Text(row, new Vector3(x, -0.025f, 0f), textEnd - x, 0.085f, UiStyle.Body, Paint(UiStyle.Text2Hex, Armor.StatsTwoLines(item)),
+                fit: true, lines: 2, minSize: UiStyle.Floor, overflow: TextOverflowModes.Ellipsis);
         }
 
         /// <summary>A new row object at <paramref name="y"/> under <paramref name="parent"/>, with its stripe.</summary>
