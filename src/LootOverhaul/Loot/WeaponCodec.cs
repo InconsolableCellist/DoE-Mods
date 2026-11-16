@@ -77,12 +77,12 @@ namespace LootOverhaul.Loot
         /// <summary>Everything a peer needs to tag and later bag the item, without the generator.</summary>
         public static string Encode(LootItem i) => string.Join(Sep.ToString(), new[]
         {
-            i.Id, i.PrefabName, S(i.GenV), S(i.WeaponClass), S(i.WeaponTier), S(i.RandomSeed), i.WeaponGuid ?? "",
-            S(i.WeaponStyle), i.NameIDs == null ? "" : string.Join(",", i.NameIDs), i.DtoName ?? "", i.ModuleName ?? "",
-            S(i.ModuleType), S(i.PropType), i.Name ?? "", i.ColoredName ?? "", S(i.Value), i.Weight.ToString("R", CultureInfo.InvariantCulture),
-            S(i.FoundInRealm), i.FoundBy ?? "", i.Kind ?? "weapon", i.BuffStat ?? "", i.BuffMult.ToString("R", CultureInfo.InvariantCulture),
+            C(i.Id), C(i.PrefabName), S(i.GenV), S(i.WeaponClass), S(i.WeaponTier), S(i.RandomSeed), C(i.WeaponGuid),
+            S(i.WeaponStyle), i.NameIDs == null ? "" : string.Join(",", i.NameIDs), C(i.DtoName), C(i.ModuleName),
+            S(i.ModuleType), S(i.PropType), C(i.Name), C(i.ColoredName), S(i.Value), i.Weight.ToString("R", CultureInfo.InvariantCulture),
+            S(i.FoundInRealm), C(i.FoundBy), C(i.Kind ?? "weapon"), C(i.BuffStat), i.BuffMult.ToString("R", CultureInfo.InvariantCulture),
             i.Manual ? "1" : "0", S(i.PerkA), S(i.PerkB), S(i.PerkC), S(i.DamageMin), S(i.DamageType), i.Superior ? "1" : "0",
-            S(i.ArmorSlot), i.ArmorStats ?? "", i.Boomerang ? "1" : "0",
+            S(i.ArmorSlot), C(i.ArmorStats), i.Boomerang ? "1" : "0",
         });
 
         public static LootItem Decode(string s)
@@ -109,6 +109,13 @@ namespace LootOverhaul.Loot
             }
             return item;
         }
+
+        /// <summary>
+        /// Free text on the wire. LootNet splits its messages on '|' and this record on the unit
+        /// separator, so neither may appear inside a field: a player or avatar name with a '|' in
+        /// it shifted every field after it (armor arrived as a weapon, a drop request threw).
+        /// </summary>
+        private static string C(string s) => string.IsNullOrEmpty(s) ? "" : s.Replace('|', '¦').Replace(Sep, ' ');
 
         private static string S(int v) => v.ToString(CultureInfo.InvariantCulture);
         private static int I(string s) => int.Parse(s, CultureInfo.InvariantCulture);

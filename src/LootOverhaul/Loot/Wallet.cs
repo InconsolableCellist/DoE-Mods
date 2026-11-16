@@ -20,10 +20,28 @@ namespace LootOverhaul.Loot
         /// <summary>True while the wallet itself calls <c>IncrementCharacterData</c>.</summary>
         internal static bool Paying;
 
-        /// <summary>The character's gold now, or 0 when the profile cannot be read.</summary>
+        private static int _cachedFrame = -1;
+        private static long _cached;
+
+        /// <summary>
+        /// The character's gold, or 0 when the profile cannot be read. Read from the profile once per
+        /// frame: a booth page asks for it in every row, and each read is an Il2Cpp call (and, when it
+        /// fails, a warning). Every change made here forgets the cached value.
+        /// </summary>
         public static long Balance
         {
             get
+            {
+                var frame = UnityEngine.Time.frameCount;
+                if (frame == _cachedFrame) return _cached;
+                _cached = ReadNow();
+                _cachedFrame = frame;
+                return _cached;
+            }
+        }
+
+        private static long ReadNow()
+        {
             {
                 try
                 {
@@ -50,7 +68,7 @@ namespace LootOverhaul.Loot
         public static bool TrySpend(long price, string what)
         {
             if (price <= 0) return true;
-            var have = Balance;
+            var have = ReadNow();
             if (have < price)
             {
                 BagManager.Toast($"{what} costs {UiKit.Money(price)}; you have {UiKit.Number(have)}.");
@@ -64,14 +82,16 @@ namespace LootOverhaul.Loot
 
         private static bool Change(long delta, string why)
         {
+            _cachedFrame = -1;
             try
             {
-                var before = Balance;
+                var before = ReadNow();
                 bool ok;
                 Paying = true;
                 try { ok = PlayerProfile.IncrementCharacterData(PlayerData.CharacterValues.Coins, (int)Math.Max(int.MinValue, Math.Min(int.MaxValue, delta))); }
                 finally { Paying = false; }
-                var after = Balance;
+                var after = ReadNow();
+                _cachedFrame = -1;
                 if (!ok && after == before)
                 {
                     Core.Log.Warning($"Wallet: the game refused {delta:+#;-#;0} gold ({why}); balance stays {before}.");

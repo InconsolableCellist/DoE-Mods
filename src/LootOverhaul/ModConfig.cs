@@ -184,7 +184,12 @@ namespace LootOverhaul
             var changed = false;
             if (old.TryGetValue("LootOverhaul_Shop", out var shop))
                 foreach (var key in new[] { "ShopSlots", "ShopRefreshMinutes", "StockEnchantCostMultiplier" })
-                    if (shop.ContainsKey(key)) { Shop.CreateEntry(key, 0); changed |= SafeDelete(Shop, key); }
+                {
+                    if (!shop.ContainsKey(key)) continue;
+                    // The entry is created with the type it was stored as (StockEnchantCostMultiplier is a float).
+                    if (key == "StockEnchantCostMultiplier") Shop.CreateEntry(key, 0f); else Shop.CreateEntry(key, 0);
+                    changed |= SafeDelete(Shop, key);
+                }
             var path = Path.Combine(MelonEnvironment.UserDataDirectory, "MelonPreferences.cfg");
             foreach (var cat in new[] { "LootOverhaul_Tokens", "LootOverhaul_TokenPanel" })
             {

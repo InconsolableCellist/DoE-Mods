@@ -15,6 +15,12 @@ New kobold prices for gold.
 ### Removed
 - `StockEnchantCostMultiplier` (there is no separate armory price any more); it is removed from settings files that hold it. `EnchantCostMultiplier` scales every enchantment.
 
+### Fixed
+- Removing the old settings read `StockEnchantCostMultiplier` as a whole number although it is stored as a decimal.
+- A `|` in a player, avatar or item name no longer breaks the loot sync (armor arriving as a weapon, a dropped item lost on its way to the host).
+- The TONICS summary shows what REVERT ALL pays back; tonics paid in old tokens are no longer counted as gold.
+- The booth reads your gold from the profile once per frame instead of once per row.
+
 ## 0.15.0 (2026-11-16)
 
 The kobold moves to the game's own gold. Tokens, the weapon stock and the token payout are gone.

@@ -346,7 +346,7 @@ namespace LootOverhaul.Loot
             UiKit.Header(_buy, "TONICS", "drunk when your next run starts", Wallet.Balance);
             var summary = prepared.Count == 0
                 ? "One per kind."
-                : UiKit.Paint(S.GreenHex, $"{UiKit.Plural(prepared.Count, "tonic")} prepared, {UiKit.Money(PreparedTonics.TotalCost())}");
+                : UiKit.Paint(S.GreenHex, $"{UiKit.Plural(prepared.Count, "tonic")} prepared, {UiKit.Money(PreparedTonics.TotalRefund())} back on revert");
             const float wideW = 0.26f;
             UiKit.Label(_buy, L, S.ToolY, R - wideW - 0.03f - L, 0.05f, S.Body, summary, S.Text2);
             UiKit.Btn(_buy, new Vector3(R - wideW * 0.5f, S.ToolY, 0f), new Vector2(wideW, S.Action.y), "REVERT ALL",
