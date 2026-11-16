@@ -10,7 +10,7 @@
     <TargetFramework>net6.0</TargetFramework>
     <AssemblyName>PartyHealth</AssemblyName>
     <RootNamespace>PartyHealth</RootNamespace>
-    <Version>0.2.0</Version>
+    <Version>0.2.1</Version>
     <EnableDefaultItems>true</EnableDefaultItems>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
