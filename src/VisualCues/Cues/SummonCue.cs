@@ -51,9 +51,9 @@ namespace VisualCues.Cues
             var head = LocalHeadPosition();
             var ok = CueNet.SendSummon(head);
             if (ok) Sent++;
-            CueLog.Line(ok ? $"call sent from {source} at {Interop.Vec(head)}" : $"call from {source} NOT sent (not in a room?)");
+            CueLog.Line(ok ? $"call sent from {source} at {Interop.Vec(head)}" : $"call from {source} NOT sent (not in a room, or nobody else here has VisualCues)");
 
-            if (ModConfig.SummonSentFlash.Value || !ok) CueHud.Flash(ok ? "Call sent" : "Not in a room", ok ? CueHud.SummonColor : Color.gray, 1.2f);
+            if (ModConfig.SummonSentFlash.Value || !ok) CueHud.Flash(ok ? "Call sent" : "Nobody to call", ok ? CueHud.SummonColor : Color.gray, 1.2f);
             if (ok && ModConfig.SummonHaptics.Value) Buzz(source);
         }
 

@@ -7,7 +7,7 @@ Six independent MelonLoader mods for Dungeons of Eternity. They share only
 |---|---|---|
 | [CustomAvatars](CustomAvatars/README.md) | 0.42.22 | VRChat-style avatars, face and eye tracking, full-body tracking. Your own avatar works in any lobby; anything involving other players is gated to private lobbies where everyone runs an identical build. |
 | [LootOverhaul](LootOverhaul/README.md) | 0.14.3 | Loot, a bag, shops and buffs built on the game's own weapon generator. Gated. |
-| [VisualCues](VisualCues/README.md) | 0.1.6 | Accessibility cues for deaf players: a stick-click call arrow and unseen-enemy noise markers. No gate. |
+| [VisualCues](VisualCues/README.md) | 0.1.7 | Accessibility cues for deaf players: a stick-click call arrow (sent only to players who have the mod) and unseen-enemy noise, gate and puzzle-slot markers. No gate. |
 | [Descent](Descent/README.md) | 0.1.1 | A sixteen-floor dungeon out of the game's own generator. Gated. |
 | [StayPutVR](StayPutVR/README.md) | 0.5.6 | Taking damage, being bitten by another player, or waking a mimic fires a shock through the StayPutVR app over OSC. No gate. |
 | [PartyHealth](PartyHealth/README.md) | 0.2.0 | A small health bar over each friend's head, from the game's own health RPCs, and a red arc for your own health. No gate, sends nothing. |

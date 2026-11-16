@@ -1,4 +1,4 @@
-# VisualCues 0.1.6
+# VisualCues 0.1.7
 
 A mod for **Dungeons of Eternity** designed to assist Deaf/HoH users:
 
@@ -8,6 +8,10 @@ A mod for **Dungeons of Eternity** designed to assist Deaf/HoH users:
 - **Rune-chest cube slots.** When a cube goes into a slot on the crypt-gem chest, the slot gets a green tick labelled RIGHT or a red X labelled WRONG.
 
 The enemy noise, gate and cube-slot features work regardless of whether other users have the mod, but the call feature requires other users to have it. The mod doesn't affect your profile, character, progression, or save games.
+
+## What's new in 0.1.7
+
+**The call goes only to players who have VisualCues.** Each copy of the mod now marks its player with a small Photon player property (`vc.v`, the version), and a call is sent only to the players who carry it. Before, the call was broadcast to everyone in the room, vanilla players in public lobbies included, which had never been tested. If nobody else in the room has the mod, the call is not sent and the flash says `Nobody to call`. 0.1.6 does not announce itself, so both players need 0.1.7 to call each other. The noise, gate and cube-slot markers are unchanged and still work in any room, whoever is in it.
 
 ## What's new in 0.1.6
 
@@ -54,7 +58,7 @@ Find it by **right-clicking the game in Steam → Manage → Browse local files*
 4. **Launch.** The MelonLoader console should show:
 
    ```
-   VisualCues 0.1.6 — stick-click call (event 160), unseen-enemy noise markers, gate and puzzle-slot markers.
+   VisualCues 0.1.7 — stick-click call (event 160), unseen-enemy noise markers, gate and puzzle-slot markers.
    Patches: 6 installed, 0 refused, 0 failed.
    ```
 
