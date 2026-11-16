@@ -125,6 +125,9 @@ namespace LootOverhaul.Loot
         private static void OnStat(AvatarPlayer.Exosuit __instance, ExosuitModule.PerkType type, float defaultValue, ref float __result)
         {
             if (_bypass || _byPerk.Count == 0 || __instance == null) return;
+            // Armor and tonics change the game only in a room where everyone runs this same build:
+            // in a public room or with a vanilla (or other-version) player the stat stays vanilla.
+            if (!ModGate.Active) return;
             try
             {
                 if (__instance.Pointer != _localExo) return;

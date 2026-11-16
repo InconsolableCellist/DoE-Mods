@@ -98,10 +98,14 @@ namespace LootOverhaul.Loot
         private static void Trash_Postfix()
         {
             if (_trashingBagWeapon > 0) _trashingBagWeapon--;
-            _trashingRetired = false;
+            _trashingRetiredFrame = -1;
         }
 
-        private static bool _trashingRetired;
+        // The frame a stale (already gone) armory weapon was removed in. The game pays the salvage coins in
+        // the same call chain, so the refusal only holds in that frame: a flag (before 0.15.1) stayed set
+        // after a salvage and refused the next gold the game paid, run gold or a merchant sale.
+        private static int _trashingRetiredFrame = -1;
+        private static bool TrashingRetired => _trashingRetiredFrame == Time.frameCount;
 
         private static bool Increment_Prefix(PlayerData.CharacterValues __0, int __1, ref bool __result)
         {
@@ -114,7 +118,7 @@ namespace LootOverhaul.Loot
                 __result = true;
                 return false;
             }
-            if (_trashingBagWeapon <= 0 && !_trashingRetired) return true;
+            if (_trashingBagWeapon <= 0 && !TrashingRetired) return true;
             CoinsBlocked++;
             ReconLog.Line($"fabricator: refused IncrementCharacterData(Coins, {__1}) for a trashed bag weapon");
             BagManager.Toast("Trashed loot pays nothing here. The kobold buys shinies.");
@@ -181,6 +185,9 @@ namespace LootOverhaul.Loot
                     BagManager.Toast(_salvageItem.Locked ? Enchanting.LockedReason(_salvageItem) : $"{_salvageItem.ColoredName} is equipped. Unequip it first.");
                 _salvageItem = null;
                 _salvageRefused = false;
+                // A stale armory entry salvaged here sets this too; only the trash postfix cleared it,
+                // so after a salvage it stayed on and refused the next gold the game paid out.
+                _trashingRetiredFrame = -1;
             }
         }
 
@@ -557,7 +564,7 @@ namespace LootOverhaul.Loot
                     // listed it. Nothing to remove, nothing to pay: the coins step is refused below.
                     Blocked++; RetiredBlocked++;
                     if (_salvaging > 0) { _salvageItem = new LootItem { Name = "(already gone)", Kind = "weapon" }; _salvageRefused = false; }
-                    _trashingRetired = true;
+                    _trashingRetiredFrame = Time.frameCount;
                     BagManager.Toast("That loot already left your bag. The armory list is stale until you reopen it.");
                     Core.Log.Msg($"armory: removal of an already-gone loot weapon refused ({Interop.OneLine(__0.GetDisplayName(false))}); coins will be refused");
                     RefreshArmoriesNow("stale entry used");

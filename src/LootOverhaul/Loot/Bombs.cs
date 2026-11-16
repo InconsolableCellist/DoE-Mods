@@ -104,9 +104,11 @@ namespace LootOverhaul.Loot
         {
             try
             {
+                // Closed gate: vanilla bombs for everyone, your own included.
+                if (!ModGate.Active) return (1f, 1f);
                 var local = PhotonNetwork.LocalPlayer;
                 if (local == null || actor == local.ActorNumber) return (_localDamage, _localRadius);
-                if (actor <= 0 || !ModGate.Active) return (1f, 1f);
+                if (actor <= 0) return (1f, 1f);
                 foreach (var p in PhotonNetwork.PlayerList)
                 {
                     if (p == null || p.ActorNumber != actor) continue;

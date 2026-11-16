@@ -20,6 +20,8 @@ New kobold prices for gold.
 - A `|` in a player, avatar or item name no longer breaks the loot sync (armor arriving as a weapon, a dropped item lost on its way to the host).
 - The TONICS summary shows what REVERT ALL pays back; tonics paid in old tokens are no longer counted as gold.
 - The booth reads your gold from the profile once per frame instead of once per row.
+- Salvaging an armory weapon that had already left the bag no longer makes the game's next gold payout (run gold, a merchant sale) get refused as "trashed loot".
+- Armor stats, tonics and bomb stats only apply while the mod is active (a private room where everyone runs this same build). In a public room or with a player without it, they stayed on.
 
 ## 0.15.0 (2026-11-16)
 
