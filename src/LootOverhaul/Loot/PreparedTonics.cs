@@ -12,8 +12,16 @@ namespace LootOverhaul.Loot
     {
         public string Stat;
         public int Tier;
-        /// <summary>Tokens paid, refunded in full on a revert (so a later price change never short-changes anyone).</summary>
+        /// <summary>Gold paid, refunded in full on a revert (so a later price change never short-changes anyone).</summary>
         public long Price;
+        /// <summary>
+        /// Paid in gold (0.15.0). A tonic prepared before that was paid in the old tokens: it is still
+        /// drunk on the next run, but a revert gives no gold back.
+        /// </summary>
+        public bool Gold;
+
+        /// <summary>What a revert pays back.</summary>
+        public long Refund => Gold ? Price : 0L;
     }
 
     /// <summary>
@@ -54,6 +62,14 @@ namespace LootOverhaul.Loot
             return t;
         }
 
+        /// <summary>What REVERT ALL pays back: tonics paid in the old tokens give nothing.</summary>
+        public static long TotalRefund()
+        {
+            long t = 0;
+            foreach (var p in List) t += p.Refund;
+            return t;
+        }
+
         public static string NameOf(PreparedTonic p)
         {
             var d = DefFor(p.Stat);
@@ -71,13 +87,12 @@ namespace LootOverhaul.Loot
             var have = Get(def.Stat);
             if (have != null) { BagManager.Toast($"{NameOf(have)} is already prepared. Revert it first to pick another strength."); return false; }
             var price = Shop.TonicPrice(def, tier);
-            if (inv.Gold < price) { BagManager.Toast($"Not enough tokens: {price} needed, you have {inv.Gold}."); return false; }
-            inv.Gold -= price;
-            var p = new PreparedTonic { Stat = def.Stat, Tier = tier, Price = price };
+            if (!Wallet.TrySpend(price, $"{Buffs.TierNames[tier]} {def.Name}")) return false;
+            var p = new PreparedTonic { Stat = def.Stat, Tier = tier, Price = price, Gold = true };
             inv.PreparedTonics.Add(p);
             inv.Save();
             Shop.Bought++;
-            ReconLog.Line($"shop: prepared tonic {NameOf(p)} for {price} -> tokens {inv.Gold}");
+            ReconLog.Line($"shop: prepared tonic {NameOf(p)} for {price} gold");
             BagManager.Toast($"{NameOf(p)} prepared: you drink it when your next run starts.");
             return true;
         }
@@ -89,10 +104,10 @@ namespace LootOverhaul.Loot
             var p = Get(stat);
             if (p == null) return false;
             inv.PreparedTonics.Remove(p);
-            inv.Gold += p.Price;
             inv.Save();
-            ReconLog.Line($"shop: reverted tonic {NameOf(p)}, refunded {p.Price} -> tokens {inv.Gold}");
-            BagManager.Toast($"{NameOf(p)} reverted: {p.Price} tokens back.");
+            Wallet.Pay(p.Refund, $"reverted {NameOf(p)}");
+            ReconLog.Line($"shop: reverted tonic {NameOf(p)}, refunded {p.Refund} gold");
+            BagManager.Toast(p.Gold ? $"{NameOf(p)} reverted: {UiKit.Money(p.Refund)} back." : $"{NameOf(p)} reverted. It was paid in tokens, so no gold comes back.");
             return true;
         }
 
@@ -101,11 +116,11 @@ namespace LootOverhaul.Loot
             var inv = BagManager.Inventory;
             if (inv.PreparedTonics.Count == 0) return false;
             var n = inv.PreparedTonics.Count;
-            var refund = TotalCost();
+            var refund = TotalRefund();
             inv.PreparedTonics.Clear();
-            inv.Gold += refund;
             inv.Save();
-            ReconLog.Line($"shop: reverted all {n} prepared tonic(s), refunded {refund} -> tokens {inv.Gold}");
+            Wallet.Pay(refund, $"reverted {n} tonic(s)");
+            ReconLog.Line($"shop: reverted all {n} prepared tonic(s), refunded {refund} gold");
             BagManager.Toast($"{(n == 1 ? "1 prepared tonic" : $"All {n} prepared tonics")} reverted: {UiKit.Money(refund)} back.");
             return true;
         }

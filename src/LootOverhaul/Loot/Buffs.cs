@@ -27,7 +27,7 @@ namespace LootOverhaul.Loot
             public string Name;      // tonic name
             public string Flavor;    // what it does, plainly
             public string Short;     // the same in two or three words, for comparison lines
-            public float[] Mults = { 1.15f, 1.30f, 1.50f };
+            public float[] Mults = { 1.05f, 1.10f, 1.15f };   // 0.15.0: 5 / 10 / 15% (was 15 / 30 / 50%)
             public int[] Prices = { 80, 240, 800 };
             public float Weight = 0.4f;
             public bool Invert;

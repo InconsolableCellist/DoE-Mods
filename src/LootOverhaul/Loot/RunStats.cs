@@ -14,7 +14,7 @@ using Interop = LootOverhaul.Recon.Interop;
 namespace LootOverhaul.Loot
 {
     /// <summary>
-    /// Per-run party stats for the token panel (0.14.0): damage dealt, damage taken and, when
+    /// Per-run party stats for the run panel (0.14.0): damage dealt, damage taken and, when
     /// StayPutVR runs, bites received.
     ///
     /// <b>Each player counts only themselves and shares the totals.</b> Counting other players'
@@ -75,7 +75,7 @@ namespace LootOverhaul.Loot
             Core.Log.Msg($"RunStats: {n}/2 damage hooks installed.");
         }
 
-        // ------------------------------------------------------------------ run lifecycle (from Tokens)
+        // ------------------------------------------------------------------ run lifecycle (from RunTracker)
         public static void NewRun()
         {
             Dealt = 0f; Taken = 0f; Hits = 0; _loggedHits = 0;
@@ -226,7 +226,7 @@ namespace LootOverhaul.Loot
                         _bitesProp = a.GetType("StayPutVR.Bite.BiteSense")?.GetProperty("Received", BindingFlags.Public | BindingFlags.Static);
                         break;
                     }
-                    Core.Log.Msg(_bitesProp != null ? "RunStats: StayPutVR found - bites received are shown on the token panel" : "RunStats: no StayPutVR - no bites column");
+                    Core.Log.Msg(_bitesProp != null ? "RunStats: StayPutVR found - bites received are shown on the run panel" : "RunStats: no StayPutVR - no bites column");
                 }
                 return _bitesProp == null ? -1 : (int)_bitesProp.GetValue(null);
             }

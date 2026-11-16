@@ -24,8 +24,11 @@ namespace LootOverhaul.Loot
 
         public List<LootItem> Items = new List<LootItem>();
 
-        /// <summary>Mod currency, earned only by selling at the booth.</summary>
-        public long Gold;
+        /// <summary>
+        /// The old token balance. Unused since 0.15.0, when the kobold moved to the game's own gold
+        /// (<see cref="Wallet"/>); kept in the file under its old name so nobody's balance is lost.
+        /// </summary>
+        [JsonProperty("Gold")] public long OldTokens;
 
         /// <summary>
         /// Battle loadout, one entry per stock slot (left hip, right hip, back), in the game's
@@ -50,10 +53,6 @@ namespace LootOverhaul.Loot
         /// vanilla; these GUIDs keep it from ever being salvaged for coins or unlocked for real.
         /// </summary>
         public List<string> RetiredGuids = new List<string>();
-
-        /// <summary>The broker's current stock for this player (Value holds the asking price) and when it was rolled.</summary>
-        public List<LootItem> ShopStock = new List<LootItem>();
-        public DateTime ShopGeneratedAt = DateTime.MinValue;
 
         /// <summary>
         /// Tonics bought at the kobold for the next run (0.10.10): at most one per stat, drunk
@@ -85,10 +84,16 @@ namespace LootOverhaul.Loot
             inv.Path = path;
             if (inv.Loadout == null || inv.Loadout.Length != 3) inv.Loadout = new LootItem[3];
             inv.Items ??= new List<LootItem>();
-            inv.ShopStock ??= new List<LootItem>();
             inv.RetiredGuids ??= new List<string>();
             inv.PreparedTonics ??= new List<PreparedTonic>();
             inv.PreparedTonics.RemoveAll(p => p == null || string.IsNullOrEmpty(p.Stat));
+            // 0.15.0: tonics are 5 / 10 / 15%. Bottles already in a bag take today's strength for their tier.
+            foreach (var i in inv.Items)
+            {
+                if (i == null || !i.IsBuff || i.BuffStat == LightPotion.Stat) continue;
+                var d = Buffs.Find(i.BuffStat);
+                if (d != null) i.BuffMult = d.Mults[Math.Max(0, Math.Min(2, i.WeaponClass))];
+            }
             return inv;
         }
 

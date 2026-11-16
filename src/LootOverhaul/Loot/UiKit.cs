@@ -499,10 +499,10 @@ namespace LootOverhaul.Loot
             return n;
         }
 
-        /// <summary>"1,240": the one way a token amount is written.</summary>
+        /// <summary>"1,240": the one way an amount of gold is written.</summary>
         public static string Number(long n) => n.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
-        /// <summary>"1,240 tokens": the one way tokens are written in sentences and toasts.</summary>
-        public static string Money(long n) => $"{Number(n)} tokens";
+        /// <summary>"1,240 gold": the one way gold is written in sentences and toasts.</summary>
+        public static string Money(long n) => $"{Number(n)} gold";
         /// <summary>"1 item", "3 items".</summary>
         public static string Plural(int n, string word) => $"{n} {(n == 1 ? word : word + "s")}";
 
@@ -618,7 +618,7 @@ namespace LootOverhaul.Loot
             }
         }
 
-        /// <summary>The token coin: a gold octagon (two squares) with a darker centre. No font glyph.</summary>
+        /// <summary>The coin: a gold octagon (two squares) with a darker centre. No font glyph.</summary>
         public static void Coin(Transform parent, Vector3 pos, float size)
         {
             var z = new Vector3(0f, 0f, -0.004f);
@@ -694,16 +694,16 @@ namespace LootOverhaul.Loot
         }
 
         /// <summary>
-        /// The panel header: title on the left, context in grey after it, the token balance always
+        /// The panel header: title on the left, context in grey after it, your gold always
         /// in the top right corner, and a rule under it.
         /// </summary>
-        public static void Header(Transform parent, string title, string context, long tokens, float contextSize = UiStyle.Body)
+        public static void Header(Transform parent, string title, string context, long gold, float contextSize = UiStyle.Body)
         {
             const float L = UiStyle.Left, R = UiStyle.Right, y = UiStyle.HeaderY;
             Text(parent, new Vector3(L, y, 0f), 0.36f, 0.07f, UiStyle.Title, Paint(UiStyle.TextHex, $"<b>{title}</b>"), fit: true);
             if (!string.IsNullOrEmpty(context))
                 Text(parent, new Vector3(L + 0.38f, y, 0f), R - 0.29f - (L + 0.38f), 0.06f, contextSize, Grey(context), fit: true);
-            CoinNumber(parent, R, y, 0.26f, tokens, UiStyle.Gold, UiStyle.Row, 0.036f);
+            CoinNumber(parent, R, y, 0.26f, gold, UiStyle.Gold, UiStyle.Row, 0.036f);
             Rule(parent, UiStyle.RuleHeaderY);
         }
 

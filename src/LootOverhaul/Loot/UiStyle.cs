@@ -12,7 +12,7 @@ namespace LootOverhaul.Loot
         // ---- type: TextMeshPro sizes (1 ≈ 0.1 m glyphs). Em height at the stall's 1.1 scale in brackets.
         public const float Sign = 0.9f;      // KOBOLD TRAVELER (9.9 cm)
         public const float Title = 0.56f;    // panel headers, card titles (6.2 cm)
-        public const float Row = 0.46f;      // item names, prices, values, the token balance (5.1 cm)
+        public const float Row = 0.46f;      // item names, prices, values, your gold (5.1 cm)
         public const float Label = 0.42f;    // every button label, bold (4.6 cm)
         public const float Body = 0.36f;     // stats, help, captions, status lines (4.0 cm)
         public const float Floor = 0.30f;    // nothing renders smaller, after auto-fit (3.3 cm)
@@ -22,7 +22,7 @@ namespace LootOverhaul.Loot
         // ---- colours, one meaning each. Hex strings are for rich text, Colors for bars.
         public const string TextHex = "#F2EFE6";       // names, values, labels
         public const string Text2Hex = "#A3ACBA";      // stats, help, captions, context (the one grey)
-        public const string GoldHex = "#F5C542";       // tokens and prices only
+        public const string GoldHex = "#F5C542";       // gold and prices only
         public const string GreenHex = "#5BD75B";      // better, next, on, prepared, maxed
         public const string RedHex = "#F06A6A";        // can't afford, worse, off
         public const string TonicHex = "#7FD8FF";      // tonic names and effects
@@ -42,7 +42,7 @@ namespace LootOverhaul.Loot
 
         /// <summary>Rarity colours for armor names (Rare and Legendary lifted for contrast on the dark panel).</summary>
         public static readonly string[] ArmorHex = { "#4EA2FF", "#3FCF3D", "#7A86FF", "#B48CFF" };
-        /// <summary>Junk tiers: plain, fine, valuable (orange, because gold means tokens).</summary>
+        /// <summary>Junk tiers: plain, fine, valuable (orange, because gold means money).</summary>
         public static readonly string[] JunkHex = { "#9A9A9A", "#E8E8E8", "#FF9F43" };
 
         public enum Variant { Primary, Secondary, Danger, Sell, Tab }

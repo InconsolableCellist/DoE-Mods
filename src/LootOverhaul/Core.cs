@@ -7,7 +7,7 @@ using LootOverhaul.Loot;
 using LootOverhaul.Net;
 using LootOverhaul.Recon;
 
-[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.14.3", "Foxipso")]
+[assembly: MelonInfo(typeof(Core), "LootOverhaul", "0.15.0", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace LootOverhaul
@@ -25,7 +25,7 @@ namespace LootOverhaul
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.14.3";
+        public const string Version = "0.15.0";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -58,11 +58,11 @@ namespace LootOverhaul
             Hooks.Init(HarmonyInstance);
             SceneExit.Install();
             LootNet.Init(_roster);
-            // Single owner for AI.OnKilled, so the payout counter, the drop roll and the recon
+            // Single owner for AI.OnKilled, so the boss counter, the drop roll and the recon
             // transcript all see exactly the same kills.
             GameplayHooks.InstallKillHook();
-            Tokens.Install();
-            TokenPanel.Install();
+            RunTracker.Install();
+            RunPanel.Install();
             BagPickup.Install();
             FabricatorBridge.Install();
             Buffs.Install();
@@ -101,7 +101,7 @@ namespace LootOverhaul
             FabricatorBridge.Tick();
             BagGesture.Tick();
             BagPanel.Tick();
-            TokenPanel.Tick();
+            RunPanel.Tick();
             Buffs.Tick();
             Bombs.Tick();
             LightPotion.Tick();
@@ -149,8 +149,8 @@ namespace LootOverhaul
             if (sceneName == Il2Cpp.GameManager.LOBBY_SCENE || sceneName == Il2Cpp.GameManager.MAINMENU_SCENE) { Buffs.ClearAll($"entered {sceneName}"); LightPotion.Clear($"entered {sceneName}"); }
             BagPanel.Hide();
             Booth.Hide();
-            Tokens.OnSceneChanged(sceneName);
-            TokenPanel.OnSceneChanged();
+            RunTracker.OnSceneChanged(sceneName);
+            RunPanel.OnSceneChanged();
             PreparedTonics.OnSceneChanged(sceneName);
             _templateCaptureAt = sceneName == Il2Cpp.GameManager.LOBBY_SCENE ? UnityEngine.Time.unscaledTime + 3f : -1f;
             if (!ModConfig.DevTools.Value) return;
@@ -174,7 +174,7 @@ namespace LootOverhaul
                 ReconLog.Line($"- loadout: {Loadout.Describe()}");
                 ReconLog.Line($"- fabricator bridge: {FabricatorBridge.Describe()}");
                 ReconLog.Line($"- loot goblins resized: {Goblins.Resized}");
-                ReconLog.Line($"- shop: {Shop.Bought} bought, {Shop.Restocks} restock(s)");
+                ReconLog.Line($"- shop: {Shop.Bought} tonic(s) prepared");
                 ReconLog.Line($"- buffs active at quit: {Buffs.DescribeActive()}; worn: {Armor.DescribeWorn()}");
                 ReconLog.Line($"- enchanting: {Enchanting.SelfTestReport}");
                 Buffs.Snapshot("quit");

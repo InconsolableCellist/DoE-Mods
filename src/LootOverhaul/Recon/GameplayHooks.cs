@@ -18,10 +18,10 @@ namespace LootOverhaul.Recon
         public static void Install()
         {
             var t = typeof(GameplayHooks);
-            // (4. enemy death is not patched here: InstallKillHook below owns it, because the run
-            // payout needs it whether or not recon is on. Hooks only refuses a *different* method
+            // (4. enemy death is not patched here: InstallKillHook below owns it, because the
+            // run tracker needs it whether or not recon is on. Hooks only refuses a *different* method
             // that shares a native address, so a second patch here would have been permitted - but
-            // one owner keeps the payout counter, the drop roll and this transcript on one event.)
+            // one owner keeps the boss counter, the drop roll and this transcript on one event.)
             // chest loot — the bonus-roll hook. NOT Chest.OnLootCollected: its base body is empty
             // and shares the universal stub address (the 0.1.0 crash). These two have real bodies.
             Hooks.Patch(typeof(Chest), "EV_CollectedLoot", null, Hooks.Of(t, nameof(Chest_CollectedLoot)));
@@ -45,7 +45,7 @@ namespace LootOverhaul.Recon
             catch { return "?"; }
         }
 
-        /// <summary>The single AI.OnKilled hook: payout counting, the drop roll, and recon.</summary>
+        /// <summary>The single AI.OnKilled hook: boss counting, the drop roll, and recon.</summary>
         public static void InstallKillHook() =>
             Hooks.Patch(typeof(AI), "OnKilled", null, Hooks.Of(typeof(GameplayHooks), nameof(AI_OnKilled)), paramCount: 2);
 
@@ -53,7 +53,7 @@ namespace LootOverhaul.Recon
         {
             try
             {
-                Loot.Tokens.CountKill(__instance);
+                Loot.RunTracker.CountKill(__instance);
                 if (ModConfig.GoblinDropsEnabled.Value)
                     Loot.DropRoller.OnKilled(__instance, __0, __1);
                 if (!ModConfig.DevTools.Value) return;

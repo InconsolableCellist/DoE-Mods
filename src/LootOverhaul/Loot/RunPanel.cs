@@ -11,31 +11,20 @@ using S = LootOverhaul.Loot.UiStyle;
 namespace LootOverhaul.Loot
 {
     /// <summary>
-    /// The run payout as a panel in the end room (0.13.4), next to the game's own gold and XP
-    /// screen (<c>UIEndMission</c>). It replaces the payout toast: the game's notifications
-    /// vanish after a moment whatever the mod asks, and reposting them only made them flicker.
+    /// A panel in the end room, next to the game's own gold and XP screen (<c>UIEndMission</c>),
+    /// with THIS RUN: the damage each player dealt and took, and the bites they received when
+    /// StayPutVR runs (<see cref="RunStats"/>). It was the run panel from 0.13.4; since 0.15.0
+    /// there are no tokens, and the run stats are what is left.
     ///
     /// The panel stands in front of the player, a little to the right, turned to face them. Its
     /// frame is the player's eyes looking toward the end screen's TOTAL GOLD, so it lands in the
     /// same spot after every run. A wall or the end screen in the way pulls it nearer (first
     /// playtest: placed beside the end screen, it stood inside the wall). Arrow buttons on the
-    /// panel move and turn it; the offset is saved in [LootOverhaul_TokenPanel]. It closes with
-    /// the end screen, on CLOSE, or on the next scene. Local only: every player sees their own payout.
+    /// panel move and turn it; the offset is saved in [LootOverhaul_RunPanel]. It closes with
+    /// the end screen, on CLOSE, or on the next scene. Local only: every player sees their own panel.
     /// </summary>
-    public static class TokenPanel
+    public static class RunPanel
     {
-        /// <summary>What the panel shows: one run's payout and how it was worked out.</summary>
-        public sealed class Payout
-        {
-            public long Tokens;
-            public int Gold;
-            public float Rate;
-            public double Mult;
-            public long Balance = -1;
-            /// <summary>Bonus lines: label and its share of the multiplier (0.5 = +50%). Zero lines are left out.</summary>
-            public readonly List<KeyValuePair<string, double>> Bonuses = new List<KeyValuePair<string, double>>();
-        }
-
         private const float Width = 1.0f;
         private const float Scale = 1.1f;
         private const float MoveStep = 0.1f;
@@ -44,7 +33,7 @@ namespace LootOverhaul.Loot
 
         private static GameObject _root;
         private static Transform _content;
-        private static Payout _payout;
+        private static bool _shown;
         private static bool _placed;
         private static float _shownAt;
         private static bool _endScreenSeen;
@@ -65,33 +54,33 @@ namespace LootOverhaul.Loot
         /// <summary>Hooks the end screen so the panel closes with it.</summary>
         public static void Install()
         {
-            var t = typeof(TokenPanel);
+            var t = typeof(RunPanel);
             var n = 0;
             n += Hooks.Patch(typeof(UIEndMission), "ShowUI", null, Hooks.Of(t, nameof(ShowUI_Post)), paramCount: 2);
             n += Hooks.Patch(typeof(UIEndMission), "EV_ContinueToLobby", null, Hooks.Of(t, nameof(Continue_Post)), paramCount: 0);
-            Core.Log.Msg($"TokenPanel: {n}/2 end-screen hooks installed.");
+            Core.Log.Msg($"RunPanel: {n}/2 end-screen hooks installed.");
         }
 
         private static void ShowUI_Post(bool show)
         {
             if (show) _endScreenSeen = true;
-            else if (IsOpen) { Log("end screen hidden - token panel closed"); Hide(); }
+            else if (IsOpen) { Log("end screen hidden - run panel closed"); Hide(); }
         }
 
         private static void Continue_Post()
         {
-            if (IsOpen) { Log("end screen continued - token panel closed"); Hide(); }
+            if (IsOpen) { Log("end screen continued - run panel closed"); Hide(); }
         }
 
-        /// <summary>Shows the payout. Called once per run by <see cref="Tokens"/>.</summary>
-        public static void Show(Payout p)
+        /// <summary>Shows the panel. Called once per run by <see cref="RunTracker"/> at the end screen.</summary>
+        public static void Show()
         {
-            if (p == null || !ModConfig.TokenPanelEnabled.Value) return;
+            if (!ModConfig.RunPanelEnabled.Value) return;
             try
             {
                 UiKit.CaptureTemplates();
-                if (!UiKit.Ready) { Core.Log.Warning("TokenPanel: no UI templates yet - payout not shown (it is in the log)."); return; }
-                _payout = p;
+                if (!UiKit.Ready) { Core.Log.Warning("RunPanel: no UI templates yet - run stats not shown."); return; }
+                _shown = true;
                 EnsureRoot();
                 _placed = false;
                 _shownAt = Time.unscaledTime;
@@ -99,20 +88,20 @@ namespace LootOverhaul.Loot
                 _statsSig = StatsSignature();
                 TryPlace(false);
             }
-            catch (Exception e) { Core.Log.Warning($"TokenPanel: show failed: {e.GetType().Name}: {e.Message}"); }
+            catch (Exception e) { Core.Log.Warning($"RunPanel: show failed: {e.GetType().Name}: {e.Message}"); }
         }
 
         public static void Hide()
         {
             if (Interop.Alive(_root)) _root.SetActive(false);
             _placed = false;
-            _payout = null;
+            _shown = false;
         }
 
         /// <summary>Called from Core.OnUpdate: places the panel once the end screen exists, and closes it when the screen goes.</summary>
         public static void Tick()
         {
-            if (_payout == null || !Interop.Alive(_root)) return;
+            if (!_shown || !Interop.Alive(_root)) return;
             try
             {
                 if (!_placed)
@@ -121,7 +110,7 @@ namespace LootOverhaul.Loot
                     return;
                 }
                 // Friends' stats can land a moment after the panel opens: redraw when they change.
-                if (ModConfig.TokenPanelShowStats.Value && Time.unscaledTime >= _statsCheckAt)
+                if (Time.unscaledTime >= _statsCheckAt)
                 {
                     _statsCheckAt = Time.unscaledTime + 1f;
                     var sig = StatsSignature();
@@ -131,7 +120,7 @@ namespace LootOverhaul.Loot
                 var gold = GoldText();
                 if (_endScreenSeen && gold != null && !gold.gameObject.activeInHierarchy && IsOpen)
                 {
-                    Log("end screen no longer shown - token panel closed");
+                    Log("end screen no longer shown - run panel closed");
                     Hide();
                 }
             }
@@ -141,7 +130,7 @@ namespace LootOverhaul.Loot
         /// <summary>A new scene: the panel (not kept across loads) is gone; forget the run.</summary>
         public static void OnSceneChanged()
         {
-            _payout = null;
+            _shown = false;
             _placed = false;
             _endScreenSeen = false;
         }
@@ -150,7 +139,7 @@ namespace LootOverhaul.Loot
         {
             if (Interop.Alive(_root)) return;
             // Not DontDestroyOnLoad: the panel belongs to this end room and goes with its scene.
-            _root = new GameObject("LootOverhaul_TokenPanel");
+            _root = new GameObject("LootOverhaul_RunPanel");
             var content = new GameObject("Content");
             content.transform.SetParent(_root.transform, false);
             _content = content.transform;
@@ -190,7 +179,7 @@ namespace LootOverhaul.Loot
             else if (fallback)
             {
                 fwd = head.forward;
-                Log("no end screen found - token panel placed where you look");
+                Log("no end screen found - run panel placed where you look");
             }
             else return;
 
@@ -215,13 +204,13 @@ namespace LootOverhaul.Loot
         private static void Apply()
         {
             if (!Interop.Alive(_root)) return;
-            var off = new Vector3(ModConfig.TokenPanelRight.Value, ModConfig.TokenPanelUp.Value, ModConfig.TokenPanelAhead.Value);
+            var off = new Vector3(ModConfig.RunPanelRight.Value, ModConfig.RunPanelUp.Value, ModConfig.RunPanelAhead.Value);
             var pos = _anchorPos + _anchorRot * off;
             pos = OutOfWalls(_anchorPos, pos, _anchorRot);
             var face = pos - _anchorPos; face.y = 0f;
             if (face.sqrMagnitude < 1e-4f) face = _anchorRot * Vector3.forward;
             _root.transform.position = pos;
-            _root.transform.rotation = Quaternion.LookRotation(face.normalized, Vector3.up) * Quaternion.Euler(0f, ModConfig.TokenPanelTurn.Value, 0f);
+            _root.transform.rotation = Quaternion.LookRotation(face.normalized, Vector3.up) * Quaternion.Euler(0f, ModConfig.RunPanelTurn.Value, 0f);
             _root.transform.localScale = Vector3.one * Scale;
         }
 
@@ -270,38 +259,38 @@ namespace LootOverhaul.Loot
             }
             catch (Exception e)
             {
-                Core.Log.Warning($"TokenPanel: wall check failed: {e.GetType().Name}: {e.Message}");
+                Core.Log.Warning($"RunPanel: wall check failed: {e.GetType().Name}: {e.Message}");
                 return pos;
             }
         }
 
         private static void Nudge(float right, float up, float away, float turn)
         {
-            ModConfig.TokenPanelRight.Value = Round(ModConfig.TokenPanelRight.Value + right);
-            ModConfig.TokenPanelUp.Value = Round(ModConfig.TokenPanelUp.Value + up);
-            ModConfig.TokenPanelAhead.Value = Round(ModConfig.TokenPanelAhead.Value + away);
-            var yaw = ModConfig.TokenPanelTurn.Value + turn;
+            ModConfig.RunPanelRight.Value = Round(ModConfig.RunPanelRight.Value + right);
+            ModConfig.RunPanelUp.Value = Round(ModConfig.RunPanelUp.Value + up);
+            ModConfig.RunPanelAhead.Value = Round(ModConfig.RunPanelAhead.Value + away);
+            var yaw = ModConfig.RunPanelTurn.Value + turn;
             while (yaw > 180f) yaw -= 360f;
             while (yaw < -180f) yaw += 360f;
-            ModConfig.TokenPanelTurn.Value = Mathf.Round(yaw);
+            ModConfig.RunPanelTurn.Value = Mathf.Round(yaw);
             Save();
         }
 
         private static void ResetPosition()
         {
-            ModConfig.TokenPanelRight.Value = ModConfig.TokenPanelRight.DefaultValue;
-            ModConfig.TokenPanelUp.Value = ModConfig.TokenPanelUp.DefaultValue;
-            ModConfig.TokenPanelAhead.Value = ModConfig.TokenPanelAhead.DefaultValue;
-            ModConfig.TokenPanelTurn.Value = ModConfig.TokenPanelTurn.DefaultValue;
+            ModConfig.RunPanelRight.Value = ModConfig.RunPanelRight.DefaultValue;
+            ModConfig.RunPanelUp.Value = ModConfig.RunPanelUp.DefaultValue;
+            ModConfig.RunPanelAhead.Value = ModConfig.RunPanelAhead.DefaultValue;
+            ModConfig.RunPanelTurn.Value = ModConfig.RunPanelTurn.DefaultValue;
             Save();
         }
 
         private static void Save()
         {
-            try { MelonPreferences.Save(); } catch (Exception e) { Core.Log.Warning($"TokenPanel: saving the position failed: {e.GetType().Name}"); }
+            try { MelonPreferences.Save(); } catch (Exception e) { Core.Log.Warning($"RunPanel: saving the position failed: {e.GetType().Name}"); }
             Apply();
             Rebuild();
-            Log($"position now {ModConfig.TokenPanelRight.Value:0.0} m right, {ModConfig.TokenPanelUp.Value:0.0} m up, {ModConfig.TokenPanelAhead.Value:0.0} m ahead, turn {ModConfig.TokenPanelTurn.Value:0}°");
+            Log($"position now {ModConfig.RunPanelRight.Value:0.0} m right, {ModConfig.RunPanelUp.Value:0.0} m up, {ModConfig.RunPanelAhead.Value:0.0} m ahead, turn {ModConfig.RunPanelTurn.Value:0}°");
         }
 
         private static float Round(float v) => Mathf.Round(v * 100f) / 100f;
@@ -309,15 +298,11 @@ namespace LootOverhaul.Loot
         // ------------------------------------------------------------------ drawing
         private static void Rebuild()
         {
-            if (!Interop.Alive(_content) || _payout == null) return;
+            if (!Interop.Alive(_content) || !_shown) return;
             UiKit.DestroyChildren(_content);
-            var p = _payout;
-            const float pitch = 0.062f;
             const float rowPitch = 0.052f;
-            var lines = 3 + p.Bonuses.Count + (p.Balance >= 0 ? 1 : 0);
-            var party = ModConfig.TokenPanelShowStats.Value ? RunStats.Party() : null;
-            var statsHeight = party == null ? 0f : 0.15f + (party.Count + 1) * rowPitch;
-            var height = 0.32f + lines * pitch + statsHeight + 0.40f;
+            var party = RunStats.Party();
+            var height = 0.15f + (party.Count + 1) * rowPitch + 0.05f + 0.40f;
             var top = height * 0.5f;
             const float L = -Width * 0.5f + S.Pad, R = Width * 0.5f - S.Pad;
             const float w = R - L;
@@ -325,32 +310,13 @@ namespace LootOverhaul.Loot
             UiKit.Backdrop(_content, new Vector3(0f, 0f, 0.01f), Width, height, S.Panel);
             UiKit.Bar(_content, new Vector3(0f, top - 0.004f, 0.004f), Width, 0.008f, S.Accent);
 
-            // Header and the total.
-            UiKit.Label(_content, L, top - 0.07f, w, 0.07f, S.Title, "<b>TOKENS EARNED</b>", S.Text);
-            UiKit.CoinNumber(_content, R, top - 0.19f, w, p.Tokens, S.Gold, S.Sign, 0.07f);
-            Rule(top - 0.265f, w);
-
-            // The sum, one line per part.
-            var y = top - 0.32f;
-            void Line(string label, string value, Color valueColor)
-            {
-                UiKit.Label(_content, L, y, w * 0.62f, 0.055f, S.Body, label, S.Text2);
-                UiKit.Label(_content, L + w * 0.62f, y, w * 0.38f, 0.055f, S.Body, $"<b>{value}</b>", valueColor, TextAlignmentOptions.Right);
-                y -= pitch;
-            }
-            Line("Gold earned", UiKit.Number(p.Gold), S.Text);
-            Line("Tokens per gold", $"x{p.Rate:0.##}", S.Text);
-            foreach (var b in p.Bonuses) Line(b.Key, $"+{b.Value * 100.0:0.#}%", S.Green);
-            Line("Multiplier", $"x{p.Mult:0.##}", S.Text);
-            if (p.Balance >= 0) Line("Your tokens now", UiKit.Number(p.Balance), S.Gold);
-
             // This run's party stats (0.14.0): each player's own count, shared.
-            if (party != null)
+            var y = top - 0.07f;
+            UiKit.Label(_content, L, y, w, 0.07f, S.Title, "<b>THIS RUN</b>", S.Text);
+            y -= 0.075f;
+            Rule(y + 0.02f, w);
+            y -= rowPitch * 0.5f;
             {
-                y -= 0.02f;
-                Rule(y + 0.035f, w);
-                UiKit.Label(_content, L, y - 0.01f, w, 0.06f, S.Body, "<b>THIS RUN</b>", S.Text);
-                y -= rowPitch + 0.02f;
                 var bites = false;
                 foreach (var r in party) if (r.Known && r.Bites >= 0) bites = true;
                 var cols = bites ? new[] { 0.40f, 0.22f, 0.22f, 0.16f } : new[] { 0.46f, 0.27f, 0.27f, 0f };
@@ -423,6 +389,6 @@ namespace LootOverhaul.Loot
 
         private static string Fmt(Vector3 v) => $"({v.x:0.00}, {v.y:0.00}, {v.z:0.00})";
 
-        private static void Log(string msg) => Core.Log.Msg("TokenPanel: " + msg);
+        private static void Log(string msg) => Core.Log.Msg("RunPanel: " + msg);
     }
 }

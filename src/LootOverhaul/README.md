@@ -1,4 +1,4 @@
-# LootOverhaul 0.14.3 — building
+# LootOverhaul 0.15.0 — building
 
 A second, independent MelonLoader mod for Dungeons of Eternity. Design and game-internals
 findings: [docs/LOOT-OVERHAUL.md](../../docs/LOOT-OVERHAUL.md).
@@ -35,6 +35,30 @@ Both prefixes coexist: Harmony chains them and each mod ignores the other's code
 gate rule is the same: private room, every occupant on the identical version and DLL hash of
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
+
+## 0.15.0 — the kobold takes gold, no more tokens
+
+- **Gold, not tokens.** Everything at the kobold is bought with the game's own gold and every sale
+  pays gold: the SELL counter, a bag weapon salvaged at the armory, tonics, bag upgrades,
+  enchanting and armor upgrades. The coin in the panel headers is your gold. The mod reads and
+  changes the character's `Coins` in the player profile with the same calls the game uses, and
+  saves the profile after each change. Prices are unchanged for now (the numbers that were tokens
+  are now gold).
+- **No token payout.** The end screen pays nothing extra. Old token balances stay in the bag file
+  (as `Gold`) but are not used. A tonic prepared with tokens before the update is still drunk on
+  the next run; reverting it gives no gold back.
+- **No weapons at the kobold.** The WEAPONS tab is gone; buy weapons at the game's own vendor and
+  enchant them at the kobold (ENCHANT, then ARMORY). The tabs are TONICS, ENCHANT, ARMOR, RINGS.
+- **Selling pays half.** `SellMultiplier` is 0.5 (was 1.0); a value you set is halved once.
+- **Tonics are 5 / 10 / 15%** (Minor / Major / Grand, was 15 / 30 / 50%). Bottles already in a bag
+  take the new strength for their tier. The Light Potion is unchanged (6 / 9 / 13 m).
+- **The run panel.** The token panel is now the run panel: only THIS RUN (damage dealt and taken,
+  and StayPutVR's bites). Settings move from `[LootOverhaul_TokenPanel]` to `[LootOverhaul_RunPanel]`
+  (`RunPanelEnabled`, `RunPanelSide`, `RunPanelHeight`, `RunPanelAhead`, `RunPanelAngle`); the saved
+  position comes along.
+- **Settings removed:** `[LootOverhaul_Tokens]` (the rate and the payout bonuses), `ShopSlots` and
+  `ShopRefreshMinutes`, `TokenPanelShowStats`. `runs.csv` loses its token columns and gains
+  `gold_at_run_start` and `gold_now`; the old file is kept under a dated name.
 
 ## 0.14.0 — Boomerang fixes and trail, run stats
 
@@ -134,9 +158,9 @@ longer exist.
 | `[LootOverhaul_Goblin]` | `GoblinDropsEnabled`, `GoblinDrops` (2), `GoblinGuaranteedClass` (1 = Unique), `GoblinDropsScaleWithPlayers`, `LootGoblinScale` (1.1) |
 | `[LootOverhaul_FloorLoot]` | `DropBeams` (off), `BeamMinClass` (2 = Rare), `DropLabels` (off / hover / always), `DropSparkles`, `DropSound` (start / finish / collected / off) |
 | `[LootOverhaul_Bag]` | `BagWeightCapacity` (30), `BagGesture` (stick-hold / back-grip / off), `AutoPickup` (off) |
-| `[LootOverhaul_Shop]` | `ShopPriceMultiplier` (2.5), `SellMultiplier`, `ShopSlots`, `ShopRefreshMinutes`, `EnchantCostMultiplier`, `StockEnchantCostMultiplier`, `DisenchantCostMultiplier`, `BoomerangCostMultiplier`, `ArmorUpgradeCostMultiplier`, `LoadoutEnabled` |
+| `[LootOverhaul_Shop]` | `ShopPriceMultiplier` (2.5), `SellMultiplier` (0.5), `EnchantCostMultiplier`, `StockEnchantCostMultiplier`, `DisenchantCostMultiplier`, `BoomerangCostMultiplier`, `ArmorUpgradeCostMultiplier`, `LoadoutEnabled` |
 | `[LootOverhaul_Boomerang]` | `BoomerangTrigger` (both / apex / pull / off), `BoomerangPullSpeed` (1.5 m/s) |
-| `[LootOverhaul_Tokens]` | `GoldToTokenRate` and the payout bonuses per boss, mini-boss, extra player and chest |
+| `[LootOverhaul_RunPanel]` | `RunPanelEnabled` and the run panel's position (0.15.0) |
 | `[LootOverhaul_Booth]` | the booth's position, set by pressing = in the lobby |
 | `[LootOverhaul_Dev]` | `DevTools` (recon transcript, profile watch, survey hotkeys), `VerboseLogging`, `RunLogging`, `DropPlayersOverride` |
 

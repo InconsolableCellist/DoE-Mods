@@ -78,6 +78,6 @@ three player properties above, nothing is sent over the network.
 multiplier means more XP and gold saved to your profile than vanilla would give. This mod
 never writes to the profile itself.
 
-**LootOverhaul tokens.** LootOverhaul pays its end-of-run tokens from the run's gold, so a
-higher hazard gold bonus also raises the tokens, which LootOverhaul 0.12.0's enchanting prices
-were balanced against. `BonusMultiplier = 1` keeps token income vanilla.
+**LootOverhaul.** Since LootOverhaul 0.15.0 the kobold takes the game's own gold, so a higher
+hazard gold bonus means more gold to spend there too. (Before 0.15.0 it raised LootOverhaul's
+end-of-run tokens instead.)

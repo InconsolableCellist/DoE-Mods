@@ -12,10 +12,10 @@ using S = LootOverhaul.Loot.UiStyle;
 namespace LootOverhaul.Loot
 {
     /// <summary>
-    /// The Kobold Traveler, a stall in the lobby: a sell counter (bag items for tokens at the
-    /// game's salvage value; tokens are the mod's own currency, never the game's gold) and a
-    /// shop (<see cref="Shop"/>: generated weapons at your loot tier for the game's cost
-    /// figure). Equipping is at the game's own fabricator (see <see cref="FabricatorBridge"/>).
+    /// The Kobold Traveler, a stall in the lobby: a sell counter (bag items for the game's own
+    /// gold, see <see cref="Wallet"/>) and a shop for tonics, enchanting, armor and ring settings.
+    /// Since 0.15.0 it sells no weapons (the game's vendor does). Equipping is at the game's own
+    /// fabricator (see <see cref="FabricatorBridge"/>).
     /// Placed from config (press = in the lobby to move it to where you stand), built once,
     /// kept across scene loads, shown only in the lobby with the gate open.
     /// 0.13.0: every page is built from the shared components in <see cref="UiKit"/> and the
@@ -37,7 +37,7 @@ namespace LootOverhaul.Loot
         private static GameObject _root;
         private static Transform _sell, _buy;
         private static int _sellPage, _tonicPage, _enchantPage, _helpPage, _armorPage;
-        private static int _buyMode;            // 0 weapons, 1 tonics, 2 enchant, 3 armor, 4 rings
+        private static int _buyMode;            // 0 tonics, 1 enchant, 2 armor, 3 rings
         private static int _armorSlot;          // ARMOR tab: which slot is being compared (0 head, 1 chest, 2 legs)
         private static bool _enchantHelp;       // ENCHANT tab: the "what do they do" page
         private static string _enchantTarget;   // bag item id being enchanted ("stock-…" for an armory weapon), or null for the list
@@ -110,7 +110,7 @@ namespace LootOverhaul.Loot
             _buy.localRotation = Quaternion.Euler(0f, 18f, 0f);
             _buy.localScale = Vector3.one * PanelScale;
             UiKit.Text(_root.transform, new Vector3(0f, PanelY + 0.87f, 0f), 1.8f, 0.15f, S.Sign, UiKit.Paint(S.TextHex, "<b>KOBOLD TRAVELER</b>"), TextAlignmentOptions.Center);
-            UiKit.Text(_root.transform, new Vector3(0f, PanelY + 0.74f, 0f), 1.8f, 0.06f, S.Row, UiKit.Grey("shinies from the dungeon for tokens"), TextAlignmentOptions.Center);
+            UiKit.Text(_root.transform, new Vector3(0f, PanelY + 0.74f, 0f), 1.8f, 0.06f, S.Row, UiKit.Grey("shinies from the dungeon for gold"), TextAlignmentOptions.Center);
         }
 
         private static void PlaceFromConfig()
@@ -166,7 +166,7 @@ namespace LootOverhaul.Loot
             items.Sort((a, b) => b.Value.CompareTo(a.Value));
             var pages = Math.Max(1, (items.Count + SellRows - 1) / SellRows);
             _sellPage = Math.Max(0, Math.Min(_sellPage, pages - 1));
-            UiKit.Header(_sell, "SELL", $"{UiKit.Plural(inv.Items.Count, "item")}, most valuable first", inv.Gold);
+            UiKit.Header(_sell, "SELL", $"{UiKit.Plural(inv.Items.Count, "item")}, most valuable first", Wallet.Balance);
 
             // SELL ALL, top: junk, then weapons and armor by rarity up to Rare (a Legendary is sold
             // one at a time, on purpose). Locked, equipped and worn items are never swept. Green
@@ -210,7 +210,7 @@ namespace LootOverhaul.Loot
             }
             if (items.Count == 0) UiKit.Empty(_sell, "Your bag is empty.");
 
-            // A bigger bag, the kobold's token sink, as a row lined up with the price and button columns.
+            // A bigger bag, as a row lined up with the price and button columns.
             var yb = S.Row0Y - SellRows * S.Pitch + 0.02f;
             UiKit.Rule(_sell, yb + 0.04f);
             var bagY = yb - 0.035f;
@@ -218,7 +218,7 @@ namespace LootOverhaul.Loot
             {
                 var next = BagManager.BagUpgrades[inv.BagLevel];
                 var price = (int)Math.Round(next.price * ModConfig.ShopPriceMultiplier.Value);
-                var ok = inv.Gold >= price;
+                var ok = Wallet.Balance >= price;
                 ToolRow(_sell, bagY, $"Bag {inv.TotalWeight:0.#} / {BagManager.Capacity:0} wt.   Next: {next.name}, +{next.bonus:0} wt", price, ok,
                     "BUY", () => { BagManager.BuyBagUpgrade(); }, S.Variant.Primary, ok ? S.State.Normal : S.State.Disabled, lockCol: true);
             }
@@ -229,54 +229,27 @@ namespace LootOverhaul.Loot
 
         // ---- the shop --------------------------------------------------------------------------
 
-        private static readonly string[] TabNames = { "WEAPONS", "TONICS", "ENCHANT", "ARMOR", "RINGS" };
+        /// <summary>0.15.0: no WEAPONS tab. Weapons come from the game's own vendor; the kobold enchants them.</summary>
+        private static readonly string[] TabNames = { "TONICS", "ENCHANT", "ARMOR", "RINGS" };
 
         private static void BuildBuy()
         {
             if (!Interop.Alive(_buy)) return;
             Clear(_buy);
-            Shop.EnsureStock();
             UiKit.Tabs(_buy, L, R, S.StripY, TabNames, _buyMode, i =>
             {
                 _buyMode = i;
-                if (i == 2) { _enchantTarget = null; _enchantHelp = false; _enchantKind = -1; }
+                if (i == 1) { _enchantTarget = null; _enchantHelp = false; _enchantKind = -1; }
                 BuildBuy();
             });
             UiKit.Rule(_buy, S.RuleStripY);
             switch (_buyMode)
             {
-                case 1: BuildTonics(); break;
-                case 2: BuildEnchant(); break;
-                case 3: BuildArmor(); break;
-                case 4: BuildConfig(); break;
-                default: BuildWeapons(); break;
+                case 1: BuildEnchant(); break;
+                case 2: BuildArmor(); break;
+                case 3: BuildConfig(); break;
+                default: BuildTonics(); break;
             }
-        }
-
-        private static void BuildWeapons()
-        {
-            var inv = BagManager.Inventory;
-            var stock = inv.ShopStock ?? new List<LootItem>();
-            var minutesLeft = Math.Max(0, ModConfig.ShopRefreshMinutes.Value - (int)(DateTime.UtcNow - inv.ShopGeneratedAt).TotalMinutes);
-            UiKit.Header(_buy, "WEAPONS", $"{stock.Count} in stock, new stock in {minutesLeft} min", inv.Gold);
-            var restock = Shop.RestockPrice(inv);
-            ToolRow(_buy, S.ToolY, "Restock now for a fresh set", restock, inv.Gold >= restock, "RESTOCK", () => { if (Shop.Restock()) Rebuild(); });
-            UiKit.Rule(_buy, S.RuleToolY);
-
-            var cols = UiKit.Columns(1);
-            for (var i = 0; i < RowsPerPage && i < stock.Count; i++)
-            {
-                var item = stock[i];
-                var row = UiKit.NewRow(_buy, $"BuyRow_{i}", S.Row0Y - i * S.Pitch, i);
-                UiKit.Icon(row, new Vector3(S.IconX, 0f, -0.03f), item);
-                UiKit.TypeTag(row, new Vector3(S.TagX, 0f, 0f), item);
-                var afford = inv.Gold >= item.Value;
-                UiKit.RowText(row, cols.TextEnd, UiKit.NameOf(item), StatsOf(item));
-                UiKit.Price(row, cols.Price, 0f, item.Value, afford);
-                var captured = item;
-                UiKit.ActionBtn(row, cols.Act[0], 0f, "BUY", () => { if (Shop.Buy(captured)) Rebuild(); }, S.Variant.Primary, afford ? S.State.Normal : S.State.Disabled);
-            }
-            if (stock.Count == 0) UiKit.Empty(_buy, $"Sold out. New stock in {minutesLeft} min.");
         }
 
         // ---- RINGS tab: CustomAvatars' ring settings, for your own avatar ---------------------
@@ -287,7 +260,7 @@ namespace LootOverhaul.Loot
         private static void BuildConfig()
         {
             var inv = BagManager.Inventory;
-            UiKit.Header(_buy, "RINGS", "saved at once, friends see yours as you do", inv.Gold);
+            UiKit.Header(_buy, "RINGS", "saved at once, friends see yours as you do", Wallet.Balance);
             if (!RingSettings.Available)
             {
                 UiKit.Rule(_buy, S.RuleToolY);
@@ -370,7 +343,7 @@ namespace LootOverhaul.Loot
             var inv = BagManager.Inventory;
             var offered = Buffs.Offered();
             var prepared = inv.PreparedTonics;
-            UiKit.Header(_buy, "TONICS", "drunk when your next run starts", inv.Gold);
+            UiKit.Header(_buy, "TONICS", "drunk when your next run starts", Wallet.Balance);
             var summary = prepared.Count == 0
                 ? "One per kind."
                 : UiKit.Paint(S.GreenHex, $"{UiKit.Plural(prepared.Count, "tonic")} prepared, {UiKit.Money(PreparedTonics.TotalCost())}");
@@ -416,7 +389,7 @@ namespace LootOverhaul.Loot
                     else
                     {
                         var price = Shop.TonicPrice(def, tier);
-                        var ok = inv.Gold >= price;
+                        var ok = Wallet.Balance >= price;
                         UiKit.Btn(row, new Vector3(x, by, 0f), new Vector2(tw, th), tierName, () => { if (PreparedTonics.Prepare(captured, tier)) Rebuild(); },
                             S.Variant.Primary, ok ? S.State.Normal : S.State.Disabled);
                         UiKit.CoinNumberCentered(row, x, py, tw + 0.02f, price, ok ? S.Gold : S.Red);
@@ -426,7 +399,7 @@ namespace LootOverhaul.Loot
                 {
                     var stat = def.Stat;
                     UiKit.Btn(row, new Vector3(revertX, by, 0f), new Vector2(tw, th), "REVERT", () => { if (PreparedTonics.Revert(stat)) Rebuild(); }, S.Variant.Danger);
-                    UiKit.CoinNumberCentered(row, revertX, py, tw + 0.02f, prep.Price, S.Gold);
+                    UiKit.CoinNumberCentered(row, revertX, py, tw + 0.02f, prep.Refund, S.Gold);
                 }
             }
             UiKit.Pager(_buy, _tonicPage, pages, () => { _tonicPage--; BuildBuy(); }, () => { _tonicPage++; BuildBuy(); });
@@ -442,7 +415,7 @@ namespace LootOverhaul.Loot
             var inv = BagManager.Inventory;
             if (!Enchanting.Ready)
             {
-                UiKit.Header(_buy, "ENCHANT", "unavailable", inv.Gold);
+                UiKit.Header(_buy, "ENCHANT", "unavailable", Wallet.Balance);
                 ToolRow(_buy, S.ToolY, null, null, true, "BACK", () => { _enchantKind = -1; BuildBuy(); });
                 UiKit.Rule(_buy, S.RuleToolY);
                 UiKit.Empty(_buy, "Enchanting is unavailable in this game version.");
@@ -463,7 +436,7 @@ namespace LootOverhaul.Loot
         private static void BuildEnchantList(List<Enchanting.StockEntry> stockList)
         {
             var inv = BagManager.Inventory;
-            UiKit.Header(_buy, "ENCHANT", _enchantStock ? "pick an armory weapon" : "pick a weapon", inv.Gold);
+            UiKit.Header(_buy, "ENCHANT", _enchantStock ? "pick an armory weapon" : "pick a weapon", Wallet.Balance);
             UiKit.Tabs(_buy, L, L + 0.5f, S.ToolY, new[] { "BAG", "ARMORY" }, _enchantStock ? 1 : 0, i => { _enchantStock = i == 1; _enchantPage = 0; BuildBuy(); });
             UiKit.ActionBtn(_buy, R - S.Action.x * 1.5f - S.Gap, S.ToolY, "HELP", () => { _enchantHelp = true; _helpPage = 0; BuildBuy(); }, S.Variant.Secondary);
             UiKit.ActionBtn(_buy, R - S.Action.x * 0.5f, S.ToolY, "BACK", () => { _enchantKind = -1; BuildBuy(); }, S.Variant.Secondary);
@@ -493,7 +466,7 @@ namespace LootOverhaul.Loot
                 UiKit.RowText(row, cols.TextEnd, UiKit.NameOf(item),
                     $"slots {Math.Min(Enchanting.UsedSlots(item), Enchanting.Slots(item.WeaponClass))}/{Enchanting.Slots(item.WeaponClass)} · {(item.DamageType >= 0 ? Enchanting.ElementName(item.DamageType).ToLowerInvariant() : "no element")}",
                     null, S.Text2);
-                UiKit.Price(row, cols.Price, 0f, price, inv.Gold >= price);
+                UiKit.Price(row, cols.Price, 0f, price, Wallet.Balance >= price);
                 var captured = item;
                 UiKit.ActionBtn(row, cols.Act[0], 0f, "SELECT", () => { _enchantTarget = captured.Id; BuildBuy(); });
             }
@@ -549,7 +522,7 @@ namespace LootOverhaul.Loot
             var preview = inv.Find(target.Id) == null;   // a stock weapon not bound yet
             if (!preview) Enchanting.ReadRolledPerks(target);
             var tslot = preview ? Enchanting.StockSlot(target.StockGuid) : inv.EquippedSlotOf(target);
-            UiKit.Header(_buy, "ENCHANT", "add or take off perks and elements", inv.Gold);
+            UiKit.Header(_buy, "ENCHANT", "add or take off perks and elements", Wallet.Balance);
             var note = tslot >= 0 ? $"Equipped on {Loadout.SlotNames[tslot].ToLowerInvariant()}: it stays in your hand." : "";
             if (target.IsBound) note += (note.Length > 0 ? "   " : "") + "An armory weapon.";
             ToolRow(_buy, S.ToolY, note, null, true, "BACK", () => { _enchantTarget = null; BuildBuy(); });
@@ -569,7 +542,7 @@ namespace LootOverhaul.Loot
             var y = S.Row0Y - 0.105f;
 
             var tprice = Enchanting.Price(target);
-            var ok = inv.Gold >= tprice;
+            var ok = Wallet.Balance >= tprice;
             Section(y, "ADD", $"one perk or element, slots {Math.Min(Enchanting.UsedSlots(target), Enchanting.Slots(target.WeaponClass))} / {Enchanting.Slots(target.WeaponClass)}", tprice, ok);
             y -= 0.08f;
             var options = Enchanting.Options(target);
@@ -592,7 +565,7 @@ namespace LootOverhaul.Loot
             if (Boomerang.CanTake(target) && !target.Boomerang)
             {
                 var bprice = Enchanting.BoomerangPrice(target);
-                var bok = inv.Gold >= bprice;
+                var bok = Wallet.Balance >= bprice;
                 UiKit.Btn(_buy, new Vector3(GridX(0), y, 0f), new Vector2(gw, S.Action.y), Boomerang.Name.ToUpperInvariant(),
                     () => { var r = Enchanting.SetBoomerang(target, true); if (r != null) _enchantTarget = r.Id; Rebuild(); },
                     S.Variant.Primary, bok ? S.State.Normal : S.State.Disabled);
@@ -614,7 +587,7 @@ namespace LootOverhaul.Loot
             if (removable.Count > 0)
             {
                 var dprice = Enchanting.DisenchantPrice(target);
-                var dok = inv.Gold >= dprice;
+                var dok = Wallet.Balance >= dprice;
                 Section(y, "TAKE OFF", target.IsBound ? "back to how it was returns it to your armory" : "one perk or the element", dprice, dok);
                 y -= 0.08f;
                 string refundNote = null;
@@ -638,7 +611,7 @@ namespace LootOverhaul.Loot
         private static void BuildEnchantMenu()
         {
             var inv = BagManager.Inventory;
-            UiKit.Header(_buy, "ENCHANT", "perks for weapons, stats for armor", inv.Gold);
+            UiKit.Header(_buy, "ENCHANT", "perks for weapons, stats for armor", Wallet.Balance);
             UiKit.Rule(_buy, S.RuleToolY);
             var cardW = (S.PanelWidth - 0.12f) / 2f;
             const float cardH = 0.8f;
@@ -668,7 +641,7 @@ namespace LootOverhaul.Loot
         private static void BuildEnchantArmor()
         {
             var inv = BagManager.Inventory;
-            UiKit.Header(_buy, "ENCHANT", "armor: raise one stat at a time", inv.Gold);
+            UiKit.Header(_buy, "ENCHANT", "armor: raise one stat at a time", Wallet.Balance);
             _upSlot = Math.Max(0, Math.Min(2, _upSlot));
             var slotLabels = new string[3];
             for (var s = 0; s < 3; s++) slotLabels[s] = Armor.SlotNames[s].ToUpperInvariant();
@@ -705,7 +678,7 @@ namespace LootOverhaul.Loot
                 var atMax = Armor.AtMax(piece, st, m);
                 var next = Armor.MultToPct(st, Armor.NextMult(piece, st, m));
                 var price = Armor.UpgradePrice(piece);
-                var afford = inv.Gold >= price;
+                var afford = Wallet.Balance >= price;
                 var cy = py - 0.07f - cardH * 0.5f - i * (cardH + 0.03f);
                 string Pct(int v) => Armor.PctText(st, v);
                 UiKit.Bar(_buy, new Vector3(0f, cy, 0.006f), S.PanelWidth - 0.03f, cardH, S.Card);
@@ -752,7 +725,7 @@ namespace LootOverhaul.Loot
         private static void BuildEnchantHelp()
         {
             var inv = BagManager.Inventory;
-            UiKit.Header(_buy, "ENCHANT", "what the enchantments do", inv.Gold);
+            UiKit.Header(_buy, "ENCHANT", "what the enchantments do", Wallet.Balance);
             ToolRow(_buy, S.ToolY, "Common weapons hold 1 perk, Unique, Rare and Legendary 2, plus one element. The game's own words for each:",
                 null, true, "BACK", () => { _enchantHelp = false; BuildBuy(); });
             UiKit.Rule(_buy, S.RuleToolY);
@@ -783,7 +756,7 @@ namespace LootOverhaul.Loot
         {
             var inv = BagManager.Inventory;
             _armorSlot = Math.Max(0, Math.Min(2, _armorSlot));
-            UiKit.Header(_buy, "ARMOR", "what you wear, and what a swap changes", inv.Gold);
+            UiKit.Header(_buy, "ARMOR", "what you wear, and what a swap changes", Wallet.Balance);
 
             var colW = (S.PanelWidth - 0.08f) / 3f;
             var cw = colW - 0.04f;
@@ -901,12 +874,12 @@ namespace LootOverhaul.Loot
                 inv.Remove(j.Id);
             }
             if (n == 0) { BagManager.Toast($"No {SweepName(cls)} to sell."); return; }
-            inv.Gold += total;
             inv.Save();
+            Wallet.Pay(total, $"sold {n} {SweepName(cls)}");
             // 0.13.2: back to the first page. It kept the old page number (clamped), so after a sweep
             // the list could open on the last page with a single row.
             _sellPage = 0;
-            ReconLog.Line($"sold {n} {SweepName(cls)} for {total} -> tokens {inv.Gold}");
+            ReconLog.Line($"sold {n} {SweepName(cls)} for {total} gold");
             Rebuild();
             BagPanel.Refresh();
         }
@@ -934,9 +907,9 @@ namespace LootOverhaul.Loot
             if (live.Locked) { BagManager.Toast(live.IsBound ? Enchanting.LockedReason(live) : "Locked."); return; }
             var price = SellPrice(live);
             inv.Remove(live.Id);
-            inv.Gold += price;
             inv.Save();
-            ReconLog.Line($"sold {live.Name} for {price} -> tokens {inv.Gold}");
+            Wallet.Pay(price, $"sold {live.Name}");
+            ReconLog.Line($"sold {live.Name} for {price} gold");
             Rebuild();
             BagPanel.Refresh();
         }

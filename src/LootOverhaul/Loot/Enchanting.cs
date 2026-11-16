@@ -11,7 +11,7 @@ namespace LootOverhaul.Loot
     /// The enchanting table, on the game's own "manual" weapon module: a module that carries
     /// chosen perks, an element and a damage figure explicitly (the mythic path uses it; the
     /// game networks it as 11 values). Enchanting a bag weapon writes a new manual record
-    /// with one more perk or an element, for tokens alone (0.9.15; until then a curio or
+    /// with one more perk or an element, for gold alone (0.9.15; until then a curio or
     /// artifact from the junk pile was consumed too, and the price was half). An equipped
     /// weapon may be enchanted in place: the new record takes its slot and goes into the
     /// hand at once. Slots by rarity: Common 1, Unique, Rare and Legendary 2 (the game keeps two perks).
@@ -65,7 +65,7 @@ namespace LootOverhaul.Loot
 
         private static readonly int[] LootBase = { 300, 600, 1200, 2400 };
         // Stock weapons and de-enchanting (0.12.0) are priced against what a run earns now that
-        // tokens come only from the end-screen payout and chest armor: about 1,300 tokens for a
+        // tokens came only from the end-screen payout and chest armor: about 1,300 tokens for a
         // typical solo run that keeps its Legendary (see the 0.12.0 CHANGELOG entry). One stock
         // enchantment is half a run (Common) to three runs (Legendary); removing one is 40% of that.
         private static readonly int[] StockBase = { 200, 400, 800, 1600 };
@@ -76,7 +76,7 @@ namespace LootOverhaul.Loot
             => Math.Max(1, (int)Math.Round(table[Math.Max(0, Math.Min(3, cls))] * ModConfig.ShopPriceMultiplier.Value * Math.Max(0f, mult)));
 
         /// <summary>
-        /// Token cost of one enchantment by rarity. Loot: the 0.9.14 price doubled, since the reagent
+        /// Gold cost of one enchantment by rarity. Loot: the 0.9.14 price doubled, since the reagent
         /// (a curio or artifact from the junk pile) is no longer consumed, times the shop multiplier
         /// and <c>EnchantCostMultiplier</c>: 750 / 1,500 / 3,000 / 6,000 at the defaults. A stock
         /// weapon (bound or not yet): <see cref="StockPrice"/>.
@@ -96,7 +96,7 @@ namespace LootOverhaul.Loot
 
         /// <summary>
         /// Taking off a third perk that never worked (see <see cref="IsInactive"/>) is free, with no
-        /// tokens back.
+        /// gold back.
         /// </summary>
         public static int RemovePrice(LootItem item, int perkId) => IsInactive(item, perkId) ? 0 : DisenchantPrice(item);
 
@@ -356,7 +356,7 @@ namespace LootOverhaul.Loot
                 slot = inv.EquippedSlotOf(live);
             }
             ReadRolledPerks(live);
-            if (inv.Gold < price) { BagManager.Toast($"That costs {price} tokens; you have {inv.Gold}."); return null; }
+            if (!Wallet.CanAfford(price)) { BagManager.Toast($"That costs {UiKit.Money(price)}; you have {UiKit.Number(Wallet.Balance)}."); return null; }
 
             var next = Clone(live);
             var err = mutate(next);
@@ -366,10 +366,10 @@ namespace LootOverhaul.Loot
             {
                 // A flag on the record only: changed in place, same id and GUID, so nothing is retired.
                 if (live.IsBound && AtBase(next)) return ReturnToStock(live, price, verb, what, mutate, newModule);
+                if (!Wallet.TrySpend(price, "That")) return null;
                 mutate(live);
-                inv.Gold -= price;
                 inv.Save();
-                Core.Log.Msg($"Enchanting: {verb} {live.Name} {what}; paid {price} -> {inv.Gold} tokens{(live.IsBound ? " (stock)" : "")}");
+                Core.Log.Msg($"Enchanting: {verb} {live.Name} {what}; paid {price} gold{(live.IsBound ? " (stock)" : "")}");
                 BagPanel.Refresh();
                 return live;
             }
@@ -405,14 +405,14 @@ namespace LootOverhaul.Loot
             }
             catch (Exception e) { BagManager.Toast("That enchantment didn't take."); Core.Log.Warning($"Enchanting: {verb} failed: {e.GetType().Name}: {e.Message}"); return null; }
 
-            inv.Gold -= price;
+            if (!Wallet.TrySpend(price, "That")) return null;
             if (next.IsBound) { next.Locked = true; next.Weight = 0f; }
             if (inBag) inv.Remove(live.Id);            // clears its loadout slot and retires the old GUID
             inv.Items.Add(next);
             inv.Save();
             var origin = inBag ? (live.IsBound ? "stock (bound)" : "bag") : "stock, now bound: the armory copy is hidden";
             Core.Log.Msg($"Enchanting: {verb} {live.Name} {what} -> {next.Name} [{next.ModuleName}] perks {next.PerkA}/{next.PerkB}/{next.PerkC} element {next.DamageType}; " +
-                         $"paid {price} -> {inv.Gold} tokens; {origin}; slot {(slot >= 0 ? Loadout.SlotNames[slot] : "none")}");
+                         $"paid {price} gold; {origin}; slot {(slot >= 0 ? Loadout.SlotNames[slot] : "none")}");
             // The armory rebuilt its lists when the old record left; the new one is in the bag now.
             try { FabricatorBridge.RefreshArmories($"{next.Name} {verb}ed"); } catch { }
             if (slot >= 0) Loadout.Set(slot, next, apply: true);
@@ -474,11 +474,11 @@ namespace LootOverhaul.Loot
                 // Carry on as an ordinary change on a loot weapon.
                 return Rework(live, price, verb, what, mutate, newModule);
             }
-            inv.Gold -= price;
+            if (!Wallet.TrySpend(price, "That")) return null;
             var slot = inv.EquippedSlotOf(live);
             inv.Remove(live.Id);
             inv.Save();
-            Core.Log.Msg($"Enchanting: {verb} {live.Name} {what} -> back to stock: bound record removed, armory weapon `{live.StockGuid}` shown again; paid {price} -> {inv.Gold} tokens; slot {(slot >= 0 ? Loadout.SlotNames[slot] : "none")}");
+            Core.Log.Msg($"Enchanting: {verb} {live.Name} {what} -> back to stock: bound record removed, armory weapon `{live.StockGuid}` shown again; paid {price} gold; slot {(slot >= 0 ? Loadout.SlotNames[slot] : "none")}");
             BagManager.Toast($"{live.ColoredName} is back in your armory as it was.");
             try { FabricatorBridge.RefreshArmories($"{live.Name} back to stock"); } catch { }
             if (slot >= 0) Loadout.ApplyVanilla(slot);
