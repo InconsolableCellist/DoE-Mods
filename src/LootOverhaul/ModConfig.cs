@@ -105,7 +105,7 @@ namespace LootOverhaul
             Shop = MelonPreferences.CreateCategory("LootOverhaul_Shop");
             ShopPriceMultiplier = Shop.CreateEntry("ShopPriceMultiplier", 2.5f, description: "Scales every kobold price: tonics, bag upgrades, enchanting and armor upgrades. Prices are in the game's own gold.");
             SellMultiplier = Shop.CreateEntry("SellMultiplier", 0.5f, description: "Gold per point of an item's value when you sell it to the kobold (or a bag weapon at the armory).");
-            EnchantCostMultiplier = Shop.CreateEntry("EnchantCostMultiplier", 1.0f, description: "Enchanting price on top of ShopPriceMultiplier: 1,000 / 2,000 / 4,000 / 8,000 gold by rarity at the defaults, the same for bag and armory weapons.");
+            EnchantCostMultiplier = Shop.CreateEntry("EnchantCostMultiplier", 1.0f, description: "Enchanting price on top of ShopPriceMultiplier: 8,000 gold for any weapon at the defaults.");
             ArmorUpgradeCostMultiplier = Shop.CreateEntry("ArmorUpgradeCostMultiplier", 1.0f, description: "Armor upgrade price on top of ShopPriceMultiplier. Every +1% costs 750 / 1,500 / 3,000 / 6,000 gold by rarity at the defaults.");
             DisenchantCostMultiplier = Shop.CreateEntry("DisenchantCostMultiplier", 1.0f, description: "Multiplier on the price of removing one perk, the element or Boomerang, which is half the price of adding one to that weapon: 4,000 gold on a Legendary at the defaults.");
             BoomerangCostMultiplier = Shop.CreateEntry("BoomerangCostMultiplier", 1.0f, description: "Price of the Boomerang enchantment as a multiple of one enchantment on that weapon. Removing it costs the de-enchant price.");

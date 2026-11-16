@@ -9,7 +9,7 @@ New kobold prices for gold.
 
 ### Changed
 - **Tonics** cost 300 / 750 / 1,500 gold for Minor / Major / Grand (were 200 / 600 / 2,000), the Light Potion too.
-- **Enchanting costs the same on a bag weapon and an armory weapon**: 1,000 / 2,000 / 4,000 / 8,000 gold for Common / Unique / Rare / Legendary (bag weapons were 750 to 6,000, armory weapons 500 to 4,000). Taking a perk, the element or Boomerang off is half: 500 / 1,000 / 2,000 / 4,000. Boomerang costs one enchantment.
+- **Enchanting costs a flat 8,000 gold** on any weapon, whatever its rarity and whether it is a bag or an armory weapon (bag weapons were 750 to 6,000 by rarity, armory weapons 500 to 4,000). Taking a perk, the element or Boomerang off is half: 4,000. Boomerang costs one enchantment.
 - Armor upgrades and bag upgrades are unchanged.
 
 ### Removed

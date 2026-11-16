@@ -64,24 +64,24 @@ namespace LootOverhaul.Loot
         public static bool IsInactive(LootItem item, int perkId) => perkId > 0 && item.PerkC == perkId && item.PerkA > 0 && item.PerkB > 0;
 
         /// <summary>
-        /// 0.15.1: one table for every weapon, from the bag or the armory alike, by rarity.
-        /// × ShopPriceMultiplier (2.5) = 1,000 / 2,000 / 4,000 / 8,000 gold at the defaults.
+        /// 0.15.1: one enchantment costs the same on every weapon, whatever its rarity and whether it
+        /// came from the bag or the armory. 3,200 × ShopPriceMultiplier (2.5) = 8,000 gold at the defaults.
         /// </summary>
-        private static readonly int[] EnchantBase = { 400, 800, 1600, 3200 };
+        private const int EnchantBase = 3200;
         /// <summary>Taking one perk, the element or Boomerang off costs half of adding one (0.13.2).</summary>
         public const float DisenchantShare = 0.5f;
 
         /// <summary>
-        /// Gold cost of one enchantment by rarity: <see cref="EnchantBase"/> × ShopPriceMultiplier ×
-        /// <c>EnchantCostMultiplier</c>, 1,000 / 2,000 / 4,000 / 8,000 at the defaults. The same on a
-        /// bag weapon and an armory weapon (0.15.1; armory weapons were cheaper).
+        /// Gold cost of one enchantment: <see cref="EnchantBase"/> × ShopPriceMultiplier ×
+        /// <c>EnchantCostMultiplier</c>, 8,000 at the defaults, on any weapon (0.15.1; was by rarity,
+        /// and cheaper on armory weapons).
         /// </summary>
         public static int Price(LootItem item)
-            => Math.Max(1, (int)Math.Round(EnchantBase[Math.Max(0, Math.Min(3, item.WeaponClass))] * ModConfig.ShopPriceMultiplier.Value * Math.Max(0f, ModConfig.EnchantCostMultiplier.Value)));
+            => Math.Max(1, (int)Math.Round(EnchantBase * ModConfig.ShopPriceMultiplier.Value * Math.Max(0f, ModConfig.EnchantCostMultiplier.Value)));
 
         /// <summary>
         /// Removing one perk, the element or Boomerang: half the price of adding one (0.13.2), times
-        /// <c>DisenchantCostMultiplier</c>: 500 / 1,000 / 2,000 / 4,000 gold at the defaults.
+        /// <c>DisenchantCostMultiplier</c>: 4,000 gold at the defaults.
         /// </summary>
         public static int DisenchantPrice(LootItem item)
             => Math.Max(1, (int)Math.Round(Price(item) * DisenchantShare * Math.Max(0f, ModConfig.DisenchantCostMultiplier.Value)));

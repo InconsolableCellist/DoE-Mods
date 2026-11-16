@@ -38,11 +38,9 @@ LootOverhaul inert for the whole room, by design.
 
 ## 0.15.1 — gold prices
 
-| | Common / Minor | Unique / Major | Rare / Grand | Legendary |
-|---|---|---|---|---|
-| Tonic (Light Potion too) | 300 | 750 | 1,500 | |
-| Enchant, bag or armory weapon (Boomerang too) | 1,000 | 2,000 | 4,000 | 8,000 |
-| Take a perk, the element or Boomerang off | 500 | 1,000 | 2,000 | 4,000 |
+- **Tonics** (the Light Potion too): 300 / 750 / 1,500 gold for Minor / Major / Grand.
+- **Enchanting**: a flat 8,000 gold per perk, element or Boomerang, on any weapon of any rarity,
+  bag or armory. Taking one off costs 4,000.
 
 Armor and bag upgrades are unchanged. `StockEnchantCostMultiplier` is gone; `EnchantCostMultiplier`
 scales every enchantment.
