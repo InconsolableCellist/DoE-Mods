@@ -65,15 +65,15 @@ namespace LootOverhaul.Loot
 
         /// <summary>
         /// 0.15.1: one enchantment costs the same on every weapon, whatever its rarity and whether it
-        /// came from the bag or the armory. 3,200 × ShopPriceMultiplier (2.5) = 8,000 gold at the defaults.
+        /// came from the bag or the armory. 8,000 × ShopPriceMultiplier (2.5) = 20,000 gold at the defaults.
         /// </summary>
-        private const int EnchantBase = 3200;
+        private const int EnchantBase = 8000;
         /// <summary>Taking one perk, the element or Boomerang off costs half of adding one (0.13.2).</summary>
         public const float DisenchantShare = 0.5f;
 
         /// <summary>
         /// Gold cost of one enchantment: <see cref="EnchantBase"/> × ShopPriceMultiplier ×
-        /// <c>EnchantCostMultiplier</c>, 8,000 at the defaults, on any weapon (0.15.1; was by rarity,
+        /// <c>EnchantCostMultiplier</c>, 20,000 at the defaults, on any weapon (0.15.1; was by rarity,
         /// and cheaper on armory weapons).
         /// </summary>
         public static int Price(LootItem item)
@@ -81,7 +81,7 @@ namespace LootOverhaul.Loot
 
         /// <summary>
         /// Removing one perk, the element or Boomerang: half the price of adding one (0.13.2), times
-        /// <c>DisenchantCostMultiplier</c>: 4,000 gold at the defaults.
+        /// <c>DisenchantCostMultiplier</c>: 10,000 gold at the defaults.
         /// </summary>
         public static int DisenchantPrice(LootItem item)
             => Math.Max(1, (int)Math.Round(Price(item) * DisenchantShare * Math.Max(0f, ModConfig.DisenchantCostMultiplier.Value)));

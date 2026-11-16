@@ -34,7 +34,7 @@ namespace LootOverhaul.Loot
         public static readonly Buffs.Def Def = new Buffs.Def
         {
             Stat = Stat, Name = "Light Potion", Flavor = "light around you", Short = "light",
-            Mults = new[] { 6f, 9f, 13f }, Prices = new[] { 120, 300, 600 },
+            Mults = new[] { 6f, 9f, 13f }, Prices = new[] { 160, 400, 800 },
         };
 
         /// <summary>Share of trinket drops in a crypt (dark) dungeon that are a Minor Light Potion instead.</summary>

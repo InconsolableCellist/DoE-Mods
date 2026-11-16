@@ -11,8 +11,8 @@ namespace LootOverhaul.Loot
         public static int Bought;
 
         /// <summary>
-        /// A tonic's asking price in gold: the catalogue price × ShopPriceMultiplier (300 / 750 /
-        /// 1,500 at the defaults). Tonics are brewed to order for the next run, see <see cref="PreparedTonics"/>.
+        /// A tonic's asking price in gold: the catalogue price × ShopPriceMultiplier (400 / 1,000 /
+        /// 2,000 at the defaults). Tonics are brewed to order for the next run, see <see cref="PreparedTonics"/>.
         /// </summary>
         public static int TonicPrice(Buffs.Def def, int tier) => (int)Math.Round(def.Prices[Math.Max(0, Math.Min(2, tier))] * ModConfig.ShopPriceMultiplier.Value);
     }
