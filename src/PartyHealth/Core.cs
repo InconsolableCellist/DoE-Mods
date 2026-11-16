@@ -65,7 +65,10 @@ namespace PartyHealth
                 }
                 else if (Hotkeys.Pressed(UnityEngine.InputSystem.Key.K))
                 {
-                    MelonPreferences.Load();
+                    // Only this mod's own sections: MelonPreferences.Load() reloaded every mod's
+                    // settings, and a gated mod (HazardTweaks) could fall out of step with its friends.
+                    ModConfig.Main.LoadFromFile(false);
+                    ModConfig.Dev.LoadFromFile(false);
                     LoggerInstance.Msg("Settings reloaded from MelonPreferences.cfg.");
                 }
             }

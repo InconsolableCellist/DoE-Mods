@@ -4,6 +4,8 @@
 
 **Your own health, in view.** While you are below 100%, a thin red arc sits low in your view at 31.5° below centre, just under StayPutVR's heal-shield arc (28°), drawn the same way: a mesh parented to the camera and drawn over everything. The bright part is your health, centred and shrinking from both ends, over a dim track; it pulses below 25% and fades 1.5 s after you are back to full. It reads only the local avatar's `normalizedHP` and sends nothing. New settings: `SelfHealthArc`, `SelfHealthArcOpacity`, `SelfHealthArcHoldSeconds`. H hides it with the bars.
 
+**Performance.** The arc's shape is built once; per frame only its colours can change, written into one kept array and uploaded only when health or opacity changed enough to see. Before, every frame rebuilt all 194 vertices, created two new Il2Cpp arrays and recomputed the bounds. K now reloads only PartyHealth's own settings instead of every mod's.
+
 ## 0.1.3 — 2026-11-11 (performance)
 
 **Bars are kept instead of rebuilt.** A bar that faded out at full health was destroyed and built again on the next hit (six objects, two materials, three labels), and each label's draw-on-top material copy was never freed. A faded bar is now hidden and reused; it is destroyed only when the friend leaves. All labels share one draw-on-top material.
