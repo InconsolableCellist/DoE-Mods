@@ -3,6 +3,11 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.15.2 (2026-11-16)
+
+### Fixed
+- **The kobold showed 0 gold, so nothing could be bought.** The profile hands the gold back as an Il2Cpp box, and its managed `ToString()` did not give the number, so every read came out 0. It is now unboxed by its Il2Cpp type (Int32, Int64, Single, Double, else the game's `Convert.ToInt64`). If that still reads 0, the character's own key (`C1Coins` ... `C4Coins`) is tried. The first read logs what the profile returned (`Wallet: gold is stored as ...`).
+
 ## 0.15.1 (2026-11-16)
 
 New kobold prices for gold.
