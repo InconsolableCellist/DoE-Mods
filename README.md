@@ -50,7 +50,7 @@ The [INSTALL.md](INSTALL.md) walks through the steps in more detail.
 | [LootOverhaul](src/LootOverhaul/README.md) | 0.14.3 | Yes |
 | [VisualCues](src/VisualCues/README.md) | 0.1.6 | No |
 | [Descent](src/Descent/README.md) | 0.1.1 | Yes |
-| [StayPutVR](src/StayPutVR/README.md) | 0.5.5 | No |
+| [StayPutVR](src/StayPutVR/README.md) | 0.5.6 | No |
 | [PartyHealth](src/PartyHealth/README.md) | 0.2.0 | No |
 | [HazardTweaks](src/HazardTweaks/README.md) | 0.1.0 | Yes (same settings) |
 

@@ -1,5 +1,12 @@
 # StayPutVR changelog
 
+## 0.5.6 — 2026-11-16 (untested in the headset)
+
+**Fixes for shocks that never came.**
+- **Dying again after a revive shocks again.** Being down was only forgotten on a hit taken standing or on a scene change, so if the first hit after a revive put you down again it was held as "already down; one shock per death". A revive now clears it.
+- **A refused bite no longer swallows the next hit.** The bite's own damage opens a 0.5 s window so it does not shock twice. When the game refused that damage (invulnerable, already down), the window stayed open and the next real hit in it was ignored. The window now closes as soon as the bite's damage call returns. A killing bite now also counts as the death, so hits while you lie down after it are held as they should be.
+- **No parameter stays latched on.** Two shocks on different parameters within the release time (a mimic wake or a bite, then the killing blow) overwrote the first one's release, so that parameter stayed on in the app. The first release is now sent before the second shock.
+
 ## 0.5.5 — 2026-11-15 (untested in the headset)
 
 **Waking a mimic shocks you, once.** Turning a key in a mimic's lock or touching it with your weapon wakes it, and fires one shock for the player who did it, at `MimicShockStrength` (default 1, the full max set in the app) on `MimicPath` (empty = `ShockPath`; give it its own parameter to set its own intensity and duration in the app). The game never records who woke a mimic, so both actions are hooked on the PC where they happen and count only when the key or weapon is yours: other players near the mimic are not shocked. Once per mimic, and only a live, closed one. After that the mimic shocks nobody: hits of damage type `Mimic` are held while `MimicShock` is on, the game removes the wake trigger so hitting it does nothing, and looting a dead one does not count. Only the arm switch holds the wake shock; it goes past the cooldown and `MaxPerMinute` like the killing blow. `MimicShock = false` turns all of this off and the mimic's attacks shock as before.

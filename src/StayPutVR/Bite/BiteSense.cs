@@ -229,8 +229,14 @@ namespace StayPutVR.Bite
             }
             catch (Exception e)
             {
-                ShockPolicy.ClearSuppression();
                 ShockLog.Line($"bite from actor {fromActor}: OnDamaged threw {e.GetType().Name}: {e.Message}");
+            }
+            finally
+            {
+                // OnDamaged runs synchronously. If the game applied the bite, our postfix has already
+                // used the window; if it refused it (invulnerable, already down), the window must not
+                // swallow the next real hit.
+                ShockPolicy.ClearSuppression();
             }
         }
 
