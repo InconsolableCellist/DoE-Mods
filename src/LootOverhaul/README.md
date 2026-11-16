@@ -1,4 +1,4 @@
-# LootOverhaul 0.15.0 — building
+# LootOverhaul 0.15.1 — building
 
 A second, independent MelonLoader mod for Dungeons of Eternity. Design and game-internals
 findings: [docs/LOOT-OVERHAUL.md](../../docs/LOOT-OVERHAUL.md).
@@ -35,6 +35,17 @@ Both prefixes coexist: Harmony chains them and each mod ignores the other's code
 gate rule is the same: private room, every occupant on the identical version and DLL hash of
 *this* mod, own self-checksum OK. A friend running CustomAvatars but not LootOverhaul keeps
 LootOverhaul inert for the whole room, by design.
+
+## 0.15.1 — gold prices
+
+| | Common / Minor | Unique / Major | Rare / Grand | Legendary |
+|---|---|---|---|---|
+| Tonic (Light Potion too) | 300 | 750 | 1,500 | |
+| Enchant, bag or armory weapon (Boomerang too) | 1,000 | 2,000 | 4,000 | 8,000 |
+| Take a perk, the element or Boomerang off | 500 | 1,000 | 2,000 | 4,000 |
+
+Armor and bag upgrades are unchanged. `StockEnchantCostMultiplier` is gone; `EnchantCostMultiplier`
+scales every enchantment.
 
 ## 0.15.0 — the kobold takes gold, no more tokens
 
@@ -158,7 +169,7 @@ longer exist.
 | `[LootOverhaul_Goblin]` | `GoblinDropsEnabled`, `GoblinDrops` (2), `GoblinGuaranteedClass` (1 = Unique), `GoblinDropsScaleWithPlayers`, `LootGoblinScale` (1.1) |
 | `[LootOverhaul_FloorLoot]` | `DropBeams` (off), `BeamMinClass` (2 = Rare), `DropLabels` (off / hover / always), `DropSparkles`, `DropSound` (start / finish / collected / off) |
 | `[LootOverhaul_Bag]` | `BagWeightCapacity` (30), `BagGesture` (stick-hold / back-grip / off), `AutoPickup` (off) |
-| `[LootOverhaul_Shop]` | `ShopPriceMultiplier` (2.5), `SellMultiplier` (0.5), `EnchantCostMultiplier`, `StockEnchantCostMultiplier`, `DisenchantCostMultiplier`, `BoomerangCostMultiplier`, `ArmorUpgradeCostMultiplier`, `LoadoutEnabled` |
+| `[LootOverhaul_Shop]` | `ShopPriceMultiplier` (2.5), `SellMultiplier` (0.5), `EnchantCostMultiplier`, `DisenchantCostMultiplier`, `BoomerangCostMultiplier`, `ArmorUpgradeCostMultiplier`, `LoadoutEnabled` |
 | `[LootOverhaul_Boomerang]` | `BoomerangTrigger` (both / apex / pull / off), `BoomerangPullSpeed` (1.5 m/s) |
 | `[LootOverhaul_RunPanel]` | `RunPanelEnabled` and the run panel's position (0.15.0) |
 | `[LootOverhaul_Booth]` | the booth's position, set by pressing = in the lobby |

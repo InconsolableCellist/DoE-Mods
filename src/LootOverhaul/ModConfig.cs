@@ -36,7 +36,7 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<bool> AutoPickup;
 
         public static MelonPreferences_Entry<float> ShopPriceMultiplier, SellMultiplier, EnchantCostMultiplier, ArmorUpgradeCostMultiplier,
-            StockEnchantCostMultiplier, DisenchantCostMultiplier, BoomerangCostMultiplier;
+            DisenchantCostMultiplier, BoomerangCostMultiplier;
         public static MelonPreferences_Entry<bool> LoadoutEnabled;
 
         public static MelonPreferences_Entry<string> BoomerangTrigger;
@@ -105,11 +105,10 @@ namespace LootOverhaul
             Shop = MelonPreferences.CreateCategory("LootOverhaul_Shop");
             ShopPriceMultiplier = Shop.CreateEntry("ShopPriceMultiplier", 2.5f, description: "Scales every kobold price: tonics, bag upgrades, enchanting and armor upgrades. Prices are in the game's own gold.");
             SellMultiplier = Shop.CreateEntry("SellMultiplier", 0.5f, description: "Gold per point of an item's value when you sell it to the kobold (or a bag weapon at the armory).");
-            EnchantCostMultiplier = Shop.CreateEntry("EnchantCostMultiplier", 1.0f, description: "Enchanting price on top of ShopPriceMultiplier.");
+            EnchantCostMultiplier = Shop.CreateEntry("EnchantCostMultiplier", 1.0f, description: "Enchanting price on top of ShopPriceMultiplier: 1,000 / 2,000 / 4,000 / 8,000 gold by rarity at the defaults, the same for bag and armory weapons.");
             ArmorUpgradeCostMultiplier = Shop.CreateEntry("ArmorUpgradeCostMultiplier", 1.0f, description: "Armor upgrade price on top of ShopPriceMultiplier. Every +1% costs 750 / 1,500 / 3,000 / 6,000 gold by rarity at the defaults.");
-            StockEnchantCostMultiplier = Shop.CreateEntry("StockEnchantCostMultiplier", 1.0f, description: "Price of one enchantment on a stock (armory) weapon, on top of ShopPriceMultiplier. 500 / 1,000 / 2,000 / 4,000 gold by rarity at the defaults.");
-            DisenchantCostMultiplier = Shop.CreateEntry("DisenchantCostMultiplier", 1.0f, description: "Multiplier on the price of removing one perk, the element or Boomerang, which is half the price of adding one to that weapon: 3,000 gold on a Legendary bag weapon at the defaults.");
-            BoomerangCostMultiplier = Shop.CreateEntry("BoomerangCostMultiplier", 1.0f, description: "Price of the Boomerang enchantment as a multiple of one enchantment on that weapon (stock or loot price). Removing it costs the de-enchant price.");
+            DisenchantCostMultiplier = Shop.CreateEntry("DisenchantCostMultiplier", 1.0f, description: "Multiplier on the price of removing one perk, the element or Boomerang, which is half the price of adding one to that weapon: 4,000 gold on a Legendary at the defaults.");
+            BoomerangCostMultiplier = Shop.CreateEntry("BoomerangCostMultiplier", 1.0f, description: "Price of the Boomerang enchantment as a multiple of one enchantment on that weapon. Removing it costs the de-enchant price.");
             LoadoutEnabled = Shop.CreateEntry("LoadoutEnabled", true, description: "Keep the loadout picked at the booth in your holsters.");
 
             BoomerangCat = MelonPreferences.CreateCategory("LootOverhaul_Boomerang");
@@ -178,13 +177,13 @@ namespace LootOverhaul
 
         /// <summary>
         /// 0.15.0: no tokens and no weapon stock. [LootOverhaul_Tokens], [LootOverhaul_TokenPanel],
-        /// ShopSlots and ShopRefreshMinutes are taken out of files that still hold them.
+        /// ShopSlots and ShopRefreshMinutes (and, since 0.15.1, StockEnchantCostMultiplier) are taken out of files that still hold them.
         /// </summary>
         private static void RemoveTokenSettings(Dictionary<string, Dictionary<string, string>> old)
         {
             var changed = false;
             if (old.TryGetValue("LootOverhaul_Shop", out var shop))
-                foreach (var key in new[] { "ShopSlots", "ShopRefreshMinutes" })
+                foreach (var key in new[] { "ShopSlots", "ShopRefreshMinutes", "StockEnchantCostMultiplier" })
                     if (shop.ContainsKey(key)) { Shop.CreateEntry(key, 0); changed |= SafeDelete(Shop, key); }
             var path = Path.Combine(MelonEnvironment.UserDataDirectory, "MelonPreferences.cfg");
             foreach (var cat in new[] { "LootOverhaul_Tokens", "LootOverhaul_TokenPanel" })

@@ -28,7 +28,7 @@ namespace LootOverhaul.Loot
             public string Flavor;    // what it does, plainly
             public string Short;     // the same in two or three words, for comparison lines
             public float[] Mults = { 1.05f, 1.10f, 1.15f };   // 0.15.0: 5 / 10 / 15% (was 15 / 30 / 50%)
-            public int[] Prices = { 80, 240, 800 };
+            public int[] Prices = { 120, 300, 600 };   // 0.15.1: × ShopPriceMultiplier 2.5 = 300 / 750 / 1,500 gold
             public float Weight = 0.4f;
             public bool Invert;
             /// <summary>

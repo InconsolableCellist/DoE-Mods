@@ -63,33 +63,25 @@ namespace LootOverhaul.Loot
         /// </summary>
         public static bool IsInactive(LootItem item, int perkId) => perkId > 0 && item.PerkC == perkId && item.PerkA > 0 && item.PerkB > 0;
 
-        private static readonly int[] LootBase = { 300, 600, 1200, 2400 };
-        // Stock weapons and de-enchanting (0.12.0) are priced against what a run earns now that
-        // tokens came only from the end-screen payout and chest armor: about 1,300 tokens for a
-        // typical solo run that keeps its Legendary (see the 0.12.0 CHANGELOG entry). One stock
-        // enchantment is half a run (Common) to three runs (Legendary); removing one is 40% of that.
-        private static readonly int[] StockBase = { 200, 400, 800, 1600 };
-        /// <summary>Taking one perk, the element or Boomerang off costs half of adding one to that weapon (0.13.2).</summary>
+        /// <summary>
+        /// 0.15.1: one table for every weapon, from the bag or the armory alike, by rarity.
+        /// × ShopPriceMultiplier (2.5) = 1,000 / 2,000 / 4,000 / 8,000 gold at the defaults.
+        /// </summary>
+        private static readonly int[] EnchantBase = { 400, 800, 1600, 3200 };
+        /// <summary>Taking one perk, the element or Boomerang off costs half of adding one (0.13.2).</summary>
         public const float DisenchantShare = 0.5f;
 
-        private static int Scaled(int[] table, int cls, float mult)
-            => Math.Max(1, (int)Math.Round(table[Math.Max(0, Math.Min(3, cls))] * ModConfig.ShopPriceMultiplier.Value * Math.Max(0f, mult)));
-
         /// <summary>
-        /// Gold cost of one enchantment by rarity. Loot: the 0.9.14 price doubled, since the reagent
-        /// (a curio or artifact from the junk pile) is no longer consumed, times the shop multiplier
-        /// and <c>EnchantCostMultiplier</c>: 750 / 1,500 / 3,000 / 6,000 at the defaults. A stock
-        /// weapon (bound or not yet): <see cref="StockPrice"/>.
+        /// Gold cost of one enchantment by rarity: <see cref="EnchantBase"/> × ShopPriceMultiplier ×
+        /// <c>EnchantCostMultiplier</c>, 1,000 / 2,000 / 4,000 / 8,000 at the defaults. The same on a
+        /// bag weapon and an armory weapon (0.15.1; armory weapons were cheaper).
         /// </summary>
-        public static int Price(LootItem item) => item.IsBound ? StockPrice(item.WeaponClass) : Scaled(LootBase, item.WeaponClass, ModConfig.EnchantCostMultiplier.Value);
-
-        /// <summary>One enchantment on a stock (armory) weapon: 500 / 1,000 / 2,000 / 4,000 at the defaults.</summary>
-        public static int StockPrice(int weaponClass) => Scaled(StockBase, weaponClass, ModConfig.StockEnchantCostMultiplier.Value);
+        public static int Price(LootItem item)
+            => Math.Max(1, (int)Math.Round(EnchantBase[Math.Max(0, Math.Min(3, item.WeaponClass))] * ModConfig.ShopPriceMultiplier.Value * Math.Max(0f, ModConfig.EnchantCostMultiplier.Value)));
 
         /// <summary>
-        /// Removing one perk, the element or Boomerang: half the price of adding one to that weapon
-        /// (0.13.2), times <c>DisenchantCostMultiplier</c>. Bag weapons 375 / 750 / 1,500 / 3,000,
-        /// armory weapons 250 / 500 / 1,000 / 2,000 at the defaults. Was a table of its own (200 to 1,600).
+        /// Removing one perk, the element or Boomerang: half the price of adding one (0.13.2), times
+        /// <c>DisenchantCostMultiplier</c>: 500 / 1,000 / 2,000 / 4,000 gold at the defaults.
         /// </summary>
         public static int DisenchantPrice(LootItem item)
             => Math.Max(1, (int)Math.Round(Price(item) * DisenchantShare * Math.Max(0f, ModConfig.DisenchantCostMultiplier.Value)));

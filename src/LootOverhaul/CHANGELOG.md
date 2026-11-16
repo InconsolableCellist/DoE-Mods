@@ -3,6 +3,18 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.15.1 (2026-11-16)
+
+New kobold prices for gold.
+
+### Changed
+- **Tonics** cost 300 / 750 / 1,500 gold for Minor / Major / Grand (were 200 / 600 / 2,000), the Light Potion too.
+- **Enchanting costs the same on a bag weapon and an armory weapon**: 1,000 / 2,000 / 4,000 / 8,000 gold for Common / Unique / Rare / Legendary (bag weapons were 750 to 6,000, armory weapons 500 to 4,000). Taking a perk, the element or Boomerang off is half: 500 / 1,000 / 2,000 / 4,000. Boomerang costs one enchantment.
+- Armor upgrades and bag upgrades are unchanged.
+
+### Removed
+- `StockEnchantCostMultiplier` (there is no separate armory price any more); it is removed from settings files that hold it. `EnchantCostMultiplier` scales every enchantment.
+
 ## 0.15.0 (2026-11-16)
 
 The kobold moves to the game's own gold. Tokens, the weapon stock and the token payout are gone.
