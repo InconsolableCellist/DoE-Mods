@@ -1,4 +1,4 @@
-# PartyHealth 0.2.0
+# PartyHealth 0.2.1
 
 A mod for **Dungeons of Eternity** that puts a small, quiet health bar over each friend's head
 in a networked game, so you know who needs a potion or a rescue without asking.
@@ -15,6 +15,10 @@ Your friends need nothing installed: the game already tells every client what ha
 player's health, and this mod only listens. It sends nothing over the network, never touches
 your own avatar (beyond reading its health for your own arc), and does not affect your profile, character, progression or save games. The
 base game has no such option (its only health-bar setting is for bosses).
+
+## What's new in 0.2.1
+
+**Lighter own-health arc.** The arc is built once and only its colours are updated, and only when your health or its fade changes visibly; before, it was rebuilt every frame. K reloads only PartyHealth's settings.
 
 ## What's new in 0.2.0
 

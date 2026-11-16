@@ -64,8 +64,8 @@ namespace LootOverhaul.Loot
             Hooks.Patch(typeof(PlayerProfile), "IncrementCharacterData", Hooks.Of(t, nameof(Increment_Prefix)), null);
             // The armory's SALVAGE button (AvatarCustomizer.EV_Salvage, read from the assembly
             // 2026-09-08): RemoveUnlockedWeapon with the result ignored, UnequipWeapon, then
-            // IncrementCharacterData(Coins, salvage). For a bag weapon the removal is a sale for
-            // tokens (or refused when locked) and the coins never happen.
+            // IncrementCharacterData(Coins, salvage). For a bag weapon the removal is a sale at the
+            // kobold's price (or refused when locked) and the coins never happen.
             Hooks.Patch(typeof(AvatarCustomizer), "EV_Salvage", Hooks.Of(t, nameof(Salvage_Prefix)), Hooks.Of(t, nameof(Salvage_Postfix)));
             Hooks.Patch(typeof(AvatarCustomizer), "EV_SelectModule", null, Hooks.Of(t, nameof(SelectModule_Postfix)));
         }
@@ -98,14 +98,19 @@ namespace LootOverhaul.Loot
         private static void Trash_Postfix()
         {
             if (_trashingBagWeapon > 0) _trashingBagWeapon--;
-            _trashingRetired = false;
+            _trashingRetiredFrame = -1;
         }
 
-        private static bool _trashingRetired;
+        // The frame a stale (already gone) armory weapon was removed in. The game pays the salvage coins in
+        // the same call chain, so the refusal only holds in that frame: a flag (before 0.15.1) stayed set
+        // after a salvage and refused the next gold the game paid, run gold or a merchant sale.
+        private static int _trashingRetiredFrame = -1;
+        private static bool TrashingRetired => _trashingRetiredFrame == Time.frameCount;
 
         private static bool Increment_Prefix(PlayerData.CharacterValues __0, int __1, ref bool __result)
         {
             if (__0 != PlayerData.CharacterValues.Coins) return true;
+            if (Wallet.Paying) return true;   // the kobold paying its own price (0.15.0)
             if (_salvaging > 0 && _salvageItem != null)
             {
                 CoinsBlocked++;
@@ -113,7 +118,7 @@ namespace LootOverhaul.Loot
                 __result = true;
                 return false;
             }
-            if (_trashingBagWeapon <= 0 && !_trashingRetired) return true;
+            if (_trashingBagWeapon <= 0 && !TrashingRetired) return true;
             CoinsBlocked++;
             ReconLog.Line($"fabricator: refused IncrementCharacterData(Coins, {__1}) for a trashed bag weapon");
             BagManager.Toast("Trashed loot pays nothing here. The kobold buys shinies.");
@@ -180,21 +185,24 @@ namespace LootOverhaul.Loot
                     BagManager.Toast(_salvageItem.Locked ? Enchanting.LockedReason(_salvageItem) : $"{_salvageItem.ColoredName} is equipped. Unequip it first.");
                 _salvageItem = null;
                 _salvageRefused = false;
+                // A stale armory entry salvaged here sets this too; only the trash postfix cleared it,
+                // so after a salvage it stayed on and refused the next gold the game paid out.
+                _trashingRetiredFrame = -1;
             }
         }
 
-        /// <summary>The armory sold a bag weapon: tokens at the kobold's price, never coins.</summary>
+        /// <summary>The armory sold a bag weapon: gold at the kobold's price, never the game's salvage value.</summary>
         private static void SellFromArmory(LootItem item)
         {
             var inv = BagManager.Inventory;
             var price = Booth.SellPrice(item);
             inv.Remove(item.Id);
-            inv.Gold += price;
             inv.Save();
+            Wallet.Pay(price, $"armory sale of {item.Name}");
             ModuleCache.Remove(Norm(item.WeaponGuid));
             ArmorySales++;
-            BagManager.Toast($"Sold {item.ColoredName} for {UiKit.Paint(UiStyle.GoldHex, UiKit.Money(price))} (now {UiKit.Number(inv.Gold)})");
-            ReconLog.Line($"armory: sold bag weapon {item.Name} for {price} tokens -> {inv.Gold}; salvage coins will be refused");
+            BagManager.Toast($"Sold {item.ColoredName} for {UiKit.Paint(UiStyle.GoldHex, UiKit.Money(price))} (now {UiKit.Number(Wallet.Balance)})");
+            ReconLog.Line($"armory: sold bag weapon {item.Name} for {price} gold; the game's salvage gold is refused");
             BagPanel.Refresh(); Booth.Refresh();
         }
 
@@ -556,7 +564,7 @@ namespace LootOverhaul.Loot
                     // listed it. Nothing to remove, nothing to pay: the coins step is refused below.
                     Blocked++; RetiredBlocked++;
                     if (_salvaging > 0) { _salvageItem = new LootItem { Name = "(already gone)", Kind = "weapon" }; _salvageRefused = false; }
-                    _trashingRetired = true;
+                    _trashingRetiredFrame = Time.frameCount;
                     BagManager.Toast("That loot already left your bag. The armory list is stale until you reopen it.");
                     Core.Log.Msg($"armory: removal of an already-gone loot weapon refused ({Interop.OneLine(__0.GetDisplayName(false))}); coins will be refused");
                     RefreshArmoriesNow("stale entry used");
@@ -568,7 +576,7 @@ namespace LootOverhaul.Loot
                 {
                     // The armory's salvage button. The game ignores this result and pays coins next;
                     // the coins are refused either way (Increment_Prefix), and an unlocked weapon is
-                    // sold for tokens instead. A locked one stays in the bag; the pedestal forgets it
+                    // sold for the kobold's price instead. A locked one stays in the bag; the pedestal forgets it
                     // until its next refresh, nothing more.
                     _salvageItem = item;
                     if (item.Locked || BagManager.Inventory.InUse(item))
@@ -603,6 +611,6 @@ namespace LootOverhaul.Loot
             catch { return true; }
         }
 
-        public static string Describe() => $"injected {Injected} into the gear list, resolved {Resolved} holster lookups, {LoadoutWrites} loadout write(s) kept local, {Blocked} armory write(s) blocked, {CoinsBlocked} salvage coin write(s) refused, armory: {ArmorySales} sold for tokens, {ArmoryRefusals} locked refusal(s), {RetiredBlocked} stale-entry refusal(s), lists rebuilt {Refreshed}×";
+        public static string Describe() => $"injected {Injected} into the gear list, resolved {Resolved} holster lookups, {LoadoutWrites} loadout write(s) kept local, {Blocked} armory write(s) blocked, {CoinsBlocked} salvage coin write(s) refused, armory: {ArmorySales} sold at the kobold's price, {ArmoryRefusals} locked refusal(s), {RetiredBlocked} stale-entry refusal(s), lists rebuilt {Refreshed}×";
     }
 }

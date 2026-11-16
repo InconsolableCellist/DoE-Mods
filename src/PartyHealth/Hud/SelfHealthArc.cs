@@ -38,6 +38,15 @@ namespace PartyHealth.Hud
         private static bool _failed, _logged;
         private static readonly Vector3[] Verts = new Vector3[(Segments + 1) * 2];
         private static readonly Color[] Colors = new Color[(Segments + 1) * 2];
+        // Per segment edge, worked out once: where along the arc it sits (0..1) and how much the
+        // ends taper it. The shape never changes, so the vertices and bounds are set once too.
+        private static readonly float[] Along = new float[Segments + 1];
+        private static readonly float[] Taper = new float[Segments + 1];
+        // One Il2Cpp colour array kept for the session. Casting the managed array every frame built
+        // a new one each time (about 3 KB for the colours, as much again for the vertices).
+        private static Il2CppStructArray<Color> _colorsIl2;
+        // What the colours were last built for; the upload is skipped while nothing visible changed.
+        private static float _lastFraction = -1f, _lastOpacity = -1f;
 
         public static void Reset()
         {
@@ -136,10 +145,14 @@ namespace PartyHealth.Hud
                     tris[t + 6] = a; tris[t + 7] = b; tris[t + 8] = c;
                     tris[t + 9] = b; tris[t + 10] = d; tris[t + 11] = c;
                 }
+                BuildShape();
+                _colorsIl2 = new Il2CppStructArray<Color>(Colors.Length);
                 _mesh.vertices = (Il2CppStructArray<Vector3>)Verts;
-                _mesh.colors = (Il2CppStructArray<Color>)Colors;
+                _mesh.colors = _colorsIl2;
                 _mesh.triangles = (Il2CppStructArray<int>)tris;
+                _mesh.RecalculateBounds();
                 _mesh.hideFlags = HideFlags.DontUnloadUnusedAsset;
+                _lastFraction = -1f; _lastOpacity = -1f;
             }
 
             _go = new GameObject("PartyHealth_SelfArc");
@@ -160,12 +173,11 @@ namespace PartyHealth.Hud
             return true;
         }
 
-        private static void Shape(float fraction, float now)
+        /// <summary>The arc's fixed geometry: vertices, and each edge's place along the arc and taper.</summary>
+        private static void BuildShape()
         {
             var radius = Distance * Mathf.Tan(RingDegrees * Mathf.Deg2Rad);
             var half = HalfSpanDegrees * Mathf.Deg2Rad;
-            var opacity = Mathf.Clamp01(ModConfig.SelfHealthArcOpacity.Value) * _alpha;
-            var pulse = fraction < 0.25f ? 0.7f + 0.3f * Mathf.Sin(now * 8f) : 1f;
             for (var i = 0; i <= Segments; i++)
             {
                 var u = (float)i / Segments;
@@ -173,15 +185,35 @@ namespace PartyHealth.Hud
                 var dir = new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f);
                 Verts[i * 2] = dir * (radius - Thickness / 2f) + new Vector3(0f, 0f, Distance);
                 Verts[i * 2 + 1] = dir * (radius + Thickness / 2f) + new Vector3(0f, 0f, Distance);
-                var lit = Mathf.Abs(u - 0.5f) * 2f <= fraction;
-                var taper = Mathf.SmoothStep(0f, 1f, Mathf.Min(u, 1f - u) / 0.08f);
-                var c = lit ? new Color(Fill.r, Fill.g, Fill.b, opacity * pulse * taper) : new Color(Track.r, Track.g, Track.b, opacity * 0.45f * taper);
+                Along[i] = Mathf.Abs(u - 0.5f) * 2f;
+                Taper[i] = Mathf.SmoothStep(0f, 1f, Mathf.Min(u, 1f - u) / 0.08f);
+            }
+        }
+
+        /// <summary>
+        /// Colours only, and only when they would look different: health moved, or the opacity
+        /// (fade, pulse below a quarter, the setting) changed by more than one step of 8-bit colour.
+        /// At a steady health above a quarter, nothing is uploaded.
+        /// </summary>
+        private static void Shape(float fraction, float now)
+        {
+            var opacity = Mathf.Clamp01(ModConfig.SelfHealthArcOpacity.Value) * _alpha;
+            var pulse = fraction < 0.25f ? 0.7f + 0.3f * Mathf.Sin(now * 8f) : 1f;
+            var shown = opacity * pulse;
+            if (Mathf.Abs(fraction - _lastFraction) < 0.0005f && Mathf.Abs(shown - _lastOpacity) < 1f / 255f) return;
+            _lastFraction = fraction;
+            _lastOpacity = shown;
+            for (var i = 0; i <= Segments; i++)
+            {
+                var c = Along[i] <= fraction
+                    ? new Color(Fill.r, Fill.g, Fill.b, opacity * pulse * Taper[i])
+                    : new Color(Track.r, Track.g, Track.b, opacity * 0.45f * Taper[i]);
                 Colors[i * 2] = c;
                 Colors[i * 2 + 1] = c;
             }
-            _mesh.vertices = (Il2CppStructArray<Vector3>)Verts;
-            _mesh.colors = (Il2CppStructArray<Color>)Colors;
-            _mesh.RecalculateBounds();
+            // Written into the kept Il2Cpp array; the mesh copies it on assignment.
+            for (var k = 0; k < Colors.Length; k++) _colorsIl2[k] = Colors[k];
+            _mesh.colors = _colorsIl2;
         }
 
         private static Transform Eyes()

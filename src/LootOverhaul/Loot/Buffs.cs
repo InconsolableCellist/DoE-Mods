@@ -27,8 +27,8 @@ namespace LootOverhaul.Loot
             public string Name;      // tonic name
             public string Flavor;    // what it does, plainly
             public string Short;     // the same in two or three words, for comparison lines
-            public float[] Mults = { 1.15f, 1.30f, 1.50f };
-            public int[] Prices = { 80, 240, 800 };
+            public float[] Mults = { 1.05f, 1.10f, 1.15f };   // 0.15.0: 5 / 10 / 15% (was 15 / 30 / 50%)
+            public int[] Prices = { 160, 400, 800 };   // 0.15.1: × ShopPriceMultiplier 2.5 = 400 / 1,000 / 2,000 gold
             public float Weight = 0.4f;
             public bool Invert;
             /// <summary>
@@ -125,6 +125,9 @@ namespace LootOverhaul.Loot
         private static void OnStat(AvatarPlayer.Exosuit __instance, ExosuitModule.PerkType type, float defaultValue, ref float __result)
         {
             if (_bypass || _byPerk.Count == 0 || __instance == null) return;
+            // Armor and tonics change the game only in a room where everyone runs this same build:
+            // in a public room or with a vanilla (or other-version) player the stat stays vanilla.
+            if (!ModGate.Active) return;
             try
             {
                 if (__instance.Pointer != _localExo) return;

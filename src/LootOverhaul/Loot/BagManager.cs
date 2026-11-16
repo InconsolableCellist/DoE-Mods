@@ -36,7 +36,7 @@ namespace LootOverhaul.Loot
                     _account = account;
                     LootInventory.FlushAll();
                     _inv = LootInventory.Load(ModPaths.InventoryFile(account));
-                    Core.Log.Msg($"Bag loaded for `{account}`: {_inv.Items.Count} item(s), {_inv.TotalWeight:0.#} wt, {_inv.Gold} tokens.");
+                    Core.Log.Msg($"Bag loaded for `{account}`: {_inv.Items.Count} item(s), {_inv.TotalWeight:0.#} wt.");
                     try { Buffs.RebuildWorn(); } catch { }
                 }
                 return _inv;
@@ -89,7 +89,7 @@ namespace LootOverhaul.Loot
 
         /// <summary>
         /// Make room for a weapon or armor that does not fit by tossing the cheapest unlocked
-        /// trinkets onto the floor, fewest tokens first, until it does. Nothing equipped, worn,
+        /// trinkets onto the floor, least valuable first, until it does. Nothing equipped, worn,
         /// locked, or a weapon, armor or tonic is ever tossed; a trinket never makes room for
         /// another trinket. Returns true when the item now fits.
         /// </summary>
@@ -119,18 +119,17 @@ namespace LootOverhaul.Loot
             return inv.CanCarry(item.Weight, Capacity);
         }
 
-        /// <summary>Buy the next bag upgrade with tokens.</summary>
+        /// <summary>Buy the next bag upgrade with gold.</summary>
         public static bool BuyBagUpgrade()
         {
             var inv = Inventory;
             if (inv.BagLevel >= BagUpgrades.Length) { Toast("You already carry the biggest bag there is."); return false; }
             var next = BagUpgrades[inv.BagLevel];
             var price = (int)Math.Round(next.price * ModConfig.ShopPriceMultiplier.Value);
-            if (inv.Gold < price) { Toast($"The {next.name} costs {price} tokens; you have {inv.Gold}."); return false; }
-            inv.Gold -= price;
+            if (!Wallet.TrySpend(price, $"The {next.name}")) return false;
             inv.BagLevel++;
             inv.Save();
-            ReconLog.Line($"bag upgrade {inv.BagLevel} ({next.name}) for {price} -> tokens {inv.Gold}");
+            ReconLog.Line($"bag upgrade {inv.BagLevel} ({next.name}) for {price} gold");
             BagPanel.Refresh(); Booth.Refresh();
             return true;
         }
@@ -195,7 +194,7 @@ namespace LootOverhaul.Loot
         {
             var inv = Inventory;
             var sb = new StringBuilder();
-            sb.Append($"Bag: {inv.Items.Count} item(s), {inv.TotalWeight:0.#}/{Capacity:0} wt, {inv.Gold} tokens, {inv.KillsSinceLegendary} kills since legendary");
+            sb.Append($"Bag: {inv.Items.Count} item(s), {inv.TotalWeight:0.#}/{Capacity:0} wt, {inv.KillsSinceLegendary} kills since legendary");
             Toast(sb.ToString());
             DumpToTranscript();
         }

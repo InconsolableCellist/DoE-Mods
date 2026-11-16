@@ -14,9 +14,9 @@ namespace LootOverhaul
     /// </summary>
     public static class ModConfig
     {
-        public const int Layout = 13;
+        public const int Layout = 14;
 
-        public static MelonPreferences_Category Main, ChestArmor, Goblin, FloorLoot, Bag, Shop, BoomerangCat, TokenPay, TokenPanelCat, BoothPos, Dev;
+        public static MelonPreferences_Category Main, ChestArmor, Goblin, FloorLoot, Bag, Shop, BoomerangCat, RunPanelCat, BoothPos, Dev;
 
         public static MelonPreferences_Entry<bool> Enabled;
 
@@ -36,18 +36,14 @@ namespace LootOverhaul
         public static MelonPreferences_Entry<bool> AutoPickup;
 
         public static MelonPreferences_Entry<float> ShopPriceMultiplier, SellMultiplier, EnchantCostMultiplier, ArmorUpgradeCostMultiplier,
-            StockEnchantCostMultiplier, DisenchantCostMultiplier, BoomerangCostMultiplier;
-        public static MelonPreferences_Entry<int> ShopSlots, ShopRefreshMinutes;
+            DisenchantCostMultiplier, BoomerangCostMultiplier;
         public static MelonPreferences_Entry<bool> LoadoutEnabled;
 
         public static MelonPreferences_Entry<string> BoomerangTrigger;
         public static MelonPreferences_Entry<float> BoomerangPullSpeed;
 
-        public static MelonPreferences_Entry<float> GoldToTokenRate, BossKillBonus, MinibossKillBonus,
-            TokenPlayerBonusPerExtraPlayer, TokenChestBonusPerChest;
-
-        public static MelonPreferences_Entry<bool> TokenPanelEnabled, TokenPanelShowStats;
-        public static MelonPreferences_Entry<float> TokenPanelRight, TokenPanelUp, TokenPanelAhead, TokenPanelTurn;
+        public static MelonPreferences_Entry<bool> RunPanelEnabled;
+        public static MelonPreferences_Entry<float> RunPanelRight, RunPanelUp, RunPanelAhead, RunPanelTurn;
 
         public static MelonPreferences_Entry<float> BoothX, BoothY, BoothZ, BoothYaw;
         public static MelonPreferences_Entry<bool> BoothPlaced;
@@ -107,49 +103,25 @@ namespace LootOverhaul
             AutoPickup = Bag.CreateEntry("AutoPickup", false, description: "Walk over tonics, trinkets and armor to put them in the bag without grabbing them.");
 
             Shop = MelonPreferences.CreateCategory("LootOverhaul_Shop");
-            ShopPriceMultiplier = Shop.CreateEntry("ShopPriceMultiplier", 2.5f, description: "Scales every kobold price: shop stock, tonics, enchanting and armor upgrades.");
-            SellMultiplier = Shop.CreateEntry("SellMultiplier", 1.0f, description: "Tokens per point of an item's value when you sell it to the kobold.");
-            ShopSlots = Shop.CreateEntry("ShopSlots", 6, description: "How many weapons the kobold keeps in stock.");
-            ShopRefreshMinutes = Shop.CreateEntry("ShopRefreshMinutes", 60, description: "Minutes before the stock is rolled again for free.");
-            EnchantCostMultiplier = Shop.CreateEntry("EnchantCostMultiplier", 1.0f, description: "Enchanting price on top of ShopPriceMultiplier.");
-            ArmorUpgradeCostMultiplier = Shop.CreateEntry("ArmorUpgradeCostMultiplier", 1.0f, description: "Armor upgrade price on top of ShopPriceMultiplier. Every +1% costs 750 / 1,500 / 3,000 / 6,000 tokens by rarity at the defaults.");
-            StockEnchantCostMultiplier = Shop.CreateEntry("StockEnchantCostMultiplier", 1.0f, description: "Price of one enchantment on a stock (armory) weapon, on top of ShopPriceMultiplier. 500 / 1,000 / 2,000 / 4,000 tokens by rarity at the defaults: about half a run to three runs of tokens.");
-            DisenchantCostMultiplier = Shop.CreateEntry("DisenchantCostMultiplier", 1.0f, description: "Multiplier on the price of removing one perk, the element or Boomerang, which is half the price of adding one to that weapon: 3,000 tokens on a Legendary bag weapon at the defaults.");
-            BoomerangCostMultiplier = Shop.CreateEntry("BoomerangCostMultiplier", 1.0f, description: "Price of the Boomerang enchantment as a multiple of one enchantment on that weapon (stock or loot price). Removing it costs the de-enchant price.");
+            ShopPriceMultiplier = Shop.CreateEntry("ShopPriceMultiplier", 2.5f, description: "Scales every kobold price: tonics, bag upgrades, enchanting and armor upgrades. Prices are in the game's own gold.");
+            SellMultiplier = Shop.CreateEntry("SellMultiplier", 0.5f, description: "Gold per point of an item's value when you sell it to the kobold (or a bag weapon at the armory).");
+            EnchantCostMultiplier = Shop.CreateEntry("EnchantCostMultiplier", 1.0f, description: "Enchanting price on top of ShopPriceMultiplier: 20,000 gold for any weapon at the defaults.");
+            ArmorUpgradeCostMultiplier = Shop.CreateEntry("ArmorUpgradeCostMultiplier", 1.0f, description: "Armor upgrade price on top of ShopPriceMultiplier. Every +1% costs 750 / 1,500 / 3,000 / 6,000 gold by rarity at the defaults.");
+            DisenchantCostMultiplier = Shop.CreateEntry("DisenchantCostMultiplier", 1.0f, description: "Multiplier on the price of removing one perk, the element or Boomerang, which is half the price of adding one: 10,000 gold at the defaults.");
+            BoomerangCostMultiplier = Shop.CreateEntry("BoomerangCostMultiplier", 1.0f, description: "Price of the Boomerang enchantment as a multiple of one enchantment on that weapon. Removing it costs the de-enchant price.");
             LoadoutEnabled = Shop.CreateEntry("LoadoutEnabled", true, description: "Keep the loadout picked at the booth in your holsters.");
 
             BoomerangCat = MelonPreferences.CreateCategory("LootOverhaul_Boomerang");
             BoomerangTrigger = BoomerangCat.CreateEntry("BoomerangTrigger", "both", description: "When a thrown Boomerang weapon flies back: apex (at the top of its flight, or when it hits something, if an empty hand is gripping), pull (pull an empty gripping hand back sharply), both, or off.");
             BoomerangPullSpeed = BoomerangCat.CreateEntry("BoomerangPullSpeed", 1.5f, description: "How fast (m/s, relative to your head) an empty gripping hand must move back for the pull trigger.");
 
-            TokenPay = MelonPreferences.CreateCategory("LootOverhaul_Tokens");
-            GoldToTokenRate = TokenPay.CreateEntry("GoldToTokenRate", 0.5f, description: "Tokens per gold earned in a run, before the bonuses below.");
-            BossKillBonus = TokenPay.CreateEntry("BossKillBonus", 0.5f, description: "Extra payout per boss killed. 0.5 = +50%.");
-            MinibossKillBonus = TokenPay.CreateEntry("MinibossKillBonus", 0.1f, description: "Extra payout per mini-boss killed.");
-            // 0.14.1: no hazard-level or tier bonus any more (they paid too much for too little); drop the keys.
-            if (old.TryGetValue("LootOverhaul_Tokens", out var oldPay))
-                foreach (var key in new[] { "HazardBonusPerLevel", "TierBonusPerLevel" })
-                    if (oldPay.ContainsKey(key)) { TokenPay.CreateEntry(key, 0f); SafeDelete(TokenPay, key); }
-            TokenPlayerBonusPerExtraPlayer = TokenPay.CreateEntry("TokenPlayerBonusPerExtraPlayer", 0.5f, description: "Extra payout per party member beyond you.");
-            TokenChestBonusPerChest = TokenPay.CreateEntry("TokenChestBonusPerChest", 0.02f, description: "Extra payout per chest you opened.");
-            // 0.12.1's toast setting is gone with the toast (0.13.4); take it out of files that still hold it.
-            if (old.TryGetValue("LootOverhaul_Tokens", out var oldTokens) && oldTokens.ContainsKey("TokenToastSeconds"))
-            {
-                TokenPay.CreateEntry("TokenToastSeconds", 30f);
-                SafeDelete(TokenPay, "TokenToastSeconds");
-            }
-
-            TokenPanelCat = MelonPreferences.CreateCategory("LootOverhaul_TokenPanel");
-            TokenPanelEnabled = TokenPanelCat.CreateEntry("TokenPanelEnabled", true, description: "After a run, a panel beside the gold and XP screen shows the tokens you earned and how they add up.");
-            TokenPanelShowStats = TokenPanelCat.CreateEntry("TokenPanelShowStats", true, description: "Add a THIS RUN table to the token panel: damage each player dealt and took, and bites received when StayPutVR runs. Each player counts their own and shares it; vanilla friends show as -.");
-            // The first 0.13.4 test build measured these from the end screen (the panel landed in the wall); drop those keys.
-            if (old.TryGetValue("LootOverhaul_TokenPanel", out var oldPanel))
-                foreach (var key in new[] { "TokenPanelRight", "TokenPanelUp", "TokenPanelAway", "TokenPanelTurn" })
-                    if (oldPanel.ContainsKey(key)) { TokenPanelCat.CreateEntry(key, 0f); SafeDelete(TokenPanelCat, key); }
-            TokenPanelRight = TokenPanelCat.CreateEntry("TokenPanelSide", 0.9f, description: "Metres to the right of the line from your eyes to the end screen. Set with the arrows on the panel.");
-            TokenPanelUp = TokenPanelCat.CreateEntry("TokenPanelHeight", -0.2f, description: "Metres above your eyes (negative = below). Set with the arrows on the panel.");
-            TokenPanelAhead = TokenPanelCat.CreateEntry("TokenPanelAhead", 1.3f, description: "Metres in front of you. Set with NEARER / FARTHER on the panel. A wall in the way pulls the panel nearer.");
-            TokenPanelTurn = TokenPanelCat.CreateEntry("TokenPanelAngle", 0f, description: "Degrees the panel is turned away from facing you. Set with TURN on the panel.");
+            // 0.15.0: the run panel is the old token panel without the tokens: THIS RUN only.
+            RunPanelCat = MelonPreferences.CreateCategory("LootOverhaul_RunPanel");
+            RunPanelEnabled = RunPanelCat.CreateEntry("RunPanelEnabled", true, description: "After a run, a panel beside the gold and XP screen shows THIS RUN: damage each player dealt and took, and bites received when StayPutVR runs. Each player counts their own and shares it; vanilla friends show as -.");
+            RunPanelRight = RunPanelCat.CreateEntry("RunPanelSide", 0.9f, description: "Metres to the right of the line from your eyes to the end screen. Set with the arrows on the panel.");
+            RunPanelUp = RunPanelCat.CreateEntry("RunPanelHeight", -0.2f, description: "Metres above your eyes (negative = below). Set with the arrows on the panel.");
+            RunPanelAhead = RunPanelCat.CreateEntry("RunPanelAhead", 1.3f, description: "Metres in front of you. Set with NEARER / FARTHER on the panel. A wall in the way pulls the panel nearer.");
+            RunPanelTurn = RunPanelCat.CreateEntry("RunPanelAngle", 0f, description: "Degrees the panel is turned away from facing you. Set with TURN on the panel.");
 
             BoothPos = MelonPreferences.CreateCategory("LootOverhaul_Booth");
             BoothX = BoothPos.CreateEntry("BoothX", Loot.Booth.DefaultPosition.x);
@@ -168,6 +140,64 @@ namespace LootOverhaul
             if (ConfigVersion.Value == 11) RepairLayout11();
             else if (ConfigVersion.Value < 11) Migrate(old);
             if (ConfigVersion.Value == 12) RepairLayout12();
+            if (ConfigVersion.Value == 13) RepairLayout13(old);
+            RemoveTokenSettings(old);
+        }
+
+        /// <summary>
+        /// Layout 14 (0.15.0): the kobold takes the game's gold, so selling pays half of what it
+        /// did (a SellMultiplier the player set is halved too), and the token panel's position and
+        /// switches move to [LootOverhaul_RunPanel].
+        /// </summary>
+        private static void RepairLayout13(Dictionary<string, Dictionary<string, string>> old)
+        {
+            if (old.TryGetValue("LootOverhaul_Shop", out var shop) && shop.TryGetValue("SellMultiplier", out var sr) && TryParse(sr, out float sell))
+                SellMultiplier.Value = (float)Math.Round(sell * 0.5f, 4);
+            var moved = 0;
+            if (old.TryGetValue("LootOverhaul_TokenPanel", out var panel))
+            {
+                void Carry(MelonPreferences_Entry<float> entry, string oldKey)
+                {
+                    if (panel.TryGetValue(oldKey, out var raw) && TryParse(raw, out float v)) { entry.Value = v; moved++; }
+                }
+                Carry(RunPanelRight, "TokenPanelSide");
+                Carry(RunPanelUp, "TokenPanelHeight");
+                Carry(RunPanelAhead, "TokenPanelAhead");
+                Carry(RunPanelTurn, "TokenPanelAngle");
+                // The panel only had the run stats worth keeping; either switch off means it was not wanted.
+                var on = true;
+                foreach (var key in new[] { "TokenPanelEnabled", "TokenPanelShowStats" })
+                    if (panel.TryGetValue(key, out var raw) && TryParse(raw, out bool b) && !b) on = false;
+                RunPanelEnabled.Value = on;
+            }
+            ConfigVersion.Value = Layout;
+            MelonPreferences.Save();
+            MelonLogger.Msg($"LootOverhaul config layout {Layout}: sell price halved to {SellMultiplier.Value:0.###}, {moved} panel position value(s) moved to [LootOverhaul_RunPanel].");
+        }
+
+        /// <summary>
+        /// 0.15.0: no tokens and no weapon stock. [LootOverhaul_Tokens], [LootOverhaul_TokenPanel],
+        /// ShopSlots and ShopRefreshMinutes (and, since 0.15.1, StockEnchantCostMultiplier) are taken out of files that still hold them.
+        /// </summary>
+        private static void RemoveTokenSettings(Dictionary<string, Dictionary<string, string>> old)
+        {
+            var changed = false;
+            if (old.TryGetValue("LootOverhaul_Shop", out var shop))
+                foreach (var key in new[] { "ShopSlots", "ShopRefreshMinutes", "StockEnchantCostMultiplier" })
+                {
+                    if (!shop.ContainsKey(key)) continue;
+                    // The entry is created with the type it was stored as (StockEnchantCostMultiplier is a float).
+                    if (key == "StockEnchantCostMultiplier") Shop.CreateEntry(key, 0f); else Shop.CreateEntry(key, 0);
+                    changed |= SafeDelete(Shop, key);
+                }
+            var path = Path.Combine(MelonEnvironment.UserDataDirectory, "MelonPreferences.cfg");
+            foreach (var cat in new[] { "LootOverhaul_Tokens", "LootOverhaul_TokenPanel" })
+            {
+                if (!old.ContainsKey(cat)) continue;
+                try { MelonPreferences.RemoveCategoryFromFile(path, cat); changed = true; }
+                catch (Exception e) { MelonLogger.Warning($"LootOverhaul could not remove [{cat}] from the settings: {e.Message}"); }
+            }
+            if (changed) MelonPreferences.Save();
         }
 
         private static readonly string[] OldMainKeys =
@@ -243,14 +273,12 @@ namespace LootOverhaul
 
         /// <summary>
         /// Layout 13 (0.13.3) lowered the hazard-level and tier token bonuses. Since 0.14.1 those
-        /// bonuses no longer exist (their keys are dropped in <see cref="Load"/>), so a layout-12
-        /// file only gets its layout number moved on.
+        /// bonuses no longer exist (since 0.15.0 no token setting does), so a layout-12 file only
+        /// gets its layout number moved on, to 13, and then takes layout 14's changes.
         /// </summary>
         private static void RepairLayout12()
         {
-            ConfigVersion.Value = Layout;
-            MelonPreferences.Save();
-            MelonLogger.Msg($"LootOverhaul config layout {Layout}: settings updated (the hazard and tier bonuses are gone since 0.14.1).");
+            ConfigVersion.Value = 13;
         }
 
         /// <summary>
@@ -277,11 +305,15 @@ namespace LootOverhaul
             foreach (var e in new[] { ChestArmorEnabled, ChestArmorScalesWithPlayers, GoblinDropsEnabled, GoblinDropsScaleWithPlayers, DropBeams, DropSparkles, LoadoutEnabled, BoothPlaced })
                 Carry(e, m);
             foreach (var e in new[] { ChestArmorSmall, ChestArmorMedium, ChestArmorEpic, ChestArmorBoss, LootGoblinScale, BagWeightCapacity, ShopPriceMultiplier,
-                                      SellMultiplier, EnchantCostMultiplier, ArmorUpgradeCostMultiplier, GoldToTokenRate, BossKillBonus, MinibossKillBonus,
-                                      TokenPlayerBonusPerExtraPlayer, TokenChestBonusPerChest,
-                                      BoothX, BoothY, BoothZ, BoothYaw })
+                                      EnchantCostMultiplier, ArmorUpgradeCostMultiplier, BoothX, BoothY, BoothZ, BoothYaw })
                 Carry(e, m);
-            foreach (var e in new[] { GoblinDrops, GoblinGuaranteedClass, BeamMinClass, ShopSlots, ShopRefreshMinutes })
+            // 0.15.0 halved the sell price: a chosen SellMultiplier comes over halved too.
+            if (m.TryGetValue("SellMultiplier", out var smr) && TryParse(smr, out float sm) && !IsOldDefault("SellMultiplier", sm))
+            {
+                SellMultiplier.Value = (float)Math.Round(sm * 0.5f, 4);
+                carried++;
+            }
+            foreach (var e in new[] { GoblinDrops, GoblinGuaranteedClass, BeamMinClass })
                 Carry(e, m);
             Carry(BagGesture, m);
 

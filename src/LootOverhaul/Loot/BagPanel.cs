@@ -120,8 +120,8 @@ namespace LootOverhaul.Loot
         }
 
         /// <summary>
-        /// 0.13.0: the same grid as the stall, from the shared components. Header with the token
-        /// balance, sort tabs and CLOSE, a status line, six rows, the pager. DROP is always the
+        /// 0.13.0: the same grid as the stall, from the shared components. Header with your
+        /// gold, sort tabs and CLOSE, a status line, six rows, the pager. DROP is always the
         /// small red button on the right; the item's own action (DRINK, WEAR, TAKE OFF) sits left of it.
         /// </summary>
         private static void Rebuild()
@@ -136,7 +136,7 @@ namespace LootOverhaul.Loot
 
             const float L = S.Left, R = S.Right;
             UiKit.Backdrop(_content, new Vector3(0f, 0f, 0.01f), S.PanelWidth, S.PanelHeight, S.Panel);
-            UiKit.Header(_content, "BAG", $"{UiKit.Plural(inv.Items.Count, "item")}, {inv.TotalWeight:0.#} / {BagManager.Capacity:0} wt", inv.Gold);
+            UiKit.Header(_content, "BAG", $"{UiKit.Plural(inv.Items.Count, "item")}, {inv.TotalWeight:0.#} / {BagManager.Capacity:0} wt", Wallet.Balance);
 
             // Sort tabs and CLOSE.
             UiKit.Label(_content, L, S.StripY, 0.12f, 0.05f, S.Body, "SORT", S.Text2);

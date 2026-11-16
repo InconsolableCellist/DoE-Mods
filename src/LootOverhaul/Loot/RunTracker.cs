@@ -8,16 +8,17 @@ using LootOverhaul.Recon;
 namespace LootOverhaul.Loot
 {
     /// <summary>
-    /// The run payout: the gold the dungeon end screen already reports is converted into tokens and
-    /// credited to <c>BagManager.Inventory</c>.
+    /// A run from start to end screen: when a dungeon starts and ends (for <see cref="RunStats"/>),
+    /// the bosses and mini-bosses killed, and, at the end screen, the <see cref="RunPanel"/> and one
+    /// row in runs.csv. Until 0.15.0 this was the token payout; the kobold now takes the game's own
+    /// gold (<see cref="Wallet"/>), so nothing is paid here any more.
     ///
     /// That end screen is the hook because it is the one place the game reports a run's gold, on a
     /// completed run and a wipe alike. Boss and mini-boss kills are the only signal it does not
     /// carry, so they are counted from <c>AI.OnKilled</c>, which
-    /// <see cref="Recon.GameplayHooks"/> owns. Settings live in <see cref="ModConfig"/> under
-    /// [LootOverhaul] and [LootOverhaul_Dev]. Nothing is credited where the gate is inert.
+    /// <see cref="Recon.GameplayHooks"/> owns. Nothing is shown or logged where the gate is inert.
     /// </summary>
-    public static class Tokens
+    public static class RunTracker
     {
 
         // ---- per-run state
@@ -25,7 +26,7 @@ namespace LootOverhaul.Loot
         internal static int MiniKills;
         internal static int KillsSeen;
         private static bool _inRun;
-        private static bool _paidThisRun;
+        private static bool _endedThisRun;
 
         // photon view id -> unscaled time of the kill we already counted for it
         private static readonly Dictionary<int, float> _countedAt = new Dictionary<int, float>();
@@ -34,28 +35,24 @@ namespace LootOverhaul.Loot
         // ---- run bookkeeping for the log
         private static DateTime _runStartedUtc;
         private static string _runScene = "?";
-        private static long _tokensBefore;
-        private static long _tokensAfter;
 
-        // ---- token balance seen when the run began, to expose shop spending between runs
-        private static long _tokensAtRunStart = -1L;
+        // ---- gold the character had when the run began, to show shop spending between runs
+        private static long _goldAtRunStart = -1L;
 
         // ------------------------------------------------------------------ lifecycle
         /// <summary>
-        /// Wire the run payout. Two postfixes, neither of which changes what the game returned:
-        /// <c>AI.OnKilled</c> counts bosses and mini-bosses (the game itself does not track them),
-        /// and <c>GameManager.CheckAchievements</c> is the one place the end screen reports the gold
-        /// earned - for a completed run and for a wipe alike.
+        /// Wire the end of a run. <c>AI.OnKilled</c> counts bosses and mini-bosses (the game itself
+        /// does not track them, see <see cref="Recon.GameplayHooks"/>), and a postfix on
+        /// <c>GameManager.CheckAchievements</c>, the one place the end screen reports the gold
+        /// earned - for a completed run and for a wipe alike - changes nothing the game returned.
         /// </summary>
         public static void Install()
         {
-            var t = typeof(Tokens);
+            var t = typeof(RunTracker);
             var patched = 0;
             patched += Hooks.Patch(typeof(Il2Cpp.GameManager), "CheckAchievements", null, Hooks.Of(t, nameof(CheckAchievements_Post)), paramCount: 4);
-            Core.Log.Msg($"Tokens: payout hook {patched}/1 installed - rate {ModConfig.GoldToTokenRate.Value}, "
-                + $"boss +{ModConfig.BossKillBonus.Value:P0}, mini +{ModConfig.MinibossKillBonus.Value:P0}, "
-                + $"player +{ModConfig.TokenPlayerBonusPerExtraPlayer.Value:P0}, run log {(ModConfig.RunLogging.Value ? "on" : "off")}");
-            if (patched < 1) Core.Log.Warning("Tokens: the payout hook is missing - the payout will not fire.");
+            Core.Log.Msg($"RunTracker: end-screen hook {patched}/1 installed, run log {(ModConfig.RunLogging.Value ? "on" : "off")}");
+            if (patched < 1) Core.Log.Warning("RunTracker: the end-screen hook is missing - no run panel and no run log.");
         }
 
         /// <summary>Case-insensitive comparison of a scene name against one of the game's constants.</summary>
@@ -85,19 +82,18 @@ namespace LootOverhaul.Loot
             {
                 // a dungeon scene: a fresh run starts, so the previous run's tally is cleared
                 if (_inRun || BossKills != 0 || MiniKills != 0)
-                    Log($"new run (scene '{s}') — clearing previous tally {BossKills} boss / {MiniKills} mini, paid={_paidThisRun}");
+                    Log($"new run (scene '{s}') — clearing previous tally {BossKills} boss / {MiniKills} mini, ended={_endedThisRun}");
                 _inRun = true;
                 RunStats.NewRun();
-                _paidThisRun = false;
+                _endedThisRun = false;
                 BossKills = 0;
                 MiniKills = 0;
                 KillsSeen = 0;
                 _countedAt.Clear();
                 _runStartedUtc = DateTime.UtcNow;
                 _runScene = s;
-                long bal;
-                _tokensAtRunStart = TryReadTokens(out bal) ? bal : -1L;
-                Log($"run started (scene '{s}')  token balance at entry: {(_tokensAtRunStart < 0 ? "unavailable" : _tokensAtRunStart.ToString())}");
+                _goldAtRunStart = Wallet.Balance;
+                Log($"run started (scene '{s}')  gold at entry: {_goldAtRunStart}");
             }
         }
 
@@ -191,23 +187,21 @@ namespace LootOverhaul.Loot
             foreach (int k in stale) _countedAt.Remove(k);
         }
 
-        // ------------------------------------------------------------------ payout
+        // ------------------------------------------------------------------ end of a run
         private static void CheckAchievements_Post(Il2Cpp.GameManager.PlayerStatDef localStats, bool success,
                                                    int goldEarned, int xpEarned)
         {
             try
             {
-                if (_paidThisRun) return;
+                if (_endedThisRun) return;
                 if (localStats == null) return;
 
                 // The same gate the rest of the mod runs behind. In a public room, or one with an
-                // unmodded or mismatched peer, LootOverhaul is inert by design - so it must not
-                // quietly pay tokens there either.
+                // unmodded or mismatched peer, LootOverhaul is inert by design.
                 if (!ModConfig.Enabled.Value || !ModGate.Active)
                 {
-                    Log($"payout skipped: mod {(ModConfig.Enabled.Value ? "enabled" : "disabled")}, " +
-                        $"gate {(ModGate.Active ? "active" : "inert (" + ModGate.Reason + ")")} - " +
-                        $"{goldEarned} gold left unconverted");
+                    Log($"run end skipped: mod {(ModConfig.Enabled.Value ? "enabled" : "disabled")}, " +
+                        $"gate {(ModGate.Active ? "active" : "inert (" + ModGate.Reason + ")")}");
                     return;
                 }
 
@@ -216,93 +210,48 @@ namespace LootOverhaul.Loot
                 if (localView != 0 && localStats.viewID != localView)
                 {
                     Core.Log.Warning(
-                        $"end-screen stats are for view {localStats.viewID}, local avatar is {localView} — not paying this one");
+                        $"end-screen stats are for view {localStats.viewID}, local avatar is {localView} — not this one");
                     return;
                 }
                 if (localView == 0)
-                    Core.Log.Warning("local avatar view id unavailable — paying on the first end-screen stats received");
+                    Core.Log.Warning("local avatar view id unavailable — using the first end-screen stats received");
 
-                _paidThisRun = true;
+                _endedThisRun = true;
 
-                // Read the room's stats once: the payout, the two sums and the per-player dump all
-                // come off this one snapshot.
+                // Read the room's stats once: the two sums and the per-player dump come off this one snapshot.
                 List<PartyMember> party = ReadParty();
                 RunContext ctx = RunContext.Read(localStats, party);
 
-                double bossPart = BossKills * (double)ModConfig.BossKillBonus.Value;
-                double miniPart = MiniKills * (double)ModConfig.MinibossKillBonus.Value;
-                double playerPart = ctx.ExtraPlayers * (double)ModConfig.TokenPlayerBonusPerExtraPlayer.Value;
-                double chestPart = ctx.Chests * (double)ModConfig.TokenChestBonusPerChest.Value;
-                // No malus, and no floor to bound one: bonuses only ever add. The run's own gold
-                // already reflects how it went - a wipe, or dying early, costs the quest reward -
-                // so charging deaths a second time would take it out of the same run twice.
-                double mult = 1.0 + bossPart + miniPart + playerPart + chestPart;
-                long payout = (long)Math.Floor(goldEarned * (double)ModConfig.GoldToTokenRate.Value * mult);
-
                 Log($"end screen: mode={ctx.GameModeName}({ctx.GameModeRaw}) dungeon='{ctx.DungeonName}' " +
                     $"endState={ctx.EndStateName}({ctx.EndStateRaw}) success={success} gold={goldEarned} xp={xpEarned} killsSeen={KillsSeen}");
-                Log($"  bosses={BossKills} (+{bossPart:P0})  minis={MiniKills} (+{miniPart:P0})  " +
-                    $"tier={ctx.TierRaw} -> {ctx.TierSteps} above first [reported only]");
-                Log($"  hazards={ctx.HazardRaw}{ctx.HazardNames}  [reported only]");
-                Log($"  players={ctx.Players} (+{playerPart:P0})  chests={ctx.Chests} (+{chestPart:P0})");
-                // Recorded for tuning, never charged: see the note above the multiplier.
-                Log($"  deaths={ctx.Deaths} (own {ctx.OwnDeaths}, party {ctx.RoomDeaths})  [reported only]");
-                Log($"  revives={ctx.Revives} (own {ctx.OwnRevives}, party {ctx.RoomRevives})  [reported only]");
-                Log($"  mult={mult:0.###} x {goldEarned} gold -> {payout} tokens");
+                Log($"  bosses={BossKills}  minis={MiniKills}  tier={ctx.TierRaw} -> {ctx.TierSteps} above first");
+                Log($"  hazards={ctx.HazardRaw}{ctx.HazardNames}");
+                Log($"  players={ctx.Players}  chests={ctx.Chests}");
+                Log($"  deaths={ctx.Deaths} (own {ctx.OwnDeaths}, party {ctx.RoomDeaths})");
+                Log($"  revives={ctx.Revives} (own {ctx.OwnRevives}, party {ctx.RoomRevives})");
 
-                // Printed every run: deaths and downs are the best clue to how hard a run actually
-                // was, which is what the bonuses get tuned against.
+                // Deaths and downs are the best clue to how hard a run actually was.
                 foreach (PartyMember pm in party)
                     Log($"  player '{pm.Name}' (vid {pm.ViewID}): deaths={pm.Deaths} revives={pm.Revives} " +
                         $"kills={pm.Kills} chests={pm.Chests} coins={pm.Coins}");
                 double durationSec = _runStartedUtc == default(DateTime) ? 0.0 : (DateTime.UtcNow - _runStartedUtc).TotalSeconds;
 
-                if (payout <= 0)
-                {
-                    if (goldEarned <= 0) Log("no gold earned this run — nothing to convert");
-                    WriteRunRecord(ctx, party, durationSec, success, goldEarned, xpEarned, mult, 0, false);
-                    return;
-                }
-
-                bool applied = AddTokens(payout);
-                if (applied)
-                {
-                    var shown = new TokenPanel.Payout
-                    {
-                        Tokens = payout,
-                        Gold = goldEarned,
-                        Rate = ModConfig.GoldToTokenRate.Value,
-                        Mult = mult,
-                        Balance = TryReadTokens(out long balNow) ? balNow : -1L,
-                    };
-                    void Bonus(string label, double part)
-                    {
-                        if (part > 0.00001) shown.Bonuses.Add(new KeyValuePair<string, double>(label, part));
-                    }
-                    Bonus($"Bosses ({BossKills})", bossPart);
-                    Bonus($"Mini-bosses ({MiniKills})", miniPart);
-                    Bonus($"Party, {ctx.ExtraPlayers} more {(ctx.ExtraPlayers == 1 ? "player" : "players")}", playerPart);
-                    Bonus($"Chests ({ctx.Chests})", chestPart);
-                    TokenPanel.Show(shown);
-                }
-                else
-                    Core.Log.Warning(
-                        $"payout of {payout} tokens was NOT applied — the LootOverhaul bridge is not wired (see earlier warnings)");
-
-                WriteRunRecord(ctx, party, durationSec, success, goldEarned, xpEarned, mult, payout, applied);
+                RunPanel.Show();
+                WriteRunRecord(ctx, party, durationSec, success, goldEarned, xpEarned);
             }
             catch (Exception e)
             {
-                Core.Log.Error("payout failed: " + e);
+                Core.Log.Error("run end failed: " + e);
             }
         }
 
         // ------------------------------------------------------------------ run log
+        // 0.15.0: the token columns are gone; gold_at_run_start and gold_now are the character's
+        // gold when the dungeon loaded and at the end screen (the game may add the run's gold later).
         private const string RunLogHeader =
             "timestamp,scene,game_mode,dungeon_name,end_state,duration_s,success,tier_raw,hazard_level,hazards,players," +
-            "bosses,minibosses,kills_seen,chests_local,deaths_party,deaths_own,revives_party,revives_own,gold,xp,mult,payout," +
-            "applied,tokens_before,tokens_after,tokens_at_run_start," +
-            "rate,boss_bonus,miniboss_bonus,hazard_bonus,tier_bonus,player_bonus,chest_bonus," +
+            "bosses,minibosses,kills_seen,chests_local,deaths_party,deaths_own,revives_party,revives_own,gold,xp," +
+            "gold_at_run_start,gold_now," +
             "party";
 
         private static string Csv(string s)
@@ -324,11 +273,10 @@ namespace LootOverhaul.Loot
 
         /// <summary>
         /// Appends one machine-readable row per run to UserData/LootOverhaul/runs.csv, so the tuning
-        /// numbers can be reviewed across many sessions. Never throws into the payout path.
+        /// numbers can be reviewed across many sessions. Never throws into the end-screen hook.
         /// </summary>
         private static void WriteRunRecord(RunContext ctx, List<PartyMember> party, double durationSec,
-                                           bool success, int gold, int xp, double mult, long payout,
-                                           bool applied)
+                                           bool success, int gold, int xp)
         {
             // Opt-in via [LootOverhaul_Dev] RunLogging (default off): data collection only.
             if (!ModConfig.RunLogging.Value) return;
@@ -357,19 +305,8 @@ namespace LootOverhaul.Loot
                     ctx.OwnRevives.ToString(),
                     gold.ToString(),
                     xp.ToString(),
-                    mult.ToString("0.####"),
-                    payout.ToString(),
-                    applied ? "1" : "0",
-                    _tokensBefore.ToString(),
-                    _tokensAfter.ToString(),
-                    _tokensAtRunStart.ToString(),
-                    ModConfig.GoldToTokenRate.Value.ToString("0.###"),
-                    ModConfig.BossKillBonus.Value.ToString("0.###"),
-                    ModConfig.MinibossKillBonus.Value.ToString("0.###"),
-                    "0",   // hazard_bonus: removed in 0.14.1, column kept so old and new rows line up
-                    "0",   // tier_bonus: removed in 0.14.1
-                    ModConfig.TokenPlayerBonusPerExtraPlayer.Value.ToString("0.###"),
-                    ModConfig.TokenChestBonusPerChest.Value.ToString("0.###"),
+                    _goldAtRunStart.ToString(),
+                    Wallet.Balance.ToString(),
                     Csv(PartyText(party)),
                 });
 
@@ -401,41 +338,12 @@ namespace LootOverhaul.Loot
                     $"RUN LOGGED — {ctx.GameModeName}, {durationSec / 60.0:0.0} min, {ctx.EndStateName}, " +
                     $"tier {ctx.TierRaw}, haz {ctx.HazardRaw}, {ctx.Players} player(s), " +
                     $"{BossKills} boss / {MiniKills} mini-boss, {ctx.Chests} chests, " +
-                    $"{ctx.RoomDeaths} deaths, {ctx.RoomRevives} revives, mult {mult:0.###} => +{payout} tokens");
+                    $"{ctx.RoomDeaths} deaths, {ctx.RoomRevives} revives, {gold} gold");
                 Core.Log.Msg($"  -> {file}");
             }
             catch (Exception e)
             {
                 Core.Log.Warning("run log failed: " + e.Message);
-            }
-        }
-
-        // ------------------------------------------------------------------ bag access
-        // Direct: this is LootOverhaul's own code now, so there is nothing to bridge.
-        // LootInventory.Gold is a plain long and Inventory loads itself on first touch.
-
-        private static bool TryReadTokens(out long gold)
-        {
-            try { gold = BagManager.Inventory.Gold; return true; }
-            catch (Exception e) { Core.Log.Warning("Tokens: reading the balance failed: " + e.Message); gold = -1L; return false; }
-        }
-
-        private static bool AddTokens(long amount)
-        {
-            try
-            {
-                var inv = BagManager.Inventory;
-                var before = inv.Gold;
-                inv.Gold = before + amount;
-                inv.Save();
-                _tokensBefore = before;
-                _tokensAfter = before + amount;
-                return true;
-            }
-            catch (Exception e)
-            {
-                Core.Log.Error("Tokens: crediting the balance failed: " + e);
-                return false;
             }
         }
 
@@ -528,7 +436,7 @@ namespace LootOverhaul.Loot
 
         /// <summary>
         /// Everything the end screen tells us about the run itself. Each signal is read defensively:
-        /// if the game does not expose it, that one bonus is simply worth 0 for the run.
+        /// if the game does not expose it, that one value stays 0 for the run.
         /// </summary>
         private struct RunContext
         {
@@ -568,7 +476,7 @@ namespace LootOverhaul.Loot
                     c.TierRaw = t;
                     c.TierSteps = t > 0 ? t : 0;
                     if (t < 0)
-                        Core.Log.Warning("end screen reports Tier_Default - no tier bonus this run");
+                        Core.Log.Warning("end screen reports Tier_Default");
                 }
                 catch (Exception e)
                 {

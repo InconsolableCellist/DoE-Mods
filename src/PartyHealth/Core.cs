@@ -4,7 +4,7 @@ using PartyHealth;
 using PartyHealth.Hud;
 using PartyHealth.Peers;
 
-[assembly: MelonInfo(typeof(Core), "PartyHealth", "0.2.0", "Foxipso")]
+[assembly: MelonInfo(typeof(Core), "PartyHealth", "0.2.1", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace PartyHealth
@@ -20,7 +20,7 @@ namespace PartyHealth
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.2.0";
+        public const string Version = "0.2.1";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -65,7 +65,10 @@ namespace PartyHealth
                 }
                 else if (Hotkeys.Pressed(UnityEngine.InputSystem.Key.K))
                 {
-                    MelonPreferences.Load();
+                    // Only this mod's own sections: MelonPreferences.Load() reloaded every mod's
+                    // settings, and a gated mod (HazardTweaks) could fall out of step with its friends.
+                    ModConfig.Main.LoadFromFile(false);
+                    ModConfig.Dev.LoadFromFile(false);
                     LoggerInstance.Msg("Settings reloaded from MelonPreferences.cfg.");
                 }
             }

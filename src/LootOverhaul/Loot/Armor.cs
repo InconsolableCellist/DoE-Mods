@@ -308,7 +308,7 @@ namespace LootOverhaul.Loot
         public static float NextMult(LootItem item, string stat, float m) => AtMax(item, stat, m) ? m : PctToMult(stat, MultToPct(stat, m) + 1);
 
         /// <summary>
-        /// Token price of one upgrade step: fixed by the piece's rarity, the same for every step
+        /// Gold price of one upgrade step: fixed by the piece's rarity, the same for every step
         /// and every stat (300 / 600 / 1200 / 2400 × ShopPriceMultiplier × ArmorUpgradeCostMultiplier,
         /// the same base as an enchantment: 750 / 1,500 / 3,000 / 6,000 at the defaults).
         /// </summary>
@@ -331,14 +331,13 @@ namespace LootOverhaul.Loot
             if (AtMax(live, st, m)) { BagManager.Toast("That stat is already at its best."); return false; }
             var next = NextMult(live, st, m);
             var price = UpgradePrice(live);
-            if (inv.Gold < price) { BagManager.Toast($"Upgrading costs {price} tokens; you have {inv.Gold}."); return false; }
-            inv.Gold -= price;
+            if (!Wallet.TrySpend(price, "Upgrading")) return false;
             stats[index] = (st, next);
             live.ArmorStats = Encode(stats);
             inv.Save();
             if (live.WornSlot >= 0) Buffs.RebuildWorn();
-            ReconLog.Line($"armor: upgrade {live.Name} [{SlotNames[live.ArmorSlot]}] {st} {m:0.###} -> {next:0.###} for {price} -> tokens {inv.Gold}");
-            BagManager.Toast($"{ShortLabel(st)} {PctText(st, m)} → {PctText(st, next)} for {price} tokens");
+            ReconLog.Line($"armor: upgrade {live.Name} [{SlotNames[live.ArmorSlot]}] {st} {m:0.###} -> {next:0.###} for {price} gold");
+            BagManager.Toast($"{ShortLabel(st)} {PctText(st, m)} → {PctText(st, next)} for {UiKit.Money(price)}");
             BagPanel.Refresh(); Booth.Refresh();
             return true;
         }

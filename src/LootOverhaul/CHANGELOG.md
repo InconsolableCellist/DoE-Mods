@@ -3,6 +3,45 @@
 Versions are the mod's `Version` constant in `src/LootOverhaul/Core.cs`. Notes for 0.9.9
 and earlier are in the version sections of [README.md](README.md).
 
+## 0.15.1 (2026-11-16)
+
+New kobold prices for gold.
+
+### Changed
+- **Tonics** cost 400 / 1,000 / 2,000 gold for Minor / Major / Grand (were 200 / 600 / 2,000), the Light Potion too.
+- **Enchanting costs a flat 20,000 gold** on any weapon, whatever its rarity and whether it is a bag or an armory weapon (bag weapons were 750 to 6,000 by rarity, armory weapons 500 to 4,000). Taking a perk, the element or Boomerang off costs 10,000. Boomerang costs one enchantment. The price no longer looks at rarity.
+- Armor upgrades and bag upgrades are unchanged.
+
+### Removed
+- `StockEnchantCostMultiplier` (there is no separate armory price any more); it is removed from settings files that hold it. `EnchantCostMultiplier` scales every enchantment.
+
+### Fixed
+- Removing the old settings read `StockEnchantCostMultiplier` as a whole number although it is stored as a decimal.
+- A `|` in a player, avatar or item name no longer breaks the loot sync (armor arriving as a weapon, a dropped item lost on its way to the host).
+- The TONICS summary shows what REVERT ALL pays back; tonics paid in old tokens are no longer counted as gold.
+- The booth reads your gold from the profile once per frame instead of once per row.
+- Salvaging an armory weapon that had already left the bag no longer makes the game's next gold payout (run gold, a merchant sale) get refused as "trashed loot".
+- Armor stats, tonics and bomb stats only apply while the mod is active (a private room where everyone runs this same build). In a public room or with a player without it, they stayed on.
+
+## 0.15.0 (2026-11-16)
+
+The kobold moves to the game's own gold. Tokens, the weapon stock and the token payout are gone.
+
+### Changed
+- **Gold instead of tokens.** Selling (at the kobold or a bag weapon at the armory), tonics, bag upgrades, enchanting and armor upgrades all use the character's gold (`Coins` in the player profile), read with `PlayerProfile.GetCharacterData` and changed with `IncrementCharacterData` (a negative count for a price, as the game's own fabricator does). The profile is saved after each change. The armory's refusal of salvage gold for bag weapons stands aside while the kobold pays its own price. Prices are unchanged; the numbers that were tokens are now gold. New `Loot/Wallet.cs`.
+- **Selling pays half.** `SellMultiplier` defaults to 0.5 (was 1.0). Config layout 14 halves the value in existing files once, whatever it was.
+- **Tonics are 5 / 10 / 15%** for Minor / Major / Grand (were 15 / 30 / 50%). Tonics already in a bag are set to the new strength for their tier when the bag loads; prepared tonics use the new strength when drunk. The Light Potion is unchanged.
+- **The token panel is the run panel.** It shows THIS RUN only (damage dealt and taken per player, and bites from StayPutVR, which it reads by reflection as before). `Loot/TokenPanel.cs` is `Loot/RunPanel.cs`; its settings are `[LootOverhaul_RunPanel]` `RunPanelEnabled` / `RunPanelSide` / `RunPanelHeight` / `RunPanelAhead` / `RunPanelAngle`, carried over from `[LootOverhaul_TokenPanel]` (either old switch off turns the new one off).
+- **`Loot/Tokens.cs` is `Loot/RunTracker.cs`.** It still tracks run start and end, counts bosses and mini-bosses, opens the run panel at the end screen and writes `runs.csv`, but pays nothing. `runs.csv` drops `mult`, `payout`, `applied`, the three token balance columns and the rate and bonus columns, and adds `gold_at_run_start` and `gold_now` (the character's gold when the dungeon loaded and at the end screen). The old file is kept under a dated name.
+
+### Removed
+- **The WEAPONS tab and its stock.** Weapons come from the game's vendor; the kobold enchants them. The shop's tabs are TONICS, ENCHANT, ARMOR, RINGS. The bag file's `ShopStock` is dropped on its next save.
+- **The token payout** at the end screen, and the token balance. The bag file keeps the old balance in its `Gold` field so it is not lost, but nothing reads it.
+- **Settings:** `[LootOverhaul_Tokens]` (`GoldToTokenRate`, `BossKillBonus`, `MinibossKillBonus`, `TokenPlayerBonusPerExtraPlayer`, `TokenChestBonusPerChest`) and `[LootOverhaul_TokenPanel]` are removed from the settings file, and so are `ShopSlots` and `ShopRefreshMinutes`.
+
+### Notes
+- A tonic prepared with tokens before 0.15.0 is still drunk on the next run, but REVERT gives no gold back for it.
+
 ## 0.14.3 (2026-11-15)
 
 #28 (written as 0.13.9) on top of 0.14.2.
