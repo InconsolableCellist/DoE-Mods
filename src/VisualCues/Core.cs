@@ -6,7 +6,7 @@ using VisualCues.Cues;
 using VisualCues.Hud;
 using VisualCues.Net;
 
-[assembly: MelonInfo(typeof(Core), "VisualCues", "0.1.6", "Foxipso")]
+[assembly: MelonInfo(typeof(Core), "VisualCues", "0.1.7", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace VisualCues
@@ -26,7 +26,7 @@ namespace VisualCues
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.1.6";
+        public const string Version = "0.1.7";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;

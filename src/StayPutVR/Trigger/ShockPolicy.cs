@@ -120,6 +120,7 @@ namespace StayPutVR.Trigger
             if (now < _suppressUntil)
             {
                 _suppressUntil = -1f;
+                _down = downed;   // a killing bite is still the death: the hits after it are not a new one
                 if (ModConfig.LogEveryHit.Value) ShockLog.Line($"hit {damage:0.#} HP {damageType} — ignored, already handled as a bite");
                 return;
             }
@@ -363,6 +364,9 @@ namespace StayPutVR.Trigger
             Fired++;
             _lastFireAt = Time.unscaledTime;
             RecentFires.Add(_lastFireAt);
+            // A release still pending for another parameter is sent now: overwriting it left that
+            // parameter latched on in the app (a mimic wake or a bite followed at once by the killing blow).
+            if (_pendingReleasePath != null && _pendingReleasePath != path) FlushRelease();
             _pendingReleasePath = path;
             _pendingReleaseAt = _lastFireAt + Mathf.Clamp(ModConfig.ReleaseSeconds.Value, 0.02f, 2f);
             return true;

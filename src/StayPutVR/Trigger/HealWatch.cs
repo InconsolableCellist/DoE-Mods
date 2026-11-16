@@ -209,6 +209,8 @@ namespace StayPutVR.Trigger
             try
             {
                 if (!ModConfig.Enabled.Value || __state < 0f || !IsLocal(__instance)) return;
+                // Back on your feet: the next downed hit is a new death and shocks again.
+                if ((__2 ?? "") == "notification.revived") ShockPolicy.ClearDown();
                 var after = Hp(__instance);
                 if (after < 0f) return;
                 var gained = Mathf.Max(after - __state, 0f);

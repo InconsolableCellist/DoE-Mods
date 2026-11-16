@@ -4,6 +4,7 @@ using System.Globalization;
 using Il2CppPhoton.Pun;
 using Il2CppPhoton.Realtime;
 using Il2CppExitGames.Client.Photon;
+using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using UnityEngine;
 
 namespace VisualCues.Net
@@ -13,13 +14,10 @@ namespace VisualCues.Net
     /// in the reserved block 160–169 (CustomAvatars owns 140–149, LootOverhaul 150–159, the
     /// game was measured on 1, 2, 50 and 70, PUN reserves 200 and up).
     ///
-    /// There is deliberately no gate. The event is a broadcast to everyone in the room; a
-    /// player without the mod receives a code their game does not know and ignores it, a
-    /// player with the mod shows the arrow. Nothing here touches game state or the profile,
-    /// so a public lobby is as safe a place to send it as a private one. What is untested is
-    /// the vanilla client's tolerance of a foreign code: the other two mods never send one to
-    /// a vanilla peer by design, so the first mixed session should watch the vanilla player
-    /// for a disconnect (see README).
+    /// There is no gate on the local markers: they touch nothing and send nothing. The call is
+    /// sent only to the players who announced VisualCues with the <c>vc.v</c> player property
+    /// (0.1.7; before, it was broadcast to the whole room, vanilla players included, which was
+    /// never tested). A vanilla player never receives the event.
     ///
     /// Payload: the string <c>"S|&lt;mod version&gt;|x,y,z"</c>, the caller's head position at the
     /// moment of the call. Receivers follow the caller's live avatar when they can find it and
@@ -56,6 +54,7 @@ namespace VisualCues.Net
         /// <summary>Drain the inbox. Called once per frame from Core.OnUpdate.</summary>
         public static void Pump()
         {
+            Announce();
             while (true)
             {
                 (byte code, int sender, Il2CppSystem.Object content) item;
@@ -88,12 +87,63 @@ namespace VisualCues.Net
             return SendRaw(CodeSummon, (Il2CppSystem.String)payload);
         }
 
+        // ---- who has the mod ------------------------------------------------------------------
+        // 0.1.7: every copy announces itself with a player property, and the call goes only to the
+        // players who announced one. A vanilla player never receives event 160, in any room, and
+        // the local markers (noise, gates, puzzle slots) keep working whoever is in the room.
+
+        private const string PropKey = "vc.v";
+        private static string _announcedRoom;
+        private static float _announceRetryAt;
+
+        /// <summary>Set our property once per room. Called every frame from <see cref="Pump"/>; cheap when done.</summary>
+        private static void Announce()
+        {
+            try
+            {
+                if (!PhotonNetwork.InRoom || PhotonNetwork.LocalPlayer == null) { _announcedRoom = null; return; }
+                var room = PhotonNetwork.CurrentRoom?.Name ?? "";
+                if (room == _announcedRoom) return;
+                var now = Time.unscaledTime;
+                if (now < _announceRetryAt) return;
+                _announceRetryAt = now + 2f;
+                var props = new Hashtable();
+                props[(Il2CppSystem.String)PropKey] = (Il2CppSystem.String)Core.Version;
+                PhotonNetwork.LocalPlayer.SetCustomProperties(props, null, null);
+                _announcedRoom = room;
+                if (ModConfig.VerboseLogging.Value) Core.Log.Msg($"Announced VisualCues {Core.Version} in room {room}.");
+            }
+            catch (Exception e) { Core.Log.Warning($"Announcing the mod failed: {e.GetType().Name}: {e.Message}"); }
+        }
+
+        /// <summary>Actor numbers of the other players in the room who announced VisualCues.</summary>
+        private static List<int> ModdedOthers()
+        {
+            var list = new List<int>();
+            var local = PhotonNetwork.LocalPlayer;
+            var key = (Il2CppSystem.String)PropKey;
+            foreach (var p in PhotonNetwork.PlayerList)
+            {
+                if (p == null || (local != null && p.ActorNumber == local.ActorNumber)) continue;
+                try
+                {
+                    var props = p.CustomProperties;
+                    if (!ReferenceEquals(props, null) && props.ContainsKey(key)) list.Add(p.ActorNumber);
+                }
+                catch { }
+            }
+            return list;
+        }
+
         private static bool SendRaw(byte code, Il2CppSystem.Object payload)
         {
             try
             {
                 if (!PhotonNetwork.InRoom) { if (ModConfig.VerboseLogging.Value) Core.Log.Msg("Not in a room; call not sent."); return false; }
-                var options = new RaiseEventOptions { Receivers = ReceiverGroup.Others };
+                var targets = ModdedOthers();
+                if (targets.Count == 0) { if (ModConfig.VerboseLogging.Value) Core.Log.Msg("Nobody else here has VisualCues; call not sent."); return false; }
+                var options = new RaiseEventOptions { TargetActors = new Il2CppStructArray<int>(targets.Count) };
+                for (var i = 0; i < targets.Count; i++) options.TargetActors[i] = targets[i];
                 var ok = PhotonNetwork.RaiseEvent(code, payload, options, SendOptions.SendReliable);
                 if (ok) SentCount++;
                 else Core.Log.Warning($"RaiseEvent({code}) returned false.");
