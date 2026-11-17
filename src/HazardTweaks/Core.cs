@@ -2,7 +2,7 @@ using System;
 using MelonLoader;
 using HazardTweaks;
 
-[assembly: MelonInfo(typeof(Core), "HazardTweaks", "0.1.0", "Andorius13")]
+[assembly: MelonInfo(typeof(Core), "HazardTweaks", "0.1.1", "Andorius13")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace HazardTweaks
@@ -19,11 +19,11 @@ namespace HazardTweaks
     /// the end-of-run total all read the same scaled numbers.
     ///
     /// Everything is behind <see cref="Gate"/>: offline, or a private lobby where every player
-    /// advertises the same version, DLL hash and hazard-settings hash. Anything else is vanilla.
+    /// advertises the same version and DLL hash; there the host's settings apply to everyone. Anything else is vanilla.
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.1.0";
+        public const string Version = "0.1.1";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;

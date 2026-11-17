@@ -1,4 +1,4 @@
-# HazardTweaks 0.1.0
+# HazardTweaks 0.1.1
 
 A mod for **Dungeons of Eternity** that changes the dungeon hazards (the modifiers on the
 mission board):
@@ -35,24 +35,28 @@ Needs MelonLoader 0.7.3 like the other mods here. Copy `HazardTweaks.dll` into t
 ## When it is on
 
 A dungeon's hazards are rolled from its seed on every player's machine, so players only agree
-on a dungeon's hazards and bonus when all of them run the same build with the same settings.
-The mod therefore only changes anything:
+on a dungeon's hazards and bonus when all of them run the same build and filter with the same
+settings. The mod therefore only changes anything:
 
-- **offline**, or
-- in a **private lobby** where **every player** runs the same HazardTweaks version and DLL,
-  with the same `RemoveWeaponRestrictions`, `AlsoRemove`, `BonusMultiplier` and `RoundUpTo`.
+- **offline**, with your own settings, or
+- in a **private lobby** where **every player** runs the same HazardTweaks version and DLL.
+  There the **host's settings** apply to everyone: the host publishes them, and every player
+  removes the same hazards and scales the bonus the same way. Your own settings only count
+  when you host.
 
-In a public lobby, or with a friend who has no HazardTweaks, another build or other settings,
-the game stays vanilla and the log says why, for example `INERT: Sam has no HazardTweaks` or
-`INERT: settings differ from Sam's`. The check runs again twice a second and every time a
-mission board is rolled, so a join, a leave or an F9 settings reload is picked up before the
-next board. Each player publishes `ht.ver`, `ht.sha` and `ht.cfg` (a hash of those
-settings) as Photon player properties, in private lobbies only.
+In a public lobby, or with a friend who has no HazardTweaks or another build, the game stays
+vanilla and the log says why, for example `INERT: Sam has no HazardTweaks`. When it is on, the
+log names whose settings are in force: `ACTIVE: private lobby, all 2 players run this build,
+using Sam's (host) settings: removing [...], hazard bonus x1.25`. The check runs again twice a
+second and every time a mission board is rolled, so a join, a leave, a new host or an F9
+settings reload is picked up before the next board. Each player publishes `ht.ver`, `ht.sha`,
+`ht.rm` (removed hazards by name), `ht.x` (multiplier) and `ht.r` (rounding) as Photon player
+properties, in private lobbies only.
 
 ## Settings
 
 `UserData\MelonPreferences.cfg`, section `[HazardTweaks]`. F9 in the game window reloads them;
-they apply to the next mission board. Everyone in the lobby needs the same values.
+they apply to the next mission board. In a lobby only the host's values count.
 
 | Setting | Default | |
 |---|---|---|
@@ -72,7 +76,7 @@ becomes a plain dungeon with no hazard bonus.
 `GameManager.InitHazardsForLevel` (where a run switches them on) both get the list filtered.
 The bonus percentages are scaled in place in the `HazardData` asset's per-tier table, with the
 originals kept so the multiplier can change or be undone without a restart. Apart from the
-three player properties above, nothing is sent over the network.
+player properties above, nothing is sent over the network.
 
 **Your account.** The XP and gold are paid by the game's own end-of-mission code, so a higher
 multiplier means more XP and gold saved to your profile than vanilla would give. This mod
