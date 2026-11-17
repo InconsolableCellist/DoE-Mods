@@ -6,16 +6,16 @@ mission board):
 - **Keep your own weapons.** Every hazard that takes them away is removed: Bows Only, Axes
   Only, Swords & Shields, Daggers Only, Fireball Staffs Only and Random Weapons.
 - **Remove any other hazard you choose**, such as Death, by name in the settings.
-- **Bigger rewards.** Every hazard's XP and gold bonus is raised by a quarter by default, so Death goes
-  from +25% to +32% at tier 7 (31.25%, rounded up to a whole percent) and the +40% hazards go
-  to +50%. No decimals: every bonus is rounded up to the next whole percent.
+- **Bigger rewards, if you want them.** By default the XP and gold bonus stays vanilla.
+  `BonusMultiplier` raises it: at 1.25 Death goes from +25% to +32% at tier 7 (31.25%,
+  rounded up to a whole percent) and the +40% hazards go to +50%.
 
-| Group | Vanilla, tier 1 → 7 | HazardTweaks default (x1.25, rounded up) |
+| Group | Vanilla, tier 1 → 7 | x1.25, rounded up |
 |---|---|---|
 | +25% hazards | 5, 7, 10, 13, 17, 21, 25 % | 7, 9, 13, 17, 22, 27, 32 % |
 | +40% hazards | 8, 12, 17, 22, 28, 34, 40 % | 10, 15, 22, 28, 35, 43, 50 % |
 
-The mission board, the "+X% Bonus" lines and the end-of-run total all show the new numbers.
+With a multiplier, the mission board, the "+X% Bonus" lines and the end-of-run total all show the new numbers.
 
 ## Vanilla hazard bonuses
 
@@ -47,7 +47,7 @@ settings. The mod therefore only changes anything:
 In a public lobby, or with a friend who has no HazardTweaks or another build, the game stays
 vanilla and the log says why, for example `INERT: Sam has no HazardTweaks`. When it is on, the
 log names whose settings are in force: `ACTIVE: private lobby, all 2 players run this build,
-using Sam's (host) settings: removing [...], hazard bonus x1.25`. The check runs again twice a
+using Sam's (host) settings: removing [...], hazard bonus x1`. The check runs again twice a
 second and every time a mission board is rolled, so a join, a leave, a new host or an F9
 settings reload is picked up before the next board. Each player publishes `ht.ver`, `ht.sha`,
 `ht.rm` (removed hazards by name), `ht.x` (multiplier) and `ht.r` (rounding) as Photon player
@@ -63,7 +63,7 @@ they apply to the next mission board. In a lobby only the host's values count.
 | `Enabled` | `true` | |
 | `RemoveWeaponRestrictions` | `true` | Drop every weapon-limiting hazard. |
 | `AlsoRemove` | empty | More hazards to drop, comma separated: `Death`, `NoPotions`, `Potions50Pct`, `NoRevives`, `CreatureSwarms`, `Damage150Pct`, `Damage200Pct`, `DragonBattle`, `MiniBossBattle`, `BossBattle`. The log lists every name at startup. |
-| `BonusMultiplier` | `1.25` | Multiplies every hazard's bonus. `1` is vanilla, `2` doubles it. |
+| `BonusMultiplier` | `1` | Multiplies every hazard's bonus. `1` is vanilla, `2` doubles it. |
 | `RoundUpTo` | `1` | Rounds every scaled bonus UP to the next multiple of this many percent, so no decimals: `1` turns 37.5% into 38%, `5` into 40%, `0` leaves it. Ignored when `BonusMultiplier` is `1`. |
 | `VerboseLogging` | `true` | Log each hazard list the mod changes, and why it left one alone. |
 

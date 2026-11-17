@@ -14,6 +14,9 @@
 - The log names whose settings are in force and what they are, for example
   `ACTIVE: private lobby, all 2 players run this build, using PlasmaFox's (host) settings: removing [BowsOnly, AxesOnly, ...], hazard bonus x1.25, rounded up to 1%.`
   It logs again when the host or the host's settings change.
+- **The hazard bonus is vanilla by default.** `BonusMultiplier` now defaults to 1. A saved
+  1.25 (the 0.1.0 default) is reset to 1 once, the first time 0.1.1 starts (hidden
+  `ConfigVersion` = 2). Any other value you set is kept.
 
 ## 0.1.0 — 2026-11-15 (first build)
 
