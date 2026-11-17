@@ -40,23 +40,70 @@ namespace LootOverhaul.Loot
             }
         }
 
+        private static string _loggedType;
+
         private static long ReadNow()
         {
+            try
             {
-                try
+                var o = PlayerProfile.GetCharacterData(PlayerData.CharacterValues.Coins);
+                if (o == null) { LogType("null", 0L); return 0L; }
+                // 0.15.2: the value is an Il2Cpp box. Its managed ToString() does not give the number
+                // (every read came out 0 in game), so it is unboxed by its Il2Cpp type instead.
+                string type = "?";
+                try { type = o.GetIl2CppType().FullName; } catch { }
+                long v = Unbox(o, type);
+                if (v <= 0L)
                 {
-                    var o = PlayerProfile.GetCharacterData(PlayerData.CharacterValues.Coins);
-                    if (o == null) return 0L;
-                    // The value is boxed (an int or a long, depending on how the profile was read);
-                    // its text is the same either way.
-                    return long.TryParse(o.ToString(), out var v) ? Math.Max(0L, v) : 0L;
+                    // Belt and braces: the same number under the character's own key (C1Coins = 215,
+                    // C2Coins = 415, ... in PlayerData.Values).
+                    try
+                    {
+                        var c = (int)PlayerProfile.GetCurrentCharacter();
+                        var raw = PlayerProfile.GetData((PlayerData.Values)(215 + 200 * Math.Max(0, Math.Min(3, c))));
+                        if (raw != null)
+                        {
+                            string t2 = "?";
+                            try { t2 = raw.GetIl2CppType().FullName; } catch { }
+                            var v2 = Unbox(raw, t2);
+                            if (v2 > 0L) { type = $"{type}, C{c + 1}Coins {t2}"; v = v2; }
+                        }
+                    }
+                    catch { }
                 }
-                catch (Exception e)
-                {
-                    Core.Log.Warning($"Wallet: reading gold failed: {e.GetType().Name}: {e.Message}");
-                    return 0L;
-                }
+                LogType(type, v);
+                return Math.Max(0L, v);
             }
+            catch (Exception e)
+            {
+                Core.Log.Warning($"Wallet: reading gold failed: {e.GetType().Name}: {e.Message}");
+                return 0L;
+            }
+        }
+
+        private static long Unbox(Il2CppSystem.Object o, string type)
+        {
+            switch (type)
+            {
+                case "System.Int32": return o.Unbox<int>();
+                case "System.Int64": return o.Unbox<long>();
+                case "System.UInt32": return o.Unbox<uint>();
+                case "System.Int16": return o.Unbox<short>();
+                case "System.Single": return (long)Math.Round(o.Unbox<float>());
+                case "System.Double": return (long)Math.Round(o.Unbox<double>());
+            }
+            // Anything else (a string, a JSON value): the game's own conversion.
+            try { return Il2CppSystem.Convert.ToInt64(o); } catch { }
+            try { if (long.TryParse(o.ToString(), out var p)) return p; } catch { }
+            return 0L;
+        }
+
+        /// <summary>Once per type: what the profile hands back, so a wrong read shows in the log.</summary>
+        private static void LogType(string type, long value)
+        {
+            if (_loggedType == type) return;
+            _loggedType = type;
+            Core.Log.Msg($"Wallet: gold is stored as {type}, read {value}");
         }
 
         public static bool CanAfford(long price) => price <= 0 || Balance >= price;
