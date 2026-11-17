@@ -1,8 +1,23 @@
 # Custom enemies — feasibility and plan
 
-Status: **proposal, nothing built.** Written 2026-11-17 from the repo alone (no dump, no game
-in the session that wrote it). Everything marked **[recon]** is an inference that has to be
-confirmed against `dump.cs` or a running game before code is written on top of it.
+Status: **approved through Phase 2, nothing built.** Written 2026-11-17 from the repo alone (no
+dump, no game in the session that wrote it). Everything marked **[recon]** is an inference that
+has to be confirmed against `dump.cs` or a running game before code is written on top of it.
+
+The working instructions for whoever implements this are in
+[CUSTOM-ENEMIES-HANDOFF.md](CUSTOM-ENEMIES-HANDOFF.md). This file is the reasoning.
+
+## Decided (Dan, 2026-11-17)
+
+- Scope is Phases 0 to 2. Variants (tier 3) are a later go/no-go; tier 4 is not scheduled.
+- A new mod, `CustomEnemies`.
+- First model: the Sketchfab "Death Wolf Rig (Puss In Boots 2)". Poly, bone and material
+  counts to be checked when the file is in hand.
+- **Glide by design.** The wolf floats in a robe as Death does, legs up and dangling, mildly
+  animated: procedural at first, Blender Actions later.
+- Materials and emission carry the look: glowing red eyes and lighting that matches the
+  dungeon's mood are requirements, not polish.
+- Implementation happens on Dan's machine, not in a cloud session.
 
 Goal, in order:
 
@@ -15,7 +30,7 @@ Goal, in order:
 
 | Tier | Feasible? | Risk | Needs everyone modded? |
 |---|---|---|---|
-| 1. Reskin Death | Yes. It is the CustomAvatars trick pointed at an enemy. | Low for the mechanism, **medium for the legs** (below) | No, local and cosmetic |
+| 1. Reskin Death | Yes. It is the CustomAvatars trick pointed at an enemy. | Low for the mechanism, **medium for lighting and glow** (below) | No, local and cosmetic |
 | 2. Skin framework | Yes, falls out of 1 if 1 is built data-driven | Low | No |
 | 3. Variants | Probably. Depends on how spawning and stats are authored. | Medium | Yes |
 | 4. New behaviour | Possible, expensive, fragile across game updates | High | Yes |
@@ -66,6 +81,10 @@ None of this is answerable without the dump or the game. It decides the animatio
    or prefab fields), which values are read by the master only, the `AIModule` base class and
    its virtuals, the `AIClass` enum.
 7. **The outline system** (see the last section).
+8. **Lighting and glow.** Is there any post-processing on the VR camera, bloom in particular?
+   How are characters lit in a dungeon (`BAKERY_VOLUME` is a keyword on the player material:
+   baked volumes, light probes, or both)? Which realtime lights exist and what do they cost?
+   How does a custom avatar's shader currently read in a dark room next to a vanilla body?
 
 Deliverable: a recon dump written by a dev-only hotkey, in the style of the existing `Recon/`
 probes: `Resources.Load("death")` and `death_hazard` walked and logged (hierarchy, components,
@@ -92,7 +111,11 @@ files into the new project rather than by a DLL dependency, so each mod still in
 - Skins live under `UserData/CustomEnemies/` and are never committed. The repo ships the
   mechanism and a placeholder skin made of primitives for testing.
 
-### Animation: three options, in order of preference
+### Animation: three options
+
+**Chosen: A for the upper body, with the legs as dangling chains instead of a stepper**, since
+the wolf glides by design. B stays available later for authored Blender Actions. The options
+as originally weighed:
 
 **A. Delta pose copy (upper body) + own legs.** `PoseRetargeter` copies spine, arms and head
 from the invisible Death every frame. Attacks keep the vanilla timing exactly, so the telegraph
@@ -125,14 +148,33 @@ The honest split:
 - **Hit feedback is the first thing that will read as janky.** Flash, blood and dissolve are
   applied to the vanilla renderer and will not show on the skin until they are mirrored
   **[recon 5]**. Budget for it in Phase 1, not as polish.
-- **Legs are the real risk.** A biped that slides is the jank that makes an enemy not worth
-  fighting. If Death travels at floor height on the navmesh, procedural stepping at its speeds
-  is the same problem already solved for avatars. If it hovers through walls **[recon 2]**,
-  either accept a ghostly glide (option C, designed for) or pick a different host enemy for
-  the wolf, such as `skeletons_boss` or another humanoid melee boss with real leg animation,
-  which makes option A complete with no leg work at all.
-- Custom avatars feel good because a human drives them. An enemy has only its clips. Expect
-  "good, with visible seams at the feet" from option A, and "native" only from option B.
+- **Legs: settled by the glide decision.** A walking biped that slides is the jank that makes
+  an enemy not worth fighting; a floating one has no feet to slide. The legs hang from the
+  hips as spring chains with a slow procedural sway and lag behind on acceleration, which
+  reads as intentional. The robe hem gets the same treatment.
+- **Glow and lighting are now the main risk** **[recon 8]**. Without bloom, an emissive eye is
+  flat red paint: the glow has to be built from an unlit emissive eye, an additive halo
+  sprite facing the camera, and possibly a small red light. A skin whose shader ignores the
+  dungeon's baked lighting will look pasted on, either too bright or black. See "Look" below.
+- Custom avatars feel good because a human drives them. An enemy has only its clips, so the
+  upper body will look exactly as alive as vanilla Death does, no more.
+
+### Look: materials, eyes, lighting
+
+Decided once recon 8 is in, in this order of preference:
+
+1. **Body shader.** If the game's own character shader (`PotoVR/Characters-Array` or whatever
+   the enemies use) can be fed ordinary textures, use it at runtime on the skin: it is lit
+   exactly like every other creature, and it brings the hit flash and dissolve with it. It is
+   named `-Array`, so it may want texture arrays; if so, fall back to a bundled SPS-I safe
+   shader that samples whatever ambient source recon shows is live in dungeons.
+2. **Eyes.** Separate material slot, unlit emissive, never darkened by scene lighting. Add a
+   camera-facing additive halo quad per eye, sized and faded by distance. Add bloom only if
+   the game already runs it.
+3. **Light.** An optional low-range red point light at the head, off by default, switchable
+   in settings, because a realtime light in a baked scene costs frame time in VR.
+4. **Manifest-driven.** Eye anchors, halo size and colour, light on/off and range are skin
+   data, so the second skin does not need code.
 
 ## The model
 
@@ -167,7 +209,7 @@ Avoid injecting prefabs if possible. Proposed shape **[recon 6]**:
 
 - The master spawns a **vanilla** enemy through the game's own path, so pooling, PhotonView
   allocation and unmodded-safe behaviour are the game's.
-- The master then sends one mod event (code from the 140–149 block): `viewID → variantId`.
+- The master then sends one mod event (code from 190–199, the only block no mod has claimed): `viewID → variantId`.
   Every client applies the variant: skin, scale, and the stat overrides the variant defines
   (health, speed, damage, module tuning). Late joiners get the table on join.
 - Private lobbies with the existing handshake only, since stats change.
@@ -223,18 +265,14 @@ in shared code, before Phase 1.
 | 0a | Recon probe for Death and for the outline system | The seven questions answered in `GAME-INTERNALS.md` |
 | 0b | Outline fix in CustomAvatars | Outline traces the avatar, locally and on a peer, and reverts cleanly |
 | 1a | `CustomEnemies` skeleton: bundle + manifest, attach on spawn, hide vanilla, rigid follow, placeholder skin | A primitive-built dummy rides Death through a whole encounter, pooling and respawn included |
-| 1b | Pose copy, weapon attachment, leg mode chosen from recon | Attacks read correctly; feet do not slide at walking speed |
-| 1c | Hit feedback, dissolve/despawn, springs, sounds, exporter menu item | A full encounter with nothing visibly vanilla |
+| 1b | Pose copy, weapon attachment, dangling legs and robe | Attacks read correctly; legs and hem trail the motion and never stretch or flip |
+| 1c | Body shader, eyes and halo, hit feedback, dissolve/despawn, sounds, exporter menu item | A full encounter with nothing visibly vanilla, eyes that read as glowing in a dark room |
 | 2 | Second skin on a different enemy, straight from data | No code change needed for it |
 | 3 | Variants | After a go/no-go on recon item 6 |
 | 4 | New behaviour | Not scheduled |
 
-## Decisions needed
+## Decisions
 
-1. Scope: stop after Phase 2 for now, with 3 as a later go/no-go?
-2. New mod `CustomEnemies` (recommended), or fold skins into CustomAvatars?
-3. Which model, and who preps it in Unity?
-4. If Death turns out to hover through geometry: glide by design, or move the wolf onto a
-   walking humanoid boss and leave Death alone?
-5. Where implementation runs. It needs the game folder (MelonLoader's generated assemblies to
-   build, the dump to read, the game to test), none of which a cloud session has.
+All five of the original questions are answered under "Decided" at the top. Still open, for
+Phase 1b: whether the first release uses one glaive or two sickles (reach, recon 3), and
+whether the red light ships on or off (cost, recon 8).
