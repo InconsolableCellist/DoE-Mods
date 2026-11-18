@@ -1,7 +1,8 @@
 # Custom enemies — feasibility and plan
 
-Status: **approved through Phase 2, nothing built; Phase 0a dump half done** (2026-11-17, see
-"Phase 0a: what the dump settled" and `GAME-INTERNALS.md` → Enemies). Written 2026-11-17 from the repo alone (no
+Status: **approved through Phase 2; Phase 0a done except a dark-room lighting reading, Phase 0b
+built and waiting on a test with a friend** (2026-11-17, see "Phase 0a: what the dump settled",
+"Phase 0a: what the probe settled" and `GAME-INTERNALS.md` → Enemies). Written 2026-11-17 from the repo alone (no
 dump, no game in the session that wrote it). Everything marked **[recon]** is an inference that
 has to be confirmed against `dump.cs` or a running game before code is written on top of it.
 
@@ -90,9 +91,33 @@ Facts with sources are in `GAME-INTERNALS.md` → Enemies. What they change here
 - **A test bench exists**: the sandbox spawns Death (`SandboxUI.SpawnDeath`,
   `CombatRunner.SpawnSandboxEnemy(EnemyType.Death = 33, …)`).
 
-Still for the runtime probe: the rig and materials, the modules Death carries and its
-`navSolverType` (float or floor), animator states, the two kill values, the revive, and
-whether bloom is on by default.
+## Phase 0a: what the probe settled (2026-11-17)
+
+One solo sandbox run with the CustomAvatars probe (details in `GAME-INTERNALS.md` → Enemies →
+"What the runtime probe read"). What it changes for the plan:
+
+- **Death floats** (`navSolverType` Flight, 0.25–0.5 m off the terrain) and has a `Teleport`
+  module. The glide decision fits the vanilla motion; the follow has to snap on a teleport,
+  not ease into it.
+- **Death's Animator is humanoid** (`Soul Keeper_01Avatar`). The upper-body pose copy can go
+  through Unity's humanoid muscle space (`HumanPoseHandler`) instead of a hand-written bone
+  map, if the skin is imported as humanoid too. The bone map stays as the fallback.
+- **Four states carry the encounter**: `Spawn Intro`, `Idle`, `Move`, `Attack`
+  (`attackspecial` and hit reactions exist but did not play). No `AE_FX` events, so nothing to
+  mirror there.
+- **The reach is 3 m** (`killDistance`), held for 0.3 s (`killTime`). That is long: it favours
+  the glaive over two sickles.
+- **Death cannot be hit**: `IgnoreHit`, every collider disabled. For the first skin there is no
+  hitbox to match and no hit flash to mirror; the dissolve (3 s in, 2 s out) still is.
+- **The body shader is `PotoVR/Characters_Normal`**, not an `-Array` shader, lit from the
+  Bakery volume (`BAKERY_VOLUME`). The sandbox has no realtime lights and no probes, so a skin
+  on its own shader would get flat ambient only. Running the skin on the game's shader is
+  now the clear first choice.
+- **Death's own eyes** are `PotoVR/Candle` quads (`fx_skeleton-eyes`) at queue 4000. That
+  material is a candidate for the skin's eyes as is.
+- **Bloom was on** on the test machine. Not a default, so the halo stays required.
+
+Still open: lighting in a dark dungeon room, the whistle revive, and the bloom default.
 
 ## What is not known (Phase 0 recon)
 
@@ -177,14 +202,15 @@ The honest split:
   cannot get worse than fighting Death is today. Death's kill is not a weapon hit: `AIDeath`
   kills a player who stays within `killDistance` for `killTime` (dump, see below). So the
   weapon only has to *read* as that reach: it is parented to the vanilla weapon bone for the
-  swing, and its length is sized to `killDistance` once the probe has read it. The glaive
-  form suits a long reach, two short sickles a short one.
-- **Silhouette vs hitbox.** The player aims at what they see. The skin is scaled so head and
-  torso overlap the vanilla colliders; snout, ears and tail will have no hitbox. Tolerable,
-  and tunable per skin.
+  swing, and its length is sized to `killDistance`, which the probe read as 3 m: a glaive's
+  reach, not a pair of sickles'.
+- **Silhouette vs hitbox.** Not an issue for Death, which cannot be hit (probe). For later
+  enemies the player aims at what they see: the skin is scaled so head and torso overlap the
+  vanilla colliders; snout, ears and tail will have no hitbox. Tolerable, and tunable per skin.
 - **Hit feedback is the first thing that will read as janky.** Flash, blood and dissolve are
   applied to the vanilla renderer and will not show on the skin until they are mirrored
-  **[recon 5]**. Budget for it in Phase 1, not as polish.
+  **[recon 5]**. Death never takes a hit, so for the first skin that is the dissolve alone;
+  the rest is budgeted for Phase 2.
 - **Legs: settled by the glide decision.** A walking biped that slides is the jank that makes
   an enemy not worth fighting; a floating one has no feet to slide. The legs hang from the
   hips as spring chains with a slow procedural sway and lag behind on acceleration, which
@@ -200,11 +226,11 @@ The honest split:
 
 Decided once recon 8 is in, in this order of preference:
 
-1. **Body shader.** If the game's own character shader (`PotoVR/Characters-Array` or whatever
-   the enemies use) can be fed ordinary textures, use it at runtime on the skin: it is lit
-   exactly like every other creature, and it brings the hit flash and dissolve with it. It is
-   named `-Array`, so it may want texture arrays; if so, fall back to a bundled SPS-I safe
-   shader that samples whatever ambient source recon shows is live in dungeons.
+1. **Body shader.** Death uses `PotoVR/Characters_Normal` (probe), an ordinary texture
+   shader, not an `-Array` one. Use it at runtime on the skin: it is lit exactly like every
+   other creature (from the Bakery volume), and it brings the hit flash and dissolve with it.
+   The fallback, a bundled SPS-I safe shader, would have to sample the Bakery volume itself,
+   since the sandbox has no probes or realtime lights.
 2. **Eyes.** Separate material slot, unlit emissive, never darkened by scene lighting. Add a
    camera-facing additive halo quad per eye, sized and faded by distance. Bloom is a player
    setting (`EnableBloom`, dump), so the halo is needed either way; with bloom on, the
@@ -318,5 +344,6 @@ in shared code, before Phase 1.
 ## Decisions
 
 All five of the original questions are answered under "Decided" at the top. Still open, for
-Phase 1b: whether the first release uses one glaive or two sickles (reach, recon 3), and
+Phase 1b: whether the first release uses one glaive or two sickles (the 3 m reach leans to
+the glaive), and
 whether the red light ships on or off (cost, recon 8).

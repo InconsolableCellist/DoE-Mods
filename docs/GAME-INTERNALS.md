@@ -529,12 +529,49 @@ are picked by `AIClass`, so a variant hooked on spawn sees the class, not a name
   from Bakery volumes (the player material's `BAKERY_VOLUME` keyword) **[runtime: confirm on an
   enemy material]**.
 
-### Still open for the runtime probe
+### What the runtime probe read (2026-11-17, sandbox, solo, game 1.3)
 
-- [ ] Death's prefab: hierarchy, bones, `isHuman`, renderers and materials, colliders.
-- [ ] Which modules Death carries (does it have `AIFlight`, `AIDissolve`, `AIRunner`?) and its
-      `navSolverType`: does it float or follow the floor?
-- [ ] Animator controller, states and clips; which states fire `AE_FX`.
-- [ ] `killDistance` and `killTime` values, so the skin's reach can be sized to them.
-- [ ] Whether the whistle's kill is followed by a revive, and how Death leaves (`despawn`).
-- [ ] Is `FastBloom` on the VR camera at default settings? Ambient mode and probes in a dungeon.
+From the CustomAvatars enemy probe (Numpad 7/8/9, see the CA README). One sandbox Death, one kill.
+
+- **Rig.** Root `Death` (scale 1.44 from `Specs.scale`) carries `Sauron.AI` and
+  `CharacterOptimizer`. Two skinned renderers on layer 21: `Death` (one submesh, 80 bones, root
+  bone `WraithPelvis`) and `Death_weapon` (one bone, `WeaponsR` under the right palm). The
+  skeleton is `Wraith*`: pelvis, two spine bones, ribcage, collarbones, arms, five fingers per
+  hand, neck ×2, head, jaw, hood chain, four robe chains (front, back, L, R) and short legs
+  (`WraithLLeg1/2/Ankle`, same on R). Head path is in `References.head`.
+- **Animator is humanoid** (`isHuman` True, avatar `Soul Keeper_01Avatar`), `AlwaysAnimate`,
+  `applyRootMotion` False, one layer. Parameters `IsMoving` (bool), `AttackSpeed` (float).
+  States (hashes matched with `Animator.StringToHash`): `Spawn Intro` (default), `Idle`, `Move`,
+  `Attack`, plus hit reactions and `attackspecial`. The only clip event is an `AE_Footstep` on
+  one hit clip; no `AE_FX` fired during the encounter.
+- **Modules** (by their settings): `CombatAirborne`, `Death`, `Flight`, `LookAtIK`,
+  `DeathAnimation`, `Teleport`, `Dissolve`. No `AIRunner`. `navSolverType` is **Flight**: it
+  floats, 0.25–0.5 m above the terrain in the samples, and can teleport.
+- **It cannot be hit.** `Health.mortality` is `IgnoreHit` (6 HP, never lost), and all seven
+  capsule colliders (layer 11, NPC) are disabled.
+- **The kill.** `killDistance` 3 m, `killTime` 0.3 s. In the sample the `Attack` state was
+  playing at 3.1 m, the player died with Death 2.7 m from their head, and Death went back to
+  `Move` then `Idle`. In the sandbox the player respawned about 5 s later.
+- **Leaving.** `despawn` True, after the `Lifetime in minutes` parameter (60 here).
+  `DissolveSettings`: in 3 s, out 2 s, all renderers, `PotoVR/Characters_Normal` →
+  `PotoVR/Characters_Normal_Dissolve`.
+- **Materials.** Body and weapon share `M_Death_01`, shader `PotoVR/Characters_Normal`
+  (queue 2000, instanced), keywords `BAKERY_VOLUME _ALPHA_ON _DOUBLEALPHA_ON _XRAY_ON`. Eyes are
+  a child `fx_skeleton-eyes` (inactive on Death), quads with `PotoVR/Candle` at queue 4000.
+  `Aura_Wraith-Shadow` is a child effect; the weapon carries an additive particle trail.
+- **Lighting (sandbox).** No realtime lights within 15 m, no light probes, one lightmap, one
+  `BakeryVolume` (the global one). Ambient Flat at 0.151 grey × 1.77, linear fog. Enemy and
+  player materials all carry `BAKERY_VOLUME`, so characters are lit from the Bakery volume and
+  little else: a shader that does not sample it only gets flat ambient.
+- **Bloom.** `FastBloom` is on the SteamVR camera and enabled on the test machine (amount 2.5,
+  threshold 0.6, softness 1, 3 iterations). Whether that is the game's default is not known.
+- **Outlines.** `FXOutlineManager.HDMode` False, `Disabled` False. The local player's outline is
+  disabled (as the dump said) but the redirect wrote the avatar's two skinned renderers into
+  `Entries` without an error.
+
+### Still open
+
+- [ ] Ambient, probes and lights in a dark dungeon room (the sandbox is the only reading).
+- [ ] Whether the whistle's kill is followed by a revive, and what Death does after it.
+- [ ] Whether bloom is on by default for a fresh profile.
+- [ ] The outline redirect seen from a friend's client.
