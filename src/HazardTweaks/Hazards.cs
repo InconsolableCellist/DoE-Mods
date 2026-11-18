@@ -43,9 +43,8 @@ namespace HazardTweaks
 
         public static void ResetParse() => _removed = null;
 
-        public static IEnumerable<int> RemovedSet() => Removed();
-
-        private static HashSet<int> Removed()
+        /// <summary>This player's own removed set, parsed from the settings once per (re)load.</summary>
+        public static HashSet<int> LocalRemoved()
         {
             if (_removed != null) return _removed;
             var set = new HashSet<int>();
@@ -68,13 +67,24 @@ namespace HazardTweaks
             return set;
         }
 
+        /// <summary>A removed set from hazard names (the host's <c>ht.rm</c>); unknown names are skipped.</summary>
+        public static HashSet<int> ParseNames(string names)
+        {
+            var set = new HashSet<int>();
+            foreach (var s in (names ?? "").Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries))
+                if (Enum.TryParse<GameManager.HazardModifier>(s.Trim(), true, out var h)
+                    && h != GameManager.HazardModifier.Default && h != GameManager.HazardModifier.NoHazard)
+                    set.Add((int)h);
+            return set;
+        }
+
         public static string Describe()
         {
             var names = new List<string>();
-            try { foreach (var v in Removed()) names.Add(((GameManager.HazardModifier)v).ToString()); }
+            try { foreach (var v in LocalRemoved()) names.Add(((GameManager.HazardModifier)v).ToString()); }
             catch { names.Add("?"); }
             return $"removing [{(names.Count == 0 ? "nothing" : string.Join(", ", names))}], hazard bonus x{ModConfig.BonusMultiplier.Value:0.##}; " +
-                   "offline, or private lobbies where everyone runs this build with the same settings";
+                   "offline, or in private lobbies where everyone runs this build (the host's settings apply there)";
         }
 
         public static void LogNames()
@@ -87,8 +97,8 @@ namespace HazardTweaks
         private static string Filter(HazardList list)
         {
             if (list == null || list.Count == 0) return null;
-            var drop = Removed();
-            if (drop.Count == 0) return null;
+            var drop = Gate.Effective?.Removed;
+            if (drop == null || drop.Count == 0) return null;
             List<string> gone = null;
             for (int i = list.Count - 1; i >= 0; i--)
             {

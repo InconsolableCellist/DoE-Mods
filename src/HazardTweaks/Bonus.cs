@@ -48,9 +48,9 @@ namespace HazardTweaks
                     Core.Log.Msg("Hazard bonus table found: " + Describe(_original, 1f, 0));
                 }
 
-                bool on = Gate.Evaluate(out _);
-                float mult = on ? Math.Max(0f, ModConfig.BonusMultiplier.Value) : 1f;
-                int step = on ? Math.Max(0, ModConfig.RoundUpTo.Value) : 0;
+                bool on = Gate.Evaluate(out _) && Gate.Effective != null;
+                float mult = on ? Gate.Effective.Multiplier : 1f;
+                int step = on ? Gate.Effective.RoundUpTo : 0;
                 if (Math.Abs(mult - 1f) < 0.0001f) step = 0; // vanilla stays exactly vanilla
                 if (Math.Abs(mult - _appliedMult) < 0.0001f && step == _appliedStep) return;
 

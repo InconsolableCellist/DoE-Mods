@@ -10,7 +10,7 @@
     <TargetFramework>net6.0</TargetFramework>
     <AssemblyName>HazardTweaks</AssemblyName>
     <RootNamespace>HazardTweaks</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <EnableDefaultItems>true</EnableDefaultItems>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>

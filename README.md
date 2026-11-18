@@ -23,7 +23,7 @@ Mods for **Dungeons of Eternity**, the co-op VR dungeon crawler by Othergate.
 
 **PartyHealth** puts a small health bar over each friend's head in a networked game: hidden at full health, it appears on the first hit, goes red as they drop, and says DOWN when they need a rescue. Your friends need nothing installed.
 
-**HazardTweaks** removes the dungeon hazards you don't want (by default every one that takes your own weapons away) and raises the XP and gold bonus the rest give by a quarter.
+**HazardTweaks** removes the dungeon hazards you don't want (by default every one that takes your own weapons away), and can raise the XP and gold bonus the rest give (vanilla by default).
 
 ## Quickstart
 
@@ -52,7 +52,7 @@ The [INSTALL.md](INSTALL.md) walks through the steps in more detail.
 | [Descent](src/Descent/README.md) | 0.1.1 | Yes |
 | [StayPutVR](src/StayPutVR/README.md) | 0.5.6 | No |
 | [PartyHealth](src/PartyHealth/README.md) | 0.2.1 | No |
-| [HazardTweaks](src/HazardTweaks/README.md) | 0.1.0 | Yes (same settings) |
+| [HazardTweaks](src/HazardTweaks/README.md) | 0.1.1 | Yes (same build; the host's settings apply) |
 
 ## Restrictions
 
