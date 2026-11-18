@@ -56,10 +56,11 @@ namespace CustomEnemies.Skins
             catch (Exception e) { LogOnce("spawn hook", e); }
         }
 
-        /// <summary>Attach, reset or leave alone one enemy, by the setting and the Numpad1 overrides.</summary>
+        /// <summary>Attach, reset or leave alone one enemy, by the skin files, the setting and the Numpad1 overrides.</summary>
         private static void Consider(AI ai, string why)
         {
-            var want = Wants(ai);
+            var skinFile = SkinFor(ai);
+            var want = Wants(ai, skinFile);
             Skins.TryGetValue(ai.Pointer, out var skin);
             if (!want)
             {
@@ -68,7 +69,7 @@ namespace CustomEnemies.Skins
             }
             if (skin == null)
             {
-                skin = EnemySkin.Create(ai);
+                skin = EnemySkin.Create(ai, skinFile);
                 if (skin == null) return;
                 Skins[ai.Pointer] = skin;
                 if (ModConfig.VerboseLogging.Value) Core.Log.Msg($"Skin on `{skin.Who}` ({why}): {skin.Describe()}");
@@ -80,10 +81,17 @@ namespace CustomEnemies.Skins
             }
         }
 
-        private static bool Wants(AI ai)
+        private static SkinLibrary.Skin SkinFor(AI ai)
+        {
+            string id = null;
+            try { var r = ai.references; if (r != null) id = r.ID.ToString(); } catch { }
+            return SkinLibrary.For(CleanName(Interop.Name(ai)), id);
+        }
+
+        private static bool Wants(AI ai, SkinLibrary.Skin skinFile)
         {
             if (Manual.TryGetValue(ai.Pointer, out var forced)) return forced;
-            return Listed(ai);
+            return skinFile != null || Listed(ai);
         }
 
         public static bool Listed(AI ai)
@@ -161,7 +169,7 @@ namespace CustomEnemies.Skins
         /// <summary>Numpad1: the nearest enemy to the camera gets the placeholder, or loses its skin.</summary>
         public static void ToggleNearest()
         {
-            var cam = Camera.main;
+            var cam = CameraFinder.Get();
             var from = Interop.Alive(cam) ? cam.transform.position : Vector3.zero;
             AI best = null;
             var bestD = float.MaxValue;
@@ -171,6 +179,8 @@ namespace CustomEnemies.Skins
                 if (d < bestD) { bestD = d; best = ai; }
             }
             if (best == null) { Core.Log.Msg("Numpad1: no live enemy."); return; }
+            if (Skins.ContainsKey(best.Pointer) == false && SkinFor(best) == null && !Listed(best))
+                Core.Log.Msg($"Numpad1: `{Interop.Name(best)}` has no skin file; it gets the placeholder.");
             var on = !Skins.ContainsKey(best.Pointer);
             Manual[best.Pointer] = on;
             if (_allOff && on) { _allOff = false; Core.Log.Msg("Skins back on."); }
@@ -197,6 +207,7 @@ namespace CustomEnemies.Skins
         public static void Reloaded()
         {
             _namesFrom = null;
+            SkinLibrary.Rescan();
             if (!ModConfig.Enabled.Value)
             {
                 foreach (var k in new List<IntPtr>(Skins.Keys)) Remove(k, "Enabled=false");

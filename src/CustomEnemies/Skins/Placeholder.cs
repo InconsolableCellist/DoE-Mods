@@ -19,20 +19,40 @@ namespace CustomEnemies.Skins
     /// </summary>
     public static class Placeholder
     {
-        public sealed class Built
+        public sealed class Built : ISkinModel
         {
-            public GameObject Root;
+            public GameObject Root { get; set; }
             public Transform Head;
             public Vector3 HeadRest;
             public string EyesFrom;
+            public Transform HeadBone;
             public readonly List<Renderer> Renderers = new List<Renderer>();
             public readonly List<Material> Owned = new List<Material>();
+            public readonly List<Material> Tinted = new List<Material>();
+
+            GameObject ISkinModel.Root => Root;
+            IReadOnlyList<Renderer> ISkinModel.Renderers => Renderers;
+            public IReadOnlyList<Material> GameShaderMaterials => Tinted;
+            public bool Ready => true;
+
+            public void Tick(float dt)
+            {
+                if (Head == null) return;
+                if (ModConfig.HeadFollowsBone.Value && Interop.Alive(HeadBone)) Head.position = HeadBone.position;
+                else Head.localPosition = HeadRest;
+            }
+
+            public void Reset() { }
+            public string Sample() => null;
+            public string Describe() =>
+                $"placeholder, {Renderers.Count} part(s), head {(Interop.Alive(HeadBone) ? "follows `" + HeadBone.name + "`" : "rigid")}, eyes {EyesFrom}";
 
             public void Destroy()
             {
                 if (Interop.Alive(Root)) Object.Destroy(Root);
                 foreach (var m in Owned) if (Interop.Alive(m)) Object.Destroy(m);
                 Owned.Clear();
+                Tinted.Clear();
                 Renderers.Clear();
             }
         }
@@ -41,9 +61,9 @@ namespace CustomEnemies.Skins
         private static readonly Color Robe = new Color(0.16f, 0.06f, 0.05f, 1f);
         private static readonly Color Eye = new Color(1f, 0.08f, 0.04f, 1f);
 
-        public static Built Build(string who, Renderer body, Transform enemy)
+        public static Built Build(string who, Renderer body, Transform enemy, Transform headBone)
         {
-            var b = new Built();
+            var b = new Built { HeadBone = headBone };
             try
             {
                 b.Root = new GameObject($"CustomEnemies skin ({who})");
@@ -114,6 +134,7 @@ namespace CustomEnemies.Skins
             foreach (var col in new[] { "_Color", "_BaseColor", "_MainColor" })
                 if (m.HasProperty(col)) m.SetColor(col, c);
             b.Owned.Add(m);
+            if (Interop.Alive(src)) b.Tinted.Add(m);
             return m;
         }
 

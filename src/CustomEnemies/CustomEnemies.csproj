@@ -41,11 +41,24 @@
       <HintPath>$(MelonNet6Dir)\Il2CppInterop.Common.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <!-- MelonLoader's AssetBundle wrapper, as CustomAvatars uses it. -->
+    <Reference Include="UnityEngine.Il2CppAssetBundleManager">
+      <HintPath>$(MelonNet6Dir)\UnityEngine.Il2CppAssetBundleManager.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <!-- Shipped by MelonLoader itself, so it is already loaded. -->
     <Reference Include="Newtonsoft.Json">
       <HintPath>$(MelonNet6Dir)\Newtonsoft.Json.dll</HintPath>
       <Private>false</Private>
     </Reference>
+  </ItemGroup>
+
+  <!-- Shared with CustomAvatars as linked source, unchanged (Shared/CustomAvatarsShim.cs supplies
+       the three things of CustomAvatars they use). One bundle format, one manifest, one retargeter. -->
+  <ItemGroup>
+    <Compile Include="..\CustomAvatars\Avatars\AvatarManifest.cs" Link="Shared\AvatarManifest.cs" />
+    <Compile Include="..\CustomAvatars\Avatars\AvatarBundle.cs" Link="Shared\AvatarBundle.cs" />
+    <Compile Include="..\CustomAvatars\Avatars\PoseRetargeter.cs" Link="Shared\PoseRetargeter.cs" />
   </ItemGroup>
 
   <!-- Reference every generated interop assembly; the set shifts with game updates. -->
