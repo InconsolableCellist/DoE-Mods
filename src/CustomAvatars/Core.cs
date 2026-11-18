@@ -6,7 +6,7 @@ using CustomAvatars.Gate;
 using CustomAvatars.Net;
 using CustomAvatars.Recon;
 
-[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.42.22", "Foxipso")]
+[assembly: MelonInfo(typeof(Core), "CustomAvatars", "0.42.23", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace CustomAvatars
@@ -25,7 +25,7 @@ namespace CustomAvatars
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.42.22";
+        public const string Version = "0.42.23";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
@@ -103,6 +103,10 @@ namespace CustomAvatars
             // The loading screen's circle of faces: custom avatars, in each player's load face.
             _loadFaces = new LoadScreenFaces(_avatarLibrary, _swaps);
             LoadScreenFaces.Install(HarmonyInstance);
+            // The blue outline of a friend traces their custom avatar (0.42.23).
+            Avatars.OutlineFollower.Install(HarmonyInstance);
+            // Custom enemies Phase 0a: the numpad enemy and lighting probes (read-only).
+            EnemyRecon.Install(HarmonyInstance);
             _fbt = new Fbt.FbtManager(_swaps, _roster, _trackers);
 
             if (ModConfig.FaceOscEnabled.Value)
@@ -152,6 +156,7 @@ namespace CustomAvatars
             // Hotkeys are not a recon feature. They used to sit behind this check, which meant
             // turning the dumps off silently took F4 with it.
             PollHotkeys();
+            EnemyRecon.Tick();
 
             if (!ModConfig.ReconEnabled.Value) return;
 
@@ -317,6 +322,26 @@ namespace CustomAvatars
                 {
                     _hotkeyCooldown = 0.5f;
                     _size.ResetToVanilla();
+                }
+                else if (Hotkeys.Down("Keypad7"))
+                {
+                    _hotkeyCooldown = 0.5f;
+                    EnemyRecon.DumpEnemies();
+                }
+                else if (Hotkeys.Down("Keypad8"))
+                {
+                    _hotkeyCooldown = 0.5f;
+                    EnemyRecon.ToggleSampling();
+                }
+                else if (Hotkeys.Down("Keypad9"))
+                {
+                    _hotkeyCooldown = 0.5f;
+                    EnemyRecon.DumpLighting();
+                }
+                else if (Hotkeys.Down("Keypad4"))
+                {
+                    _hotkeyCooldown = 0.5f;
+                    Avatars.OutlineFollower.Dump();
                 }
                 else if (Hotkeys.Down("Keypad5"))
                 {

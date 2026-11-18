@@ -39,6 +39,7 @@ namespace CustomAvatars
         public static MelonPreferences_Entry<bool> HotkeysEnabled;
         public static MelonPreferences_Entry<bool> HologramSwapEnabled;
         public static MelonPreferences_Entry<bool> HandPosesEnabled;
+        public static MelonPreferences_Entry<bool> OutlineFollowsAvatar;
         public static MelonPreferences_Entry<bool> SpringsEnabled;
         public static MelonPreferences_Entry<bool> FaceOscEnabled;
         public static MelonPreferences_Entry<int> FaceOscListenPort;
@@ -191,6 +192,8 @@ namespace CustomAvatars
             HotkeysEnabled = Main.CreateEntry("HotkeysEnabled", true);
             HologramSwapEnabled = Main.CreateEntry("HologramSwapEnabled", true);
             HandPosesEnabled = Main.CreateEntry("HandPosesEnabled", true);
+            OutlineFollowsAvatar = Main.CreateEntry("OutlineFollowsAvatar", true, description:
+                "The game's blue outline of a friend (stick press, a teammate in another room) traces their custom avatar instead of the hidden vanilla body. Only changes what you see.");
             SpringsEnabled = Main.CreateEntry("SpringsEnabled", true);
             FaceOscEnabled = Main.CreateEntry("FaceOscEnabled", true);
             // VRCFaceTracking's OSCOutPort. 9000 is its default and VRChat's too, so if VRChat

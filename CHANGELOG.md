@@ -2,6 +2,20 @@
 
 Versions are the mod's `Version` constant in `src/CustomAvatars/Core.cs`. This file was reconstructed from the git history on 2026-09-01.
 
+## 0.42.23 (2026-11-17)
+
+Untested in the headset.
+
+### Fixed
+- **A friend's blue outline traces their custom avatar, not the hidden vanilla body.** The outline (your stick press, or a teammate in another room) is the game's `FXOutline` on each player's body. It keeps its own renderer list, collected from the body's hierarchy by `FXOutline.ResolveRenderers`, and `FXOutlineManager` draws that list from a command buffer, which ignores the ShadowsOnly the swap hides the body with. The avatar is a scene root, so the game could never find it. A postfix on `ResolveRenderers` now replaces a swapped player's entries with the avatar's mesh renderers, and clears the HD-mode shell source (the vanilla body) while swapped. Reverting the avatar gives the outline back to the body. The game never outlines your own player on your screen, so this changes what you see of friends, and what they see of you once they run this build. `OutlineFollowsAvatar` (default on) switches it off.
+
+### Added
+- **Enemy and lighting probe** for the custom enemies plan (docs/CUSTOM-ENEMIES-PLAN.md, Phase 0a). Read-only, written to the recon transcript:
+  - **Keypad7**: every live enemy in one line, then Death in full (modules and their settings, kill distance and time, navigation, health, specs, hierarchy, renderers, materials, colliders, animators with layers, parameters and clips), or the nearest enemy when no Death is alive, then the `death`, `death_hazard`, `death_nest`, `death_whistle`, `playground_enemies` and `ai sandbox` resources.
+  - **Keypad8**: start or stop sampling live Death once a second (position, height above the floor, velocity, animator state, whether it is inside geometry, visibility, attack timer, distance from you), its `AE_FX` and `AE_Footstep` events, and how far it was when you died.
+  - **Keypad9**: lighting where you stand: camera components, bloom, ambient, fog, light probes, lightmaps, Bakery volumes, realtime lights within 15 m, and the materials of the nearest enemy and of your own body.
+  - **Keypad4**: every player's outline: enabled, colour, HD shell source and each renderer it holds.
+
 ## 0.42.22 (2026-11-15)
 
 ### Fixed

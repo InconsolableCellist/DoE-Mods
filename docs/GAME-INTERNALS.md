@@ -501,10 +501,18 @@ are picked by `AIClass`, so a variant hooked on spawn sees the class, not a name
   width. The stick press is `XRayPing` (dump.cs:42265): `WasXRayButtonPressed`, `Ping`, static
   `UnityEvent<bool, XRayState> EnableXRayMode`, `displayXRaySecs`.
 - A custom avatar is a scene-root object (`DontDestroyOnLoad`, `AvatarSwapper`), not under
-  the `CharacterPrefab`, so `ResolveRenderers` can never find it. **Fix:** after a swap (and on
-  every `Refresh`/`ResolveRenderers`), rewrite the player's `highlightEffect` entries to the
-  avatar's renderers and point `shellSource` at the avatar's main skinned mesh; restore on
-  revert. It runs on every client for every swapped player, so peers' outlines follow too.
+  the `CharacterPrefab`, so `ResolveRenderers` can never find it.
+- From the disassembly: `EnableXRayMode` returns at once for the local player (you never see
+  your own outline) and otherwise enables `highlightEffect` and sets its colour and width.
+  `ResolveRenderers` (`GetComponentsInChildren<Renderer>`, LOD groups, `CollectExcluded`,
+  `CollectEntries`, then a signature of the entries' instance IDs) is called from `OnEnable`,
+  `Refresh` and `UpdateRegistration`. The manager draws entries with `CommandBuffer.DrawRenderer`
+  and `DrawMesh` (combined shell of readable meshes) and the HD shell via `RecordProceduralShell`.
+- **Fix (CustomAvatars 0.42.23, `Avatars/OutlineFollower.cs`):** a postfix on
+  `ResolveRenderers` replaces a swapped player's entries with the avatar's mesh renderers and
+  clears `shellSource`/`bakedShellMesh` while swapped (weld data and the manager's skinned
+  binding are released once, on attach); revert restores both. It runs on every client for
+  every swapped player. Untested in the headset.
 - Props have their own `Prop.fxOutline`. Neither `AI` nor `References` holds one, so enemies
   are probably never outlined **[runtime]**.
 

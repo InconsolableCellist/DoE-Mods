@@ -1,4 +1,4 @@
-# CustomAvatars 0.42.22
+# CustomAvatars 0.42.23
 
 Wear a VRChat-style avatar in Dungeons of Eternity, in a private lobby with friends who run the
 same build. Face and eye tracking come from VRCFaceTracking over OSC, full-body tracking from
@@ -23,6 +23,9 @@ The design notes are in [docs/PLAN.md](../../docs/PLAN.md) and
   translated into Unified Expressions, so the avatar needs face-tracking shapes to show it; one
   without them shows a neutral face. Friends' faces appear only once the gate has put their
   avatar on, like everything else.
+- **Outlines follow the avatar.** The game's blue outline of a friend (stick press, a teammate in
+  another room) traces their custom avatar instead of the hidden vanilla body
+  (`OutlineFollowsAvatar`).
 - **Hand poses** from trigger and grip, and **spring bones** for secondary motion, rebuilt from the
   captured PhysBone setup.
 - **Rings** you wear sit on your avatar's own finger, for you and for everyone who can see you,
@@ -81,6 +84,11 @@ are read through Unity's Input System, which the game switched to in its 2026-09
 | F9 | dump room and Photon events | F10 | full-body tracking on/off |
 | F11 | calibrate full-body (T-pose) | PgUp / PgDn | bigger / smaller |
 | Home | normal size | Numpad 5 | log where your movement capsule is against the floor |
+| Numpad 7 | dump enemies (Death in full) | Numpad 8 | sample live Death on/off |
+| Numpad 9 | dump lighting | Numpad 4 | dump players' outlines |
+
+The four numpad dumps are probes for the custom enemies plan (docs/CUSTOM-ENEMIES-PLAN.md).
+They only read, and write to the recon transcript in `UserData\CustomAvatars\recon`.
 
 ## Settings
 

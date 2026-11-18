@@ -459,6 +459,7 @@ namespace CustomAvatars.Avatars
                 if (isSelf && !Interop.Alive(_headBone))
                     Core.Log.Warning("    no Head bone in the manifest — cannot anchor the avatar to your head, " +
                                      "so it will sit wherever the game's body is. Re-export the avatar.");
+                OutlineFollower.Attach(fullBody, _model, SafeName(player));
                 ReconLog.KeyValue("model root", Interop.ScenePath(_model.transform));
                 ReconLog.KeyValue("dynamics", springSummary);
             }
@@ -2463,6 +2464,7 @@ namespace CustomAvatars.Avatars
         public void Revert(string why)
         {
             // Un-hide first: if anything below throws, the player still has a body.
+            if (Interop.Alive(_fullBody)) OutlineFollower.Detach(_fullBody);
             _rings?.Release(why);
             _rings = null;
             try
