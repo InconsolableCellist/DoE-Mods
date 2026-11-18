@@ -36,7 +36,8 @@ namespace CustomEnemies.Skins
         private ISkinModel _model;
         private bool _shown;
         private int _rehides, _effectRehides, _dissolves;
-        private Shader _ownShader;
+        private int _shaderSwaps;
+        private bool _reportedShader;
         private bool _dissolving;
 
         // Measurements
@@ -77,7 +78,6 @@ namespace CustomEnemies.Skins
             }
             if (s._model == null) s._model = Placeholder.Build(s.Who, s._body, s._aiT, head);
             if (s._model == null) return null;
-            try { s._ownShader = s._model.GameShaderMaterials.Count > 0 ? s._model.GameShaderMaterials[0].shader : null; } catch { }
             s._shown = s._model.Root.activeSelf;
             s.Reset();
             Report.Line($"- skin on `{s.Who}`: {s.Describe()}");
@@ -215,11 +215,20 @@ namespace CustomEnemies.Skins
             try { v = _body.sharedMaterial; } catch { return; }
             if (!Interop.Alive(v) || !Interop.Alive(v.shader)) return;
             var dissolving = v.shader.name.IndexOf("Dissolve", StringComparison.OrdinalIgnoreCase) >= 0;
+            // The skin wears whatever shader the vanilla body wears now. Its materials were copied
+            // from the body at spawn, when the body is mid fade-in on the dissolve shader, fully
+            // dissolved; keeping that copy left the skin invisible (2026-11-18, first wolf test).
+            foreach (var m in mats)
+                if (Interop.Alive(m) && m.shader != v.shader) { m.shader = v.shader; _shaderSwaps++; }
+            if (!dissolving && !_reportedShader)
+            {
+                _reportedShader = true;
+                Report.Line($"- `{Who}` skin materials on `{v.shader.name}` (vanilla body's material `{v.name}`)");
+            }
             if (dissolving != _dissolving)
             {
                 _dissolving = dissolving;
                 if (dissolving) _dissolves++;
-                foreach (var m in mats) if (Interop.Alive(m)) m.shader = dissolving ? v.shader : (_ownShader ?? m.shader);
                 if (ModConfig.VerboseLogging.Value) Report.Line($"- `{Who}` {(dissolving ? "dissolving (" + v.shader.name + "); the skin follows" : "done dissolving")}");
             }
             if (!dissolving) return;
@@ -274,7 +283,7 @@ namespace CustomEnemies.Skins
             _sampleIn = _alive < 20f ? 2f : 10f;
             var m = _model.Sample();
             Report.Line($"  - `{Who}` {_alive:0}s: {(show ? "shown" : "hidden")}, cost {_costMs / Math.Max(1, _costFrames):0.000} ms/frame, " +
-                        $"vanilla leaked on {_leakFrames}/{_visibleFrames} shown frame(s), re-hidden {_rehides}+{_effectRehides}, dissolves {_dissolves}" +
+                        $"vanilla leaked on {_leakFrames}/{_visibleFrames} shown frame(s), re-hidden {_rehides}+{_effectRehides}, dissolves {_dissolves}, shader swaps {_shaderSwaps}" +
                         (m == null ? "" : "; " + m));
             _costMs = 0; _costFrames = 0;
         }
