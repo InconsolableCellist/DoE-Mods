@@ -57,7 +57,7 @@ The [INSTALL.md](INSTALL.md) walks through the steps in more detail.
 ## Restrictions
 
 - **Private lobbies only, for anything that touches other players.** Sending anything, seeing friends' avatars and changing your size are protected by a handshake that checks the room is private and every occupant is on the same build. Wearing your own avatar is local, so CustomAvatars allows it in any lobby; in a public one nothing is sent and everyone else stays vanilla.
-- **Never write to the player's account.** Doesn't write to the PlayFab
+- **Hands off the player's account, gold excepted where stated.** No mod writes XP, levels, unlocks, cosmetics or loadouts to the game's PlayFab profile. In-game gold is changed only by a mod that says so: today only **LootOverhaul**, whose kobold buys and sells for the game's own gold.
 - **No redistribution of game assets.** Decompilation output and extracted assets stay out of the repo.
 
 The full list and design decisions are in [docs/PLAN.md](docs/PLAN.md).

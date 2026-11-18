@@ -15,8 +15,9 @@ is built on. Re-read it before each milestone; re-dump after every game patch.
 1. **Private lobbies only.** The mod hard-gates every feature behind a room check
    (room is invite-only/invisible AND every occupant completed the mod handshake).
    In a room with any vanilla player, the mod goes fully inert.
-2. **Never write to PlayFab/UGS.** No granting items, no XP/coin/unlock writes, no Cloud
-   Code calls. Custom inventory persists to a local JSON only. (No anti-cheat exists, but
+2. **Never write to PlayFab/UGS, except gold where a mod says so.** No granting items, no
+   XP/unlock writes, no Cloud Code calls. In-game gold is changed only by a mod whose README
+   says so up front (LootOverhaul since 0.15.0; see GAME-INTERNALS → Progression). Custom inventory persists to a local JSON only. (No anti-cheat exists, but
    the economy is server-side and shared; this is both etiquette and ban-safety.)
 3. **No hardcoded RVAs/offsets.** All hooks go through Il2CppInterop-generated assemblies
    by type/method name (survives updates better; breakages become compile errors after

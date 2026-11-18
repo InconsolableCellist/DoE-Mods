@@ -3,6 +3,12 @@
 A second, independent MelonLoader mod for Dungeons of Eternity. Design and game-internals
 findings: [docs/LOOT-OVERHAUL.md](../../docs/LOOT-OVERHAUL.md).
 
+> **This mod changes your in-game gold.** Since 0.15.0 the kobold's shop runs on the game's own
+> gold: buying there takes gold from your character, selling there pays gold to it, and the
+> profile is saved after each change, as the game does after a sale. It writes nothing else to
+> your profile (no XP, unlocks, cosmetics or loadouts). It is the only mod here that touches
+> gold.
+
 ## Prerequisites
 
 Same as CustomAvatars (see [../README.md](../README.md)): MelonLoader 0.7.3 installed into the

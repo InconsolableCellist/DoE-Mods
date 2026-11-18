@@ -78,8 +78,16 @@ The player avatar is a **modular merged mesh**, not a monolithic model:
 XP/Level/Coins/Souls, perk slots, avatar cosmetic slots (50–70), weapon loadouts (100–113),
 `UnlockedCosmetics=80`, `UnlockedWeapons=131`. This all lives in **PlayFab** (see the
 `/Client/*` REST paths in `stringliteral.json`) with UGS Cloud Code for server-authoritative
-operations. **Anything that writes to these systems is off-limits** — it's shared-economy
-tampering and plausibly server-validated. Mod state stays local + session-scoped.
+operations. The rule:
+
+- **In-game gold (`Coins`) is not touched unless the mod says so up front**, at the top of its
+  README and in the root README's mod list. A mod that does change gold uses the game's own
+  calls (`PlayerProfile.IncrementCharacterData`) and saves the profile the way the game does.
+  Today that is only **LootOverhaul** (since 0.15.0: the kobold buys and sells for gold).
+  Any new gold write needs that note before it merges, and the PR has to argue for it.
+- **Everything else in the profile stays off-limits**: XP, level, souls, perks, unlocks,
+  cosmetics, loadouts. Those writes are shared-economy tampering and plausibly
+  server-validated. Reading is fine. Mod state stays local + session-scoped.
 
 ## Runtime findings (recon session 2026-08-31, solo, PCVR/SteamVR)
 

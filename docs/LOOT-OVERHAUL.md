@@ -776,7 +776,8 @@ The LootOverhaul 0.1 recon build covers this list with read-only hooks and hotke
 Settled in discussion after the investigation above. These are the rules the code is built to;
 change them here first.
 
-1. **The PlayFab wall stays.** No profile writes, ever. A "modded character slot" was considered
+1. **The PlayFab wall stays, with one stated exception.** Since 0.15.0 the kobold buys and sells
+   for the game's own gold (`Coins`), which is a profile write; nothing else is written. A "modded character slot" was considered
    and rejected: PlayFab data follows the account into every room, so it cannot be quarantined,
    and it adds nothing to the feel. The alternative, "items are removed when the room isn't
    fully modded", is what the local design already does and does more strongly: mod items never
