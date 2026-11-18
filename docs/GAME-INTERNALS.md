@@ -338,3 +338,187 @@ in re-dump triage after a patch.
       (`1657167936`), an Il2CppInterop `ValueTuple` field-access artifact. The string half is
       correct (`Torso_Worn Shirt_var2`, `Hair_Brunette`, `Eyes_Green`, …). Cosmetic only —
       Phase 2 replaces this pipeline rather than reading it.
+
+## Enemies (dump of 2026-11-13, game 1.3)
+
+Read from `dump/dump.cs` for the custom enemies plan (`docs/CUSTOM-ENEMIES-PLAN.md`, Phase 0a).
+Names and signatures only; line numbers are this dump's. Anything the dump cannot show (prefab
+data, animator states, which modules a given enemy carries) is marked **[runtime]** and waits
+for the hotkey probe.
+
+### `Il2CppSauron.AI` (dump.cs:125375)
+
+`AI : Agent, IPunObservable, IOnPhotonViewOwnerChange, IPoolable, IBurn, IPunInstantiateMagicCallback`, sealed.
+
+- **Data:** `type : AI.Type` (Light, Medium, Heavy, Elite, Legend, Fire, Ice, Poison, Gold),
+  `armorTier`, `specs : Specs`, `health : AI.Health`, `references : References`,
+  `AIModules : AI.ModuleSlot[]` (settings assets) and `modules : AIModule[]` (the live
+  instances), `room`, `cachedRenderers : Renderer[]`, `pooledMeshObjects : List<StuckArrow>`.
+- **Lifecycle:** `InitializeTemplate(ObjectPool)` (pool), `OnPoolObjectInstantiated`,
+  `InitializePooledObject`, `Initialize`, private `OnRespawn(Vector3, object, SpawnIntroType)`,
+  `OnPhotonInstantiate`, `ReleaseToPool`, `ReleaseImmediately`, `Net_Release`,
+  `DestroyMeshObjects(float dissolveTime)`, `OnPreDestroy`, `OnDestroy`. Updates come from
+  Sauron (`OnSauronUpdate`), plus `Update`, `OnAnimatorMove`, private `OnLateUpdate`.
+- **Pause hides renderers itself:** `PauseEnemy(bool)` → `SetRenderersEnabled(bool)` with
+  `renderersDisabledForPause`. A skin must follow this (hide with the enemy, show with it).
+- **Animation events:** `AE_Footstep(Footstep)`, `AE_FX(string)`, `AE_Throw(int)`,
+  `AE_ShootProjectile()`, each with an `AddOnAE_*Listener`. Also `Step`, `StartJump`.
+- **Animation sync:** the owner calls `Net_CrossFade(hash, fixedTime)`,
+  `Net_CrossFadeSecondary`, `Net_SetBool(hash, bool)`, `Net_SetFloat(hash, float)`; each has an
+  `RPC_*` twin. So every client runs its own Animator, driven by state-hash RPCs, and the root
+  comes from `networkTransform : NetworkTransform`. This is why a local skin needs no traffic.
+- **Damage in:** `Net_Damage(totalDamage, weaponDamage, damageType, actorNr, criticalHit)` →
+  `RPC_Damage(hp, hpDamage, damageType, actorNr)`; `RPC_SetHealth`, `RPC_SyncHealth`,
+  `Net_Heal(int)`. Hits: `OnHit`, `OnStab`, `OnBreakStab`, `TrySever`, `OnHitProp`.
+- **Death and despawn:** `Kill(DamageType)`, `Net_Kill`, `OnKilled(killerActorNr, damageType)`,
+  private `KillNow`, `ReleaseDelayed`; immortal enemies use `Net_ImmortalKill`,
+  `OnImmortalKilled`, `OnImmortalRevived(float)` with their listener events.
+- **Hover:** `Hover(float intensity)` / `AddOnHoverListener` (the aim highlight, see hit flash).
+- `AI.Health` (dump.cs:125013): `maxHP`, `regainSpeed`, `mortality : AI.Health.Mortality`
+  (Mortal, Resurrectable, **Immortal**, IgnoreHit), `HP : ProtectedFloat`, `CalculateMaxHP(Specs)`.
+
+### `References` (dump.cs:128366)
+
+`keychain`, `ID`, `IDHash`, `family : AI.Family` (Undead, Critter, Sorcerer, Monster),
+`defaultSpawnType : AI.SpawnType` (Ground, Ceiling, Air), `spawnedAsClass : AIClass`, `PVO`,
+`head`, `animator`, `secondaryAnimator`, `isHuman`, `defaultStateHash`, `materialHandler`,
+`characterOptimizer`, `puppetMaster`, `muscles`, `colliderArmors`, `props`, `defaultScale`,
+`despawnMode : AI.DespawnMode`, and navigation: `navSolverType : NavSolverType` (None, Unity,
+**Flight**, Navigator), `navAgentType`, `navAgentRadius/Height`, `baseOffset`, `squeezeFloor`
+(its tooltip is about flyers squeezing through doorways). Lookups by name:
+`GetTransformBindings`, `GetColliderBindings`, `GetBinding<T>`. Stage-dependent specs:
+`GetStage(healthPerc)`, `GetSpecsFloat/Int/Bool/Probability/Multiplier(key, …, stage)`.
+
+`AIClass` (dump.cs:126667): Minion, Warrior, Ranged, Creature, Miniboss = 4, Boss = 5,
+BreakableSpawn, NestSpawn, LargeCreature, FlyingCreature, Lurker.
+
+### Specs and modules
+
+- `Specs : ScriptableObject` (dump.cs:129724): `HP`, `multHPByNumPlayers`, `scale`, special loot,
+  and keyed arrays `multipliers`, `booleans`, `probabilities`, `integers`, `floats`,
+  `damageTypes`, `stages`. **A shared asset, not per instance**: a variant (tier 3) that changes
+  numbers has to clone it per enemy or override at the read (`References.GetSpecs*`).
+  `AIDef(specs, type, armor)` and `AI.SetDef(AIDef)` assign one.
+- `AIModuleSettings : ScriptableObject` (dump.cs:126406): `keychain`, `animatorController`,
+  abstract `Create(AI, DebugPanelMode) : AIModule`.
+- `AIModule` (dump.cs:126426), abstract, plain managed base (not a MonoBehaviour). Virtuals:
+  `OnPostInit`, `UpdateModule`, `OnSauronUpdate`, `OnUpdateIK`, `OnHit`, `OnHitStart`, `OnStab`,
+  `OnKilled`, `CanStartHit`, `CanStartAttack`, `CanBeStunned`, `OnAttackStart`, `OnHitProp`,
+  `OnDamage`, `OnDestroy`, `OnHazard`, `BlocksThrownProp`, `OnPropThrownAt`,
+  `OnThrownPropBlocked`, `CanBeStabbed`, `OnPooled`, `OnRespawn`, `OnKinetics`, `OnKineticsEnd`,
+  `OnOwnershipChange`, `OnPlayerEnteredRoom`, `OnWriteStream`, `OnReceiveStream`, `OnRPC` (two),
+  `OnSendEvent`, `OnShootProjectile`, plus the debug virtuals.
+- Concrete modules: AIAimIK, AIAimIKAttack, AIAIvsAI, AIAnimationFX, AIAnimationVariation,
+  AIBatBolt, AIBatForm, AIBreakableArmor, AIBurn, AICCDIKAttack, AICeilingSpawn,
+  AICollisionDamage, AICombatMelee, AICrystalGuardian, **AIDeath**, **AIDeathAnimation**,
+  AIDissolve, AIDodgeDissolve, AIEmpty, AIEvent, AIExoGrounded, AIFlight, AIGeyserAttack,
+  AIGrounderIK, AIGrounderQuadruped, AIHologram, AIInertia, AIKamikaze, AILocomotion,
+  AILookAtIK, AIMultiflex, AIPatrol, AIPhalanxAttack, AIPhaseAttack, AIPullAttack, AIPuppet,
+  AIRagdollExplosion, AIRelax, AIRunner, AISandGraveAttack, AISatellite, AISecondHandOnProp,
+  AISeverableLimb, AISkeleconda, AISlimeCube, AISmashTrigger, AISnakeIK, AISonicVeil,
+  AISpecialAttack, AISpecialHit, AISpawnAttack, AIStingAttack, AIStreamAttack, AITeleport,
+  AITemplate, AIThrowAttack, AITrain, AITypeFX, AIWolf, AIWolfIK, AIWraithAttack.
+
+### Death
+
+- Identity: `SauronKeys.IDHashDeath`, `EnemyTypeButton.EnemyType.Death = 33`,
+  `GameManager.HazardModifier.Death = 2`, `GameManager.Hazard_DeathSpawn`. Strings in the
+  metadata: `Death`, `Death_Hazard`, `Death_Whistle`, `Death Whistle`, `Immortal Death`,
+  `SpawnDeath`, `enemytype.death`.
+- Placement: `DungeonBuilder.LayoutDeathHazard(List<DungeonRoom>)` places
+  `DungeonFeature.DeathHazard = 130` and `DungeonFeature.DeathWhistle = 120`. Who turns the
+  feature into a spawned enemy is not visible in the dump **[runtime]**.
+- **`AIDeath` / `DeathSettings` (dump.cs:132961 / 132941): the attack is a distance check, not
+  a weapon hit.** Settings: `killTime`, `killDistance`, `attackStartSound`, `killPlayerSound`,
+  `despawn`, `despawnTime`. The module keeps `attackTimer` and `hasAttacked` and overrides
+  `OnRespawn`, `OnAttackStart`, `UpdateModule`. The player-side result is
+  `CombatRunner.CombatNotification.DeathTouch = 15`.
+- `AIDeathAnimation` / `DeathAnimationSettings` (dump.cs:132912 / 132888): an `idle` state
+  name, `fallDirections : DirAction.Settings[]` (directional fall clips when it is put down),
+  `crossfadeTime`, `timeScaleTarget`/`timeSmoothSpeed` (it slows its animator), `fx` +
+  `fxBinding`. `OnKilled` breaks held stabs (`BreakHeldStabs`).
+- `DeathWhistle : Prop` (dump.cs:9227, `Prop.Type.DeathWhistle = 47`): `RPC_Whistle`, and a
+  coroutine `KillDeathDelayed(AI)`. The whistle is how Death is put down; with "Immortal Death"
+  and the immortal kill/revive path on `AI`, it very likely revives **[runtime]**.
+- Test path: the sandbox can spawn it. `SandboxUI.EV_SpawnTheDeathReaper`, `SpawnDeath`,
+  `SandboxToggle.ToggleMod.DeathReaper`, `SandboxUI.DeathReaperEnabled`, and the general
+  `CombatRunner.SpawnSandboxEnemy(EnemyTypeButton.EnemyType, Vector3, Quaternion)`.
+
+### Spawning
+
+`CombatRunner : Singleton<CombatRunner>, IOnEventCallback` (dump.cs:60336) owns it:
+`SpawnEnemy(AIClass, …, Room, Encounter.SpawnPointMode, SpawnPointGroup, context, …)`,
+`SpawnEnemy(AIClass, Vector3, Quaternion, SpawnIntroType, context, poolIndex)`, static
+`SpawnDynamicEnemy`, `SpawnOffsetEnemy` (by `AIClass` or by `ObjectPool`), the sandbox
+variants, `LoadEnemyPoolForCheats(ObjectPool)` / `RPC_LoadPool(string poolName)`, and the
+encounter/wave RPCs (`RPC_ActivateEncounter`, `RPC_WaveStarted`, `RPC_WaveFinished`). Spawns
+are picked by `AIClass`, so a variant hooked on spawn sees the class, not a name.
+
+### Look: renderers, hit flash, dissolve
+
+- `CharacterOptimizer : MonoBehaviour` (dump.cs:43491): merges the enemy's meshes at `Awake`
+  (`mergeMeshes`, `mergedRenderer`, `MainRenderer`), holds `renderers`, `baseMaterial`, one
+  `MaterialPropertyBlock` for the body (`SetMaterialPropertyBlock`, event
+  `OnMaterialBlockChanged`), and per-`AI.Type` `materialVariations`, `dissolveVariations`,
+  `fXVariations` (`SetMaterialToAIType`). Stab wounds are decals (`stabWoundDecals`).
+- `MaterialHandler` (dump.cs:98975): wraps **one** `SkinnedMeshRenderer`; modes `Default`,
+  `DepthPass`, `FresnelPulse`, `Custom`; `SetHidden(bool)` swaps in `hiddenMaterials`. A second
+  way to hide a body that keeps the renderer enabled, worth comparing with `ShadowsOnly`.
+- `HitFlashHandler` (dump.cs:139430): **one renderer, through a `MaterialPropertyBlock`**
+  colour (`flashColorId`). Flash 0.125 s at intensity 3; aim hover glow 0.35 held 0.1 s.
+  `StartFlash(intensity, time)`, `Hover(float)`, `UpdateHover`, global switch
+  `HitFlashEnabledGlobal`. Mirroring it onto a skin = copy that colour every frame, or postfix
+  `StartFlash` / `Hover`.
+- `DissolveHandler` (dump.cs:98618) + `AIDissolve` / `DissolveSettings` (dump.cs:133028 /
+  132987): swaps the model's renderers to a dissolve shader and drives `_Dissolve` (keyword
+  `_ALPHA_DISSOLVE` for the alpha mode); settings `inTime`, `outTime`, `fxTime`,
+  `useAllRenderers`, `rendererTransform`, `deactivateOnDissolved`. `AIDissolve` also registers
+  **`instancedEyes`** (`AddInstancedEyes`, `UnregisterInstancedEyes`): the game's own enemy eyes
+  are a separate instanced system, to be hidden with the body and maybe reused for the wolf.
+
+### Outlines (the blue outline bug)
+
+- `FXOutline : MonoBehaviour` (dump.cs:65986) holds **its own renderer list**:
+  `Entries : List<FXOutline.Entry { renderer, mesh, isSkinned, subMeshCount }>`, filled by
+  `ResolveRenderers` / `CollectEntries` from its hierarchy, minus `excludedObjects` and
+  `effectNameFilter`. HD mode builds a shell from `shellSource : SkinnedMeshRenderer` (or
+  `bakedShellMesh`) with weld buffers. `glowVisibility` is AlwaysOnTop or OnlyWhenOccluded.
+  API: `SetHighlighted`, `SetGlowColor`, `SetGlowWidth`, `Refresh`, `ResolveRenderers`.
+- `FXOutlineManager : LazySingleton` (dump.cs:66165) draws every registered outline from
+  **one command buffer** on the camera (`CameraEvent` 17, AfterForwardAlpha; compute at 10),
+  passes mask, shell, silhouette, blur and compose. It draws meshes by reference, so a
+  renderer's `shadowCastingMode` does not matter to it. That is the bug.
+- Players: `CharacterPrefab.highlightEffect : FXOutline`, `EnableXRayMode(bool,
+  CharacterPrefab.XRayState)` with states XRay, Danger, XRayHidden and per-state colour and
+  width. The stick press is `XRayPing` (dump.cs:42265): `WasXRayButtonPressed`, `Ping`, static
+  `UnityEvent<bool, XRayState> EnableXRayMode`, `displayXRaySecs`.
+- A custom avatar is a scene-root object (`DontDestroyOnLoad`, `AvatarSwapper`), not under
+  the `CharacterPrefab`, so `ResolveRenderers` can never find it. **Fix:** after a swap (and on
+  every `Refresh`/`ResolveRenderers`), rewrite the player's `highlightEffect` entries to the
+  avatar's renderers and point `shellSource` at the avatar's main skinned mesh; restore on
+  revert. It runs on every client for every swapped player, so peers' outlines follow too.
+- Props have their own `Prop.fxOutline`. Neither `AI` nor `References` holds one, so enemies
+  are probably never outlined **[runtime]**.
+
+### Lighting and post-processing
+
+- **Bloom is a player setting**, not a given: `PlayerData.Values.EnableBloom = 1023`,
+  `BloomIntensity = 1032`, `GraphicsSettingId.Bloom = 6`, `FastBloom : MonoBehaviour`
+  (dump.cs:113770, threshold, softness, iterations, also sharpen and crease AO). A glowing eye
+  has to read without it, so the halo is needed whether or not bloom is on.
+- Also present: `MobilePostProcessing` (Quest path), `VolumetricLight` and
+  `VolumetricLightsPostProcess`, `FastVolumetricsManager`.
+- Bakery: `BakeryVolume` (static `globalVolume`), `BakeryVolumeReceiver`, `BakeryVolumeTrigger`,
+  `BakeryPointLight`, `BakeryDirectLight`, `BakerySkyLight`, `ftLightmaps`. Characters are lit
+  from Bakery volumes (the player material's `BAKERY_VOLUME` keyword) **[runtime: confirm on an
+  enemy material]**.
+
+### Still open for the runtime probe
+
+- [ ] Death's prefab: hierarchy, bones, `isHuman`, renderers and materials, colliders.
+- [ ] Which modules Death carries (does it have `AIFlight`, `AIDissolve`, `AIRunner`?) and its
+      `navSolverType`: does it float or follow the floor?
+- [ ] Animator controller, states and clips; which states fire `AE_FX`.
+- [ ] `killDistance` and `killTime` values, so the skin's reach can be sized to them.
+- [ ] Whether the whistle's kill is followed by a revive, and how Death leaves (`despawn`).
+- [ ] Is `FastBloom` on the VR camera at default settings? Ambient mode and probes in a dungeon.

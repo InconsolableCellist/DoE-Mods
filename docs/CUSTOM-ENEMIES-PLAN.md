@@ -1,6 +1,7 @@
 # Custom enemies — feasibility and plan
 
-Status: **approved through Phase 2, nothing built.** Written 2026-11-17 from the repo alone (no
+Status: **approved through Phase 2, nothing built; Phase 0a dump half done** (2026-11-17, see
+"Phase 0a: what the dump settled" and `GAME-INTERNALS.md` → Enemies). Written 2026-11-17 from the repo alone (no
 dump, no game in the session that wrote it). Everything marked **[recon]** is an inference that
 has to be confirmed against `dump.cs` or a running game before code is written on top of it.
 
@@ -63,6 +64,35 @@ Goal, in order:
   is already planned (PLAN Phase 4b). Mod Photon event codes 140–189 are taken (CustomAvatars
   140–149, LootOverhaul 150–159, VisualCues 160–169, Descent 170–179, StayPutVR 180–189);
   190–199 is the only free block.
+
+## Phase 0a: what the dump settled (2026-11-17)
+
+Facts with sources are in `GAME-INTERNALS.md` → Enemies. What they change here:
+
+- **Death's attack is a distance check** (`AIDeath`: `killTime`, `killDistance`; player side
+  `CombatNotification.DeathTouch`). There is no weapon collider to line up with; the visible
+  weapon is cosmetic and sized to read as the kill distance. Recon 3 is mostly answered.
+- **Death is very likely immortal** ("Immortal Death", the immortal kill/revive path on `AI`)
+  and is put down by the `DeathWhistle` prop (`KillDeathDelayed`), with directional fall
+  clips (`AIDeathAnimation.fallDirections`). The skin has to survive a put-down and revive.
+- **Outline cause found** (recon 7): `FXOutline` keeps its own renderer list, resolved from
+  the `CharacterPrefab`'s hierarchy, and `FXOutlineManager` draws it from a command buffer,
+  which ignores `ShadowsOnly`. The avatar lives at the scene root, so it is never in that
+  list. The fix is the "renderer list" one below, plus `shellSource` for HD mode.
+- **Hit flash and hover glow** (recon 5) are a `MaterialPropertyBlock` colour on one renderer
+  (`HitFlashHandler`); dissolve swaps materials (`DissolveHandler`). Mirroring both is
+  bounded work: copy a colour, follow a float.
+- **Bloom is optional per player** (recon 8): the halo stays required.
+- **Pausing an enemy disables its renderers** (`AI.PauseEnemy`): the skin follows it.
+- **Specs are shared ScriptableObjects** (recon 6): tier 3 overrides need per-instance
+  copies or a patch on `References.GetSpecs*`. Spawns are chosen by `AIClass`
+  (`CombatRunner.SpawnEnemy`).
+- **A test bench exists**: the sandbox spawns Death (`SandboxUI.SpawnDeath`,
+  `CombatRunner.SpawnSandboxEnemy(EnemyType.Death = 33, …)`).
+
+Still for the runtime probe: the rig and materials, the modules Death carries and its
+`navSolverType` (float or floor), animator states, the two kill values, the revive, and
+whether bloom is on by default.
 
 ## What is not known (Phase 0 recon)
 
@@ -144,10 +174,11 @@ recon shows Death is meant to hover and the skin is designed as a floating thing
 The honest split:
 
 - **Combat feel is vanilla's**, because every number, collider and timing is vanilla's. It
-  cannot get worse than fighting Death is today, provided the visible weapon sits where the
-  real damage collider is. So the skin's weapon is parented to the vanilla weapon bone and
-  sized to the vanilla reach. The wolf's joined-sickles glaive form is a polearm and should
-  cover a scythe's reach closely; two short sickles would lie about the range.
+  cannot get worse than fighting Death is today. Death's kill is not a weapon hit: `AIDeath`
+  kills a player who stays within `killDistance` for `killTime` (dump, see below). So the
+  weapon only has to *read* as that reach: it is parented to the vanilla weapon bone for the
+  swing, and its length is sized to `killDistance` once the probe has read it. The glaive
+  form suits a long reach, two short sickles a short one.
 - **Silhouette vs hitbox.** The player aims at what they see. The skin is scaled so head and
   torso overlap the vanilla colliders; snout, ears and tail will have no hitbox. Tolerable,
   and tunable per skin.
@@ -175,8 +206,10 @@ Decided once recon 8 is in, in this order of preference:
    named `-Array`, so it may want texture arrays; if so, fall back to a bundled SPS-I safe
    shader that samples whatever ambient source recon shows is live in dungeons.
 2. **Eyes.** Separate material slot, unlit emissive, never darkened by scene lighting. Add a
-   camera-facing additive halo quad per eye, sized and faded by distance. Add bloom only if
-   the game already runs it.
+   camera-facing additive halo quad per eye, sized and faded by distance. Bloom is a player
+   setting (`EnableBloom`, dump), so the halo is needed either way; with bloom on, the
+   emissive eye gets it for free. The game's own enemy eyes are an instanced system
+   (`AIDissolve.instancedEyes`); they are hidden with the body, and may be reusable.
 3. **Light.** An optional low-range red point light at the head, off by default, switchable
    in settings, because a realtime light in a baked scene costs frame time in VR.
 4. **Manifest-driven.** Eye anchors, halo size and colour, light on/off and range are skin
