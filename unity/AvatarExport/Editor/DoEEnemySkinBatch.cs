@@ -63,6 +63,32 @@ namespace DoEMod.Export
             imp.isReadable = false;
             imp.SaveAndReimport();
 
+            // Unity's automatic mapping guesses by substring, and a twist bone named
+            // "LeftHandTwist" beat "LeftHand" to the hand slot (2026-11-17, the wolf). Pin every
+            // bone whose name is exactly a humanoid bone name (spaces ignored) to that slot,
+            // keeping Unity's guesses only for slots no bone is named after.
+            var names = new System.Collections.Generic.Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var t in AssetDatabase.LoadAssetAtPath<GameObject>(fbx).GetComponentsInChildren<Transform>(true))
+                names[t.name.Replace(" ", "")] = t.name;
+            var desc = imp.humanDescription;
+            var human = new System.Collections.Generic.List<HumanBone>();
+            var pinned = 0;
+            foreach (var slot in HumanTrait.BoneName)
+            {
+                if (names.TryGetValue(slot.Replace(" ", ""), out var bone))
+                {
+                    human.Add(new HumanBone { humanName = slot, boneName = bone, limit = new HumanLimit { useDefaultValues = true } });
+                    pinned++;
+                    continue;
+                }
+                foreach (var h in desc.human ?? new HumanBone[0])
+                    if (h.humanName == slot) { human.Add(h); break; }
+            }
+            desc.human = human.ToArray();
+            imp.humanDescription = desc;
+            imp.SaveAndReimport();
+            Debug.Log($"DoE enemy skin: {pinned} humanoid slot(s) pinned to the bone of the same name.");
+
             var asset = AssetDatabase.LoadAssetAtPath<GameObject>(fbx);
             var anim = asset != null ? asset.GetComponent<Animator>() : null;
             if (anim == null || anim.avatar == null || !anim.avatar.isValid || !anim.avatar.isHuman)

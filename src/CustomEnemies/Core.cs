@@ -4,7 +4,7 @@ using CustomEnemies;
 using CustomEnemies.Skins;
 using UnityEngine.InputSystem;
 
-[assembly: MelonInfo(typeof(Core), "CustomEnemies", "0.1.0", "Foxipso")]
+[assembly: MelonInfo(typeof(Core), "CustomEnemies", "0.2.0", "Foxipso")]
 [assembly: MelonGame("Othergate LLC", "Dungeons of Eternity")]
 
 namespace CustomEnemies
@@ -22,7 +22,7 @@ namespace CustomEnemies
     /// </summary>
     public class Core : MelonMod
     {
-        public const string Version = "0.1.0";
+        public const string Version = "0.2.0";
 
         public static Core Instance { get; private set; }
         public static MelonLogger.Instance Log => Instance.LoggerInstance;
