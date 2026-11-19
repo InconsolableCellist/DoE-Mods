@@ -59,6 +59,7 @@
     <Compile Include="..\CustomAvatars\Avatars\AvatarManifest.cs" Link="Shared\AvatarManifest.cs" />
     <Compile Include="..\CustomAvatars\Avatars\AvatarBundle.cs" Link="Shared\AvatarBundle.cs" />
     <Compile Include="..\CustomAvatars\Avatars\PoseRetargeter.cs" Link="Shared\PoseRetargeter.cs" />
+    <Compile Include="..\CustomAvatars\Avatars\SpringBones.cs" Link="Shared\SpringBones.cs" />
   </ItemGroup>
 
   <!-- Reference every generated interop assembly; the set shifts with game updates. -->

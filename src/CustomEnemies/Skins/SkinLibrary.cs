@@ -40,6 +40,33 @@ namespace CustomEnemies.Skins
             public float lag = 18f;
         }
 
+        /// <summary>A spring chain (tail, robe): bones parent first; the solver is CustomAvatars' own.</summary>
+        public sealed class Spring
+        {
+            public string name;
+            public List<string> bones;
+            /// <summary>Pull back toward the animated pose, 0..1.</summary>
+            public float stiffness = 0.2f;
+            /// <summary>Bounce (less drag), 0..1.</summary>
+            public float spring = 0.3f;
+            public float gravity = 0.3f;
+            /// <summary>How much the chain ignores the body's own travel, 0..1.</summary>
+            public float immobile;
+            /// <summary>Cone limit in degrees from the animated direction; 0 = the solver's default.</summary>
+            public float maxAngle;
+        }
+
+        /// <summary>Small motion on top of the enemy's pose, so a floating enemy doesn't look carved.</summary>
+        public sealed class Idle
+        {
+            /// <summary>Chest pitch, degrees, and its period in seconds.</summary>
+            public float breath = 2f;
+            public float breathPeriod = 3.6f;
+            /// <summary>Head wander, degrees, and its period in seconds.</summary>
+            public float head = 4f;
+            public float headPeriod = 5.3f;
+        }
+
         public sealed class Sidecar
         {
             public List<string> replaces;
@@ -58,6 +85,17 @@ namespace CustomEnemies.Skins
             public List<Weapon> weapons;
             /// <summary>Hang the legs (glide); null leaves them copying the enemy's legs.</summary>
             public Legs legs;
+            public List<Spring> springs;
+            public Idle idle;
+            /// <summary>Shader keywords switched off on the skin's copies of the enemy material; null = the default (the X-ray outline).</summary>
+            public List<string> keywordsOff;
+            /// <summary>
+            /// Texture slots of the enemy material, by property name, and what the skin puts there:
+            /// "keep" (the enemy's own), "none", "black", "white", "grey", "bump" (flat normal), or
+            /// "skin:&lt;property&gt;" (that texture of the skin's own exported material).
+            /// Slots not listed are guessed from their names; the report lists every slot.
+            /// </summary>
+            public Dictionary<string, string> textures;
             /// <summary>Who made the model and its licence; logged and kept with the skin.</summary>
             public string credit;
         }

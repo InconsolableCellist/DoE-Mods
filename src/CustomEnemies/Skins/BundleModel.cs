@@ -39,6 +39,14 @@ namespace CustomEnemies.Skins
         private readonly List<(Transform bone, Transform to, Quaternion rot, Vector3 off)> _weapons = new List<(Transform, Transform, Quaternion, Vector3)>();
         private Halos _halos;
 
+        // Secondary motion
+        private SpringBones _springs;
+        private string _springNote = "no springs";
+        private Transform _chest, _upperChest, _neck;
+        private float _phase;
+        private Quaternion _upperChestRest = Quaternion.identity, _neckRest = Quaternion.identity, _headRest = Quaternion.identity;
+        private readonly List<(Transform t, Quaternion rot, Vector3 pos)> _bind = new List<(Transform, Quaternion, Vector3)>();
+
         // Measurements
         private Transform _srcHead, _dstHead, _srcHandR, _dstHandR;
         private float _headOffSum, _headOffMax, _handOffSum;
@@ -107,15 +115,21 @@ namespace CustomEnemies.Skins
         }
 
         /// <summary>
-        /// The skin's materials as copies of the enemy's own body material carrying the skin's
-        /// base colour texture, so it is lit like the enemy (Death: PotoVR/Characters_Normal from
-        /// the Bakery volume). Materials named in <c>keepMaterials</c> stay as exported.
+        /// The skin's materials as copies of the enemy's own body material, so it is lit like the
+        /// enemy (Death: PotoVR/Characters_Normal from the Bakery volume). Every texture slot of
+        /// the copy is re-filled: the enemy's maps are laid out for the enemy's UVs, and on the
+        /// skin they light up and shade arbitrary patches (2026-11-18, first wolf test: orange
+        /// glow on the legs, forearms and scythes, faceted shading). Keywords in
+        /// <c>keywordsOff</c> (default: the X-ray outline, which draws every part of the skin
+        /// that the skin itself hides) are switched off. Materials named in <c>keepMaterials</c>
+        /// stay as exported.
         /// </summary>
         private void Materials(Renderer body)
         {
             var template = body.sharedMaterial;
             var keep = new HashSet<string>(_skin.Def.keepMaterials ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
             var made = new Dictionary<IntPtr, Material>();
+            var first = true;
             foreach (var r in _renderers)
             {
                 var mats = r.sharedMaterials;
@@ -130,14 +144,14 @@ namespace CustomEnemies.Skins
                     if (!made.TryGetValue(src.Pointer, out var copy))
                     {
                         copy = new Material(template) { name = "CustomEnemies " + name };
-                        Texture tex = null;
-                        try { tex = src.mainTexture; } catch { }
-                        if (!Interop.Alive(tex))
-                            foreach (var p in new[] { "_MainTex", "_BaseMap", "_BaseColorMap" })
-                                if (src.HasProperty(p)) { tex = src.GetTexture(p); if (Interop.Alive(tex)) break; }
-                        if (copy.HasProperty("_MainTex")) copy.SetTexture("_MainTex", tex);
-                        foreach (var c in new[] { "_Color", "_BaseColor", "_MainColor" })
-                            if (copy.HasProperty(c)) copy.SetColor(c, Color.white);
+                        var log = first ? new System.Text.StringBuilder() : null;
+                        Refill(copy, src, log);
+                        if (log != null)
+                        {
+                            first = false;
+                            Report.Line($"- **{_skin.Name}** materials: copies of `{template.name}` (`{template.shader.name}`), " +
+                                        $"keywords now `{string.Join(" ", copy.shaderKeywords)}`. Slots, for `{name}`:\n{log}");
+                        }
                         made[src.Pointer] = copy;
                         _owned.Add(copy);
                         _gameShader.Add(copy);
@@ -147,6 +161,109 @@ namespace CustomEnemies.Skins
                 }
                 if (changed) r.sharedMaterials = mats;
             }
+        }
+
+        private static readonly string[] DefaultKeywordsOff = { "_XRAY_ON" };
+        private static Texture2D _flatNormal, _grey;
+
+        private void Refill(Material copy, Material src, System.Text.StringBuilder log)
+        {
+            foreach (var k in _skin.Def.keywordsOff ?? new List<string>(DefaultKeywordsOff))
+                if (!string.IsNullOrEmpty(k)) copy.DisableKeyword(k);
+            foreach (var c in new[] { "_Color", "_BaseColor", "_MainColor" })
+                if (copy.HasProperty(c)) copy.SetColor(c, Color.white);
+
+            var sh = copy.shader;
+            var n = sh.GetPropertyCount();
+            for (var i = 0; i < n; i++)
+            {
+                var prop = sh.GetPropertyName(i);
+                var type = sh.GetPropertyType(i);
+                if (type != ShaderPropertyType.Texture)
+                {
+                    if (log == null) continue;
+                    string val;
+                    try
+                    {
+                        val = type == ShaderPropertyType.Color ? copy.GetColor(prop).ToString()
+                            : type == ShaderPropertyType.Vector ? copy.GetVector(prop).ToString()
+                            : copy.GetFloat(prop).ToString("0.###");
+                    }
+                    catch { val = "?"; }
+                    if (prop.IndexOf("Emiss", StringComparison.OrdinalIgnoreCase) >= 0 && type == ShaderPropertyType.Color)
+                    {
+                        copy.SetColor(prop, SkinTex(src, "_EmissionMap") != null ? src.GetColor("_EmissionColor") : Color.black);
+                        val += " -> " + copy.GetColor(prop);
+                    }
+                    log.AppendLine($"    - `{prop}` {type} {val}");
+                    continue;
+                }
+                var was = copy.GetTexture(prop);
+                string rule = null;
+                if (_skin.Def.textures != null) _skin.Def.textures.TryGetValue(prop, out rule);
+                var guessed = rule == null;
+                if (guessed) rule = Guess(prop);
+                var tex = Pick(rule, src, was);
+                copy.SetTexture(prop, tex);
+                log?.AppendLine($"    - `{prop}` texture `{(Interop.Alive(was) ? was.name : "none")}` -> {rule}{(guessed ? " (guessed from the name)" : "")}");
+            }
+        }
+
+        private static string Guess(string prop)
+        {
+            bool Has(params string[] w) { foreach (var x in w) if (prop.IndexOf(x, StringComparison.OrdinalIgnoreCase) >= 0) return true; return false; }
+            if (prop == "_MainTex" || Has("BaseMap", "BaseColor", "Albedo", "Diffuse")) return "skin:_MainTex";
+            if (Has("Bump", "Normal")) return "skin:_BumpMap";
+            if (Has("Emiss", "Glow", "Illum")) return "skin:_EmissionMap";
+            if (Has("Dissolve", "Noise", "Burn", "Ramp", "MatCap", "Matcap", "Cube", "LUT", "Gradient", "Toon")) return "keep";
+            if (Has("Occlusion", "AO")) return "white";
+            return "black";   // masks, metal, spec, detail: laid out for the enemy's UVs
+        }
+
+        private static Texture Pick(string rule, Material src, Texture was)
+        {
+            switch (rule.Trim().ToLowerInvariant())
+            {
+                case "keep": return was;
+                case "none": return null;
+                case "white": return Texture2D.whiteTexture;
+                case "black": return Texture2D.blackTexture;
+                case "grey": case "gray": return _grey = _grey ?? Solid(new Color(0.5f, 0.5f, 0.5f, 0.5f));
+                case "bump": return FlatNormal();
+            }
+            if (rule.StartsWith("skin:", StringComparison.OrdinalIgnoreCase))
+            {
+                var p = rule.Substring(5).Trim();
+                var t = SkinTex(src, p);
+                if (t != null) return t;
+                if (p.IndexOf("Bump", StringComparison.OrdinalIgnoreCase) >= 0 || p.IndexOf("Normal", StringComparison.OrdinalIgnoreCase) >= 0) return FlatNormal();
+                return p == "_MainTex" ? Texture2D.whiteTexture : Texture2D.blackTexture;
+            }
+            return was;
+        }
+
+        private static Texture SkinTex(Material src, string prop)
+        {
+            try
+            {
+                if (prop == "_MainTex") { var m = src.mainTexture; if (Interop.Alive(m)) return m; }
+                if (src.HasProperty(prop)) { var t = src.GetTexture(prop); if (Interop.Alive(t)) return t; }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>A flat tangent-space normal that unpacks to (0,0,1) whether read as RGB or as DXT5nm (AG).</summary>
+        private static Texture2D FlatNormal() => _flatNormal = Interop.Alive(_flatNormal) ? _flatNormal : Solid(new Color(0.5f, 0.5f, 1f, 0.5f));
+
+        private static Texture2D Solid(Color c)
+        {
+            var t = new Texture2D(4, 4, TextureFormat.RGBA32, false, true) { name = "CustomEnemies solid", hideFlags = HideFlags.DontUnloadUnusedAsset };
+            var px = new Color[16];
+            for (var i = 0; i < 16; i++) px[i] = c;
+            t.SetPixels(px);
+            t.Apply(false, true);
+            return t;
         }
 
         private Transform Bone(string name)
@@ -165,6 +282,14 @@ namespace CustomEnemies.Skins
 
         private void FindBones()
         {
+            foreach (var t in _instance.GetComponentsInChildren<Transform>(true))
+                _bind.Add((t, t.localRotation, t.localPosition));
+            _chest = Bone("Chest"); _upperChest = Bone("UpperChest"); _neck = Bone("Neck");
+            if (Interop.Alive(_upperChest)) _upperChestRest = _upperChest.localRotation;
+            if (Interop.Alive(_neck)) _neckRest = _neck.localRotation;
+            var head = Bone("Head");
+            if (Interop.Alive(head)) _headRest = head.localRotation;
+            _phase = UnityEngine.Random.value * 100f;
             _hips = Bone("Hips");
             _thighL = Bone("LeftUpperLeg"); _thighR = Bone("RightUpperLeg");
             _kneeL = Bone("LeftLowerLeg"); _kneeR = Bone("RightLowerLeg");
@@ -189,14 +314,11 @@ namespace CustomEnemies.Skins
             _settle = 0f;
             _retarget = null;
             _captureNote = "waiting for the enemy to settle";
-            if (Interop.Alive(_instance))
-            {
-                // Back to the bind pose the capture expects: the retargeter only restores bones it paired.
-                if (Interop.Alive(_thighL)) _thighL.localRotation = _thighLRest;
-                if (Interop.Alive(_thighR)) _thighR.localRotation = _thighRRest;
-                if (Interop.Alive(_kneeL)) _kneeL.localRotation = _kneeLRest;
-                if (Interop.Alive(_kneeR)) _kneeR.localRotation = _kneeRRest;
-            }
+            _springs = null;
+            // Back to the bind pose the capture expects: the retargeter only restores bones it
+            // paired, and the springs and legs moved others.
+            foreach (var (t, rot, pos) in _bind)
+                if (Interop.Alive(t)) { t.localRotation = rot; t.localPosition = pos; }
             _trail = Vector2.zero;
         }
 
@@ -205,12 +327,23 @@ namespace CustomEnemies.Skins
             if (!Interop.Alive(_instance) || !Interop.Alive(_source)) return;
             if (!_ready) { TrySettle(dt); if (!_ready) return; }
 
+            // Idle motion turns these on top of the copied pose; one the retargeter doesn't drive
+            // (the wolf's UpperChest) would otherwise add up frame after frame.
+            if (Interop.Alive(_upperChest)) _upperChest.localRotation = _upperChestRest;
+            if (Interop.Alive(_neck)) _neck.localRotation = _neckRest;
+            if (Interop.Alive(_dstHead)) _dstHead.localRotation = _headRest;
             _retarget.Apply();
             HangLegs(dt);
+            IdleMotion();
             foreach (var (bone, to, rot, off) in _weapons)
             {
                 if (!Interop.Alive(bone) || !Interop.Alive(to)) continue;
                 bone.SetPositionAndRotation(to.TransformPoint(off), to.rotation * rot);
+            }
+            if (_springs != null)
+            {
+                try { _springs.Simulate(dt); }
+                catch (Exception e) { SkinManager.LogOnce("springs " + _skin.Name, e); }
             }
             _halos?.Tick();
         }
@@ -223,12 +356,14 @@ namespace CustomEnemies.Skins
             try { intro = _source.GetCurrentAnimatorStateInfo(0).IsName("Spawn Intro"); } catch { }
             if ((intro && _settle < 6f) || _settle < 0.5f) return;
             FitScale();
+            BuildSprings();
             _retarget = _retarget ?? new PoseRetargeter();
             _captureNote = _retarget.Build(_source, _instance, _skin.Manifest);
             _ready = _retarget.LinkCount > 0;
             _lastEnemyPos = _enemy.position;
             Core.Log.Msg($"Skin `{_skin.Name}` on `{SkinManager.CleanName(Interop.Name(_enemy))}`: {_captureNote}; {_scaleNote}.");
             Report.Line($"- **{_skin.Name}** pose copy: {_captureNote}; {_scaleNote}; paired: {_retarget.Describe()}");
+            Report.Line($"- **{_skin.Name}** springs: {_springNote}");
         }
 
         /// <summary>The skin's head at the enemy's head height (rest pose, measured from each root), times the sidecar scale.</summary>
@@ -243,6 +378,92 @@ namespace CustomEnemies.Skins
             k *= _skin.Def.scale <= 0f ? 1f : _skin.Def.scale;
             root.localScale = Vector3.one * k;
             _scaleNote = $"scaled x{k:0.###} (enemy head {src:0.00} m, skin head {dst:0.00} m at x1)";
+        }
+
+        /// <summary>
+        /// Spring chains: the manifest's own (PhysBones captured by the exporter) plus the
+        /// sidecar's. Built at rest, after the scale fit, because the solver measures its bone
+        /// lengths in world space. A sidecar chain's last bone swings toward a virtual tip one
+        /// segment further on.
+        /// </summary>
+        private void BuildSprings()
+        {
+            var chains = new List<AvatarManifest.ChainInfo>();
+            if (_skin.Manifest.dynamics?.chains != null) chains.AddRange(_skin.Manifest.dynamics.chains);
+            var missing = new List<string>();
+            foreach (var sp in _skin.Def.springs ?? new List<SkinLibrary.Spring>())
+            {
+                if (sp?.bones == null || sp.bones.Count == 0) continue;
+                var ts = new List<Transform>();
+                foreach (var b in sp.bones)
+                {
+                    var t = Bone(b);
+                    if (!Interop.Alive(t)) { missing.Add(b); ts.Clear(); break; }
+                    ts.Add(t);
+                }
+                if (ts.Count == 0) continue;
+                var paths = new List<string>();
+                foreach (var t in ts) paths.Add(RelPath(t));
+                List<float> end = null;
+                var last = ts[ts.Count - 1];
+                var prev = ts.Count >= 2 ? ts[ts.Count - 2] : last.parent;
+                if (Interop.Alive(prev))
+                {
+                    var tip = last.InverseTransformPoint(last.position + (last.position - prev.position));
+                    end = new List<float> { tip.x, tip.y, tip.z };
+                }
+                chains.Add(new AvatarManifest.ChainInfo
+                {
+                    name = sp.name ?? sp.bones[0], source = "enemy.json", bones = paths,
+                    stiffness = sp.stiffness, pull = sp.stiffness, spring = sp.spring, gravity = sp.gravity, immobile = sp.immobile,
+                    limitType = sp.maxAngle > 0f ? "Angle" : "None", maxAngleX = sp.maxAngle, maxAngleZ = sp.maxAngle,
+                    endpointPosition = end,
+                });
+            }
+            if (chains.Count == 0) { _springs = null; _springNote = "none listed"; return; }
+            var manifest = new AvatarManifest
+            {
+                dynamics = new AvatarManifest.DynamicsInfo { chains = chains, colliders = _skin.Manifest.dynamics?.colliders ?? new List<AvatarManifest.ColliderInfo>() },
+            };
+            _springs = new SpringBones();
+            var note = _springs.Build(_instance, manifest);
+            _springs.Reset();
+            _springNote = $"{_springs.ChainCount} chain(s), {_springs.BoneCount} bone(s)" +
+                          (missing.Count > 0 ? $"; bones not found: {string.Join(", ", missing)}" : "") +
+                          (string.IsNullOrEmpty(note) ? "" : $" ({note})");
+            if (_springs.ChainCount == 0) _springs = null;
+        }
+
+        private string RelPath(Transform t)
+        {
+            var root = _instance.transform;
+            var s = t.name;
+            for (var p = t.parent; Interop.Alive(p) && p != root; p = p.parent) s = p.name + "/" + s;
+            return s;
+        }
+
+        /// <summary>Breathing in the chest and a slow wander of the head, on top of the copied pose.</summary>
+        private void IdleMotion()
+        {
+            var idle = _skin.Def.idle;
+            if (idle == null) return;
+            var root = _root.transform;
+            var t = Time.time + _phase;
+            if (idle.breath > 0f)
+            {
+                var b = Mathf.Sin(t * Mathf.PI * 2f / Mathf.Max(0.5f, idle.breathPeriod)) * idle.breath;
+                var chest = Interop.Alive(_upperChest) ? _upperChest : _chest;
+                if (Interop.Alive(chest)) chest.rotation = Quaternion.AngleAxis(-b, root.right) * chest.rotation;
+                if (Interop.Alive(_neck)) _neck.rotation = Quaternion.AngleAxis(b * 0.6f, root.right) * _neck.rotation;
+            }
+            if (idle.head > 0f && Interop.Alive(_dstHead))
+            {
+                var w = Mathf.PI * 2f / Mathf.Max(0.5f, idle.headPeriod);
+                var yaw = (Mathf.Sin(t * w) + 0.5f * Mathf.Sin(t * w * 2.3f + 1.1f)) / 1.5f * idle.head;
+                var pitch = Mathf.Sin(t * w * 0.7f + 2.0f) * idle.head * 0.5f;
+                var roll = Mathf.Sin(t * w * 0.45f + 0.4f) * idle.head * 0.6f;
+                _dstHead.rotation = Quaternion.AngleAxis(yaw, root.up) * Quaternion.AngleAxis(pitch, root.right) * Quaternion.AngleAxis(roll, root.forward) * _dstHead.rotation;
+            }
         }
 
         private void HangLegs(float dt)
@@ -285,7 +506,8 @@ namespace CustomEnemies.Skins
 
         public string Describe() =>
             $"bundle `{_skin.Name}` ({_renderers.Count} renderer(s), {_gameShader.Count} material(s) on the enemy's shader, " +
-            $"{_weapons.Count} weapon(s), {_halos?.Count ?? 0} eye halo(s), legs {(_skin.Def.legs == null ? "copied" : "hanging")}), {_captureNote}";
+            $"{_weapons.Count} weapon(s), {_halos?.Count ?? 0} eye halo(s), legs {(_skin.Def.legs == null ? "copied" : "hanging")}, " +
+            $"{_skin.Def.springs?.Count ?? 0} spring chain(s) listed, idle {(_skin.Def.idle == null ? "off" : "on")}), {_captureNote}";
 
         public void Destroy()
         {

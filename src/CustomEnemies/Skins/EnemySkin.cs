@@ -241,6 +241,10 @@ namespace CustomEnemies.Skins
                     var name = sh.GetPropertyName(i);
                     if (name == "_MainTex" || name == "_Color" || name == "_BaseColor") continue;
                     var type = sh.GetPropertyType(i);
+                    // Only what the dissolve itself needs: the skin's own texture slots and its
+                    // switched-off emission stay as the skin set them.
+                    if (type == ShaderPropertyType.Texture && !DissolveTex(name)) continue;
+                    if (name.IndexOf("Emiss", StringComparison.OrdinalIgnoreCase) >= 0) continue;
                     foreach (var m in mats)
                     {
                         if (!Interop.Alive(m) || !m.HasProperty(name)) continue;
@@ -257,6 +261,10 @@ namespace CustomEnemies.Skins
             }
             catch (Exception e) { SkinManager.LogOnce("dissolve mirror", e); }
         }
+
+        private static bool DissolveTex(string n) =>
+            n.IndexOf("Dissolve", StringComparison.OrdinalIgnoreCase) >= 0 || n.IndexOf("Noise", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            n.IndexOf("Burn", StringComparison.OrdinalIgnoreCase) >= 0;
 
         private void Follow()
         {
