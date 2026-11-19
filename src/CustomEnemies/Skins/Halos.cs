@@ -18,6 +18,14 @@ namespace CustomEnemies.Skins
         public int Count => _quads.Count;
         /// <summary>Size multiplier (the growl swells the eyes).</summary>
         public float Boost = 1f;
+        private Material _mat;
+
+        /// <summary>Recolour every halo.</summary>
+        public void Tint(Color c)
+        {
+            if (!Interop.Alive(_mat)) return;
+            foreach (var p in new[] { "_TintColor", "_Color", "_BaseColor" }) if (_mat.HasProperty(p)) _mat.SetColor(p, c);
+        }
 
         public static Halos Build(Transform skin, SkinLibrary.Sidecar def, Transform enemy, List<Material> owned)
         {
@@ -31,7 +39,7 @@ namespace CustomEnemies.Skins
             foreach (var p in new[] { "_TintColor", "_Color", "_BaseColor" }) if (copy.HasProperty(p)) copy.SetColor(p, c);
             owned.Add(copy);
 
-            var h = new Halos();
+            var h = new Halos { _mat = copy };
             foreach (var name in def.eyes)
             {
                 Transform eye = null;

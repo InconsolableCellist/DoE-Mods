@@ -57,6 +57,7 @@ namespace CustomEnemies.Skins
             if (Interop.Alive(_jaw)) { _jawRest = _jaw.localRotation; parts.Add("jaw"); }
 
             var names = new HashSet<string>();
+            if (_skin.Def.shapes != null) foreach (var k in _skin.Def.shapes.Keys) names.Add(k);
             if (_skin.Def.close?.shapes != null) foreach (var k in _skin.Def.close.shapes.Keys) names.Add(k);
             if (_skin.Def.bite?.shapes != null) foreach (var k in _skin.Def.bite.shapes.Keys) names.Add(k);
             foreach (var r in _renderers)
@@ -87,7 +88,7 @@ namespace CustomEnemies.Skins
                 _eyeFury = LoadTexture(g.furyTexture) ?? _eyeTex;
                 if (_eyeMat == null) parts.Add($"eye glow: no material `{g.material}`");
                 else if (_eyeTex == null) parts.Add($"eye glow: texture `{g.texture}` not loaded");
-                else { SetEyes(_eyeTex, g.intensity); parts.Add("eye glow"); }
+                else { SetEyes(_eyeTex, g.intensity, Col(g.colour, new Color(1f, 0.12f, 0.04f))); parts.Add("eye glow"); }
             }
             if (_skin.Def.bite != null) parts.Add($"bite on `{_skin.Def.bite.state}`");
             _faceNote = parts.Count == 0 ? "off" : string.Join(", ", parts);
@@ -199,7 +200,10 @@ namespace CustomEnemies.Skins
 
             // Blend shapes: the larger of growl and bite.
             _shapeWant.Clear();
-            if (c?.shapes != null) foreach (var kv in c.shapes) _shapeWant[kv.Key] = kv.Value * near;
+            if (_skin.Def.shapes != null) foreach (var kv in _skin.Def.shapes) _shapeWant[kv.Key] = kv.Value;
+            if (c?.shapes != null)
+                foreach (var kv in c.shapes)
+                    _shapeWant[kv.Key] = Mathf.Max(_shapeWant.TryGetValue(kv.Key, out var v0) ? v0 : 0f, kv.Value * near);
             if (biting && b.shapes != null)
                 foreach (var kv in b.shapes)
                     _shapeWant[kv.Key] = Mathf.Max(_shapeWant.TryGetValue(kv.Key, out var v) ? v : 0f, kv.Value * biteAmt);
@@ -215,7 +219,10 @@ namespace CustomEnemies.Skins
             {
                 var fury = Mathf.Max(near, biteAmt) >= g.furyAt;
                 if (fury != _furyOn) { _furyOn = fury; _eyeMat.SetTexture("_Emission", fury ? _eyeFury : _eyeTex); }
-                SetEyes(null, Mathf.Lerp(g.intensity, g.furyIntensity, Mathf.Max(near, biteAmt)));
+                var k = Mathf.Max(near, biteAmt);
+                var col = Color.Lerp(Col(g.colour, new Color(1f, 0.12f, 0.04f)), Col(g.furyColour, Color.white), k);
+                SetEyes(null, Mathf.Lerp(g.intensity, g.furyIntensity, k), col);
+                _halos?.Tint(col);
             }
         }
 
@@ -259,10 +266,14 @@ namespace CustomEnemies.Skins
             return r.sqrMagnitude > 1e-8f ? r.normalized : _root.transform.right;
         }
 
-        private void SetEyes(Texture tex, float intensity)
+        private static Color Col(float[] a, Color fallback) =>
+            a != null && a.Length >= 3 ? new Color(a[0], a[1], a[2], a.Length > 3 ? a[3] : 1f) : fallback;
+
+        /// <summary>The game shader's emission is a mask (<c>_Emission</c>) tinted by <c>_EmissionColor</c>, as on Death (orange).</summary>
+        private void SetEyes(Texture tex, float intensity, Color colour)
         {
             if (tex != null) _eyeMat.SetTexture("_Emission", tex);
-            if (_eyeMat.HasProperty("_EmissionColor")) _eyeMat.SetColor("_EmissionColor", Color.white);
+            if (_eyeMat.HasProperty("_EmissionColor")) _eyeMat.SetColor("_EmissionColor", colour);
             if (_eyeMat.HasProperty("_EmissionIntensity")) _eyeMat.SetFloat("_EmissionIntensity", intensity);
         }
 

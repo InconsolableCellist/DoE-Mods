@@ -117,6 +117,9 @@ namespace CustomEnemies.Skins
             /// <summary>Swapped in at full growl and in a bite (the white pupils).</summary>
             public string furyTexture;
             public float intensity = 1.5f, furyIntensity = 5f;
+            /// <summary>Emission colour far away and at full growl (the texture is a mask the shader tints); the eye halos follow it.</summary>
+            public float[] colour = { 1f, 0.12f, 0.04f };
+            public float[] furyColour = { 1f, 1f, 1f };
             /// <summary>Growl level (0..1) at which the fury texture takes over.</summary>
             public float furyAt = 0.6f;
         }
@@ -169,6 +172,8 @@ namespace CustomEnemies.Skins
             public Close close;
             public EyeGlow eyeGlow;
             public Bite bite;
+            /// <summary>Blend shapes held at a fixed weight (0..100), under whatever the growl and bite add.</summary>
+            public Dictionary<string, float> shapes;
             public List<SpringCollider> colliders;
             /// <summary>Fixed finger curls, 0..1, thumb index middle ring little (CustomAvatars' HandPoser); null = hands as exported.</summary>
             public float[] grip;
