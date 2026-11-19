@@ -26,6 +26,8 @@ namespace CustomEnemies.Skins
         private readonly List<Renderer> _renderers = new List<Renderer>();
         private readonly List<Material> _owned = new List<Material>();
         private readonly List<Material> _gameShader = new List<Material>();
+        /// <summary>The skin's own exported materials, by name, for textures carried in the bundle.</summary>
+        private readonly Dictionary<string, Material> _sourceMats = new Dictionary<string, Material>(StringComparer.OrdinalIgnoreCase);
         private PoseRetargeter _retarget;
         private float _settle;
         private bool _ready;
@@ -162,6 +164,7 @@ namespace CustomEnemies.Skins
                         made[src.Pointer] = copy;
                         _owned.Add(copy);
                         _gameShader.Add(copy);
+                        _sourceMats[name] = src;
                     }
                     mats[i] = copy;
                     changed = true;

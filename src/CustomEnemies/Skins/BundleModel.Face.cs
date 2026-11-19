@@ -84,11 +84,15 @@ namespace CustomEnemies.Skins
             {
                 foreach (var m in _gameShader)
                     if (Interop.Alive(m) && string.Equals(m.name, "CustomEnemies " + g.material, StringComparison.OrdinalIgnoreCase)) { _eyeMat = m; break; }
-                _eyeTex = LoadTexture(g.texture);
-                _eyeFury = LoadTexture(g.furyTexture) ?? _eyeTex;
+                _eyeTex = EyeTexture(g, g.texture);
+                _eyeFury = EyeTexture(g, g.furyTexture) ?? _eyeTex;
                 if (_eyeMat == null) parts.Add($"eye glow: no material `{g.material}`");
-                else if (_eyeTex == null) parts.Add($"eye glow: texture `{g.texture}` not loaded");
-                else { SetEyes(_eyeTex, g.intensity, Col(g.colour, new Color(1f, 0.12f, 0.04f))); parts.Add("eye glow"); }
+                else if (_eyeTex == null) parts.Add($"eye glow: texture `{g.texture}` not found");
+                else
+                {
+                    SetEyes(_eyeTex, g.intensity, Col(g.colour, new Color(1f, 0.12f, 0.04f)));
+                    parts.Add($"eye glow ({_eyeTex.name}{(_eyeFury != _eyeTex ? ", fury " + _eyeFury.name : "")})");
+                }
             }
             if (_skin.Def.bite != null) parts.Add($"bite on `{_skin.Def.bite.state}`");
             _faceNote = parts.Count == 0 ? "off" : string.Join(", ", parts);
@@ -286,6 +290,20 @@ namespace CustomEnemies.Skins
         private static readonly Dictionary<string, Texture2D> Loaded = new Dictionary<string, Texture2D>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>A PNG or JPG from the skins folder, loaded once per session.</summary>
+        /// <summary>
+        /// "skin:&lt;property&gt;" takes the texture from the skin's own exported eye material, so
+        /// it ships inside the bundle; anything else is a file in the skins folder.
+        /// </summary>
+        private Texture EyeTexture(SkinLibrary.EyeGlow g, string spec)
+        {
+            if (string.IsNullOrEmpty(spec)) return null;
+            if (!spec.StartsWith("skin:", StringComparison.OrdinalIgnoreCase)) return LoadTexture(spec);
+            var prop = spec.Substring(5).Trim();
+            if (!_sourceMats.TryGetValue(g.material, out var src) || !Interop.Alive(src)) return null;
+            try { return src.HasProperty(prop) && Interop.Alive(src.GetTexture(prop)) ? src.GetTexture(prop) : null; }
+            catch { return null; }
+        }
+
         private static Texture LoadTexture(string file)
         {
             if (string.IsNullOrEmpty(file)) return null;
