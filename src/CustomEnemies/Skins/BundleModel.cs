@@ -44,6 +44,12 @@ namespace CustomEnemies.Skins
         private string _springNote = "no springs";
         private Transform _chest, _upperChest, _neck;
         private float _phase;
+        private HandPoser _hands;
+        private Transform _eyeL, _eyeR;
+        private Quaternion _eyeLRest = Quaternion.identity, _eyeRRest = Quaternion.identity;
+        private Vector3 _headFwd, _headUp, _eyeLFwd, _eyeLUp, _eyeRFwd, _eyeRUp;   // bone-local, from the bind pose
+        private Vector2 _look, _lookEye;   // smoothed yaw/pitch, degrees
+        private string _lookNote = "off";
         private Quaternion _upperChestRest = Quaternion.identity, _neckRest = Quaternion.identity, _headRest = Quaternion.identity;
         private readonly List<(Transform t, Quaternion rot, Vector3 pos)> _bind = new List<(Transform, Quaternion, Vector3)>();
 
@@ -289,6 +295,7 @@ namespace CustomEnemies.Skins
             if (Interop.Alive(_neck)) _neckRest = _neck.localRotation;
             var head = Bone("Head");
             if (Interop.Alive(head)) _headRest = head.localRotation;
+            LookSetup(head);
             _phase = UnityEngine.Random.value * 100f;
             _hips = Bone("Hips");
             _thighL = Bone("LeftUpperLeg"); _thighR = Bone("RightUpperLeg");
@@ -315,6 +322,8 @@ namespace CustomEnemies.Skins
             _retarget = null;
             _captureNote = "waiting for the enemy to settle";
             _springs = null;
+            _hands = null;
+            _look = _lookEye = Vector2.zero;
             // Back to the bind pose the capture expects: the retargeter only restores bones it
             // paired, and the springs and legs moved others.
             foreach (var (t, rot, pos) in _bind)
@@ -332,9 +341,17 @@ namespace CustomEnemies.Skins
             if (Interop.Alive(_upperChest)) _upperChest.localRotation = _upperChestRest;
             if (Interop.Alive(_neck)) _neck.localRotation = _neckRest;
             if (Interop.Alive(_dstHead)) _dstHead.localRotation = _headRest;
+            if (Interop.Alive(_eyeL)) _eyeL.localRotation = _eyeLRest;
+            if (Interop.Alive(_eyeR)) _eyeR.localRotation = _eyeRRest;
             _retarget.Apply();
             HangLegs(dt);
             IdleMotion();
+            LookAtPlayer(dt);
+            if (_hands != null)
+            {
+                try { _hands.Update(dt); }
+                catch (Exception e) { SkinManager.LogOnce("grip " + _skin.Name, e); }
+            }
             foreach (var (bone, to, rot, off) in _weapons)
             {
                 if (!Interop.Alive(bone) || !Interop.Alive(to)) continue;
@@ -357,13 +374,14 @@ namespace CustomEnemies.Skins
             if ((intro && _settle < 6f) || _settle < 0.5f) return;
             FitScale();
             BuildSprings();
+            BuildGrip();
             _retarget = _retarget ?? new PoseRetargeter();
             _captureNote = _retarget.Build(_source, _instance, _skin.Manifest);
             _ready = _retarget.LinkCount > 0;
             _lastEnemyPos = _enemy.position;
             Core.Log.Msg($"Skin `{_skin.Name}` on `{SkinManager.CleanName(Interop.Name(_enemy))}`: {_captureNote}; {_scaleNote}.");
             Report.Line($"- **{_skin.Name}** pose copy: {_captureNote}; {_scaleNote}; paired: {_retarget.Describe()}");
-            Report.Line($"- **{_skin.Name}** springs: {_springNote}");
+            Report.Line($"- **{_skin.Name}** springs: {_springNote}; look: {_lookNote}; grip: {(_hands == null ? "off" : _hands.JointCount + " finger joint(s)")}");
         }
 
         /// <summary>The skin's head at the enemy's head height (rest pose, measured from each root), times the sidecar scale.</summary>
@@ -434,6 +452,119 @@ namespace CustomEnemies.Skins
             if (_springs.ChainCount == 0) _springs = null;
         }
 
+        /// <summary>Fixed finger curls through CustomAvatars' HandPoser (its palm detection finds each finger's bend axis).</summary>
+        private void BuildGrip()
+        {
+            _hands = null;
+            var g = _skin.Def.grip;
+            if (g == null || g.Length == 0) return;
+            var hp = new HandPoser { RemoteDriven = true };
+            var note = hp.Build(_instance, _skin.Manifest);
+            if (hp.JointCount == 0) { Core.Log.Warning($"Skin `{_skin.Name}` grip: {note}"); return; }
+            var curls = new float[10];
+            for (var i = 0; i < 5; i++) curls[i] = curls[5 + i] = Mathf.Clamp01(g[Mathf.Min(i, g.Length - 1)]);
+            hp.SetRemoteCurls(curls);
+            _hands = hp;
+        }
+
+        /// <summary>
+        /// Which way the face points, from the bind pose: the horizontal direction from the head
+        /// bone to the midpoint of the eyes (an MMD head bone sits at the top of the neck, behind
+        /// and below the eyes), kept in each bone's own frame.
+        /// </summary>
+        private void LookSetup(Transform head)
+        {
+            _eyeL = Bone("LeftEye"); _eyeR = Bone("RightEye");
+            if (Interop.Alive(_eyeL)) _eyeLRest = _eyeL.localRotation;
+            if (Interop.Alive(_eyeR)) _eyeRRest = _eyeR.localRotation;
+            if (_skin.Def.look == null || !Interop.Alive(head)) { _lookNote = "off"; return; }
+            Vector3 fwd;
+            string from;
+            if (Interop.Alive(_eyeL) && Interop.Alive(_eyeR))
+            {
+                fwd = (_eyeL.position + _eyeR.position) * 0.5f - head.position;
+                fwd.y = 0f;
+                from = "eyes in front of the head";
+            }
+            else { fwd = Vector3.zero; from = ""; }
+            if (fwd.sqrMagnitude < 1e-6f) { fwd = _instance.transform.forward; from = "the model's forward"; }
+            fwd.Normalize();
+            _headFwd = head.InverseTransformDirection(fwd);
+            _headUp = head.InverseTransformDirection(Vector3.up);
+            if (Interop.Alive(_eyeL)) { _eyeLFwd = _eyeL.InverseTransformDirection(fwd); _eyeLUp = _eyeL.InverseTransformDirection(Vector3.up); }
+            if (Interop.Alive(_eyeR)) { _eyeRFwd = _eyeR.InverseTransformDirection(fwd); _eyeRUp = _eyeR.InverseTransformDirection(Vector3.up); }
+            _lookNote = $"head{(Interop.Alive(_eyeL) && Interop.Alive(_eyeR) ? " and eyes" : "")}, face direction from {from}";
+        }
+
+        /// <summary>Head (shared with the neck), then eyes, toward the local camera, clamped and smoothed.</summary>
+        private void LookAtPlayer(float dt)
+        {
+            var look = _skin.Def.look;
+            if (look == null || !Interop.Alive(_dstHead)) return;
+            var cam = CameraFinder.Get();
+            var want = Vector2.zero;
+            var on = false;
+            if (Interop.Alive(cam))
+            {
+                var target = cam.transform.position;
+                var a = Angles(_dstHead, _headFwd, _headUp, target);
+                // Beyond range, or well behind the head's reach: back to the copied pose.
+                if ((target - _dstHead.position).sqrMagnitude < look.range * look.range && Mathf.Abs(a.x) < look.headYaw + 50f)
+                {
+                    want = new Vector2(Mathf.Clamp(a.x, -look.headYaw, look.headYaw), Mathf.Clamp(a.y, -look.headPitch, look.headPitch));
+                    on = true;
+                }
+            }
+            var k = 1f - Mathf.Exp(-dt / Mathf.Max(0.02f, look.speed));
+            _look = Vector2.Lerp(_look, want, k);
+
+            var neck = Interop.Alive(_neck) ? _neck : null;
+            var share = neck != null ? Mathf.Clamp01(look.neckShare) : 0f;
+            // Axes from the head's current frame, so the turn is relative to the copied pose.
+            var up = _dstHead.TransformDirection(_headUp);
+            var fwd = _dstHead.TransformDirection(_headFwd);
+            var right = Vector3.Cross(up, fwd).normalized;
+            if (neck != null) neck.rotation = Turn(_look * share, up, right) * neck.rotation;
+            up = _dstHead.TransformDirection(_headUp);
+            fwd = _dstHead.TransformDirection(_headFwd);
+            right = Vector3.Cross(up, fwd).normalized;
+            _dstHead.rotation = Turn(_look * (1f - share), up, right) * _dstHead.rotation;
+
+            // Eyes: what the head did not cover, quicker.
+            var ke = 1f - Mathf.Exp(-dt / Mathf.Max(0.01f, look.speed * 0.25f));
+            var eyeWant = Vector2.zero;
+            if (on && Interop.Alive(cam) && Interop.Alive(_eyeL))
+            {
+                var e = Angles(_eyeL, _eyeLFwd, _eyeLUp, cam.transform.position);
+                eyeWant = new Vector2(Mathf.Clamp(e.x, -look.eyeYaw, look.eyeYaw), Mathf.Clamp(e.y, -look.eyePitch, look.eyePitch));
+            }
+            _lookEye = Vector2.Lerp(_lookEye, eyeWant, ke);
+            Eye(_eyeL, _eyeLFwd, _eyeLUp);
+            Eye(_eyeR, _eyeRFwd, _eyeRUp);
+        }
+
+        private void Eye(Transform eye, Vector3 fwdLocal, Vector3 upLocal)
+        {
+            if (!Interop.Alive(eye)) return;
+            var up = eye.TransformDirection(upLocal);
+            var fwd = eye.TransformDirection(fwdLocal);
+            eye.rotation = Turn(_lookEye, up, Vector3.Cross(up, fwd).normalized) * eye.rotation;
+        }
+
+        /// <summary>Yaw (right positive) and pitch (up positive) of a target from a bone's face direction, degrees.</summary>
+        private static Vector2 Angles(Transform bone, Vector3 fwdLocal, Vector3 upLocal, Vector3 target)
+        {
+            var up = bone.TransformDirection(upLocal).normalized;
+            var fwd = bone.TransformDirection(fwdLocal).normalized;
+            var right = Vector3.Cross(up, fwd).normalized;
+            var d = (target - bone.position).normalized;
+            var x = Vector3.Dot(d, right); var y = Vector3.Dot(d, up); var z = Vector3.Dot(d, fwd);
+            return new Vector2(Mathf.Atan2(x, z) * Mathf.Rad2Deg, Mathf.Atan2(y, Mathf.Sqrt(x * x + z * z)) * Mathf.Rad2Deg);
+        }
+
+        private static Quaternion Turn(Vector2 yawPitch, Vector3 up, Vector3 right) =>
+            Quaternion.AngleAxis(yawPitch.x, up) * Quaternion.AngleAxis(-yawPitch.y, right);
+
         private string RelPath(Transform t)
         {
             var root = _instance.transform;
@@ -501,7 +632,8 @@ namespace CustomEnemies.Skins
             var over = _retarget.OverwrittenDegrees;
             return $"head {head:0.00} m from the enemy's (mean {_headOffSum / _samples:0.00}, max {_headOffMax:0.00}), " +
                    $"right hand {(hand < 0 ? "?" : hand.ToString("0.00"))} m, " +
-                   $"pose overwritten by something else {(over < 0 ? "n/a" : over.ToString("0.0") + "°")}";
+                   $"pose overwritten by something else {(over < 0 ? "n/a" : over.ToString("0.0") + "°")} (the look-at turns the head after the copy)" +
+                   (_skin.Def.look == null ? "" : $"; look yaw {_look.x:0} pitch {_look.y:0}, eyes {_lookEye.x:0}/{_lookEye.y:0}");
         }
 
         public string Describe() =>

@@ -60,6 +60,7 @@
     <Compile Include="..\CustomAvatars\Avatars\AvatarBundle.cs" Link="Shared\AvatarBundle.cs" />
     <Compile Include="..\CustomAvatars\Avatars\PoseRetargeter.cs" Link="Shared\PoseRetargeter.cs" />
     <Compile Include="..\CustomAvatars\Avatars\SpringBones.cs" Link="Shared\SpringBones.cs" />
+    <Compile Include="..\CustomAvatars\Avatars\HandPoser.cs" Link="Shared\HandPoser.cs" />
   </ItemGroup>
 
   <!-- Reference every generated interop assembly; the set shifts with game updates. -->

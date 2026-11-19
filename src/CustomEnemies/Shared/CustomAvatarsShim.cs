@@ -29,6 +29,14 @@ namespace CustomAvatars
         public static readonly Fixed<float> SpringDragFromSpring = new Fixed<float>(0.35f);
         public static readonly Fixed<bool> SpringCollidersEnabled = new Fixed<bool>(true);
         public static readonly Fixed<float> SpringMaxAngleFallback = new Fixed<float>(75f);
+        // HandPoser, driven with fixed curls (the sidecar's grip), never from the controllers.
+        public static readonly Fixed<bool> HandPosesEnabled = new Fixed<bool>(true);
+        public static readonly Fixed<float> HandCurlDegrees = new Fixed<float>(70f);
+        public static readonly Fixed<float> ThumbCurlDegrees = new Fixed<float>(40f);
+        public static readonly Fixed<float> HandCurlSmoothing = new Fixed<float>(0.35f);
+        public static readonly Fixed<bool> HandCurlFlipLeft = new Fixed<bool>(false);
+        public static readonly Fixed<bool> HandCurlFlipRight = new Fixed<bool>(false);
+        public static readonly Fixed<bool> HandPoseDebug = new Fixed<bool>(false);
     }
 
     /// <summary>A constant that reads like a preference entry (<c>.Value</c>).</summary>
@@ -41,6 +49,12 @@ namespace CustomAvatars
 
 namespace CustomAvatars.Recon
 {
+    /// <summary>HandPoser's input-backend log line (never called here: CustomEnemies drives the grip itself).</summary>
+    internal static class HierarchyDump
+    {
+        public static string TypeName(object o) => o?.GetType().Name ?? "<null>";
+    }
+
     internal static class Interop
     {
         public static bool Alive(Il2CppObjectBase o) => CustomEnemies.Interop.Alive(o);

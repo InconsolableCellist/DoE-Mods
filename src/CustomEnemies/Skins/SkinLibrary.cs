@@ -67,6 +67,19 @@ namespace CustomEnemies.Skins
             public float headPeriod = 5.3f;
         }
 
+        /// <summary>Head and eyes turn toward the local player's camera, within limits (degrees).</summary>
+        public sealed class Look
+        {
+            public float headYaw = 60f, headPitch = 30f;
+            /// <summary>Share of the head turn taken by the neck.</summary>
+            public float neckShare = 0.35f;
+            public float eyeYaw = 25f, eyePitch = 15f;
+            /// <summary>Only within this distance, metres; beyond it the head goes back to the copied pose.</summary>
+            public float range = 15f;
+            /// <summary>Seconds to turn about two thirds of the way (head; the eyes are four times quicker).</summary>
+            public float speed = 0.3f;
+        }
+
         public sealed class Sidecar
         {
             public List<string> replaces;
@@ -87,6 +100,9 @@ namespace CustomEnemies.Skins
             public Legs legs;
             public List<Spring> springs;
             public Idle idle;
+            public Look look;
+            /// <summary>Fixed finger curls, 0..1, thumb index middle ring little (CustomAvatars' HandPoser); null = hands as exported.</summary>
+            public float[] grip;
             /// <summary>Shader keywords switched off on the skin's copies of the enemy material; null = the default (the X-ray outline).</summary>
             public List<string> keywordsOff;
             /// <summary>
