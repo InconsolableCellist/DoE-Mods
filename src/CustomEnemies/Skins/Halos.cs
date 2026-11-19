@@ -16,6 +16,8 @@ namespace CustomEnemies.Skins
     {
         private readonly List<(Transform quad, float size)> _quads = new List<(Transform, float)>();
         public int Count => _quads.Count;
+        /// <summary>Size multiplier (the growl swells the eyes).</summary>
+        public float Boost = 1f;
 
         public static Halos Build(Transform skin, SkinLibrary.Sidecar def, Transform enemy, List<Material> owned)
         {
@@ -77,7 +79,7 @@ namespace CustomEnemies.Skins
                 if (d < 1e-3f) continue;
                 // A quad's visible side looks down -Z: point -Z at the camera.
                 q.rotation = Quaternion.LookRotation(-to / d, cam.transform.up);
-                var world = size * Mathf.Clamp(d / 4f, 1f, 2.5f);
+                var world = size * Boost * Mathf.Clamp(d / 4f, 1f, 2.5f);
                 var parentScale = q.parent != null ? q.parent.lossyScale.x : 1f;
                 q.localScale = Vector3.one * (world / Mathf.Max(1e-4f, Mathf.Abs(parentScale)));
             }

@@ -38,6 +38,8 @@ namespace CustomEnemies.Skins
             public float swayPeriod = 2.6f;
             /// <summary>Degrees the legs trail behind per metre per second of travel, capped at 35.</summary>
             public float lag = 18f;
+            /// <summary>Feet pointed down this many degrees from the shin, held there (not copied from the enemy).</summary>
+            public float footPoint = 25f;
         }
 
         /// <summary>A spring chain (tail, robe): bones parent first; the solver is CustomAvatars' own.</summary>
@@ -80,6 +82,68 @@ namespace CustomEnemies.Skins
             public float speed = 0.3f;
         }
 
+        /// <summary>Ears that flick now and then, and pin back when the enemy is close or biting.</summary>
+        public sealed class Ears
+        {
+            public List<string> bones;
+            /// <summary>Seconds between flicks, picked at random in this range.</summary>
+            public float flickMin = 2.5f, flickMax = 8f;
+            /// <summary>A flick: degrees back and degrees out.</summary>
+            public float flick = 30f, twist = 22f;
+            /// <summary>Degrees back when fully pinned (close range, bite).</summary>
+            public float pinBack = 45f;
+        }
+
+        /// <summary>The growl as the player comes near: 0 beyond range, full at half of it.</summary>
+        public sealed class Close
+        {
+            public float range = 4f;
+            /// <summary>Jaw open, degrees, and a tremble on top.</summary>
+            public float jaw = 7f, tremble = 1.5f;
+            /// <summary>Blend shapes (0..100) at full growl.</summary>
+            public Dictionary<string, float> shapes;
+            /// <summary>Eye halos grow by this factor at full growl.</summary>
+            public float haloScale = 1.8f;
+            /// <summary>How pinned the ears are at full growl, 0..1.</summary>
+            public float earsBack = 0.6f;
+        }
+
+        /// <summary>Eye glow from the skin's own emission map (loaded from this folder), brighter as the player comes near.</summary>
+        public sealed class EyeGlow
+        {
+            /// <summary>The skin material the eyes use (as exported).</summary>
+            public string material = "Eyes";
+            public string texture;
+            /// <summary>Swapped in at full growl and in a bite (the white pupils).</summary>
+            public string furyTexture;
+            public float intensity = 1.5f, furyIntensity = 5f;
+            /// <summary>Growl level (0..1) at which the fury texture takes over.</summary>
+            public float furyAt = 0.6f;
+        }
+
+        /// <summary>A bite, played whenever the enemy's Animator enters the given state.</summary>
+        public sealed class Bite
+        {
+            public string state = "Attack";
+            /// <summary>Jaw open at the top of the wind-up, degrees.</summary>
+            public float open = 38f;
+            /// <summary>Seconds: wind-up (jaws open, rear back), snap (lunge and chomp), hold (shake), release.</summary>
+            public float windup = 0.28f, snap = 0.09f, hold = 0.3f, release = 0.45f;
+            /// <summary>Degrees the chest pitches forward in the lunge (a third of it backward in the wind-up).</summary>
+            public float lunge = 18f;
+            /// <summary>Head shake in the hold, degrees.</summary>
+            public float shake = 5f;
+            public Dictionary<string, float> shapes;
+        }
+
+        /// <summary>A sphere the spring chains stay out of: a bone, a radius in model metres, and an offset in the bone's frame.</summary>
+        public sealed class SpringCollider
+        {
+            public string bone;
+            public float radius = 0.1f;
+            public float[] offset;
+        }
+
         public sealed class Sidecar
         {
             public List<string> replaces;
@@ -101,6 +165,11 @@ namespace CustomEnemies.Skins
             public List<Spring> springs;
             public Idle idle;
             public Look look;
+            public Ears ears;
+            public Close close;
+            public EyeGlow eyeGlow;
+            public Bite bite;
+            public List<SpringCollider> colliders;
             /// <summary>Fixed finger curls, 0..1, thumb index middle ring little (CustomAvatars' HandPoser); null = hands as exported.</summary>
             public float[] grip;
             /// <summary>Shader keywords switched off on the skin's copies of the enemy material; null = the default (the X-ray outline).</summary>

@@ -16,7 +16,7 @@ namespace CustomEnemies.Skins
     /// The pose copy starts once the enemy has settled (out of its spawn intro), because the
     /// retargeter captures both rigs' rest at that moment; until then the skin stays hidden.
     /// </summary>
-    public sealed class BundleModel : ISkinModel
+    public sealed partial class BundleModel : ISkinModel
     {
         private readonly SkinLibrary.Skin _skin;
         private readonly Transform _enemy;
@@ -32,7 +32,8 @@ namespace CustomEnemies.Skins
         private string _captureNote = "waiting for the enemy to settle";
 
         // Legs (glide) and weapons
-        private Transform _hips, _thighL, _thighR, _kneeL, _kneeR;
+        private Transform _hips, _thighL, _thighR, _kneeL, _kneeR, _footL, _footR, _toesL, _toesR;
+        private Quaternion _footLRest, _footRRest, _toesLRest, _toesRRest;
         private Quaternion _thighLRest, _thighRRest, _kneeLRest, _kneeRRest;
         private Vector3 _lastEnemyPos;
         private Vector2 _trail;   // x: back/forward swing, y: side swing, degrees, smoothed
@@ -296,10 +297,16 @@ namespace CustomEnemies.Skins
             var head = Bone("Head");
             if (Interop.Alive(head)) _headRest = head.localRotation;
             LookSetup(head);
+            FaceSetup();
             _phase = UnityEngine.Random.value * 100f;
             _hips = Bone("Hips");
             _thighL = Bone("LeftUpperLeg"); _thighR = Bone("RightUpperLeg");
             _kneeL = Bone("LeftLowerLeg"); _kneeR = Bone("RightLowerLeg");
+            _footL = Bone("LeftFoot"); _footR = Bone("RightFoot"); _toesL = Bone("LeftToes"); _toesR = Bone("RightToes");
+            if (Interop.Alive(_footL)) _footLRest = _footL.localRotation;
+            if (Interop.Alive(_footR)) _footRRest = _footR.localRotation;
+            if (Interop.Alive(_toesL)) _toesLRest = _toesL.localRotation;
+            if (Interop.Alive(_toesR)) _toesRRest = _toesR.localRotation;
             if (Interop.Alive(_thighL)) _thighLRest = _thighL.localRotation;
             if (Interop.Alive(_thighR)) _thighRRest = _thighR.localRotation;
             if (Interop.Alive(_kneeL)) _kneeLRest = _kneeL.localRotation;
@@ -324,6 +331,7 @@ namespace CustomEnemies.Skins
             _springs = null;
             _hands = null;
             _look = _lookEye = Vector2.zero;
+            FaceReset();
             // Back to the bind pose the capture expects: the retargeter only restores bones it
             // paired, and the springs and legs moved others.
             foreach (var (t, rot, pos) in _bind)
@@ -343,10 +351,14 @@ namespace CustomEnemies.Skins
             if (Interop.Alive(_dstHead)) _dstHead.localRotation = _headRest;
             if (Interop.Alive(_eyeL)) _eyeL.localRotation = _eyeLRest;
             if (Interop.Alive(_eyeR)) _eyeR.localRotation = _eyeRRest;
+            RestoreFace();
             _retarget.Apply();
             HangLegs(dt);
             IdleMotion();
+            var near = Nearness();
+            BiteBody(dt);
             LookAtPlayer(dt);
+            Face(dt, near);
             if (_hands != null)
             {
                 try { _hands.Update(dt); }
@@ -381,7 +393,7 @@ namespace CustomEnemies.Skins
             _lastEnemyPos = _enemy.position;
             Core.Log.Msg($"Skin `{_skin.Name}` on `{SkinManager.CleanName(Interop.Name(_enemy))}`: {_captureNote}; {_scaleNote}.");
             Report.Line($"- **{_skin.Name}** pose copy: {_captureNote}; {_scaleNote}; paired: {_retarget.Describe()}");
-            Report.Line($"- **{_skin.Name}** springs: {_springNote}; look: {_lookNote}; grip: {(_hands == null ? "off" : _hands.JointCount + " finger joint(s)")}");
+            Report.Line($"- **{_skin.Name}** springs: {_springNote}; look: {_lookNote}; grip: {(_hands == null ? "off" : _hands.JointCount + " finger joint(s)")}; face: {_faceNote}");
         }
 
         /// <summary>The skin's head at the enemy's head height (rest pose, measured from each root), times the sidecar scale.</summary>
@@ -441,12 +453,12 @@ namespace CustomEnemies.Skins
             if (chains.Count == 0) { _springs = null; _springNote = "none listed"; return; }
             var manifest = new AvatarManifest
             {
-                dynamics = new AvatarManifest.DynamicsInfo { chains = chains, colliders = _skin.Manifest.dynamics?.colliders ?? new List<AvatarManifest.ColliderInfo>() },
+                dynamics = new AvatarManifest.DynamicsInfo { chains = chains, colliders = Colliders(missing) },
             };
             _springs = new SpringBones();
             var note = _springs.Build(_instance, manifest);
             _springs.Reset();
-            _springNote = $"{_springs.ChainCount} chain(s), {_springs.BoneCount} bone(s)" +
+            _springNote = $"{_springs.ChainCount} chain(s), {_springs.BoneCount} bone(s), {_springs.ColliderCount} collider(s)" +
                           (missing.Count > 0 ? $"; bones not found: {string.Join(", ", missing)}" : "") +
                           (string.IsNullOrEmpty(note) ? "" : $" ({note})");
             if (_springs.ChainCount == 0) _springs = null;
@@ -565,6 +577,20 @@ namespace CustomEnemies.Skins
         private static Quaternion Turn(Vector2 yawPitch, Vector3 up, Vector3 right) =>
             Quaternion.AngleAxis(yawPitch.x, up) * Quaternion.AngleAxis(-yawPitch.y, right);
 
+        private List<AvatarManifest.ColliderInfo> Colliders(List<string> missing)
+        {
+            var list = new List<AvatarManifest.ColliderInfo>();
+            if (_skin.Manifest.dynamics?.colliders != null) list.AddRange(_skin.Manifest.dynamics.colliders);
+            foreach (var c in _skin.Def.colliders ?? new List<SkinLibrary.SpringCollider>())
+            {
+                var t = Bone(c?.bone);
+                if (!Interop.Alive(t)) { missing.Add(c?.bone ?? "?"); continue; }
+                var o = Vec(c.offset, Vector3.zero);
+                list.Add(new AvatarManifest.ColliderInfo { path = RelPath(t), shape = "Sphere", radius = c.radius, position = new List<float> { o.x, o.y, o.z } });
+            }
+            return list;
+        }
+
         private string RelPath(Transform t)
         {
             var root = _instance.transform;
@@ -610,6 +636,10 @@ namespace CustomEnemies.Skins
             var t = Time.time * Mathf.PI * 2f / Mathf.Max(0.2f, legs.swayPeriod);
             Leg(_thighL, _thighLRest, _kneeL, _kneeLRest, legs, Mathf.Sin(t) * legs.sway, root);
             Leg(_thighR, _thighRRest, _kneeR, _kneeRRest, legs, Mathf.Sin(t + Mathf.PI) * legs.sway, root);
+            // Feet and toes held, not copied: the enemy's feet twitch under its robe, and on a
+            // skin whose legs hang that reads as paws flitting sideways (2026-11-18).
+            Foot(_footL, _footLRest, _toesL, _toesLRest, legs, root);
+            Foot(_footR, _footRRest, _toesR, _toesRRest, legs, root);
         }
 
         private void Leg(Transform thigh, Quaternion thighRest, Transform knee, Quaternion kneeRest, SkinLibrary.Legs legs, float sway, Transform root)
@@ -621,6 +651,12 @@ namespace CustomEnemies.Skins
             thigh.rotation = Quaternion.AngleAxis(_trail.y, root.forward) * Quaternion.AngleAxis(pitch, root.right) * (thigh.parent.rotation * thighRest);
             if (!Interop.Alive(knee)) return;
             knee.rotation = Quaternion.AngleAxis(legs.kneeBend, root.right) * (knee.parent.rotation * kneeRest) ;
+        }
+
+        private static void Foot(Transform foot, Quaternion rest, Transform toes, Quaternion toesRest, SkinLibrary.Legs legs, Transform root)
+        {
+            if (Interop.Alive(foot)) foot.rotation = Quaternion.AngleAxis(legs.footPoint, root.right) * (foot.parent.rotation * rest);
+            if (Interop.Alive(toes)) toes.localRotation = toesRest;
         }
 
         public string Sample()
