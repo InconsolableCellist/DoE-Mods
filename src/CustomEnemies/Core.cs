@@ -34,7 +34,7 @@ namespace CustomEnemies
             try { MelonPreferences.Save(); }
             catch (Exception e) { LoggerInstance.Warning($"Could not write MelonPreferences.cfg: {e.Message}"); }
 
-            LoggerInstance.Msg($"CustomEnemies {Version}: placeholder skin on {Describe()}.");
+            LoggerInstance.Msg($"CustomEnemies {Version}: skins replace the enemies their .enemy.json files name; placeholder on {Describe()}.");
             if (!ModConfig.Enabled.Value) { LoggerInstance.Msg("Enabled=false: doing nothing."); return; }
 
             Hooks.Init(HarmonyInstance);
@@ -46,7 +46,7 @@ namespace CustomEnemies
         private static string Describe()
         {
             var s = ModConfig.PlaceholderOn.Value;
-            return string.IsNullOrWhiteSpace(s) ? "no enemy (PlaceholderOn is empty; Numpad1 still works)" : s.Trim();
+            return string.IsNullOrWhiteSpace(s) ? "no enemy (PlaceholderOn is empty)" : s.Trim();
         }
 
         public override void OnUpdate()

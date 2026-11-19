@@ -29,7 +29,7 @@ namespace CustomEnemies
         {
             Main = MelonPreferences.CreateCategory("CustomEnemies");
             Enabled = Main.CreateEntry("Enabled", true);
-            PlaceholderOn = Main.CreateEntry("PlaceholderOn", "Death",
+            PlaceholderOn = Main.CreateEntry("PlaceholderOn", "",
                 description: "Enemies that get the built-in placeholder skin (a test dummy made of primitives), by name or Sauron ID, comma separated. Empty = none. Only changes what you see.");
             HideVanilla = Main.CreateEntry("HideVanilla", true,
                 description: "Hide the vanilla body under a skin. It stays in the scene as a shadow, which keeps it animating. Off draws both, for lining a skin up.");
@@ -44,6 +44,16 @@ namespace CustomEnemies
             RetargetAlignAtCapture = Main.CreateEntry("RetargetAlignAtCapture", true,
                 description: "Line each of the skin's limbs up with the enemy's when the pose copy starts (the skin is loaded in its bind pose, the enemy is standing). Leave on.");
             ConfigVersion = Main.CreateEntry("ConfigVersion", 1, is_hidden: true);
+
+            // v2: the placeholder is a testing aid, off by default. A player without a skin file
+            // for an enemy sees the vanilla enemy. The old default ("Death") is cleared; anything
+            // else the player typed is theirs and stays.
+            if (ConfigVersion.Value < 2)
+            {
+                if (string.Equals((PlaceholderOn.Value ?? "").Trim(), "Death", System.StringComparison.OrdinalIgnoreCase))
+                    PlaceholderOn.Value = "";
+                ConfigVersion.Value = 2;
+            }
         }
     }
 }

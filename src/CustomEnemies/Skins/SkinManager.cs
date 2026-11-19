@@ -25,6 +25,8 @@ namespace CustomEnemies.Skins
         private static readonly Dictionary<IntPtr, bool> Manual = new Dictionary<IntPtr, bool>();
         private static readonly HashSet<string> Logged = new HashSet<string>();
         private static readonly List<IntPtr> Dead = new List<IntPtr>();
+        /// <summary>Enemies whose skin failed to build: left vanilla, not retried until a reload.</summary>
+        private static readonly HashSet<IntPtr> Failed = new HashSet<IntPtr>();
         private static string[] _names = new string[0];
         private static string _namesFrom;
         private static bool _allOff;
@@ -69,8 +71,8 @@ namespace CustomEnemies.Skins
             }
             if (skin == null)
             {
-                skin = EnemySkin.Create(ai, skinFile);
-                if (skin == null) return;
+                skin = EnemySkin.Create(ai, skinFile, Listed(ai) || (Manual.TryGetValue(ai.Pointer, out var forced) && forced));
+                if (skin == null) { Failed.Add(ai.Pointer); return; }
                 Skins[ai.Pointer] = skin;
                 if (ModConfig.VerboseLogging.Value) Core.Log.Msg($"Skin on `{skin.Who}` ({why}): {skin.Describe()}");
             }
@@ -133,7 +135,7 @@ namespace CustomEnemies.Skins
             _scanIn = 1f;
             var all = Live();
             foreach (var ai in all)
-                if (!Skins.ContainsKey(ai.Pointer)) Consider(ai, "scan");
+                if (!Skins.ContainsKey(ai.Pointer) && !Failed.Contains(ai.Pointer)) Consider(ai, "scan");
         }
 
         public static void LateTick()
@@ -158,6 +160,7 @@ namespace CustomEnemies.Skins
 
         public static void Purge(string why)
         {
+            Failed.Clear();
             Dead.Clear();
             foreach (var kv in Skins) if (!kv.Value.EnemyAlive) Dead.Add(kv.Key);
             foreach (var p in Dead) Remove(p, why);
@@ -182,6 +185,7 @@ namespace CustomEnemies.Skins
             if (Skins.ContainsKey(best.Pointer) == false && SkinFor(best) == null && !Listed(best))
                 Core.Log.Msg($"Numpad1: `{Interop.Name(best)}` has no skin file; it gets the placeholder.");
             var on = !Skins.ContainsKey(best.Pointer);
+            Failed.Remove(best.Pointer);
             Manual[best.Pointer] = on;
             if (_allOff && on) { _allOff = false; Core.Log.Msg("Skins back on."); }
             Consider(best, "Numpad1");
@@ -207,6 +211,7 @@ namespace CustomEnemies.Skins
         public static void Reloaded()
         {
             _namesFrom = null;
+            Failed.Clear();
             SkinLibrary.Rescan();
             if (!ModConfig.Enabled.Value)
             {

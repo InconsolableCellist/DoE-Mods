@@ -57,7 +57,7 @@ namespace CustomEnemies.Skins
         }
 
         /// <summary>A bundle skin if one replaces this enemy, else the placeholder if listed (or forced).</summary>
-        public static EnemySkin Create(AI ai, SkinLibrary.Skin skin)
+        public static EnemySkin Create(AI ai, SkinLibrary.Skin skin, bool placeholderAllowed)
         {
             var s = new EnemySkin(ai);
             s.CollectVanilla();
@@ -74,8 +74,13 @@ namespace CustomEnemies.Skins
                 Animator anim = null;
                 try { anim = ai.GetComponentInChildren<Animator>(true); } catch { }
                 s._model = BundleModel.Build(skin, s._aiT, s._body, anim, out var err);
-                if (s._model == null) Core.Log.Warning($"Skin `{skin.Name}` on `{s.Who}` failed ({err}); using the placeholder.");
+                if (s._model == null)
+                    Core.Log.Warning($"Skin `{skin.Name}` on `{s.Who}` failed ({err}); " +
+                                     (placeholderAllowed ? "using the placeholder." : "leaving the enemy vanilla."));
             }
+            // A failed or missing skin leaves the enemy vanilla, unless the placeholder was asked
+            // for (PlaceholderOn, or Numpad1).
+            if (s._model == null && !placeholderAllowed) { s.Restore(); return null; }
             if (s._model == null) s._model = Placeholder.Build(s.Who, s._body, s._aiT, head);
             if (s._model == null) return null;
             s._shown = s._model.Root.activeSelf;

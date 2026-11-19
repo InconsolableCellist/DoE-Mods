@@ -42,7 +42,7 @@ skin file gets the built-in placeholder (a dummy made of primitives).
 | Setting | Default | What |
 |---|---|---|
 | `Enabled` | true | Off: the mod does nothing. |
-| `PlaceholderOn` | `Death` | Enemies that get the placeholder, by name or Sauron ID, comma separated. Empty = none. |
+| `PlaceholderOn` | empty | Enemies that get the placeholder (a testing aid), by name or Sauron ID, comma separated. Empty = none: an enemy with no skin file stays vanilla. |
 | `HideVanilla` | true | Hide the vanilla body under a skin. Off draws both, for lining a skin up. |
 | `HeadFollowsBone` | true | The placeholder's head follows the enemy's head bone. Off: fully rigid. |
 | `HideVanillaEffects` | true | Switch off the enemy's own effects (Death's aura and weapon trail) under a skin. |
