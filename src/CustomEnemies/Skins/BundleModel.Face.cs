@@ -220,9 +220,15 @@ namespace CustomEnemies.Skins
                 var fury = Mathf.Max(near, biteAmt) >= g.furyAt;
                 if (fury != _furyOn) { _furyOn = fury; _eyeMat.SetTexture("_Emission", fury ? _eyeFury : _eyeTex); }
                 var k = Mathf.Max(near, biteAmt);
-                var col = Color.Lerp(Col(g.colour, new Color(1f, 0.12f, 0.04f)), Col(g.furyColour, Color.white), k);
+                var far = Col(g.colour, new Color(1f, 0.12f, 0.04f));
+                var furyCol = Col(g.furyColour, Color.white);
+                // With a separate fury mask (the pupils), the far mask brightens in its own colour
+                // until the swap, then the pupils burn in the fury colour. Without one, the whole
+                // mask shifts colour.
+                var separate = _eyeFury != null && _eyeFury != _eyeTex;
+                var col = separate ? (fury ? furyCol : far) : Color.Lerp(far, furyCol, k);
                 SetEyes(null, Mathf.Lerp(g.intensity, g.furyIntensity, k), col);
-                _halos?.Tint(col);
+                _halos?.Tint(g.halosFollowFury ? Color.Lerp(far, furyCol, k) : far);
             }
         }
 

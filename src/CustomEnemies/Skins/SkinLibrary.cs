@@ -120,6 +120,8 @@ namespace CustomEnemies.Skins
             /// <summary>Emission colour far away and at full growl (the texture is a mask the shader tints); the eye halos follow it.</summary>
             public float[] colour = { 1f, 0.12f, 0.04f };
             public float[] furyColour = { 1f, 1f, 1f };
+            /// <summary>Whether the eye halos take the fury colour too, or keep the far colour (red rings round white pupils).</summary>
+            public bool halosFollowFury;
             /// <summary>Growl level (0..1) at which the fury texture takes over.</summary>
             public float furyAt = 0.6f;
         }
