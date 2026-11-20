@@ -680,6 +680,11 @@ namespace CustomEnemies.Skins
             $"{_weapons.Count} weapon(s), {_halos?.Count ?? 0} eye halo(s), legs {(_skin.Def.legs == null ? "copied" : "hanging")}, " +
             $"{_skin.Def.springs?.Count ?? 0} spring chain(s) listed, idle {(_skin.Def.idle == null ? "off" : "on")}), {_captureNote}";
 
+        public void SetVisible(float visible)
+        {
+            if (_halos != null) _halos.Visible = visible;
+        }
+
         public void Destroy()
         {
             _halos?.Destroy();

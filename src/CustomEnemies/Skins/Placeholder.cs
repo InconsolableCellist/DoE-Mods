@@ -44,6 +44,7 @@ namespace CustomEnemies.Skins
 
             public void Reset() { }
             public string Sample() => null;
+            public void SetVisible(float visible) { }
             public string Describe() =>
                 $"placeholder, {Renderers.Count} part(s), head {(Interop.Alive(HeadBone) ? "follows `" + HeadBone.name + "`" : "rigid")}, eyes {EyesFrom}";
 

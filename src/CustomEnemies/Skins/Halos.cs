@@ -18,12 +18,17 @@ namespace CustomEnemies.Skins
         public int Count => _quads.Count;
         /// <summary>Size multiplier (the growl swells the eyes).</summary>
         public float Boost = 1f;
+        /// <summary>0..1: the enemy's dissolve. Additive glows dim to nothing with it and switch off when gone.</summary>
+        public float Visible = 1f;
+        private Color _tint = new Color(1f, 0.15f, 0.05f, 1f);
         private Material _mat;
 
         /// <summary>Recolour every halo.</summary>
         public void Tint(Color c)
         {
+            _tint = c;
             if (!Interop.Alive(_mat)) return;
+            c *= Mathf.Clamp01(Visible);   // additive: black adds nothing
             foreach (var p in new[] { "_TintColor", "_Color", "_BaseColor" }) if (_mat.HasProperty(p)) _mat.SetColor(p, c);
         }
 
@@ -39,7 +44,7 @@ namespace CustomEnemies.Skins
             foreach (var p in new[] { "_TintColor", "_Color", "_BaseColor" }) if (copy.HasProperty(p)) copy.SetColor(p, c);
             owned.Add(copy);
 
-            var h = new Halos { _mat = copy };
+            var h = new Halos { _mat = copy, _tint = c };
             foreach (var name in def.eyes)
             {
                 Transform eye = null;
@@ -79,8 +84,12 @@ namespace CustomEnemies.Skins
             var cam = CameraFinder.Get();
             if (!Interop.Alive(cam)) return;
             var cp = cam.transform.position;
+            var on = Visible > 0.02f;
+            Tint(_tint);
             foreach (var (q, size) in _quads)
             {
+                if (Interop.Alive(q) && q.gameObject.activeSelf != on) q.gameObject.SetActive(on);
+                if (!on) continue;
                 if (!Interop.Alive(q)) continue;
                 var to = cp - q.position;
                 var d = to.magnitude;

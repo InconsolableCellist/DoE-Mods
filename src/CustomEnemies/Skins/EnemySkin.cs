@@ -39,6 +39,7 @@ namespace CustomEnemies.Skins
         private int _shaderSwaps;
         private bool _reportedShader;
         private bool _dissolving;
+        private float _dissolveMin = 1f, _dissolveMax;
 
         // Measurements
         private readonly Stopwatch _watch = new Stopwatch();
@@ -230,11 +231,21 @@ namespace CustomEnemies.Skins
                 _reportedShader = true;
                 Report.Line($"- `{Who}` skin materials on `{v.shader.name}` (vanilla body's material `{v.name}`)");
             }
+            // How far the game has dissolved the enemy: _Dissolve runs 0 (whole) to 1 (gone). At
+            // spawn the body's material reads 1, and the fade-in brings it down. The glows (eye
+            // halos) are additive quads that don't wear the dissolve shader; they take this
+            // instead, or they hang in the air while the enemy is dissolved out and still moving
+            // (2026-11-19: a minute dissolved, two white points following the player).
+            var amount = 0f;
+            if (dissolving) { try { if (v.HasProperty("_Dissolve")) amount = Mathf.Clamp01(v.GetFloat("_Dissolve")); } catch { } }
+            _model.SetVisible(1f - amount);
+            if (dissolving) { _dissolveMin = Mathf.Min(_dissolveMin, amount); _dissolveMax = Mathf.Max(_dissolveMax, amount); }
             if (dissolving != _dissolving)
             {
                 _dissolving = dissolving;
-                if (dissolving) _dissolves++;
-                if (ModConfig.VerboseLogging.Value) Report.Line($"- `{Who}` {(dissolving ? "dissolving (" + v.shader.name + "); the skin follows" : "done dissolving")}");
+                if (dissolving) { _dissolves++; _dissolveMin = 1f; _dissolveMax = 0f; }
+                if (ModConfig.VerboseLogging.Value)
+                    Report.Line($"- `{Who}` {(dissolving ? "dissolving (" + v.shader.name + "); the skin follows" : $"done dissolving (_Dissolve ran {_dissolveMin:0.00} to {_dissolveMax:0.00})")}");
             }
             if (!dissolving) return;
             try

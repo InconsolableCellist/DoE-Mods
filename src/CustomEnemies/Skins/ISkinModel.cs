@@ -21,5 +21,10 @@ namespace CustomEnemies.Skins
         string Describe();
         /// <summary>Measurements for the report, or null when there is nothing new.</summary>
         string Sample();
+        /// <summary>
+        /// How much of the enemy the game is drawing, 0..1, from its dissolve. The model's game-shader
+        /// materials dissolve with it already; this is for the parts that don't wear that shader (glows).
+        /// </summary>
+        void SetVisible(float visible);
     }
 }
